@@ -1,0 +1,6 @@
+# params/lanelet2_map_publisher.param.yaml
+---
+
+/**:
+   ros__parameters:
+     map_osm_file: "/home/drivingsim/workspace/dfg-car/src/cr2autoware/data/autonomoustuff_parking_lot.osm"
