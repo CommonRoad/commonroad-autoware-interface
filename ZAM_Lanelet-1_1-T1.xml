@@ -1,0 +1,3659 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<commonRoad timeStepSize="0.1" commonRoadVersion="2020a" author="Sebastian Maierhofer" affiliation="Technical University of Munich" source="CommonRoad Scenario Designer" benchmarkID="ZAM_OpenDrive-123" date="2021-12-02">
+  <location>
+    <geoNameId>-999</geoNameId>
+    <gpsLatitude>999</gpsLatitude>
+    <gpsLongitude>999</gpsLongitude>
+  </location>
+  <scenarioTags>
+    <urban/>
+  </scenarioTags>
+  <lanelet id="1">
+    <leftBound>
+      <point>
+        <x>-3930389.5746</x>
+        <y>14518120.7445</y>
+      </point>
+      <point>
+        <x>-3930392.4167</x>
+        <y>14518121.5555</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930387.8434</x>
+        <y>14518126.7697</y>
+      </point>
+      <point>
+        <x>-3930396.6872</x>
+        <y>14518129.2933</y>
+      </point>
+    </rightBound>
+    <predecessor ref="2"/>
+    <successor ref="3"/>
+    <adjacentRight ref="4" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="4">
+    <leftBound>
+      <point>
+        <x>-3930396.6872</x>
+        <y>14518129.2933</y>
+      </point>
+      <point>
+        <x>-3930387.8434</x>
+        <y>14518126.7697</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930392.4167</x>
+        <y>14518121.5555</y>
+      </point>
+      <point>
+        <x>-3930389.5746</x>
+        <y>14518120.7445</y>
+      </point>
+    </rightBound>
+    <successor ref="5"/>
+    <adjacentLeft ref="1" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="6">
+    <leftBound>
+      <point>
+        <x>-3930356.5827</x>
+        <y>14518077.8893</y>
+      </point>
+      <point>
+        <x>-3930352.1776</x>
+        <y>14518081.3062</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930351.2111</x>
+        <y>14518073.9838</y>
+      </point>
+      <point>
+        <x>-3930349.1579</x>
+        <y>14518075.8349</y>
+      </point>
+    </rightBound>
+    <predecessor ref="7"/>
+    <successor ref="8"/>
+    <adjacentLeft ref="9" drivingDir="same"/>
+    <adjacentRight ref="9" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="9">
+    <leftBound>
+      <point>
+        <x>-3930349.1579</x>
+        <y>14518075.8349</y>
+      </point>
+      <point>
+        <x>-3930351.2111</x>
+        <y>14518073.9838</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930352.1776</x>
+        <y>14518081.3062</y>
+      </point>
+      <point>
+        <x>-3930356.5827</x>
+        <y>14518077.8893</y>
+      </point>
+    </rightBound>
+    <successor ref="10"/>
+    <adjacentLeft ref="6" drivingDir="same"/>
+    <adjacentRight ref="6" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="11">
+    <leftBound>
+      <point>
+        <x>-3930296.0204</x>
+        <y>14518054.6318</y>
+      </point>
+      <point>
+        <x>-3930308.4473</x>
+        <y>14518064.4752</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930292.2536</x>
+        <y>14518059.6430</y>
+      </point>
+      <point>
+        <x>-3930305.3127</x>
+        <y>14518069.4924</y>
+      </point>
+    </rightBound>
+    <successor ref="12"/>
+    <adjacentLeft ref="13" drivingDir="same"/>
+    <adjacentRight ref="13" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="13">
+    <leftBound>
+      <point>
+        <x>-3930292.2536</x>
+        <y>14518059.6430</y>
+      </point>
+      <point>
+        <x>-3930305.3127</x>
+        <y>14518069.4924</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930296.0204</x>
+        <y>14518054.6318</y>
+      </point>
+      <point>
+        <x>-3930308.4473</x>
+        <y>14518064.4752</y>
+      </point>
+    </rightBound>
+    <predecessor ref="14"/>
+    <successor ref="15"/>
+    <adjacentLeft ref="11" drivingDir="same"/>
+    <adjacentRight ref="11" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="16">
+    <leftBound>
+      <point>
+        <x>-3930339.6463</x>
+        <y>14518089.6160</y>
+      </point>
+      <point>
+        <x>-3930341.5435</x>
+        <y>14518087.7317</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930334.7340</x>
+        <y>14518085.7013</y>
+      </point>
+      <point>
+        <x>-3930336.3012</x>
+        <y>14518083.8263</y>
+      </point>
+    </rightBound>
+    <predecessor ref="17"/>
+    <predecessor ref="18"/>
+    <adjacentLeft ref="19" drivingDir="same"/>
+    <adjacentRight ref="19" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="19">
+    <leftBound>
+      <point>
+        <x>-3930334.7340</x>
+        <y>14518085.7013</y>
+      </point>
+      <point>
+        <x>-3930336.3012</x>
+        <y>14518083.8263</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930339.6463</x>
+        <y>14518089.6160</y>
+      </point>
+      <point>
+        <x>-3930341.5435</x>
+        <y>14518087.7317</y>
+      </point>
+    </rightBound>
+    <predecessor ref="20"/>
+    <predecessor ref="21"/>
+    <successor ref="22"/>
+    <adjacentLeft ref="16" drivingDir="same"/>
+    <adjacentRight ref="16" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="3">
+    <leftBound>
+      <point>
+        <x>-3930392.4167</x>
+        <y>14518121.5555</y>
+      </point>
+      <point>
+        <x>-3930393.3747</x>
+        <y>14518118.2216</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930396.6872</x>
+        <y>14518129.2933</y>
+      </point>
+      <point>
+        <x>-3930399.3763</x>
+        <y>14518119.9341</y>
+      </point>
+    </rightBound>
+    <predecessor ref="1"/>
+    <successor ref="23"/>
+    <adjacentLeft ref="24" drivingDir="same"/>
+    <adjacentRight ref="24" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="17">
+    <leftBound>
+      <point>
+        <x>-3930330.5651</x>
+        <y>14518090.7025</y>
+      </point>
+      <point>
+        <x>-3930332.4672</x>
+        <y>14518091.5402</y>
+      </point>
+      <point>
+        <x>-3930334.1558</x>
+        <y>14518091.9838</y>
+      </point>
+      <point>
+        <x>-3930335.7311</x>
+        <y>14518092.0834</y>
+      </point>
+      <point>
+        <x>-3930336.9791</x>
+        <y>14518091.4715</y>
+      </point>
+      <point>
+        <x>-3930338.0694</x>
+        <y>14518090.7532</y>
+      </point>
+      <point>
+        <x>-3930339.6463</x>
+        <y>14518089.6160</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930333.9596</x>
+        <y>14518085.8999</y>
+      </point>
+      <point>
+        <x>-3930334.6049</x>
+        <y>14518085.7344</y>
+      </point>
+      <point>
+        <x>-3930334.4758</x>
+        <y>14518085.7675</y>
+      </point>
+      <point>
+        <x>-3930334.3468</x>
+        <y>14518085.8006</y>
+      </point>
+      <point>
+        <x>-3930334.2177</x>
+        <y>14518085.8337</y>
+      </point>
+      <point>
+        <x>-3930334.0886</x>
+        <y>14518085.8668</y>
+      </point>
+      <point>
+        <x>-3930334.7340</x>
+        <y>14518085.7013</y>
+      </point>
+    </rightBound>
+    <predecessor ref="15"/>
+    <successor ref="16"/>
+    <successor ref="25"/>
+    <adjacentLeft ref="20" drivingDir="same"/>
+    <adjacentRight ref="20" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="24">
+    <leftBound>
+      <point>
+        <x>-3930396.6872</x>
+        <y>14518129.2933</y>
+      </point>
+      <point>
+        <x>-3930399.3763</x>
+        <y>14518119.9341</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930392.4167</x>
+        <y>14518121.5555</y>
+      </point>
+      <point>
+        <x>-3930393.3747</x>
+        <y>14518118.2216</y>
+      </point>
+    </rightBound>
+    <adjacentLeft ref="3" drivingDir="same"/>
+    <adjacentRight ref="3" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="20">
+    <leftBound>
+      <point>
+        <x>-3930333.9596</x>
+        <y>14518085.8999</y>
+      </point>
+      <point>
+        <x>-3930334.6049</x>
+        <y>14518085.7344</y>
+      </point>
+      <point>
+        <x>-3930334.4758</x>
+        <y>14518085.7675</y>
+      </point>
+      <point>
+        <x>-3930334.3468</x>
+        <y>14518085.8006</y>
+      </point>
+      <point>
+        <x>-3930334.2177</x>
+        <y>14518085.8337</y>
+      </point>
+      <point>
+        <x>-3930334.0886</x>
+        <y>14518085.8668</y>
+      </point>
+      <point>
+        <x>-3930334.7340</x>
+        <y>14518085.7013</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930330.5651</x>
+        <y>14518090.7025</y>
+      </point>
+      <point>
+        <x>-3930332.4672</x>
+        <y>14518091.5402</y>
+      </point>
+      <point>
+        <x>-3930334.1558</x>
+        <y>14518091.9838</y>
+      </point>
+      <point>
+        <x>-3930335.7311</x>
+        <y>14518092.0834</y>
+      </point>
+      <point>
+        <x>-3930336.9791</x>
+        <y>14518091.4715</y>
+      </point>
+      <point>
+        <x>-3930338.0694</x>
+        <y>14518090.7532</y>
+      </point>
+      <point>
+        <x>-3930339.6463</x>
+        <y>14518089.6160</y>
+      </point>
+    </rightBound>
+    <predecessor ref="12"/>
+    <successor ref="19"/>
+    <successor ref="26"/>
+    <adjacentLeft ref="17" drivingDir="same"/>
+    <adjacentRight ref="17" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="27">
+    <leftBound>
+      <point>
+        <x>-3930335.1134</x>
+        <y>14518094.8574</y>
+      </point>
+      <point>
+        <x>-3930335.4221</x>
+        <y>14518094.7575</y>
+      </point>
+      <point>
+        <x>-3930335.3603</x>
+        <y>14518094.7775</y>
+      </point>
+      <point>
+        <x>-3930335.2986</x>
+        <y>14518094.7975</y>
+      </point>
+      <point>
+        <x>-3930335.2368</x>
+        <y>14518094.8174</y>
+      </point>
+      <point>
+        <x>-3930335.1751</x>
+        <y>14518094.8374</y>
+      </point>
+      <point>
+        <x>-3930335.4838</x>
+        <y>14518094.7375</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930330.6180</x>
+        <y>14518090.7688</y>
+      </point>
+      <point>
+        <x>-3930332.2090</x>
+        <y>14518089.8158</y>
+      </point>
+      <point>
+        <x>-3930333.8674</x>
+        <y>14518089.2699</y>
+      </point>
+      <point>
+        <x>-3930335.3955</x>
+        <y>14518089.1914</y>
+      </point>
+      <point>
+        <x>-3930337.1779</x>
+        <y>14518089.2804</y>
+      </point>
+      <point>
+        <x>-3930338.2165</x>
+        <y>14518089.6322</y>
+      </point>
+      <point>
+        <x>-3930339.2950</x>
+        <y>14518090.2264</y>
+      </point>
+    </rightBound>
+    <predecessor ref="28"/>
+    <predecessor ref="25"/>
+    <predecessor ref="29"/>
+    <successor ref="30"/>
+    <successor ref="21"/>
+    <adjacentLeft ref="31" drivingDir="same"/>
+    <adjacentRight ref="31" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="2">
+    <leftBound>
+      <point>
+        <x>-3930371.7436</x>
+        <y>14518115.6565</y>
+      </point>
+      <point>
+        <x>-3930389.5746</x>
+        <y>14518120.7445</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930370.0125</x>
+        <y>14518121.6816</y>
+      </point>
+      <point>
+        <x>-3930387.8434</x>
+        <y>14518126.7697</y>
+      </point>
+    </rightBound>
+    <predecessor ref="32"/>
+    <successor ref="1"/>
+    <adjacentLeft ref="5" drivingDir="same"/>
+    <adjacentRight ref="5" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="31">
+    <leftBound>
+      <point>
+        <x>-3930339.2950</x>
+        <y>14518090.2264</y>
+      </point>
+      <point>
+        <x>-3930338.2165</x>
+        <y>14518089.6322</y>
+      </point>
+      <point>
+        <x>-3930337.1779</x>
+        <y>14518089.2804</y>
+      </point>
+      <point>
+        <x>-3930335.3955</x>
+        <y>14518089.1914</y>
+      </point>
+      <point>
+        <x>-3930333.8674</x>
+        <y>14518089.2699</y>
+      </point>
+      <point>
+        <x>-3930332.2090</x>
+        <y>14518089.8158</y>
+      </point>
+      <point>
+        <x>-3930330.6180</x>
+        <y>14518090.7688</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930335.4838</x>
+        <y>14518094.7375</y>
+      </point>
+      <point>
+        <x>-3930335.1751</x>
+        <y>14518094.8374</y>
+      </point>
+      <point>
+        <x>-3930335.2368</x>
+        <y>14518094.8174</y>
+      </point>
+      <point>
+        <x>-3930335.2986</x>
+        <y>14518094.7975</y>
+      </point>
+      <point>
+        <x>-3930335.3603</x>
+        <y>14518094.7775</y>
+      </point>
+      <point>
+        <x>-3930335.4221</x>
+        <y>14518094.7575</y>
+      </point>
+      <point>
+        <x>-3930335.1134</x>
+        <y>14518094.8574</y>
+      </point>
+    </rightBound>
+    <predecessor ref="33"/>
+    <successor ref="34"/>
+    <adjacentLeft ref="27" drivingDir="same"/>
+    <adjacentRight ref="27" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="5">
+    <leftBound>
+      <point>
+        <x>-3930387.8434</x>
+        <y>14518126.7697</y>
+      </point>
+      <point>
+        <x>-3930370.0125</x>
+        <y>14518121.6816</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930389.5746</x>
+        <y>14518120.7445</y>
+      </point>
+      <point>
+        <x>-3930371.7436</x>
+        <y>14518115.6565</y>
+      </point>
+    </rightBound>
+    <predecessor ref="4"/>
+    <adjacentLeft ref="2" drivingDir="same"/>
+    <adjacentRight ref="2" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="35">
+    <leftBound>
+      <point>
+        <x>-3930446.6594</x>
+        <y>14517957.2491</y>
+      </point>
+      <point>
+        <x>-3930439.2733</x>
+        <y>14517955.1211</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930445.0793</x>
+        <y>14517963.2314</y>
+      </point>
+      <point>
+        <x>-3930437.5423</x>
+        <y>14517961.1463</y>
+      </point>
+    </rightBound>
+    <predecessor ref="36"/>
+    <predecessor ref="37"/>
+    <adjacentLeft ref="38" drivingDir="same"/>
+    <adjacentRight ref="38" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="38">
+    <leftBound>
+      <point>
+        <x>-3930437.5423</x>
+        <y>14517961.1463</y>
+      </point>
+      <point>
+        <x>-3930445.0793</x>
+        <y>14517963.2314</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930439.2733</x>
+        <y>14517955.1211</y>
+      </point>
+      <point>
+        <x>-3930446.6594</x>
+        <y>14517957.2491</y>
+      </point>
+    </rightBound>
+    <successor ref="39"/>
+    <adjacentLeft ref="35" drivingDir="same"/>
+    <adjacentRight ref="35" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="40">
+    <leftBound>
+      <point>
+        <x>-3930358.7849</x>
+        <y>14518070.2243</y>
+      </point>
+      <point>
+        <x>-3930368.1502</x>
+        <y>14518037.6274</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930352.7833</x>
+        <y>14518068.5118</y>
+      </point>
+      <point>
+        <x>-3930361.7528</x>
+        <y>14518037.2928</y>
+      </point>
+    </rightBound>
+    <predecessor ref="41"/>
+    <successor ref="42"/>
+    <adjacentLeft ref="43" drivingDir="same"/>
+    <adjacentRight ref="43" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="43">
+    <leftBound>
+      <point>
+        <x>-3930361.7528</x>
+        <y>14518037.2928</y>
+      </point>
+      <point>
+        <x>-3930352.7833</x>
+        <y>14518068.5118</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930368.1502</x>
+        <y>14518037.6274</y>
+      </point>
+      <point>
+        <x>-3930358.7849</x>
+        <y>14518070.2243</y>
+      </point>
+    </rightBound>
+    <adjacentLeft ref="40" drivingDir="same"/>
+    <adjacentRight ref="40" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="44">
+    <leftBound>
+      <point>
+        <x>-3930296.0204</x>
+        <y>14518054.6318</y>
+      </point>
+      <point>
+        <x>-3930295.5722</x>
+        <y>14518054.1191</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930292.2536</x>
+        <y>14518059.6430</y>
+      </point>
+      <point>
+        <x>-3930288.3218</x>
+        <y>14518056.8146</y>
+      </point>
+    </rightBound>
+    <adjacentLeft ref="14" drivingDir="same"/>
+    <adjacentRight ref="14" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="14">
+    <leftBound>
+      <point>
+        <x>-3930288.3218</x>
+        <y>14518056.8146</y>
+      </point>
+      <point>
+        <x>-3930292.2536</x>
+        <y>14518059.6430</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930295.5722</x>
+        <y>14518054.1191</y>
+      </point>
+      <point>
+        <x>-3930296.0204</x>
+        <y>14518054.6318</y>
+      </point>
+    </rightBound>
+    <successor ref="13"/>
+    <adjacentLeft ref="44" drivingDir="same"/>
+    <adjacentRight ref="44" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="45">
+    <leftBound>
+      <point>
+        <x>-3930324.0977</x>
+        <y>14517932.9719</y>
+      </point>
+      <point>
+        <x>-3930321.5824</x>
+        <y>14517942.2475</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930329.9168</x>
+        <y>14517934.7446</y>
+      </point>
+      <point>
+        <x>-3930327.4502</x>
+        <y>14517943.9243</y>
+      </point>
+    </rightBound>
+    <adjacentLeft ref="46" drivingDir="same"/>
+    <adjacentRight ref="46" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="46">
+    <leftBound>
+      <point>
+        <x>-3930327.4502</x>
+        <y>14517943.9243</y>
+      </point>
+      <point>
+        <x>-3930329.9168</x>
+        <y>14517934.7446</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930321.5824</x>
+        <y>14517942.2475</y>
+      </point>
+      <point>
+        <x>-3930324.0977</x>
+        <y>14517932.9719</y>
+      </point>
+    </rightBound>
+    <successor ref="47"/>
+    <adjacentLeft ref="45" drivingDir="same"/>
+    <adjacentRight ref="45" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="7">
+    <leftBound>
+      <point>
+        <x>-3930357.5445</x>
+        <y>14518074.5418</y>
+      </point>
+      <point>
+        <x>-3930356.5827</x>
+        <y>14518077.8893</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930351.5429</x>
+        <y>14518072.8293</y>
+      </point>
+      <point>
+        <x>-3930351.2111</x>
+        <y>14518073.9838</y>
+      </point>
+    </rightBound>
+    <successor ref="6"/>
+    <adjacentLeft ref="10" drivingDir="same"/>
+    <adjacentRight ref="10" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="10">
+    <leftBound>
+      <point>
+        <x>-3930351.2111</x>
+        <y>14518073.9838</y>
+      </point>
+      <point>
+        <x>-3930351.5429</x>
+        <y>14518072.8293</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930356.5827</x>
+        <y>14518077.8893</y>
+      </point>
+      <point>
+        <x>-3930357.5445</x>
+        <y>14518074.5418</y>
+      </point>
+    </rightBound>
+    <predecessor ref="9"/>
+    <successor ref="48"/>
+    <adjacentLeft ref="7" drivingDir="same"/>
+    <adjacentRight ref="7" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="49">
+    <leftBound>
+      <point>
+        <x>-3930451.2788</x>
+        <y>14518024.7545</y>
+      </point>
+      <point>
+        <x>-3930442.7059</x>
+        <y>14518022.3084</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930449.5477</x>
+        <y>14518030.7798</y>
+      </point>
+      <point>
+        <x>-3930440.9748</x>
+        <y>14518028.3336</y>
+      </point>
+    </rightBound>
+    <successor ref="50"/>
+    <adjacentLeft ref="51" drivingDir="same"/>
+    <adjacentRight ref="51" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="51">
+    <leftBound>
+      <point>
+        <x>-3930440.9748</x>
+        <y>14518028.3336</y>
+      </point>
+      <point>
+        <x>-3930449.5477</x>
+        <y>14518030.7798</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930442.7059</x>
+        <y>14518022.3084</y>
+      </point>
+      <point>
+        <x>-3930451.2788</x>
+        <y>14518024.7545</y>
+      </point>
+    </rightBound>
+    <adjacentLeft ref="49" drivingDir="same"/>
+    <adjacentRight ref="49" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="50">
+    <leftBound>
+      <point>
+        <x>-3930442.7059</x>
+        <y>14518022.3084</y>
+      </point>
+      <point>
+        <x>-3930435.2607</x>
+        <y>14518020.1840</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930440.9748</x>
+        <y>14518028.3336</y>
+      </point>
+      <point>
+        <x>-3930427.5280</x>
+        <y>14518024.4968</y>
+      </point>
+    </rightBound>
+    <predecessor ref="49"/>
+    <adjacentLeft ref="52" drivingDir="same"/>
+    <adjacentRight ref="52" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="52">
+    <leftBound>
+      <point>
+        <x>-3930440.9748</x>
+        <y>14518028.3336</y>
+      </point>
+      <point>
+        <x>-3930427.5280</x>
+        <y>14518024.4968</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930442.7059</x>
+        <y>14518022.3084</y>
+      </point>
+      <point>
+        <x>-3930435.2607</x>
+        <y>14518020.1840</y>
+      </point>
+    </rightBound>
+    <successor ref="53"/>
+    <adjacentLeft ref="50" drivingDir="same"/>
+    <adjacentRight ref="50" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="54">
+    <leftBound>
+      <point>
+        <x>-3930452.7916</x>
+        <y>14517958.7644</y>
+      </point>
+      <point>
+        <x>-3930455.0383</x>
+        <y>14517951.3440</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930446.9507</x>
+        <y>14517957.1684</y>
+      </point>
+      <point>
+        <x>-3930449.0429</x>
+        <y>14517949.6330</y>
+      </point>
+    </rightBound>
+    <predecessor ref="39"/>
+    <adjacentLeft ref="55" drivingDir="same"/>
+    <adjacentRight ref="55" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="55">
+    <leftBound>
+      <point>
+        <x>-3930446.9507</x>
+        <y>14517957.1684</y>
+      </point>
+      <point>
+        <x>-3930449.0429</x>
+        <y>14517949.6330</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930452.7916</x>
+        <y>14517958.7644</y>
+      </point>
+      <point>
+        <x>-3930455.0383</x>
+        <y>14517951.3440</y>
+      </point>
+    </rightBound>
+    <predecessor ref="56"/>
+    <adjacentLeft ref="54" drivingDir="same"/>
+    <adjacentRight ref="54" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="57">
+    <leftBound>
+      <point>
+        <x>-3930316.6854</x>
+        <y>14517958.5698</y>
+      </point>
+      <point>
+        <x>-3930309.0957</x>
+        <y>14517956.4229</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930314.9717</x>
+        <y>14517964.6210</y>
+      </point>
+      <point>
+        <x>-3930307.4078</x>
+        <y>14517962.5399</y>
+      </point>
+    </rightBound>
+    <successor ref="58"/>
+    <adjacentLeft ref="59" drivingDir="same"/>
+    <adjacentRight ref="59" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="59">
+    <leftBound>
+      <point>
+        <x>-3930314.9712</x>
+        <y>14517964.6205</y>
+      </point>
+      <point>
+        <x>-3930307.4078</x>
+        <y>14517962.5399</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930316.6854</x>
+        <y>14517958.5698</y>
+      </point>
+      <point>
+        <x>-3930309.0957</x>
+        <y>14517956.4229</y>
+      </point>
+    </rightBound>
+    <predecessor ref="60"/>
+    <predecessor ref="61"/>
+    <adjacentLeft ref="57" drivingDir="same"/>
+    <adjacentRight ref="57" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="62">
+    <leftBound>
+      <point>
+        <x>-3930344.2493</x>
+        <y>14518085.7280</y>
+      </point>
+      <point>
+        <x>-3930341.5435</x>
+        <y>14518087.7317</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930341.2296</x>
+        <y>14518080.2566</y>
+      </point>
+      <point>
+        <x>-3930336.3012</x>
+        <y>14518083.8263</y>
+      </point>
+    </rightBound>
+    <predecessor ref="8"/>
+    <adjacentLeft ref="22" drivingDir="same"/>
+    <adjacentRight ref="22" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="22">
+    <leftBound>
+      <point>
+        <x>-3930336.3012</x>
+        <y>14518083.8263</y>
+      </point>
+      <point>
+        <x>-3930341.2296</x>
+        <y>14518080.2566</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930341.5435</x>
+        <y>14518087.7317</y>
+      </point>
+      <point>
+        <x>-3930344.2493</x>
+        <y>14518085.7280</y>
+      </point>
+    </rightBound>
+    <predecessor ref="19"/>
+    <adjacentLeft ref="62" drivingDir="same"/>
+    <adjacentRight ref="62" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="12">
+    <leftBound>
+      <point>
+        <x>-3930308.4473</x>
+        <y>14518064.4752</y>
+      </point>
+      <point>
+        <x>-3930333.9596</x>
+        <y>14518085.8999</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930305.3127</x>
+        <y>14518069.4924</y>
+      </point>
+      <point>
+        <x>-3930330.5651</x>
+        <y>14518090.7025</y>
+      </point>
+    </rightBound>
+    <predecessor ref="11"/>
+    <successor ref="20"/>
+    <successor ref="29"/>
+    <successor ref="33"/>
+    <adjacentLeft ref="15" drivingDir="same"/>
+    <adjacentRight ref="15" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="15">
+    <leftBound>
+      <point>
+        <x>-3930305.3127</x>
+        <y>14518069.4924</y>
+      </point>
+      <point>
+        <x>-3930330.5651</x>
+        <y>14518090.7025</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930308.4473</x>
+        <y>14518064.4752</y>
+      </point>
+      <point>
+        <x>-3930333.9596</x>
+        <y>14518085.8999</y>
+      </point>
+    </rightBound>
+    <predecessor ref="13"/>
+    <successor ref="17"/>
+    <successor ref="63"/>
+    <successor ref="64"/>
+    <adjacentLeft ref="12" drivingDir="same"/>
+    <adjacentRight ref="12" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="65">
+    <leftBound>
+      <point>
+        <x>-3930333.1900</x>
+        <y>14517924.8532</y>
+      </point>
+      <point>
+        <x>-3930340.5461</x>
+        <y>14517926.9520</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930331.4591</x>
+        <y>14517930.8784</y>
+      </point>
+      <point>
+        <x>-3930338.8152</x>
+        <y>14517932.9772</y>
+      </point>
+    </rightBound>
+    <successor ref="66"/>
+    <adjacentLeft ref="67" drivingDir="same"/>
+    <adjacentRight ref="67" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="67">
+    <leftBound>
+      <point>
+        <x>-3930338.8152</x>
+        <y>14517932.9772</y>
+      </point>
+      <point>
+        <x>-3930331.4591</x>
+        <y>14517930.8784</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930340.5461</x>
+        <y>14517926.9520</y>
+      </point>
+      <point>
+        <x>-3930333.1900</x>
+        <y>14517924.8532</y>
+      </point>
+    </rightBound>
+    <predecessor ref="68"/>
+    <adjacentLeft ref="65" drivingDir="same"/>
+    <adjacentRight ref="65" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="69">
+    <leftBound>
+      <point>
+        <x>-3930386.4308</x>
+        <y>14517946.6300</y>
+      </point>
+      <point>
+        <x>-3930364.9774</x>
+        <y>14518021.0546</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930380.7956</x>
+        <y>14517944.9394</y>
+      </point>
+      <point>
+        <x>-3930358.9659</x>
+        <y>14518020.9062</y>
+      </point>
+    </rightBound>
+    <predecessor ref="70"/>
+    <predecessor ref="71"/>
+    <adjacentLeft ref="72" drivingDir="same"/>
+    <adjacentRight ref="72" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="72">
+    <leftBound>
+      <point>
+        <x>-3930380.7956</x>
+        <y>14517944.9394</y>
+      </point>
+      <point>
+        <x>-3930358.9659</x>
+        <y>14518020.9062</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930386.4308</x>
+        <y>14517946.6300</y>
+      </point>
+      <point>
+        <x>-3930364.9774</x>
+        <y>14518021.0546</y>
+      </point>
+    </rightBound>
+    <predecessor ref="73"/>
+    <predecessor ref="74"/>
+    <adjacentLeft ref="69" drivingDir="same"/>
+    <adjacentRight ref="69" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="75">
+    <leftBound>
+      <point>
+        <x>-3930388.4746</x>
+        <y>14517940.6580</y>
+      </point>
+      <point>
+        <x>-3930439.2733</x>
+        <y>14517955.1211</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930386.8355</x>
+        <y>14517946.6293</y>
+      </point>
+      <point>
+        <x>-3930437.5423</x>
+        <y>14517961.1463</y>
+      </point>
+    </rightBound>
+    <predecessor ref="76"/>
+    <adjacentLeft ref="77" drivingDir="same"/>
+    <adjacentRight ref="77" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="77">
+    <leftBound>
+      <point>
+        <x>-3930437.5423</x>
+        <y>14517961.1463</y>
+      </point>
+      <point>
+        <x>-3930386.8355</x>
+        <y>14517946.6293</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930439.2733</x>
+        <y>14517955.1211</y>
+      </point>
+      <point>
+        <x>-3930388.4746</x>
+        <y>14517940.6580</y>
+      </point>
+    </rightBound>
+    <successor ref="70"/>
+    <adjacentLeft ref="75" drivingDir="same"/>
+    <adjacentRight ref="75" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="78">
+    <leftBound>
+      <point>
+        <x>-3930321.0111</x>
+        <y>14517966.2602</y>
+      </point>
+      <point>
+        <x>-3930295.5722</x>
+        <y>14518054.1191</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930315.0974</x>
+        <y>14517965.0105</y>
+      </point>
+      <point>
+        <x>-3930288.3218</x>
+        <y>14518056.8146</y>
+      </point>
+    </rightBound>
+    <predecessor ref="79"/>
+    <predecessor ref="80"/>
+    <adjacentLeft ref="81" drivingDir="same"/>
+    <adjacentRight ref="81" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="81">
+    <leftBound>
+      <point>
+        <x>-3930288.3218</x>
+        <y>14518056.8146</y>
+      </point>
+      <point>
+        <x>-3930315.0974</x>
+        <y>14517965.0105</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930295.5722</x>
+        <y>14518054.1191</y>
+      </point>
+      <point>
+        <x>-3930321.0111</x>
+        <y>14517966.2602</y>
+      </point>
+    </rightBound>
+    <successor ref="61"/>
+    <adjacentLeft ref="78" drivingDir="same"/>
+    <adjacentRight ref="78" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="66">
+    <leftBound>
+      <point>
+        <x>-3930340.5461</x>
+        <y>14517926.9520</y>
+      </point>
+      <point>
+        <x>-3930366.7801</x>
+        <y>14517934.4371</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930338.8152</x>
+        <y>14517932.9772</y>
+      </point>
+      <point>
+        <x>-3930365.0491</x>
+        <y>14517940.4623</y>
+      </point>
+    </rightBound>
+    <predecessor ref="65"/>
+    <successor ref="82"/>
+    <adjacentLeft ref="68" drivingDir="same"/>
+    <adjacentRight ref="68" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="68">
+    <leftBound>
+      <point>
+        <x>-3930365.0491</x>
+        <y>14517940.4623</y>
+      </point>
+      <point>
+        <x>-3930338.8152</x>
+        <y>14517932.9772</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930366.7801</x>
+        <y>14517934.4371</y>
+      </point>
+      <point>
+        <x>-3930340.5461</x>
+        <y>14517926.9520</y>
+      </point>
+    </rightBound>
+    <predecessor ref="83"/>
+    <successor ref="67"/>
+    <adjacentLeft ref="66" drivingDir="same"/>
+    <adjacentRight ref="66" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="23">
+    <leftBound>
+      <point>
+        <x>-3930393.3747</x>
+        <y>14518118.2216</y>
+      </point>
+      <point>
+        <x>-3930394.2376</x>
+        <y>14518115.2181</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930399.3763</x>
+        <y>14518119.9341</y>
+      </point>
+      <point>
+        <x>-3930400.2392</x>
+        <y>14518116.9307</y>
+      </point>
+    </rightBound>
+    <predecessor ref="3"/>
+    <adjacentRight ref="84" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="84">
+    <leftBound>
+      <point>
+        <x>-3930400.2392</x>
+        <y>14518116.9307</y>
+      </point>
+      <point>
+        <x>-3930399.3763</x>
+        <y>14518119.9341</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930394.2376</x>
+        <y>14518115.2181</y>
+      </point>
+      <point>
+        <x>-3930393.3747</x>
+        <y>14518118.2216</y>
+      </point>
+    </rightBound>
+    <adjacentLeft ref="23" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="28">
+    <leftBound>
+      <point>
+        <x>-3930329.5046</x>
+        <y>14518101.3427</y>
+      </point>
+      <point>
+        <x>-3930335.1134</x>
+        <y>14518094.8574</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930325.1803</x>
+        <y>14518097.2072</y>
+      </point>
+      <point>
+        <x>-3930330.6180</x>
+        <y>14518090.7688</y>
+      </point>
+    </rightBound>
+    <successor ref="27"/>
+    <adjacentLeft ref="34" drivingDir="same"/>
+    <adjacentRight ref="34" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="34">
+    <leftBound>
+      <point>
+        <x>-3930330.6180</x>
+        <y>14518090.7688</y>
+      </point>
+      <point>
+        <x>-3930325.1803</x>
+        <y>14518097.2072</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930335.1134</x>
+        <y>14518094.8574</y>
+      </point>
+      <point>
+        <x>-3930329.5046</x>
+        <y>14518101.3427</y>
+      </point>
+    </rightBound>
+    <predecessor ref="31"/>
+    <predecessor ref="63"/>
+    <predecessor ref="26"/>
+    <adjacentLeft ref="28" drivingDir="same"/>
+    <adjacentRight ref="28" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="8">
+    <leftBound>
+      <point>
+        <x>-3930352.1776</x>
+        <y>14518081.3062</y>
+      </point>
+      <point>
+        <x>-3930344.2493</x>
+        <y>14518085.7280</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930349.1579</x>
+        <y>14518075.8349</y>
+      </point>
+      <point>
+        <x>-3930341.2296</x>
+        <y>14518080.2566</y>
+      </point>
+    </rightBound>
+    <predecessor ref="6"/>
+    <successor ref="62"/>
+    <adjacentLeft ref="85" drivingDir="same"/>
+    <adjacentRight ref="85" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="85">
+    <leftBound>
+      <point>
+        <x>-3930349.1579</x>
+        <y>14518075.8349</y>
+      </point>
+      <point>
+        <x>-3930341.2296</x>
+        <y>14518080.2566</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930352.1776</x>
+        <y>14518081.3062</y>
+      </point>
+      <point>
+        <x>-3930344.2493</x>
+        <y>14518085.7280</y>
+      </point>
+    </rightBound>
+    <adjacentLeft ref="8" drivingDir="same"/>
+    <adjacentRight ref="8" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="86">
+    <leftBound>
+      <point>
+        <x>-3930327.4502</x>
+        <y>14517943.9243</y>
+      </point>
+      <point>
+        <x>-3930322.7189</x>
+        <y>14517960.2783</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930321.5824</x>
+        <y>14517942.2475</y>
+      </point>
+      <point>
+        <x>-3930316.8430</x>
+        <y>14517958.4956</y>
+      </point>
+    </rightBound>
+    <successor ref="60"/>
+    <successor ref="79"/>
+    <adjacentLeft ref="87" drivingDir="same"/>
+    <adjacentRight ref="87" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="60">
+    <leftBound>
+      <point>
+        <x>-3930322.7189</x>
+        <y>14517960.2783</y>
+      </point>
+      <point>
+        <x>-3930320.4693</x>
+        <y>14517962.8599</y>
+      </point>
+      <point>
+        <x>-3930319.1047</x>
+        <y>14517963.7767</y>
+      </point>
+      <point>
+        <x>-3930317.7196</x>
+        <y>14517964.6667</y>
+      </point>
+      <point>
+        <x>-3930316.6997</x>
+        <y>14517964.7223</y>
+      </point>
+      <point>
+        <x>-3930315.7659</x>
+        <y>14517964.7343</y>
+      </point>
+      <point>
+        <x>-3930314.9712</x>
+        <y>14517964.6205</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930316.8430</x>
+        <y>14517958.4956</y>
+      </point>
+      <point>
+        <x>-3930316.7117</x>
+        <y>14517958.5574</y>
+      </point>
+      <point>
+        <x>-3930316.7380</x>
+        <y>14517958.5451</y>
+      </point>
+      <point>
+        <x>-3930316.7642</x>
+        <y>14517958.5327</y>
+      </point>
+      <point>
+        <x>-3930316.7905</x>
+        <y>14517958.5203</y>
+      </point>
+      <point>
+        <x>-3930316.8168</x>
+        <y>14517958.5080</y>
+      </point>
+      <point>
+        <x>-3930316.6854</x>
+        <y>14517958.5698</y>
+      </point>
+    </rightBound>
+    <predecessor ref="86"/>
+    <successor ref="59"/>
+    <adjacentRight ref="88" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="79">
+    <leftBound>
+      <point>
+        <x>-3930322.7189</x>
+        <y>14517960.2783</y>
+      </point>
+      <point>
+        <x>-3930321.0111</x>
+        <y>14517966.2602</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930316.8430</x>
+        <y>14517958.4956</y>
+      </point>
+      <point>
+        <x>-3930315.0974</x>
+        <y>14517965.0105</y>
+      </point>
+    </rightBound>
+    <predecessor ref="86"/>
+    <successor ref="78"/>
+    <adjacentLeft ref="89" drivingDir="same"/>
+    <adjacentRight ref="89" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="87">
+    <leftBound>
+      <point>
+        <x>-3930316.8430</x>
+        <y>14517958.4956</y>
+      </point>
+      <point>
+        <x>-3930321.5824</x>
+        <y>14517942.2475</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930322.7189</x>
+        <y>14517960.2783</y>
+      </point>
+      <point>
+        <x>-3930327.4502</x>
+        <y>14517943.9243</y>
+      </point>
+    </rightBound>
+    <predecessor ref="88"/>
+    <adjacentLeft ref="86" drivingDir="same"/>
+    <adjacentRight ref="86" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="42">
+    <leftBound>
+      <point>
+        <x>-3930368.1502</x>
+        <y>14518037.6274</y>
+      </point>
+      <point>
+        <x>-3930364.9774</x>
+        <y>14518021.0546</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930361.7528</x>
+        <y>14518037.2928</y>
+      </point>
+      <point>
+        <x>-3930358.9659</x>
+        <y>14518020.9062</y>
+      </point>
+    </rightBound>
+    <predecessor ref="40"/>
+    <adjacentLeft ref="90" drivingDir="same"/>
+    <adjacentRight ref="90" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="90">
+    <leftBound>
+      <point>
+        <x>-3930361.7528</x>
+        <y>14518037.2928</y>
+      </point>
+      <point>
+        <x>-3930358.9659</x>
+        <y>14518020.9062</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930368.1502</x>
+        <y>14518037.6274</y>
+      </point>
+      <point>
+        <x>-3930364.9774</x>
+        <y>14518021.0546</y>
+      </point>
+    </rightBound>
+    <adjacentLeft ref="42" drivingDir="same"/>
+    <adjacentRight ref="42" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="91">
+    <leftBound>
+      <point>
+        <x>-3930451.0443</x>
+        <y>14517964.8308</y>
+      </point>
+      <point>
+        <x>-3930435.2607</x>
+        <y>14518020.1840</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930445.1300</x>
+        <y>14517963.3575</y>
+      </point>
+      <point>
+        <x>-3930427.5280</x>
+        <y>14518024.4968</y>
+      </point>
+    </rightBound>
+    <predecessor ref="92"/>
+    <adjacentLeft ref="53" drivingDir="same"/>
+    <adjacentRight ref="53" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="53">
+    <leftBound>
+      <point>
+        <x>-3930427.5280</x>
+        <y>14518024.4968</y>
+      </point>
+      <point>
+        <x>-3930445.1300</x>
+        <y>14517963.3575</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930435.2607</x>
+        <y>14518020.1840</y>
+      </point>
+      <point>
+        <x>-3930451.0443</x>
+        <y>14517964.8308</y>
+      </point>
+    </rightBound>
+    <predecessor ref="52"/>
+    <successor ref="56"/>
+    <successor ref="93"/>
+    <adjacentLeft ref="91" drivingDir="same"/>
+    <adjacentRight ref="91" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="41">
+    <leftBound>
+      <point>
+        <x>-3930357.5445</x>
+        <y>14518074.5418</y>
+      </point>
+      <point>
+        <x>-3930358.7849</x>
+        <y>14518070.2243</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930351.5429</x>
+        <y>14518072.8293</y>
+      </point>
+      <point>
+        <x>-3930352.7833</x>
+        <y>14518068.5118</y>
+      </point>
+    </rightBound>
+    <successor ref="40"/>
+    <adjacentLeft ref="48" drivingDir="same"/>
+    <adjacentRight ref="48" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="48">
+    <leftBound>
+      <point>
+        <x>-3930351.5429</x>
+        <y>14518072.8293</y>
+      </point>
+      <point>
+        <x>-3930352.7833</x>
+        <y>14518068.5118</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930357.5445</x>
+        <y>14518074.5418</y>
+      </point>
+      <point>
+        <x>-3930358.7849</x>
+        <y>14518070.2243</y>
+      </point>
+    </rightBound>
+    <predecessor ref="10"/>
+    <adjacentLeft ref="41" drivingDir="same"/>
+    <adjacentRight ref="41" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="94">
+    <leftBound>
+      <point>
+        <x>-3930333.1900</x>
+        <y>14517924.8532</y>
+      </point>
+      <point>
+        <x>-3930326.9133</x>
+        <y>14517923.0623</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930331.4591</x>
+        <y>14517930.8784</y>
+      </point>
+      <point>
+        <x>-3930331.0797</x>
+        <y>14517930.7734</y>
+      </point>
+    </rightBound>
+    <adjacentLeft ref="95" drivingDir="same"/>
+    <adjacentRight ref="95" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="95">
+    <leftBound>
+      <point>
+        <x>-3930331.0797</x>
+        <y>14517930.7734</y>
+      </point>
+      <point>
+        <x>-3930331.4591</x>
+        <y>14517930.8784</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930326.9133</x>
+        <y>14517923.0623</y>
+      </point>
+      <point>
+        <x>-3930333.1900</x>
+        <y>14517924.8532</y>
+      </point>
+    </rightBound>
+    <adjacentLeft ref="94" drivingDir="same"/>
+    <adjacentRight ref="94" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="96">
+    <leftBound>
+      <point>
+        <x>-3930325.3291</x>
+        <y>14517928.5967</y>
+      </point>
+      <point>
+        <x>-3930326.9133</x>
+        <y>14517923.0623</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930330.9328</x>
+        <y>14517931.1829</y>
+      </point>
+      <point>
+        <x>-3930331.0797</x>
+        <y>14517930.7734</y>
+      </point>
+    </rightBound>
+    <predecessor ref="97"/>
+    <adjacentLeft ref="98" drivingDir="same"/>
+    <adjacentRight ref="98" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="98">
+    <leftBound>
+      <point>
+        <x>-3930331.0797</x>
+        <y>14517930.7734</y>
+      </point>
+      <point>
+        <x>-3930330.9328</x>
+        <y>14517931.1829</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930326.9133</x>
+        <y>14517923.0623</y>
+      </point>
+      <point>
+        <x>-3930325.3291</x>
+        <y>14517928.5967</y>
+      </point>
+    </rightBound>
+    <adjacentLeft ref="96" drivingDir="same"/>
+    <adjacentRight ref="96" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="99">
+    <leftBound>
+      <point>
+        <x>-3930339.2950</x>
+        <y>14518090.2264</y>
+      </point>
+      <point>
+        <x>-3930368.0390</x>
+        <y>14518114.2714</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930335.4838</x>
+        <y>14518094.7375</y>
+      </point>
+      <point>
+        <x>-3930364.1534</x>
+        <y>14518118.9332</y>
+      </point>
+    </rightBound>
+    <predecessor ref="33"/>
+    <successor ref="32"/>
+    <adjacentLeft ref="30" drivingDir="same"/>
+    <adjacentRight ref="30" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="30">
+    <leftBound>
+      <point>
+        <x>-3930335.4838</x>
+        <y>14518094.7375</y>
+      </point>
+      <point>
+        <x>-3930364.1534</x>
+        <y>14518118.9332</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930339.2950</x>
+        <y>14518090.2264</y>
+      </point>
+      <point>
+        <x>-3930368.0390</x>
+        <y>14518114.2714</y>
+      </point>
+    </rightBound>
+    <predecessor ref="27"/>
+    <predecessor ref="64"/>
+    <successor ref="100"/>
+    <adjacentLeft ref="99" drivingDir="same"/>
+    <adjacentRight ref="99" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="58">
+    <leftBound>
+      <point>
+        <x>-3930309.0957</x>
+        <y>14517956.4229</y>
+      </point>
+      <point>
+        <x>-3930301.5302</x>
+        <y>14517954.4218</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930307.4078</x>
+        <y>14517962.5399</y>
+      </point>
+      <point>
+        <x>-3930299.7858</x>
+        <y>14517960.3652</y>
+      </point>
+    </rightBound>
+    <predecessor ref="57"/>
+    <adjacentLeft ref="101" drivingDir="same"/>
+    <adjacentRight ref="101" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="101">
+    <leftBound>
+      <point>
+        <x>-3930299.7858</x>
+        <y>14517960.3652</y>
+      </point>
+      <point>
+        <x>-3930307.4078</x>
+        <y>14517962.5399</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930301.5302</x>
+        <y>14517954.4218</y>
+      </point>
+      <point>
+        <x>-3930309.0957</x>
+        <y>14517956.4229</y>
+      </point>
+    </rightBound>
+    <adjacentLeft ref="58" drivingDir="same"/>
+    <adjacentRight ref="58" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="32">
+    <leftBound>
+      <point>
+        <x>-3930368.0390</x>
+        <y>14518114.2714</y>
+      </point>
+      <point>
+        <x>-3930371.7436</x>
+        <y>14518115.6565</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930364.1534</x>
+        <y>14518118.9332</y>
+      </point>
+      <point>
+        <x>-3930370.0125</x>
+        <y>14518121.6816</y>
+      </point>
+    </rightBound>
+    <predecessor ref="99"/>
+    <successor ref="2"/>
+    <adjacentLeft ref="100" drivingDir="same"/>
+    <adjacentRight ref="100" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="100">
+    <leftBound>
+      <point>
+        <x>-3930364.1534</x>
+        <y>14518118.9332</y>
+      </point>
+      <point>
+        <x>-3930370.0125</x>
+        <y>14518121.6816</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930368.0390</x>
+        <y>14518114.2714</y>
+      </point>
+      <point>
+        <x>-3930371.7436</x>
+        <y>14518115.6565</y>
+      </point>
+    </rightBound>
+    <predecessor ref="30"/>
+    <adjacentLeft ref="32" drivingDir="same"/>
+    <adjacentRight ref="32" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="82">
+    <leftBound>
+      <point>
+        <x>-3930366.7801</x>
+        <y>14517934.4371</y>
+      </point>
+      <point>
+        <x>-3930382.4498</x>
+        <y>14517938.9107</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930365.0491</x>
+        <y>14517940.4623</y>
+      </point>
+      <point>
+        <x>-3930380.7389</x>
+        <y>14517944.8565</y>
+      </point>
+    </rightBound>
+    <predecessor ref="66"/>
+    <successor ref="76"/>
+    <successor ref="71"/>
+    <adjacentLeft ref="83" drivingDir="same"/>
+    <adjacentRight ref="83" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="83">
+    <leftBound>
+      <point>
+        <x>-3930380.7389</x>
+        <y>14517944.8565</y>
+      </point>
+      <point>
+        <x>-3930365.0491</x>
+        <y>14517940.4623</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930382.4498</x>
+        <y>14517938.9107</y>
+      </point>
+      <point>
+        <x>-3930366.7801</x>
+        <y>14517934.4371</y>
+      </point>
+    </rightBound>
+    <successor ref="68"/>
+    <adjacentLeft ref="82" drivingDir="same"/>
+    <adjacentRight ref="82" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="92">
+    <leftBound>
+      <point>
+        <x>-3930452.7916</x>
+        <y>14517958.7644</y>
+      </point>
+      <point>
+        <x>-3930451.0443</x>
+        <y>14517964.8308</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930446.9507</x>
+        <y>14517957.1684</y>
+      </point>
+      <point>
+        <x>-3930445.1300</x>
+        <y>14517963.3575</y>
+      </point>
+    </rightBound>
+    <predecessor ref="39"/>
+    <successor ref="91"/>
+    <successor ref="36"/>
+    <adjacentLeft ref="56" drivingDir="same"/>
+    <adjacentRight ref="56" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="70">
+    <leftBound>
+      <point>
+        <x>-3930386.8355</x>
+        <y>14517946.6293</y>
+      </point>
+      <point>
+        <x>-3930386.6643</x>
+        <y>14517946.6073</y>
+      </point>
+      <point>
+        <x>-3930386.7071</x>
+        <y>14517946.6128</y>
+      </point>
+      <point>
+        <x>-3930386.7499</x>
+        <y>14517946.6183</y>
+      </point>
+      <point>
+        <x>-3930386.7927</x>
+        <y>14517946.6238</y>
+      </point>
+      <point>
+        <x>-3930386.6215</x>
+        <y>14517946.6018</y>
+      </point>
+      <point>
+        <x>-3930386.4308</x>
+        <y>14517946.6300</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930388.4746</x>
+        <y>14517940.6580</y>
+      </point>
+      <point>
+        <x>-3930386.0745</x>
+        <y>14517940.3922</y>
+      </point>
+      <point>
+        <x>-3930384.3533</x>
+        <y>14517940.5376</y>
+      </point>
+      <point>
+        <x>-3930382.9510</x>
+        <y>14517941.0771</y>
+      </point>
+      <point>
+        <x>-3930382.0335</x>
+        <y>14517941.8078</y>
+      </point>
+      <point>
+        <x>-3930381.2480</x>
+        <y>14517943.3346</y>
+      </point>
+      <point>
+        <x>-3930380.7956</x>
+        <y>14517944.9394</y>
+      </point>
+    </rightBound>
+    <predecessor ref="77"/>
+    <predecessor ref="102"/>
+    <successor ref="69"/>
+    <adjacentLeft ref="73" drivingDir="same"/>
+    <adjacentRight ref="73" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="56">
+    <leftBound>
+      <point>
+        <x>-3930445.1300</x>
+        <y>14517963.3575</y>
+      </point>
+      <point>
+        <x>-3930446.9507</x>
+        <y>14517957.1684</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930451.0443</x>
+        <y>14517964.8308</y>
+      </point>
+      <point>
+        <x>-3930452.7916</x>
+        <y>14517958.7644</y>
+      </point>
+    </rightBound>
+    <predecessor ref="53"/>
+    <successor ref="55"/>
+    <successor ref="37"/>
+    <adjacentLeft ref="92" drivingDir="same"/>
+    <adjacentRight ref="92" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="18">
+    <leftBound>
+      <point>
+        <x>-3930339.2950</x>
+        <y>14518090.2264</y>
+      </point>
+      <point>
+        <x>-3930339.3553</x>
+        <y>14518089.9820</y>
+      </point>
+      <point>
+        <x>-3930339.3403</x>
+        <y>14518090.0431</y>
+      </point>
+      <point>
+        <x>-3930339.3252</x>
+        <y>14518090.1042</y>
+      </point>
+      <point>
+        <x>-3930339.3101</x>
+        <y>14518090.1653</y>
+      </point>
+      <point>
+        <x>-3930339.3704</x>
+        <y>14518089.9209</y>
+      </point>
+      <point>
+        <x>-3930339.6463</x>
+        <y>14518089.6160</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930335.4838</x>
+        <y>14518094.7375</y>
+      </point>
+      <point>
+        <x>-3930334.3869</x>
+        <y>14518093.3343</y>
+      </point>
+      <point>
+        <x>-3930333.5860</x>
+        <y>14518091.9253</y>
+      </point>
+      <point>
+        <x>-3930333.1398</x>
+        <y>14518090.4839</y>
+      </point>
+      <point>
+        <x>-3930333.3340</x>
+        <y>14518088.9828</y>
+      </point>
+      <point>
+        <x>-3930333.8828</x>
+        <y>14518087.4515</y>
+      </point>
+      <point>
+        <x>-3930334.7340</x>
+        <y>14518085.7013</y>
+      </point>
+    </rightBound>
+    <predecessor ref="33"/>
+    <successor ref="16"/>
+    <successor ref="25"/>
+    <adjacentLeft ref="21" drivingDir="same"/>
+    <adjacentRight ref="21" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="63">
+    <leftBound>
+      <point>
+        <x>-3930330.5651</x>
+        <y>14518090.7025</y>
+      </point>
+      <point>
+        <x>-3930330.6092</x>
+        <y>14518090.7577</y>
+      </point>
+      <point>
+        <x>-3930330.6004</x>
+        <y>14518090.7467</y>
+      </point>
+      <point>
+        <x>-3930330.5916</x>
+        <y>14518090.7356</y>
+      </point>
+      <point>
+        <x>-3930330.5827</x>
+        <y>14518090.7246</y>
+      </point>
+      <point>
+        <x>-3930330.5739</x>
+        <y>14518090.7135</y>
+      </point>
+      <point>
+        <x>-3930330.6180</x>
+        <y>14518090.7688</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930333.9596</x>
+        <y>14518085.8999</y>
+      </point>
+      <point>
+        <x>-3930335.5527</x>
+        <y>14518087.3012</y>
+      </point>
+      <point>
+        <x>-3930336.3536</x>
+        <y>14518088.7108</y>
+      </point>
+      <point>
+        <x>-3930336.8001</x>
+        <y>14518090.1524</y>
+      </point>
+      <point>
+        <x>-3930336.6050</x>
+        <y>14518091.6519</y>
+      </point>
+      <point>
+        <x>-3930336.0566</x>
+        <y>14518093.1831</y>
+      </point>
+      <point>
+        <x>-3930335.1134</x>
+        <y>14518094.8574</y>
+      </point>
+    </rightBound>
+    <predecessor ref="15"/>
+    <successor ref="34"/>
+    <adjacentLeft ref="29" drivingDir="same"/>
+    <adjacentRight ref="29" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="21">
+    <leftBound>
+      <point>
+        <x>-3930335.4838</x>
+        <y>14518094.7375</y>
+      </point>
+      <point>
+        <x>-3930334.3869</x>
+        <y>14518093.3343</y>
+      </point>
+      <point>
+        <x>-3930333.5868</x>
+        <y>14518091.9237</y>
+      </point>
+      <point>
+        <x>-3930333.1398</x>
+        <y>14518090.4839</y>
+      </point>
+      <point>
+        <x>-3930333.3340</x>
+        <y>14518088.9828</y>
+      </point>
+      <point>
+        <x>-3930333.8828</x>
+        <y>14518087.4515</y>
+      </point>
+      <point>
+        <x>-3930334.7340</x>
+        <y>14518085.7013</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930339.2950</x>
+        <y>14518090.2264</y>
+      </point>
+      <point>
+        <x>-3930339.3553</x>
+        <y>14518089.9820</y>
+      </point>
+      <point>
+        <x>-3930339.3403</x>
+        <y>14518090.0431</y>
+      </point>
+      <point>
+        <x>-3930339.3252</x>
+        <y>14518090.1042</y>
+      </point>
+      <point>
+        <x>-3930339.3101</x>
+        <y>14518090.1653</y>
+      </point>
+      <point>
+        <x>-3930339.3704</x>
+        <y>14518089.9209</y>
+      </point>
+      <point>
+        <x>-3930339.6463</x>
+        <y>14518089.6160</y>
+      </point>
+    </rightBound>
+    <predecessor ref="27"/>
+    <predecessor ref="64"/>
+    <successor ref="19"/>
+    <successor ref="26"/>
+    <adjacentLeft ref="18" drivingDir="same"/>
+    <adjacentRight ref="18" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="26">
+    <leftBound>
+      <point>
+        <x>-3930334.7340</x>
+        <y>14518085.7013</y>
+      </point>
+      <point>
+        <x>-3930330.6180</x>
+        <y>14518090.7688</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930339.6463</x>
+        <y>14518089.6160</y>
+      </point>
+      <point>
+        <x>-3930335.1134</x>
+        <y>14518094.8574</y>
+      </point>
+    </rightBound>
+    <predecessor ref="21"/>
+    <predecessor ref="20"/>
+    <successor ref="34"/>
+    <adjacentLeft ref="25" drivingDir="same"/>
+    <adjacentRight ref="25" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="102">
+    <leftBound>
+      <point>
+        <x>-3930380.7389</x>
+        <y>14517944.8565</y>
+      </point>
+      <point>
+        <x>-3930386.8355</x>
+        <y>14517946.6293</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930382.4498</x>
+        <y>14517938.9107</y>
+      </point>
+      <point>
+        <x>-3930388.4746</x>
+        <y>14517940.6580</y>
+      </point>
+    </rightBound>
+    <successor ref="70"/>
+    <adjacentLeft ref="76" drivingDir="same"/>
+    <adjacentRight ref="76" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="47">
+    <leftBound>
+      <point>
+        <x>-3930329.9168</x>
+        <y>14517934.7446</y>
+      </point>
+      <point>
+        <x>-3930330.0878</x>
+        <y>14517933.9323</y>
+      </point>
+      <point>
+        <x>-3930330.4134</x>
+        <y>14517932.8553</y>
+      </point>
+      <point>
+        <x>-3930330.9328</x>
+        <y>14517931.1829</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930324.0977</x>
+        <y>14517932.9719</y>
+      </point>
+      <point>
+        <x>-3930324.9186</x>
+        <y>14517930.0551</y>
+      </point>
+      <point>
+        <x>-3930324.5081</x>
+        <y>14517931.5135</y>
+      </point>
+      <point>
+        <x>-3930325.3291</x>
+        <y>14517928.5967</y>
+      </point>
+    </rightBound>
+    <predecessor ref="46"/>
+    <adjacentLeft ref="97" drivingDir="same"/>
+    <adjacentRight ref="97" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="76">
+    <leftBound>
+      <point>
+        <x>-3930382.4498</x>
+        <y>14517938.9107</y>
+      </point>
+      <point>
+        <x>-3930388.4746</x>
+        <y>14517940.6580</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930380.7389</x>
+        <y>14517944.8565</y>
+      </point>
+      <point>
+        <x>-3930386.8355</x>
+        <y>14517946.6293</y>
+      </point>
+    </rightBound>
+    <predecessor ref="82"/>
+    <successor ref="75"/>
+    <successor ref="73"/>
+    <adjacentLeft ref="102" drivingDir="same"/>
+    <adjacentRight ref="102" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="64">
+    <leftBound>
+      <point>
+        <x>-3930330.5651</x>
+        <y>14518090.7025</y>
+      </point>
+      <point>
+        <x>-3930335.4838</x>
+        <y>14518094.7375</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930333.9596</x>
+        <y>14518085.8999</y>
+      </point>
+      <point>
+        <x>-3930339.2950</x>
+        <y>14518090.2264</y>
+      </point>
+    </rightBound>
+    <predecessor ref="15"/>
+    <successor ref="21"/>
+    <successor ref="30"/>
+    <adjacentLeft ref="33" drivingDir="same"/>
+    <adjacentRight ref="33" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="36">
+    <leftBound>
+      <point>
+        <x>-3930451.0443</x>
+        <y>14517964.8308</y>
+      </point>
+      <point>
+        <x>-3930451.1341</x>
+        <y>14517963.3195</y>
+      </point>
+      <point>
+        <x>-3930451.0647</x>
+        <y>14517961.5978</y>
+      </point>
+      <point>
+        <x>-3930450.6241</x>
+        <y>14517960.1156</y>
+      </point>
+      <point>
+        <x>-3930449.6056</x>
+        <y>14517959.1238</y>
+      </point>
+      <point>
+        <x>-3930448.2640</x>
+        <y>14517957.8941</y>
+      </point>
+      <point>
+        <x>-3930446.6594</x>
+        <y>14517957.2491</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930445.1300</x>
+        <y>14517963.3575</y>
+      </point>
+      <point>
+        <x>-3930445.0926</x>
+        <y>14517963.2524</y>
+      </point>
+      <point>
+        <x>-3930445.0819</x>
+        <y>14517963.2356</y>
+      </point>
+      <point>
+        <x>-3930445.0846</x>
+        <y>14517963.2398</y>
+      </point>
+      <point>
+        <x>-3930445.0873</x>
+        <y>14517963.2440</y>
+      </point>
+      <point>
+        <x>-3930445.0899</x>
+        <y>14517963.2482</y>
+      </point>
+      <point>
+        <x>-3930445.0793</x>
+        <y>14517963.2314</y>
+      </point>
+    </rightBound>
+    <predecessor ref="92"/>
+    <successor ref="35"/>
+    <adjacentLeft ref="93" drivingDir="same"/>
+    <adjacentRight ref="93" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="80">
+    <leftBound>
+      <point>
+        <x>-3930316.6854</x>
+        <y>14517958.5698</y>
+      </point>
+      <point>
+        <x>-3930318.2023</x>
+        <y>14517959.4252</y>
+      </point>
+      <point>
+        <x>-3930319.4575</x>
+        <y>14517960.3650</y>
+      </point>
+      <point>
+        <x>-3930320.4488</x>
+        <y>14517961.5660</y>
+      </point>
+      <point>
+        <x>-3930320.8791</x>
+        <y>14517963.0126</y>
+      </point>
+      <point>
+        <x>-3930320.9901</x>
+        <y>14517964.5213</y>
+      </point>
+      <point>
+        <x>-3930321.0111</x>
+        <y>14517966.2602</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930314.9717</x>
+        <y>14517964.6210</y>
+      </point>
+      <point>
+        <x>-3930315.0764</x>
+        <y>14517964.9456</y>
+      </point>
+      <point>
+        <x>-3930315.0555</x>
+        <y>14517964.8807</y>
+      </point>
+      <point>
+        <x>-3930315.0345</x>
+        <y>14517964.8157</y>
+      </point>
+      <point>
+        <x>-3930315.0136</x>
+        <y>14517964.7508</y>
+      </point>
+      <point>
+        <x>-3930314.9926</x>
+        <y>14517964.6859</y>
+      </point>
+      <point>
+        <x>-3930315.0974</x>
+        <y>14517965.0105</y>
+      </point>
+    </rightBound>
+    <successor ref="78"/>
+    <adjacentLeft ref="61" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="39">
+    <leftBound>
+      <point>
+        <x>-3930445.0793</x>
+        <y>14517963.2314</y>
+      </point>
+      <point>
+        <x>-3930446.4537</x>
+        <y>14517963.3370</y>
+      </point>
+      <point>
+        <x>-3930447.4702</x>
+        <y>14517963.3860</y>
+      </point>
+      <point>
+        <x>-3930448.7907</x>
+        <y>14517963.0729</y>
+      </point>
+      <point>
+        <x>-3930450.1207</x>
+        <y>14517962.3224</y>
+      </point>
+      <point>
+        <x>-3930451.3341</x>
+        <y>14517961.2060</y>
+      </point>
+      <point>
+        <x>-3930452.7916</x>
+        <y>14517958.7644</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930446.6594</x>
+        <y>14517957.2491</y>
+      </point>
+      <point>
+        <x>-3930446.9022</x>
+        <y>14517957.1819</y>
+      </point>
+      <point>
+        <x>-3930446.8536</x>
+        <y>14517957.1953</y>
+      </point>
+      <point>
+        <x>-3930446.8051</x>
+        <y>14517957.2088</y>
+      </point>
+      <point>
+        <x>-3930446.7565</x>
+        <y>14517957.2222</y>
+      </point>
+      <point>
+        <x>-3930446.7080</x>
+        <y>14517957.2357</y>
+      </point>
+      <point>
+        <x>-3930446.9507</x>
+        <y>14517957.1684</y>
+      </point>
+    </rightBound>
+    <predecessor ref="38"/>
+    <predecessor ref="93"/>
+    <successor ref="92"/>
+    <successor ref="54"/>
+    <adjacentLeft ref="37" drivingDir="same"/>
+    <adjacentRight ref="37" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="61">
+    <leftBound>
+      <point>
+        <x>-3930315.0974</x>
+        <y>14517965.0105</y>
+      </point>
+      <point>
+        <x>-3930314.9922</x>
+        <y>14517964.6855</y>
+      </point>
+      <point>
+        <x>-3930315.0132</x>
+        <y>14517964.7505</y>
+      </point>
+      <point>
+        <x>-3930315.0343</x>
+        <y>14517964.8155</y>
+      </point>
+      <point>
+        <x>-3930315.0553</x>
+        <y>14517964.8805</y>
+      </point>
+      <point>
+        <x>-3930315.0763</x>
+        <y>14517964.9455</y>
+      </point>
+      <point>
+        <x>-3930314.9712</x>
+        <y>14517964.6205</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930321.0111</x>
+        <y>14517966.2602</y>
+      </point>
+      <point>
+        <x>-3930320.9901</x>
+        <y>14517964.5213</y>
+      </point>
+      <point>
+        <x>-3930320.8791</x>
+        <y>14517963.0126</y>
+      </point>
+      <point>
+        <x>-3930320.4488</x>
+        <y>14517961.5660</y>
+      </point>
+      <point>
+        <x>-3930319.4575</x>
+        <y>14517960.3650</y>
+      </point>
+      <point>
+        <x>-3930318.2023</x>
+        <y>14517959.4252</y>
+      </point>
+      <point>
+        <x>-3930316.6854</x>
+        <y>14517958.5698</y>
+      </point>
+    </rightBound>
+    <predecessor ref="81"/>
+    <predecessor ref="89"/>
+    <successor ref="59"/>
+    <adjacentRight ref="80" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="25">
+    <leftBound>
+      <point>
+        <x>-3930339.6463</x>
+        <y>14518089.6160</y>
+      </point>
+      <point>
+        <x>-3930335.1134</x>
+        <y>14518094.8574</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930334.7340</x>
+        <y>14518085.7013</y>
+      </point>
+      <point>
+        <x>-3930330.6180</x>
+        <y>14518090.7688</y>
+      </point>
+    </rightBound>
+    <predecessor ref="17"/>
+    <predecessor ref="18"/>
+    <successor ref="27"/>
+    <adjacentLeft ref="26" drivingDir="same"/>
+    <adjacentRight ref="26" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="89">
+    <leftBound>
+      <point>
+        <x>-3930316.8430</x>
+        <y>14517958.4956</y>
+      </point>
+      <point>
+        <x>-3930315.0974</x>
+        <y>14517965.0105</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930322.7189</x>
+        <y>14517960.2783</y>
+      </point>
+      <point>
+        <x>-3930321.0111</x>
+        <y>14517966.2602</y>
+      </point>
+    </rightBound>
+    <predecessor ref="88"/>
+    <successor ref="61"/>
+    <adjacentLeft ref="79" drivingDir="same"/>
+    <adjacentRight ref="79" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="73">
+    <leftBound>
+      <point>
+        <x>-3930388.4746</x>
+        <y>14517940.6580</y>
+      </point>
+      <point>
+        <x>-3930386.0745</x>
+        <y>14517940.3922</y>
+      </point>
+      <point>
+        <x>-3930384.3533</x>
+        <y>14517940.5376</y>
+      </point>
+      <point>
+        <x>-3930382.9510</x>
+        <y>14517941.0771</y>
+      </point>
+      <point>
+        <x>-3930382.0335</x>
+        <y>14517941.8078</y>
+      </point>
+      <point>
+        <x>-3930381.2480</x>
+        <y>14517943.3346</y>
+      </point>
+      <point>
+        <x>-3930380.7956</x>
+        <y>14517944.9394</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930386.8355</x>
+        <y>14517946.6293</y>
+      </point>
+      <point>
+        <x>-3930386.6643</x>
+        <y>14517946.6073</y>
+      </point>
+      <point>
+        <x>-3930386.7071</x>
+        <y>14517946.6128</y>
+      </point>
+      <point>
+        <x>-3930386.7499</x>
+        <y>14517946.6183</y>
+      </point>
+      <point>
+        <x>-3930386.7927</x>
+        <y>14517946.6238</y>
+      </point>
+      <point>
+        <x>-3930386.6215</x>
+        <y>14517946.6018</y>
+      </point>
+      <point>
+        <x>-3930386.4308</x>
+        <y>14517946.6300</y>
+      </point>
+    </rightBound>
+    <predecessor ref="76"/>
+    <successor ref="72"/>
+    <adjacentLeft ref="70" drivingDir="same"/>
+    <adjacentRight ref="70" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="88">
+    <leftBound>
+      <point>
+        <x>-3930316.6854</x>
+        <y>14517958.5698</y>
+      </point>
+      <point>
+        <x>-3930316.8168</x>
+        <y>14517958.5080</y>
+      </point>
+      <point>
+        <x>-3930316.7905</x>
+        <y>14517958.5203</y>
+      </point>
+      <point>
+        <x>-3930316.7642</x>
+        <y>14517958.5327</y>
+      </point>
+      <point>
+        <x>-3930316.7380</x>
+        <y>14517958.5451</y>
+      </point>
+      <point>
+        <x>-3930316.7117</x>
+        <y>14517958.5574</y>
+      </point>
+      <point>
+        <x>-3930316.8430</x>
+        <y>14517958.4956</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930314.9717</x>
+        <y>14517964.6210</y>
+      </point>
+      <point>
+        <x>-3930315.7659</x>
+        <y>14517964.7343</y>
+      </point>
+      <point>
+        <x>-3930316.6997</x>
+        <y>14517964.7223</y>
+      </point>
+      <point>
+        <x>-3930317.7196</x>
+        <y>14517964.6667</y>
+      </point>
+      <point>
+        <x>-3930319.1047</x>
+        <y>14517963.7767</y>
+      </point>
+      <point>
+        <x>-3930320.4693</x>
+        <y>14517962.8599</y>
+      </point>
+      <point>
+        <x>-3930322.7189</x>
+        <y>14517960.2783</y>
+      </point>
+    </rightBound>
+    <successor ref="89"/>
+    <successor ref="87"/>
+    <adjacentLeft ref="60" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="74">
+    <leftBound>
+      <point>
+        <x>-3930380.7389</x>
+        <y>14517944.8565</y>
+      </point>
+      <point>
+        <x>-3930380.7862</x>
+        <y>14517944.9256</y>
+      </point>
+      <point>
+        <x>-3930380.7767</x>
+        <y>14517944.9118</y>
+      </point>
+      <point>
+        <x>-3930380.7673</x>
+        <y>14517944.8980</y>
+      </point>
+      <point>
+        <x>-3930380.7578</x>
+        <y>14517944.8842</y>
+      </point>
+      <point>
+        <x>-3930380.7484</x>
+        <y>14517944.8704</y>
+      </point>
+      <point>
+        <x>-3930380.7956</x>
+        <y>14517944.9394</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930382.4498</x>
+        <y>14517938.9107</y>
+      </point>
+      <point>
+        <x>-3930383.9410</x>
+        <y>14517939.6914</y>
+      </point>
+      <point>
+        <x>-3930385.2272</x>
+        <y>14517940.6803</y>
+      </point>
+      <point>
+        <x>-3930386.1930</x>
+        <y>14517941.7273</y>
+      </point>
+      <point>
+        <x>-3930386.6805</x>
+        <y>14517943.3474</y>
+      </point>
+      <point>
+        <x>-3930386.8611</x>
+        <y>14517944.9415</y>
+      </point>
+      <point>
+        <x>-3930386.4308</x>
+        <y>14517946.6300</y>
+      </point>
+    </rightBound>
+    <successor ref="72"/>
+    <adjacentLeft ref="71" drivingDir="same"/>
+    <adjacentRight ref="71" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="29">
+    <leftBound>
+      <point>
+        <x>-3930333.9596</x>
+        <y>14518085.8999</y>
+      </point>
+      <point>
+        <x>-3930335.5526</x>
+        <y>14518087.3012</y>
+      </point>
+      <point>
+        <x>-3930336.3529</x>
+        <y>14518088.7109</y>
+      </point>
+      <point>
+        <x>-3930336.8001</x>
+        <y>14518090.1524</y>
+      </point>
+      <point>
+        <x>-3930336.6056</x>
+        <y>14518091.6518</y>
+      </point>
+      <point>
+        <x>-3930336.0568</x>
+        <y>14518093.1829</y>
+      </point>
+      <point>
+        <x>-3930335.1134</x>
+        <y>14518094.8574</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930330.5651</x>
+        <y>14518090.7025</y>
+      </point>
+      <point>
+        <x>-3930330.6092</x>
+        <y>14518090.7577</y>
+      </point>
+      <point>
+        <x>-3930330.6004</x>
+        <y>14518090.7467</y>
+      </point>
+      <point>
+        <x>-3930330.5916</x>
+        <y>14518090.7356</y>
+      </point>
+      <point>
+        <x>-3930330.5827</x>
+        <y>14518090.7246</y>
+      </point>
+      <point>
+        <x>-3930330.5739</x>
+        <y>14518090.7135</y>
+      </point>
+      <point>
+        <x>-3930330.6180</x>
+        <y>14518090.7688</y>
+      </point>
+    </rightBound>
+    <predecessor ref="12"/>
+    <successor ref="27"/>
+    <adjacentLeft ref="63" drivingDir="same"/>
+    <adjacentRight ref="63" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="93">
+    <leftBound>
+      <point>
+        <x>-3930445.1300</x>
+        <y>14517963.3575</y>
+      </point>
+      <point>
+        <x>-3930445.1034</x>
+        <y>14517963.2808</y>
+      </point>
+      <point>
+        <x>-3930445.1100</x>
+        <y>14517963.3000</y>
+      </point>
+      <point>
+        <x>-3930445.1167</x>
+        <y>14517963.3192</y>
+      </point>
+      <point>
+        <x>-3930445.1234</x>
+        <y>14517963.3383</y>
+      </point>
+      <point>
+        <x>-3930445.0967</x>
+        <y>14517963.2617</y>
+      </point>
+      <point>
+        <x>-3930445.0793</x>
+        <y>14517963.2314</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930451.0443</x>
+        <y>14517964.8308</y>
+      </point>
+      <point>
+        <x>-3930451.1341</x>
+        <y>14517963.3195</y>
+      </point>
+      <point>
+        <x>-3930451.0647</x>
+        <y>14517961.5978</y>
+      </point>
+      <point>
+        <x>-3930450.6241</x>
+        <y>14517960.1156</y>
+      </point>
+      <point>
+        <x>-3930449.6056</x>
+        <y>14517959.1238</y>
+      </point>
+      <point>
+        <x>-3930448.2640</x>
+        <y>14517957.8941</y>
+      </point>
+      <point>
+        <x>-3930446.6594</x>
+        <y>14517957.2491</y>
+      </point>
+    </rightBound>
+    <predecessor ref="53"/>
+    <successor ref="39"/>
+    <adjacentLeft ref="36" drivingDir="same"/>
+    <adjacentRight ref="36" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="97">
+    <leftBound>
+      <point>
+        <x>-3930324.0977</x>
+        <y>14517932.9719</y>
+      </point>
+      <point>
+        <x>-3930324.9186</x>
+        <y>14517930.0551</y>
+      </point>
+      <point>
+        <x>-3930324.5081</x>
+        <y>14517931.5135</y>
+      </point>
+      <point>
+        <x>-3930325.3291</x>
+        <y>14517928.5967</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930329.9168</x>
+        <y>14517934.7446</y>
+      </point>
+      <point>
+        <x>-3930330.0878</x>
+        <y>14517933.9323</y>
+      </point>
+      <point>
+        <x>-3930330.4134</x>
+        <y>14517932.8553</y>
+      </point>
+      <point>
+        <x>-3930330.9328</x>
+        <y>14517931.1829</y>
+      </point>
+    </rightBound>
+    <successor ref="96"/>
+    <adjacentLeft ref="47" drivingDir="same"/>
+    <adjacentRight ref="47" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="33">
+    <leftBound>
+      <point>
+        <x>-3930333.9596</x>
+        <y>14518085.8999</y>
+      </point>
+      <point>
+        <x>-3930339.2950</x>
+        <y>14518090.2264</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930330.5651</x>
+        <y>14518090.7025</y>
+      </point>
+      <point>
+        <x>-3930335.4838</x>
+        <y>14518094.7375</y>
+      </point>
+    </rightBound>
+    <predecessor ref="12"/>
+    <successor ref="31"/>
+    <successor ref="99"/>
+    <successor ref="18"/>
+    <adjacentLeft ref="64" drivingDir="same"/>
+    <adjacentRight ref="64" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="37">
+    <leftBound>
+      <point>
+        <x>-3930446.9507</x>
+        <y>14517957.1684</y>
+      </point>
+      <point>
+        <x>-3930446.7080</x>
+        <y>14517957.2357</y>
+      </point>
+      <point>
+        <x>-3930446.7565</x>
+        <y>14517957.2222</y>
+      </point>
+      <point>
+        <x>-3930446.8051</x>
+        <y>14517957.2088</y>
+      </point>
+      <point>
+        <x>-3930446.8536</x>
+        <y>14517957.1953</y>
+      </point>
+      <point>
+        <x>-3930446.9022</x>
+        <y>14517957.1819</y>
+      </point>
+      <point>
+        <x>-3930446.6594</x>
+        <y>14517957.2491</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930452.7916</x>
+        <y>14517958.7644</y>
+      </point>
+      <point>
+        <x>-3930451.3341</x>
+        <y>14517961.2060</y>
+      </point>
+      <point>
+        <x>-3930450.1207</x>
+        <y>14517962.3224</y>
+      </point>
+      <point>
+        <x>-3930448.7907</x>
+        <y>14517963.0729</y>
+      </point>
+      <point>
+        <x>-3930447.4702</x>
+        <y>14517963.3860</y>
+      </point>
+      <point>
+        <x>-3930446.4537</x>
+        <y>14517963.3370</y>
+      </point>
+      <point>
+        <x>-3930445.0793</x>
+        <y>14517963.2314</y>
+      </point>
+    </rightBound>
+    <predecessor ref="56"/>
+    <successor ref="35"/>
+    <adjacentLeft ref="39" drivingDir="same"/>
+    <adjacentRight ref="39" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+  <lanelet id="71">
+    <leftBound>
+      <point>
+        <x>-3930382.4498</x>
+        <y>14517938.9107</y>
+      </point>
+      <point>
+        <x>-3930383.9410</x>
+        <y>14517939.6914</y>
+      </point>
+      <point>
+        <x>-3930385.2272</x>
+        <y>14517940.6803</y>
+      </point>
+      <point>
+        <x>-3930386.1930</x>
+        <y>14517941.7273</y>
+      </point>
+      <point>
+        <x>-3930386.6805</x>
+        <y>14517943.3474</y>
+      </point>
+      <point>
+        <x>-3930386.8611</x>
+        <y>14517944.9415</y>
+      </point>
+      <point>
+        <x>-3930386.4308</x>
+        <y>14517946.6300</y>
+      </point>
+    </leftBound>
+    <rightBound>
+      <point>
+        <x>-3930380.7389</x>
+        <y>14517944.8565</y>
+      </point>
+      <point>
+        <x>-3930380.7862</x>
+        <y>14517944.9256</y>
+      </point>
+      <point>
+        <x>-3930380.7767</x>
+        <y>14517944.9118</y>
+      </point>
+      <point>
+        <x>-3930380.7673</x>
+        <y>14517944.8980</y>
+      </point>
+      <point>
+        <x>-3930380.7578</x>
+        <y>14517944.8842</y>
+      </point>
+      <point>
+        <x>-3930380.7484</x>
+        <y>14517944.8704</y>
+      </point>
+      <point>
+        <x>-3930380.7956</x>
+        <y>14517944.9394</y>
+      </point>
+    </rightBound>
+    <predecessor ref="82"/>
+    <successor ref="69"/>
+    <adjacentLeft ref="74" drivingDir="same"/>
+    <adjacentRight ref="74" drivingDir="same"/>
+    <laneletType>unknown</laneletType>
+    <userBidirectional>priorityVehicle</userBidirectional>
+  </lanelet>
+</commonRoad>
