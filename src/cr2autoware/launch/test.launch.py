@@ -9,7 +9,6 @@ import os
 
 def generate_launch_description():
     cr2autoware_pkg_prefix = get_package_share_directory('cr2autoware')
-    #cr2autoware_pkg_prefix = "/home/drivingsim/adehome/workspace/dfg-car/install/cr2autoware/share/cr2autoware"
     cr2autoware_param_file = os.path.join(cr2autoware_pkg_prefix, 'param/cr2autoware_param_file.param.yaml')
 
     # Argument

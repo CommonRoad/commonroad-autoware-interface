@@ -6,6 +6,7 @@ from std_msgs.msg import String
 from lxml import etree
 
 import numpy as np
+from pyproj import Proj
 import matplotlib.pyplot as plt
 # import necessary classes from different modules
 from commonroad.scenario.scenario import Tag
@@ -28,14 +29,13 @@ class Cr2Auto(Node):
 
     def __init__(self):
         super().__init__('cr2autoware')
-        self.declare_parameter('map_osm_file', '')
-        self.declare_parameter('left_driving', False)
-        self.declare_parameter('adjacencies', False)
+        self.proj_str = "+proj=utm +zone=32 +ellps=WGS84"
+        self.convert_origin()
+        self.build_scenario()
 
         self.tf_buffer = Buffer()
         self.tf_listner = TransformListener(self.tf_buffer, self)               # convert among frames
-        
-        self.build_scenario()  
+
         """
         self.static_obs_subscriber = self.create_subscription(                  # static obstacles
             BoundingBoxArray,
@@ -51,13 +51,34 @@ class Cr2Auto(Node):
             self.initial_pose_callback,
             10
         )      
+    def convert_origin(self):
+        self.declare_parameter("latitude", 0.0)
+        self.declare_parameter("longitude", 0.0)
+        self.declare_parameter("elevation", 0.0)
+        self.declare_parameter("origin_offset_lat", 0.0)
+        self.declare_parameter("origin_offset_lon", 0.0)
+        self.origin_latitude = self.get_parameter("latitude").get_parameter_value().double_value
+        self.origin_longitude = self.get_parameter("longitude").get_parameter_value().double_value
+        self.origin_elevation = self.get_parameter("elevation").get_parameter_value().double_value
+        self.orgin_offset_lat = self.get_parameter("origin_offset_lat").get_parameter_value().double_value
+        self.orgin_offset_lon = self.get_parameter("origin_offset_lon").get_parameter_value().double_value
+
+        self.origin_latitude = self.origin_latitude + self.orgin_offset_lat
+        self.origin_longitude = self.origin_longitude + self.orgin_offset_lon
+        self.get_logger().info("origin lat: %s,   origin lon: %s" % (self.origin_latitude, self.origin_longitude))
+        self.proj = Proj(self.proj_str)
+        self.origin_x, self.origin_y = self.proj(self.origin_longitude, self.origin_latitude)
+        self.get_logger().info("origin x: %s,   origin  y: %s" % (self.origin_x, self.origin_y))
 
     def build_scenario(self):
+        self.declare_parameter('map_osm_file', '')
+        self.declare_parameter('left_driving', False)
+        self.declare_parameter('adjacencies', False)
         self.map_filename = self.get_parameter('map_osm_file').get_parameter_value().string_value
         self.left_driving = self.get_parameter('left_driving').get_parameter_value()
         self.adjacencies = self.get_parameter('adjacencies').get_parameter_value()
         self.scenario = lanelet_to_commonroad(self.map_filename,
-                                              proj="", 
+                                              proj=self.proj_str, 
                                               left_driving=self.left_driving, 
                                               adjacencies=self.adjacencies)
         # add ego vehicle
@@ -69,13 +90,15 @@ class Cr2Auto(Node):
 
     def initial_pose_callback(self, initial_pose: PoseWithCovarianceStamped):
         self.get_logger().info('Subscribing initial pose ...')
-        now = rclpy.time.Time()
-        self.transform = self.tf_buffer.lookup_transform("map", "earth", now, timeout=Duration(seconds=1.0))
-
-        x = self.transform.transform.translation.x + initial_pose.pose.pose.position.x
-        y = self.transform.transform.translation.y + initial_pose.pose.pose.position.y
-
-        self.get_logger().info('x: %f, y: %f' % (x, y))
+        #now = rclpy.time.Time()
+        #self.transform = self.tf_buffer.lookup_transform("map", "earth", now, timeout=Duration(seconds=1.0))
+        self.get_logger().info('Before transform x: %f, y: %f' 
+                                % (initial_pose.pose.pose.position.x, initial_pose.pose.pose.position.y))
+        x = initial_pose.pose.pose.position.x + self.origin_x
+        y = initial_pose.pose.pose.position.y + self.origin_y
+        #x = self.transform.transform.translation.x + initial_pose.pose.pose.position.x
+        #y = self.transform.transform.translation.y + initial_pose.pose.pose.position.y
+        self.get_logger().info('After transform x: %f, y: %f' % (x, y))
 
         # generate the static obstacle according to the specification, refer to API for details of input parameters
         static_obstacle_id = self.scenario.generate_object_id()
