@@ -7,6 +7,7 @@ from lxml import etree
 
 import numpy as np
 from pyproj import Proj
+import pyproj
 import matplotlib.pyplot as plt
 # import necessary classes from different modules
 from commonroad.scenario.scenario import Tag
@@ -29,7 +30,14 @@ class Cr2Auto(Node):
 
     def __init__(self):
         super().__init__('cr2autoware')
-        self.proj_str = "+proj=utm +zone=32 +ellps=WGS84"
+        self.proj_str = "+proj=utm +zone=10 +datum=WGS84 +ellps=WGS84"
+        self.proj = Proj(self.proj_str)
+
+        self.ecef_to_lla = pyproj.Transformer.from_crs(
+            {"proj":'geocent', "ellps":'WGS84', "datum":'WGS84'},
+            {"proj":'latlong', "ellps":'WGS84', "datum":'WGS84'},
+        )
+
         self.convert_origin()
         self.build_scenario()
 
@@ -90,14 +98,24 @@ class Cr2Auto(Node):
 
     def initial_pose_callback(self, initial_pose: PoseWithCovarianceStamped):
         self.get_logger().info('Subscribing initial pose ...')
-        #now = rclpy.time.Time()
-        #self.transform = self.tf_buffer.lookup_transform("map", "earth", now, timeout=Duration(seconds=1.0))
-        self.get_logger().info('Before transform x: %f, y: %f' 
-                                % (initial_pose.pose.pose.position.x, initial_pose.pose.pose.position.y))
-        x = initial_pose.pose.pose.position.x + self.origin_x
-        y = initial_pose.pose.pose.position.y + self.origin_y
-        #x = self.transform.transform.translation.x + initial_pose.pose.pose.position.x
-        #y = self.transform.transform.translation.y + initial_pose.pose.pose.position.y
+        
+        self.transform = self.tf_buffer.lookup_transform("earth", "map", rclpy.time.Time(), timeout=Duration(seconds=1.0))
+        self.get_logger().info('Transform x: %f, y: %f, z: %f' % (self.transform.transform.translation.x, self.transform.transform.translation.y, self.transform.transform.translation.z))
+
+        map_lon, map_lat, map_alt = self.ecef_to_lla.transform(self.transform.transform.translation.x, self.transform.transform.translation.y , self.transform.transform.translation.z, radians=False)
+        self.get_logger().info('map_lat: %f, map_lon: %f, map_alt: %f' % (map_lat, map_lon, map_alt))
+
+        earth_x = self.transform.transform.translation.x + initial_pose.pose.pose.position.x
+        earth_y = self.transform.transform.translation.y + initial_pose.pose.pose.position.y
+        earth_z = self.transform.transform.translation.z + initial_pose.pose.pose.position.z
+        self.get_logger().info('Earth frame x: %f, y: %f, z: %f' % (earth_x, earth_y, earth_z))
+        lon, lat, alt = self.ecef_to_lla.transform(earth_x, earth_y , earth_z, radians=False)
+        self.get_logger().info('lat: %f, lon: %f, alt: %f' % (lat, lon, alt))
+        x, y = self.proj(lon, lat)
+        
+        #x = initial_pose.pose.pose.position.x + self.origin_x
+        #y = initial_pose.pose.pose.position.y + self.origin_y
+        
         self.get_logger().info('After transform x: %f, y: %f' % (x, y))
 
         # generate the static obstacle according to the specification, refer to API for details of input parameters
