@@ -20,7 +20,7 @@ from commonroad.visualization.mp_renderer import MPRenderer
 
 from crdesigner.input_output.api import lanelet_to_commonroad
 
-from geometry_msgs.msg import PoseWithCovarianceStamped
+from geometry_msgs.msg import PoseWithCovarianceStamped, PoseStamped
 from autoware_auto_perception_msgs.msg import BoundingBoxArray
 import tf2_ros
 from tf2_ros.buffer import Buffer
@@ -30,7 +30,7 @@ class Cr2Auto(Node):
 
     def __init__(self):
         super().__init__('cr2autoware')
-        self.proj_str = "+proj=utm +zone=10 +datum=WGS84 +ellps=WGS84"
+        self.proj_str = "+proj=utm +zone=10s +datum=WGS84 +ellps=WGS84"
         self.proj = Proj(self.proj_str)
 
         self.ecef_to_lla = pyproj.Transformer.from_crs(
@@ -138,8 +138,9 @@ class Cr2Auto(Node):
     def plot_scenario(self):
         plt.figure(figsize=(10, 10))
         rnd = MPRenderer()
-        self.scenario.draw(rnd)
+        self.scenario.draw(rnd, draw_params={'lanelet': {"show_label": True}})
         rnd.render()
+        plt.show()
 
     def write_scenario(self):
         ## save map
