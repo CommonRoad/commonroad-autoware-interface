@@ -4,7 +4,7 @@ from rclpy.node import Node
 from rclpy.duration import Duration
 from std_msgs.msg import String
 from lxml import etree
-
+import math
 import numpy as np
 from pyproj import Proj
 import pyproj
@@ -30,15 +30,11 @@ class Cr2Auto(Node):
 
     def __init__(self):
         super().__init__('cr2autoware')
-        self.proj_str = "+proj=utm +zone=10s +datum=WGS84 +ellps=WGS84"
+        self.proj_str = "+proj=utm +zone=10 +datum=WGS84 +ellps=WGS84"
         self.proj = Proj(self.proj_str)
 
-        self.ecef_to_lla = pyproj.Transformer.from_crs(
-            {"proj":'geocent', "ellps":'WGS84', "datum":'WGS84'},
-            {"proj":'latlong', "ellps":'WGS84', "datum":'WGS84'},
-        )
-
         self.convert_origin()
+        self.ego_vechile_info()                 # compute ego vehicle width and height
         self.build_scenario()
 
         self.tf_buffer = Buffer()
@@ -71,12 +67,26 @@ class Cr2Auto(Node):
         self.orgin_offset_lat = self.get_parameter("origin_offset_lat").get_parameter_value().double_value
         self.orgin_offset_lon = self.get_parameter("origin_offset_lon").get_parameter_value().double_value
 
-        self.origin_latitude = self.origin_latitude + self.orgin_offset_lat
-        self.origin_longitude = self.origin_longitude + self.orgin_offset_lon
+        self.origin_latitude = self.origin_latitude #+ self.orgin_offset_lat
+        self.origin_longitude = self.origin_longitude #+ self.orgin_offset_lon
         self.get_logger().info("origin lat: %s,   origin lon: %s" % (self.origin_latitude, self.origin_longitude))
         self.proj = Proj(self.proj_str)
         self.origin_x, self.origin_y = self.proj(self.origin_longitude, self.origin_latitude)
         self.get_logger().info("origin x: %s,   origin  y: %s" % (self.origin_x, self.origin_y))
+
+    def ego_vechile_info(self):
+        self.declare_parameter('vehicle.cg_to_front_m', 1.0)
+        self.declare_parameter('vehicle.cg_to_rear_m', 1.0)
+        self.declare_parameter('vehicle.width_m', 2.0)
+        self.declare_parameter('vehicle.front_overhang_m', 0.5)
+        self.declare_parameter('vehicle.rear_overhang_m', 0.5)
+        cg_to_front = self.get_parameter("vehicle.cg_to_front_m").get_parameter_value().double_value
+        cg_to_rear = self.get_parameter("vehicle.cg_to_rear_m").get_parameter_value().double_value
+        width = self.get_parameter("vehicle.width_m").get_parameter_value().double_value
+        front_overhang = self.get_parameter("vehicle.front_overhang_m").get_parameter_value().double_value
+        rear_overhang = self.get_parameter("vehicle.rear_overhang_m").get_parameter_value().double_value
+        self.vehicle_length = front_overhang + cg_to_front + cg_to_rear + rear_overhang
+        self.vehicle_width = width
 
     def build_scenario(self):
         self.declare_parameter('map_osm_file', '')
@@ -89,7 +99,7 @@ class Cr2Auto(Node):
                                               proj=self.proj_str, 
                                               left_driving=self.left_driving, 
                                               adjacencies=self.adjacencies)
-        # add ego vehicle
+        # add ego vehicle localization
         # add static obstacles
         # add dynamic obstacles
         # add problemset
@@ -99,33 +109,26 @@ class Cr2Auto(Node):
     def initial_pose_callback(self, initial_pose: PoseWithCovarianceStamped):
         self.get_logger().info('Subscribing initial pose ...')
         
-        self.transform = self.tf_buffer.lookup_transform("earth", "map", rclpy.time.Time(), timeout=Duration(seconds=1.0))
-        self.get_logger().info('Transform x: %f, y: %f, z: %f' % (self.transform.transform.translation.x, self.transform.transform.translation.y, self.transform.transform.translation.z))
-
-        map_lon, map_lat, map_alt = self.ecef_to_lla.transform(self.transform.transform.translation.x, self.transform.transform.translation.y , self.transform.transform.translation.z, radians=False)
-        self.get_logger().info('map_lat: %f, map_lon: %f, map_alt: %f' % (map_lat, map_lon, map_alt))
-
-        earth_x = self.transform.transform.translation.x + initial_pose.pose.pose.position.x
-        earth_y = self.transform.transform.translation.y + initial_pose.pose.pose.position.y
-        earth_z = self.transform.transform.translation.z + initial_pose.pose.pose.position.z
-        self.get_logger().info('Earth frame x: %f, y: %f, z: %f' % (earth_x, earth_y, earth_z))
-        lon, lat, alt = self.ecef_to_lla.transform(earth_x, earth_y , earth_z, radians=False)
-        self.get_logger().info('lat: %f, lon: %f, alt: %f' % (lat, lon, alt))
-        x, y = self.proj(lon, lat)
+        x = initial_pose.pose.pose.position.x + self.origin_x
+        y = initial_pose.pose.pose.position.y + self.origin_y     
+        self.get_logger().info('After transform x: %s, y: %s' % (x, y))
         
-        #x = initial_pose.pose.pose.position.x + self.origin_x
-        #y = initial_pose.pose.pose.position.y + self.origin_y
-        
-        self.get_logger().info('After transform x: %f, y: %f' % (x, y))
+        rotation_x = initial_pose.pose.pose.orientation.x
+        rotation_y = initial_pose.pose.pose.orientation.y
+        rotation_z = initial_pose.pose.pose.orientation.z
+        rotation_w = initial_pose.pose.pose.orientation.w
+        self.get_logger().info('Orientation: (x, y, z, w): (%s, %s, %s, %s)' 
+                                % (rotation_x, rotation_y, rotation_z, rotation_w))
+        orientation = 2 * math.acos(rotation_w)
 
         # generate the static obstacle according to the specification, refer to API for details of input parameters
-        static_obstacle_id = self.scenario.generate_object_id()
-        static_obstacle_type = ObstacleType.PARKED_VEHICLE
-        static_obstacle_shape = Rectangle(width = 2.0, length = 4.5)
-        static_obstacle_initial_state = State(position = np.array([x, y]), orientation = 0.02, time_step = 0)
+        ego_vehicle_id = self.scenario.generate_object_id()
+        ego_vehicle_type = ObstacleType.CAR
+        ego_vehicle_shape = Rectangle(width = self.vehicle_width, length = self.vehicle_length)
+        ego_vehicle_initial_state = State(position = np.array([x, y]), orientation = orientation, time_step = 0)
 
         # feed in the required components to construct a static obstacle
-        ego_vehicle = StaticObstacle(static_obstacle_id, static_obstacle_type, static_obstacle_shape, static_obstacle_initial_state)
+        ego_vehicle = StaticObstacle(ego_vehicle_id, ego_vehicle_type, ego_vehicle_shape, ego_vehicle_initial_state)
 
         # add the static obstacle to the scenario
         self.scenario.add_objects(ego_vehicle)
