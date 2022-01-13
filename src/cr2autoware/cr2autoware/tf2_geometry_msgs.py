@@ -50,6 +50,7 @@ def do_transform_vector3(vector3, transform):
     return res
 tf2_ros.TransformRegistration().add(Vector3Stamped, do_transform_vector3)
 
+
 # PoseStamped
 def do_transform_pose(pose, transform):
     f = transform_to_kdl(transform) * PyKDL.Frame(PyKDL.Rotation.Quaternion(pose.pose.orientation.x, pose.pose.orientation.y,
@@ -63,6 +64,7 @@ def do_transform_pose(pose, transform):
     res.header = transform.header
     return res
 tf2_ros.TransformRegistration().add(PoseStamped, do_transform_pose)
+
 
 # PoseWithCovarianceStamped
 def do_transform_pose_with_covariance_stamped(pose, transform):

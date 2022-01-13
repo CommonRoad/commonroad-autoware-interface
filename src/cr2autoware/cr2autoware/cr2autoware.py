@@ -1,5 +1,6 @@
 from numpy.lib.utils import source
 import os
+from dataclasses import dataclass
 import rclpy
 from rclpy.node import Node
 from rclpy.duration import Duration
@@ -33,15 +34,27 @@ from tf2_ros.transform_listener import TransformListener
 from cr2autoware.tf2_geometry_msgs import do_transform_pose
 
 
+@dataclass
+class Box:
+    x:           float
+    y:           float
+    width:       float
+    length:      float
+    orientation: float
+
+
 class Cr2Auto(Node):
 
     def __init__(self):
         super().__init__('cr2autoware')
         self.proj_str = "+proj=utm +zone=10 +datum=WGS84 +ellps=WGS84"
         self.proj = Proj(self.proj_str)
+        self.ego_vehicle = None
         self.ego_vehicle_cur_pose_map = None      # current pose in map frame
-        self.ego_vehicle_initial_pose = None
         self.ego_vehicle_traj = []
+        # buffer for static obstacles
+        self.static_obstacles = []                  # a list save static obstacles from at the lastest time
+        
 
         self.convert_origin()
         self.ego_vechile_info()                 # compute ego vehicle width and height
@@ -67,8 +80,8 @@ class Cr2Auto(Node):
         )
         # subscribe current position of vehicle
         self.current_pose_sub = self.create_subscription(
-            VehicleKinematicState,
-            '/vehicle/vehicle_kinematic_state',
+            PoseWithCovarianceStamped,                         #VehicleKinematicState,
+            '/vehicle/odom_pose',                        #'/vehicle/vehicle_kinematic_state',
             self.current_pose_callback,
             10
         )
@@ -80,8 +93,8 @@ class Cr2Auto(Node):
             10
         )
 
-
-
+        # create a timer to update scenario
+        self.timer = self.create_timer(timer_period_sec=0.1, callback=self.update_scenario)
 
     def convert_origin(self):
         self.declare_parameter("latitude", 0.0)
@@ -135,9 +148,12 @@ class Cr2Auto(Node):
         self.write_scenario()
 
     def initial_pose_callback(self, initial_pose: PoseWithCovarianceStamped) -> None:
+        # do set current location if ego vehicle already has its location
+        if self.ego_vehicle_cur_pose_map is not None:
+            return
+
         self.get_logger().info('Subscribing initial pose ...')
         # update current pose of ego vehicle
-        self.ego_vehicle_initial_pose = initial_pose.pose.pose
         self.ego_vehicle_cur_pose_map = initial_pose.pose.pose
         
         x = self.ego_vehicle_cur_pose_map.position.x + self.origin_x
@@ -150,33 +166,32 @@ class Cr2Auto(Node):
         # generate the static obstacle according to the specification, refer to API for details of input parameters
         ego_vehicle_id = self.scenario.generate_object_id()
         ego_vehicle_type = ObstacleType.CAR
-        ego_vehicle_shape = Rectangle(width = self.vehicle_width, length = self.vehicle_length)
-        ego_vehicle_initial_state = State(position = np.array([x, y]), orientation = orientation, time_step = 0)
+        ego_vehicle_shape = Rectangle(width=self.vehicle_width, length=self.vehicle_length)
+        ego_vehicle_initial_state = State(position=np.array([x, y]), orientation=orientation, time_step = 0)
 
         # feed in the required components to construct a static obstacle
-        ego_vehicle = StaticObstacle(ego_vehicle_id, ego_vehicle_type, ego_vehicle_shape, ego_vehicle_initial_state)
+        self.ego_vehicle = StaticObstacle(ego_vehicle_id, ego_vehicle_type, ego_vehicle_shape, ego_vehicle_initial_state)
 
         # add the static obstacle to the scenario
-        self.scenario.add_objects(ego_vehicle)
+        #self.scenario.add_objects(ego_vehicle)
 
-        self.write_scenario()
+    def current_pose_callback(self, msg: PoseWithCovarianceStamped) -> None:
 
-    def current_pose_callback(self, msg: VehicleKinematicState) -> None:
-        if self.ego_vehicle_initial_pose is None:
-            return
-        self.get_logger().info('Subscribing current pose of ego vehicle ...')
         # update current pose of ego vehicle
         if msg.header.frame_id != "map":
             temp_pose_stamped = PoseStamped()
             temp_pose_stamped.header = msg.header
-            temp_pose_stamped.pose = msg.state.pose
+            temp_pose_stamped.pose = msg.pose.pose
             pose_stamped_map = self._transform_pose_to_map(temp_pose_stamped)
             if pose_stamped_map is None:
                 return
             temp_pose = pose_stamped_map.pose       # current pose in map frame
         else:
-            temp_pose = msg.state.pose
-        
+            temp_pose = msg.pose
+        self.get_logger().info('Subscribing current pose of ego vehicle ...')
+        self.ego_vehicle_cur_pose_map = temp_pose
+
+        """
         # refuse to update if there is almost no change, JUST FOR TEST!!!
         delta_x = temp_pose.position.x - self.ego_vehicle_cur_pose_map.position.x
         delta_y = temp_pose.position.y - self.ego_vehicle_cur_pose_map.position.y
@@ -188,7 +203,12 @@ class Cr2Auto(Node):
             # add dynamic obstacle for testing
             self.add_dynamic_obstacles(self.ego_vehicle_traj)
 
-    def static_obs_callback(self, msg: BoundingBoxArray)->None:
+        """
+
+    def static_obs_callback(self, msg: BoundingBoxArray) -> None:
+        # clear the obstacles from past
+        self.static_obstacles.clear()
+
         source_frame = msg.header.frame_id
         self.get_logger().info(' Subscribe static obstacles ... (%s)' % source_frame)
         temp_pose = PoseStamped()
@@ -212,17 +232,17 @@ class Cr2Auto(Node):
             width = box.size.x
             length = box.size.y
 
+            self.static_obstacles.append(Box(x, y, width, length, orientation))
+            """
             obs_id = self.scenario.generate_object_id()
             obs_type = ObstacleType.UNKNOWN
             obs_shape = Rectangle(width=width, length=length)
             obs_state = State(position=np.array([x, y]), orientation=orientation, time_step=0)
             static_obs = StaticObstacle(obs_id, obs_type, obs_shape, obs_state)
             # add the static obstacle to the scenario
-            self.scenario.add_objects(static_obs)
+            self.static_obstacles.append(static_obs)
+            """
 
-        self.write_scenario()
-
-        
     def add_dynamic_obstacles(self, traj):
         # initial state has a time step of 0
         x = traj[0].position.x + self.origin_x
@@ -260,21 +280,57 @@ class Cr2Auto(Node):
                                         dynamic_obstacle_initial_state,
                                         dynamic_obstacle_prediction)
         # add dynamic obstacle to the scenario
-        self.scenario.add_objects(dynamic_obstacle)
-        self.write_scenario('traj_100.xml')
-
-    def static_obstacle_callback(self, boxArray: BoundingBoxArray):
-        self.get_logger().info('Subscribing static obstacles ...')
+        #self.scenario.add_objects(dynamic_obstacle)
+        #self.write_scenario('traj_100.xml')
 
     def plot_scenario(self):
         plt.figure(figsize=(10, 10))
         rnd = MPRenderer()
-        self.scenario.draw(rnd, draw_params={'lanelet': {"show_label": True}})
+        self.scenario.draw(rnd, draw_params={'lanelet': {"show_label": False}})
         rnd.render()
         plt.show()
 
+
+    def _create_ego_with_cur_location(self):
+        # create a new ego vehicle with current position
+        ego_vehicle_id = self.scenario.generate_object_id()
+        ego_vehicle_type = ObstacleType.CAR
+        ego_vehicle_shape = Rectangle(width=self.vehicle_width, length=self.vehicle_length)
+        x = self.ego_vehicle_cur_pose_map.position.x + self.origin_x
+        y = self.ego_vehicle_cur_pose_map.position.y + self.origin_y
+        rotation_w = self.ego_vehicle_cur_pose_map.orientation.w
+        orientation = 2 * math.acos(rotation_w)
+        ego_vehicle_initial_state = State(position=np.array([x, y]), orientation=orientation, time_step=0)
+        self.get_logger().info("Current Position X: %f, Y: %f" % (x - self.origin_x, y - self.origin_y))
+        return StaticObstacle(ego_vehicle_id, ego_vehicle_type, ego_vehicle_shape, ego_vehicle_initial_state)
+
+    def update_scenario(self):
+        # remove past obstacles
+        self.scenario.remove_obstacle(self.scenario.static_obstacles)
+        self.scenario.remove_obstacle(self.scenario.dynamic_obstacles)
+
+        # add current obstacles
+        for static_obs in self.static_obstacles:
+            obs_id = self.scenario.generate_object_id()
+            obs_type = ObstacleType.UNKNOWN
+            obs_shape = Rectangle(width=static_obs.width, length=static_obs.length)
+            obs_state = State(position=np.array([static_obs.x, static_obs.y]), orientation=static_obs.orientation, time_step=0)
+            self.scenario.add_objects(StaticObstacle(obs_id, obs_type, obs_shape, obs_state))
+        # update current location of ego vehicle
+        if self.ego_vehicle_cur_pose_map is not None:
+            if self.ego_vehicle is None:
+                self.ego_vehicle = self._create_ego_with_cur_location()
+                self.scenario.add_objects(self.ego_vehicle)
+            else:
+                # remove past ego vehicle location
+                self.scenario.remove_obstacle(self.ego_vehicle)
+                self.ego_vehicle = self._create_ego_with_cur_location()
+                self.scenario.add_objects(self.ego_vehicle)
+        #self.write_scenario()
+        #self.plot_scenario()
+
     def write_scenario(self, filename='ZAM_Lanelet-1_1-T1.xml'):
-        ## save map
+        # save map
         # store converted file as CommonRoad scenario
         writer = CommonRoadFileWriter(
             scenario=self.scenario,
@@ -290,20 +346,22 @@ class Cr2Auto(Node):
         source_frame = pose_in.header.frame_id
         # lookup transform validty
         succeed = self.tf_buffer.can_transform("map", 
-                                                source_frame, 
-                                                rclpy.time.Time(), 
-                                                timeout=Duration(seconds=1.0))
+                                               source_frame,
+                                               rclpy.time.Time(),
+                                               )
         if not succeed:
-            self.get_logger().error("Failed to transform pose to map frame")
+            self.get_logger().error(f"Failed to transform from {source_frame} to map frame")
             return None
         
         try:
             tf_map = self.tf_buffer.lookup_transform("map", source_frame, rclpy.time.Time.from_msg(pose_in.header.stamp))
         except tf2_ros.ExtrapolationException:
-            tf_map = self.tf_buffer.lookup_transform("map", source_frame, rclpy.time.Time(), timeout=Duration(seconds=1.0))
+            self.get_logger().warning("tf2 Extrapolation Exception")
+            tf_map = self.tf_buffer.lookup_transform("map", source_frame, rclpy.time.Time())
 
         pose_out = do_transform_pose(pose_in, tf_map)
         return pose_out
+
 
 def main(args=None):
     rclpy.init(args=args)

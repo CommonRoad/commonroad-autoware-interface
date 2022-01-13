@@ -2,7 +2,7 @@
 
 /**:
   ros__parameters:
-    map_osm_file: "/home/yashuai/workspace/dfg-car/src/cr2autoware/data/autonomoustuff_parking_lot.osm"
+    map_osm_file: "/home/drivingsim/workspace/dfg-car/src/cr2autoware/data/autonomoustuff_parking_lot.osm"
     latitude: 37.380811523812845
     longitude: -121.90840595108715
     elevation: 16.0
