@@ -60,6 +60,7 @@ class Cr2Auto(Node):
         # buffer for static obstacles
         self.static_obstacles = []                  # a list save static obstacles from at the lastest time
         self.planning_problem = None
+        self.planning_problem_set = PlanningProblemSet()
 
         self.convert_origin()
         self.ego_vechile_info()                 # compute ego vehicle width and height
@@ -317,12 +318,13 @@ class Cr2Auto(Node):
             self.get_logger().error("ego vehicle state is None")
             return
 
-        region = Rectangle(length=10, width=10, center=np.array([x, y]), orientation=0.0)
+        region = Rectangle(length=4, width=4, center=np.array([x, y]), orientation=0.0)
         goal_state = State(position=region, orientation=AngleInterval(0.1, 1), time_step=Interval(3, 5))
         goal_region = GoalRegion([goal_state])
         self.planning_problem = PlanningProblem(planning_problem_id=10,
                                                 initial_state=self.ego_vehicle_state,
                                                 goal_region=goal_region)
+        self.planning_problem_set.add_planning_problem(self.planning_problem)
 
     def plot_scenario(self):
         self.rnd.clear()
@@ -370,7 +372,7 @@ class Cr2Auto(Node):
         # store converted file as CommonRoad scenario
         writer = CommonRoadFileWriter(
             scenario=self.scenario,
-            planning_problem_set=PlanningProblemSet(),
+            planning_problem_set=self.planning_problem_set,
             author="",
             affiliation="Technical University of Munich",
             source="",
