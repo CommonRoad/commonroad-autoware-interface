@@ -99,12 +99,12 @@ class Cr2Auto(Node):
             10
         )
         # create a timer to update scenario
-        self.timer = self.create_timer(timer_period_sec=0.1, callback=self.update_scenario)
-        plt.ion()
-        plt.figure(figsize=(8, 8))
-        plt.tight_layout()
-        plt.axis('off')
         self.rnd = MPRenderer()
+        plt.ion()
+        #plt.figure(figsize=(8, 8))
+        #plt.tight_layout()
+        #plt.axis('off')
+        self.timer = self.create_timer(timer_period_sec=0.1, callback=self.update_scenario)
 
     def convert_origin(self):
         self.declare_parameter("latitude", 0.0)
@@ -212,6 +212,15 @@ class Cr2Auto(Node):
         time_step: Interval()
         """
         source_frame = msg.header.frame_id
+        # lookup transform validty
+        succeed = self.tf_buffer.can_transform("map",
+                                               source_frame,
+                                               rclpy.time.Time(),
+                                               )
+        if not succeed:
+            self.get_logger().error(f"Failed to transform from {source_frame} to map frame")
+            return None
+
         if source_frame != "map":
             try:
                 tf_map = self.tf_buffer.lookup_transform("map", source_frame,
@@ -221,7 +230,8 @@ class Cr2Auto(Node):
                 tf_map = self.tf_buffer.lookup_transform("map", source_frame, rclpy.time.Time())
             msg.state = self._transform_vehicle_state(msg.state, tf_map)
         position = np.array([msg.state.x+self.origin_x, msg.state.y+self.origin_y])
-        orientation = math.acos(msg.state.heading.imag)
+
+        orientation = self._to_angle(msg.state.heading)
         self.ego_vehicle_state = State(position=position,
                                        orientation=orientation,
                                        velocity=msg.state.longitudinal_velocity_mps,
@@ -333,7 +343,7 @@ class Cr2Auto(Node):
     def update_scenario(self):
         # remove past obstacles
         self.scenario.remove_obstacle(self.scenario.static_obstacles)
-        self.scenario.remove_obstacle(self.scenario.dynamic_obstacles)
+        #self.scenario.remove_obstacle(self.scenario.dynamic_obstacles)
 
         # add current obstacles
         for static_obs in self.static_obstacles:
@@ -407,8 +417,9 @@ class Cr2Auto(Node):
         a21 = 2.0 * s * ((q.x * q.y) + (q.z * q.w))
         a22 = 1.0 - (2.0 * s * (i2 + k2))
         # Apply rotation
-        state.x = state.x * a11 + state.y * a12
-        state.y = state.x * a21 + state.y * a22
+        x, y = state.x, state.y
+        state.x = x * a11 + y * a12
+        state.y = x * a21 + y * a22
 
         s = 1.0 / math.sqrt(r2 + k2)
         w = q.w * s
@@ -417,7 +428,28 @@ class Cr2Auto(Node):
         imag = state.heading.imag
         state.heading.real = real * w - imag * z
         state.heading.imag = real * z + imag * w
+
+        state.x += transform.transform.translation.x
+        state.y += transform.transform.translation.y
         return state
+
+    def _to_angle(self, heading):
+        """
+        This function is an reimplementation of to_angle in motion_common.cpp,
+        in order to calculate orientation from heading information of vehicle state
+        :param heading: information from vehicle kinematic state
+        :return: orientation in radians
+        """
+        mag2 = (heading.real * heading.real) + (heading.imag * heading.imag)
+        epsilon = 1e-6
+        if abs(mag2 - 1.0) > epsilon:
+            imag = 1.0 / math.sqrt(mag2)
+            heading.real *= imag
+            heading.imag *= imag
+
+        y = 2.0 * heading.real * heading.imag
+        x = 1.0 - 2.0 * heading.imag * heading.imag
+        return math.atan2(y, x)
 
 
 def main(args=None):
