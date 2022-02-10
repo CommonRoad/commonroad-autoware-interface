@@ -2,7 +2,7 @@ import os
 import sys
 import matplotlib.pyplot as plt
 
-path_notebook = '/home/drivingsim/adehome/workspace/commonroad-search/tutorials/1_search_algorithms'
+path_notebook = '/home/yashuai/Software/adehome/workspace/commonroad-search/tutorials/1_search_algorithms'
 # add the SMP folder to python path
 sys.path.append(os.path.join(path_notebook, "../../"))
 
@@ -22,7 +22,7 @@ path_scenario = os.path.join(path_notebook, "../../scenarios/tutorial/")
 id_scenario = 'ZAM_Tutorial_Urban-3_2'
 
 # read in scenario and planning problem set
-scenario, planning_problem_set = CommonRoadFileReader(path_scenario + id_scenario + '.xml').open()
+scenario, planning_problem_set = CommonRoadFileReader("/home/yashuai/Software/adehome/workspace/dfg-car/output/1.xml").open()
 # retrieve the first planning problem in the problem set
 planning_problem = list(planning_problem_set.planning_problem_dict.values())[0]
 
@@ -34,10 +34,10 @@ planning_problem_set.draw(rnd)
 rnd.render()
 
 # load the xml with stores the motion primitives
-name_file_motion_primitives = 'V_9.0_9.0_Vstep_0_SA_-0.2_0.2_SAstep_0.2_T_0.5_Model_BMW_320i.xml'
-
+name_file_motion_primitives = 'V_0.0_20.0_Vstep_2.0_SA_-1.066_1.066_SAstep_0.18_T_0.5_Model_BMW_320i.xml'
 # generate automaton
 automaton = ManeuverAutomaton.generate_automaton(name_file_motion_primitives)
+
 
 # construct motion planner
 planner_DFS = MotionPlanner.DepthFirstSearch(scenario=scenario,
@@ -50,5 +50,5 @@ scenario_data = (scenario, planner_DFS.state_initial, planner_DFS.shape_ego, pla
 display_steps(scenario_data=scenario_data,
               algorithm=planner_DFS.execute_search,
               config=planner_DFS.config_plot)
-
+print('####################')
 plt.show()
