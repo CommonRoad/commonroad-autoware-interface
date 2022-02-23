@@ -38,9 +38,9 @@ tf2_ros.TransformRegistration().add(PointStamped, do_transform_point)
 
 # Vector3Stamped
 def do_transform_vector3(vector3, transform):
-    transform.transform.translation.x = 0.0;
-    transform.transform.translation.y = 0.0;
-    transform.transform.translation.z = 0.0;
+    transform.transform.translation.x = 0.0
+    transform.transform.translation.y = 0.0
+    transform.transform.translation.z = 0.0
     p = transform_to_kdl(transform) * PyKDL.Vector(vector3.vector.x, vector3.vector.y, vector3.vector.z)
     res = Vector3Stamped()
     res.vector.x = p[0]
