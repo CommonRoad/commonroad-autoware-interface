@@ -62,24 +62,25 @@ class Cr2Auto(Node):
     def __init__(self):
         super().__init__('cr2autoware')
         self.proj_str = "+proj=utm +zone=10 +datum=WGS84 +ellps=WGS84"
-        self.proj = Proj(self.proj_str)
+
         self.ego_vehicle = None
-        self.ego_vehicle_cur_pose_map = None      # current pose in map frame
         self.ego_vehicle_state: State = None
-        self.ego_vehicle_traj = []
         # buffer for static obstacles
         self.static_obstacles = []                  # a list save static obstacles from at the lastest time
+
         self.current_planning_problem_id = 0
         self.planning_problem_set = PlanningProblemSet()
+        # load the xml with stores the motion primitives
+        name_file_motion_primitives = 'V_0.0_20.0_Vstep_4.0_SA_-1.066_1.066_SAstep_0.18_T_0.5_Model_BMW_320i.xml'
+        self.automaton = ManeuverAutomaton.generate_automaton(name_file_motion_primitives)
+        self.is_computing_trajectory = False  # stop update scenario when trajectory is computing
+
+        self.tf_buffer = Buffer(cache_time=rclpy.duration.Duration(seconds=10.0))
+        self.tf_listner = TransformListener(self.tf_buffer, self)  # convert among frames
 
         self.convert_origin()
         self.ego_vechile_info()                 # compute ego vehicle width and height
         self.build_scenario()
-
-        self.tf_buffer = Buffer(cache_time=rclpy.duration.Duration(seconds=10.0))
-        self.tf_listner = TransformListener(self.tf_buffer, self)               # convert among frames
-
-        self.goal_pose_received = False
 
         # subscribe current position of vehicle
         self.current_state_sub = self.create_subscription(
@@ -114,25 +115,34 @@ class Cr2Auto(Node):
         self.timer = self.create_timer(timer_period_sec=0.1, callback=self.update_scenario)
 
     def convert_origin(self):
+        """
+        compute coordinate of the origin in UTM (used in commonroad) frame
+        :return:
+        """
         self.declare_parameter("latitude", 0.0)
         self.declare_parameter("longitude", 0.0)
         self.declare_parameter("elevation", 0.0)
         self.declare_parameter("origin_offset_lat", 0.0)
         self.declare_parameter("origin_offset_lon", 0.0)
-        self.origin_latitude = self.get_parameter("latitude").get_parameter_value().double_value
-        self.origin_longitude = self.get_parameter("longitude").get_parameter_value().double_value
-        self.origin_elevation = self.get_parameter("elevation").get_parameter_value().double_value
-        self.orgin_offset_lat = self.get_parameter("origin_offset_lat").get_parameter_value().double_value
-        self.orgin_offset_lon = self.get_parameter("origin_offset_lon").get_parameter_value().double_value
+        origin_latitude = self.get_parameter("latitude").get_parameter_value().double_value
+        origin_longitude = self.get_parameter("longitude").get_parameter_value().double_value
+        origin_elevation = self.get_parameter("elevation").get_parameter_value().double_value
+        orgin_offset_lat = self.get_parameter("origin_offset_lat").get_parameter_value().double_value
+        orgin_offset_lon = self.get_parameter("origin_offset_lon").get_parameter_value().double_value
 
-        self.origin_latitude = self.origin_latitude #+ self.orgin_offset_lat
-        self.origin_longitude = self.origin_longitude #+ self.orgin_offset_lon
-        self.get_logger().info("origin lat: %s,   origin lon: %s" % (self.origin_latitude, self.origin_longitude))
-        self.proj = Proj(self.proj_str)
-        self.origin_x, self.origin_y = self.proj(self.origin_longitude, self.origin_latitude)
+        origin_latitude = origin_latitude + orgin_offset_lat
+        origin_longitude = origin_longitude + orgin_offset_lon
+        self.get_logger().info("origin lat: %s,   origin lon: %s" % (origin_latitude, origin_longitude))
+
+        proj = Proj(self.proj_str)
+        self.origin_x, self.origin_y = proj(origin_longitude, origin_latitude)
         self.get_logger().info("origin x: %s,   origin  y: %s" % (self.origin_x, self.origin_y))
 
     def ego_vechile_info(self):
+        """
+        compute size of ego vehicle: (length, width)
+        :return:
+        """
         self.declare_parameter('vehicle.cg_to_front_m', 1.0)
         self.declare_parameter('vehicle.cg_to_rear_m', 1.0)
         self.declare_parameter('vehicle.width_m', 2.0)
@@ -150,14 +160,14 @@ class Cr2Auto(Node):
         self.declare_parameter('map_osm_file', '')
         self.declare_parameter('left_driving', False)
         self.declare_parameter('adjacencies', False)
-        self.map_filename = self.get_parameter('map_osm_file').get_parameter_value().string_value
-        self.left_driving = self.get_parameter('left_driving').get_parameter_value()
-        self.adjacencies = self.get_parameter('adjacencies').get_parameter_value()
-        self.scenario = lanelet_to_commonroad(self.map_filename,
+        map_filename = self.get_parameter('map_osm_file').get_parameter_value().string_value
+        left_driving = self.get_parameter('left_driving').get_parameter_value()
+        adjacencies = self.get_parameter('adjacencies').get_parameter_value()
+        self.scenario = lanelet_to_commonroad(map_filename,
                                               proj=self.proj_str, 
-                                              left_driving=self.left_driving, 
-                                              adjacencies=self.adjacencies)
-        ## save map
+                                              left_driving=left_driving,
+                                              adjacencies=adjacencies)
+        # save map
         self.write_scenario()
 
     def current_state_callback(self, msg: VehicleKinematicState) -> None:
@@ -170,7 +180,7 @@ class Cr2Auto(Node):
         time_step: Interval()
         """
         source_frame = msg.header.frame_id
-        # lookup transform validty
+        # lookup transform
         succeed = self.tf_buffer.can_transform("map",
                                                source_frame,
                                                rclpy.time.Time(),
@@ -266,7 +276,7 @@ class Cr2Auto(Node):
         if self.ego_vehicle_state is None:
             self.get_logger().error("ego vehicle state is None")
             return
-        self.goal_pose_received = True
+
         region = Rectangle(length=4, width=4, center=position, orientation=orientation)
         goal_state = State(position=region, time_step=Interval(10, 50), velocity=Interval(0.0, 0.1))
         goal_region = GoalRegion([goal_state])
@@ -281,14 +291,12 @@ class Cr2Auto(Node):
     def _solve_planning_problem(self, msg: PoseStamped):
         if self.ego_vehicle is not None:
             self.scenario.remove_obstacle(self.ego_vehicle)         # ego is add as an obstacle for visualization only
-        # load the xml with stores the motion primitives
-        name_file_motion_primitives = 'V_0.0_20.0_Vstep_4.0_SA_-1.066_1.066_SAstep_0.18_T_0.5_Model_BMW_320i.xml'
-        # generate automaton
-        automaton = ManeuverAutomaton.generate_automaton(name_file_motion_primitives)
+
+        self.is_computing_trajectory = True
         # construct motion planner
         planner = MotionPlanner.BreadthFirstSearch(scenario=self.scenario,
                                                    planning_problem=self.planning_problem_set.find_planning_problem_by_id(self.current_planning_problem_id),
-                                                   automaton=automaton)
+                                                   automaton=self.automaton)
 
         # visualize searching process
         #scenario_data = (self.scenario, planner.state_initial, planner.shape_ego, self.planning_problem)
@@ -310,7 +318,6 @@ class Cr2Auto(Node):
                     new_point.pose.orientation = self.orientation2quaternion(state.orientation)
                     new_point.longitudinal_velocity_mps = state.velocity
                     new_point.front_wheel_angle_rad = state.steering_angle
-                    # new_point.heading_rate_rps = state.steering_angle_speed
 
                     # there are duplicated points, which will arise "same point" exception in AutowareAuto
                     if len(traj.points) > 0:
@@ -331,6 +338,8 @@ class Cr2Auto(Node):
         else:
             self.get_logger().error("Failed to solve the planning problem.")
 
+        self.is_computing_trajectory = False
+
     def plot_scenario(self):
         self.rnd.clear()
         self.scenario.draw(self.rnd, draw_params={'lanelet': {"show_label": False}})
@@ -346,7 +355,7 @@ class Cr2Auto(Node):
         return StaticObstacle(ego_vehicle_id, ego_vehicle_type, ego_vehicle_shape, self.ego_vehicle_state)
 
     def update_scenario(self):
-        if not self.goal_pose_received:
+        if not self.is_computing_trajectory:
             # remove past obstacles
             self.scenario.remove_obstacle(self.scenario.static_obstacles)
 
