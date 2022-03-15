@@ -157,6 +157,10 @@ class Cr2Auto(Node):
         self.vehicle_width = width
 
     def build_scenario(self):
+        """
+
+        :return:
+        """
         self.declare_parameter('map_osm_file', '')
         self.declare_parameter('left_driving', False)
         self.declare_parameter('adjacencies', False)
@@ -299,8 +303,8 @@ class Cr2Auto(Node):
                                                    automaton=self.automaton)
 
         # visualize searching process
-        #scenario_data = (self.scenario, planner.state_initial, planner.shape_ego, self.planning_problem)
-        #display_steps(scenario_data, planner.execute_search, planner.config_plot)
+        # scenario_data = (self.scenario, planner.state_initial, planner.shape_ego, self.planning_problem)
+        # display_steps(scenario_data, planner.execute_search, planner.config_plot)
         path, _, _ = planner.execute_search()
 
         if path is not None:
@@ -318,6 +322,8 @@ class Cr2Auto(Node):
                     new_point.pose.orientation = self.orientation2quaternion(state.orientation)
                     new_point.longitudinal_velocity_mps = state.velocity
                     new_point.front_wheel_angle_rad = state.steering_angle
+                    if "acceleration" in state.attributes:
+                        new_point.acceleration_mps2 = state.acceleration
 
                     # there are duplicated points, which will arise "same point" exception in AutowareAuto
                     if len(traj.points) > 0:
@@ -328,11 +334,12 @@ class Cr2Auto(Node):
                     traj.points.append(new_point)
 
             # calculate acceleration, vehicle wouldn't move without acceleration
-            for i in range(len(traj.points)-1):
-                cur_vel = traj.points[i].longitudinal_velocity_mps
-                next_vel = traj.points[i+1].longitudinal_velocity_mps
-                acc = (next_vel - cur_vel) / self.scenario.dt
-                traj.points[i].acceleration_mps2 = acc
+            if "acceleration" not in state.attributes:
+                for i in range(len(traj.points)-1):
+                    cur_vel = traj.points[i].longitudinal_velocity_mps
+                    next_vel = traj.points[i+1].longitudinal_velocity_mps
+                    acc = (next_vel - cur_vel) / self.scenario.dt
+                    traj.points[i].acceleration_mps2 = acc
             self.traj_pub.publish(traj)
             # visualize_solution(self.scenario, self.planning_problem_set, create_trajectory_from_list_states(path))
         else:
