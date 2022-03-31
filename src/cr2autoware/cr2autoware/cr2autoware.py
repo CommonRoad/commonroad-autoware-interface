@@ -71,7 +71,7 @@ class Cr2Auto(Node):
 
         self.convert_origin()
         self.ego_vechile_info()                 # compute ego vehicle width and height
-        self.build_scenario()
+        self.build_scenario()                   # build scenario from osm map
 
         # subscribe current position of vehicle
         self.current_state_sub = self.create_subscription(
@@ -149,7 +149,7 @@ class Cr2Auto(Node):
 
     def build_scenario(self):
         """
-
+        transform map from osm format to commonroad scenario
         :return:
         """
         self.declare_parameter('map_osm_file', '')
