@@ -16,7 +16,7 @@ data:
 * autonomoustuff_parking_lot.osm: map for avp.
 
 param:
-cr2autoware_param_file.param.yaml: parameter for initialization of map and vehicle
+* cr2autoware_param_file.param.yaml: parameter for initialization of map and vehicle
 
 ## Build up environment
 ### Required tools and versions:
