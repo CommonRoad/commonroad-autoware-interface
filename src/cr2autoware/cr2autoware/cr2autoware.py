@@ -405,6 +405,7 @@ class Cr2Auto(Node):
             source="",
             tags={Tag.URBAN},
         )
+        os.makedirs('output', exist_ok=True)
         writer.write_to_file(os.path.join('output', filename), OverwriteExistingFile.ALWAYS)
 
     def _transform_pose_to_map(self, pose_in):
