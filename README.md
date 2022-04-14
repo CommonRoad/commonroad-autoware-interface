@@ -34,23 +34,23 @@ param:
    - `ade --rc amd64-foxy-lgsvl start`
 then use [terminator](https://wiki.ubuntuusers.de/Terminator/) to open 4 terminals for the following steps, each run:
    - `ade enter`
+   - navigate to `workspace/dfg-car`
 
 (note: if you reboot the laptop or use `ade stop` to exist the ade environment, you have to use `ade --rc amd64-foxy-lgsvl start` to enter the image. If you just log out, you don't have to start the ade image again.)
 
-1. open rviz and launch avp 
-- Terminal 1 (under workspace/dfg-car):
+1. Terminal **1**: open rviz 
+- under workspace/dfg-car):
   - `source ./install/setup.bash`
   - `ros2 launch cr2autoware autoware_auto_visualization.launch.py`
-- Terminal 2:
+2. Terminal **2**: launch avp 
   - `source ./install/setup.bash`
   - `ros2 launch cr2autoware avp_sim.launch.py`
-
-2. run SVL simulator:
+3. Terminal **3**: run SVL simulator:
    - `/opt/lgsvl/simulator &`
    - open browser, logging in with tuminfocps@gmail.com with password ilovecps, click on `run simulator`
    - SVLSimulator is then loaded, click on the start button
    - Initializing the localization, see [here](https://autowarefoundation.gitlab.io/autoware.auto/AutowareAuto/ndt-initialization.html)
-3. run cr2autoware planner node in another terminal:
+4. Terminal **4**: run cr2autoware planner node in another terminal:
    - `sudo apt-get update`
    - `sudo apt-get install python3-pykdl`
    - `source ./install/setup.bash`
