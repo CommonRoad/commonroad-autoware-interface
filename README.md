@@ -31,38 +31,42 @@ param:
 ## How to start
 
 0. to run the docker image, open a terminal and enter under `~/adehome/Autoware`:
-  - `ade --rc amd64-foxy-lgsvl start`
+   - `ade --rc amd64-foxy-lgsvl start`
 then use [terminator](https://wiki.ubuntuusers.de/Terminator/) to open 4 terminals for the following steps, each run:
-  - `ade enter`
-  - navigate to `workspace/dfg-car`
-
+   - `ade enter`
+   - navigate to `workspace/dfg-car`
 (note: if you reboot the laptop or use `ade stop` to exist the ade environment, you have to use `ade --rc amd64-foxy-lgsvl start` to enter the image. If you just log out, you don't have to start the ade image again.)
 
 1. Terminal **1**: open rviz 
-  - `source ./install/setup.bash`
-  - `ros2 launch cr2autoware autoware_auto_visualization.launch.py`
+   - `source ./install/setup.bash`
+   - `ros2 launch cr2autoware autoware_auto_visualization.launch.py`
+
 2. Terminal **2**: launch avp 
-  - `source ./install/setup.bash`
-  - `ros2 launch cr2autoware avp_sim.launch.py`
+   - `source ./install/setup.bash`
+   - `ros2 launch cr2autoware avp_sim.launch.py`
+
 3. Terminal **3**: run SVL simulator:
-  - `/opt/lgsvl/simulator &`
-  - open browser, logging in with tuminfocps@gmail.com with password ilovecps, click on `run simulator`
-  - SVLSimulator is then loaded, click on the start button
-  - Initializing the localization, see [here](https://autowarefoundation.gitlab.io/autoware.auto/AutowareAuto/ndt-initialization.html)
+   - `/opt/lgsvl/simulator &`
+   - open browser, logging in with tuminfocps@gmail.com with password ilovecps, click on `run simulator`
+   - SVLSimulator is then loaded, click on the start button
+   - Initializing the localization, see [here](https://autowarefoundation.gitlab.io/autoware.auto/AutowareAuto/ndt-initialization.html)
+
 4. Terminal **4**: run cr2autoware planner node in another terminal:
-  - `sudo apt-get update`
-  - `sudo apt-get install python3-pykdl`
-  - `source ./install/setup.bash`
-  - `ros2 launch cr2autoware test.launch.py` 
+   - `sudo apt-get update`
+   - `sudo apt-get install python3-pykdl`
+   - `source ./install/setup.bash`
+   - `ros2 launch cr2autoware test.launch.py` 
 
 Video:  /home/drivingsim/Videos/how_to_run.webm
 
 # Editting the source code
-1. Open pycharm within ade:
+1. Open **pycharm** within ade:
    - `ade enter` (make sure you have already started ade)
    - navigate to `~/pycharm/pycharm-community-2021.3.1/bin`
    - enter `./pycharm.sh`
-2. compile **cr2autoware** package from source.
+2. git pull and edit the source code
+3. compile **cr2autoware** package from source.
    - `source /opt/AutowareAuto/setup.bash`
    - navigate to `workspace/dfg-car` directory
    - run `colcon build`
+4. git push
