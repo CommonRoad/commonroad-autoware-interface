@@ -39,7 +39,6 @@ then use [terminator](https://wiki.ubuntuusers.de/Terminator/) to open 4 termina
 (note: if you reboot the laptop or use `ade stop` to exist the ade environment, you have to use `ade --rc amd64-foxy-lgsvl start` to enter the image. If you just log out, you don't have to start the ade image again.)
 
 1. Terminal **1**: open rviz 
-- under workspace/dfg-car):
   - `source ./install/setup.bash`
   - `ros2 launch cr2autoware autoware_auto_visualization.launch.py`
 2. Terminal **2**: launch avp 
