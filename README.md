@@ -31,10 +31,10 @@ param:
 ## How to start
 
 0. to run the docker image, open a terminal and enter under `~/adehome/Autoware`:
-   - `ade --rc amd64-foxy-lgsvl start`
+  - `ade --rc amd64-foxy-lgsvl start`
 then use [terminator](https://wiki.ubuntuusers.de/Terminator/) to open 4 terminals for the following steps, each run:
-   - `ade enter`
-   - navigate to `workspace/dfg-car`
+  - `ade enter`
+  - navigate to `workspace/dfg-car`
 
 (note: if you reboot the laptop or use `ade stop` to exist the ade environment, you have to use `ade --rc amd64-foxy-lgsvl start` to enter the image. If you just log out, you don't have to start the ade image again.)
 
@@ -45,15 +45,15 @@ then use [terminator](https://wiki.ubuntuusers.de/Terminator/) to open 4 termina
   - `source ./install/setup.bash`
   - `ros2 launch cr2autoware avp_sim.launch.py`
 3. Terminal **3**: run SVL simulator:
-   - `/opt/lgsvl/simulator &`
-   - open browser, logging in with tuminfocps@gmail.com with password ilovecps, click on `run simulator`
-   - SVLSimulator is then loaded, click on the start button
-   - Initializing the localization, see [here](https://autowarefoundation.gitlab.io/autoware.auto/AutowareAuto/ndt-initialization.html)
+  - `/opt/lgsvl/simulator &`
+  - open browser, logging in with tuminfocps@gmail.com with password ilovecps, click on `run simulator`
+  - SVLSimulator is then loaded, click on the start button
+  - Initializing the localization, see [here](https://autowarefoundation.gitlab.io/autoware.auto/AutowareAuto/ndt-initialization.html)
 4. Terminal **4**: run cr2autoware planner node in another terminal:
-   - `sudo apt-get update`
-   - `sudo apt-get install python3-pykdl`
-   - `source ./install/setup.bash`
-   - `ros2 launch cr2autoware test.launch.py` 
+  - `sudo apt-get update`
+  - `sudo apt-get install python3-pykdl`
+  - `source ./install/setup.bash`
+  - `ros2 launch cr2autoware test.launch.py` 
 
 Video:  /home/drivingsim/Videos/how_to_run.webm
 
