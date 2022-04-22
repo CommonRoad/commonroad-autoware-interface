@@ -22,9 +22,9 @@ param:
 ### Required tools and versions:
 | Tools | Versions|
 |-|-|
-| commonroad-io | 2020.3 |
-| commonroad-drivability-checker | 2020.1 |
-| commonroad-vehicle-models | 1.0.0 |
+| commonroad-io | 2021.3 |
+| commonroad-drivability-checker | 2021.4 |
+| commonroad-vehicle-models | 2.0.0 |
 | commonroad-search | branch: master |
 | autoware.auto |commit: fd8b3e27000837b8e4bd9417ece4367823d468a5|
 
