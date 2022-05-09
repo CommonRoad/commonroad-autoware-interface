@@ -28,6 +28,10 @@ param:
 | commonroad-search | branch: master |
 | autoware.auto |commit: fd8b3e27000837b8e4bd9417ece4367823d468a5|
 
+
+## Installation of Autoware 
+See [Documentation](https://autowarefoundation.gitlab.io/autoware.auto/AutowareAuto/installation.html). The recommended method for installation is through the use of [ADE](https://ade-cli.readthedocs.io/en/latest/), a Docker-based tool to ensure that all developers in a project have a common, consistent development environment. 
+
 ## How to start
 
 0. to run the docker image, open a terminal and enter under `~/adehome/Autoware`:
