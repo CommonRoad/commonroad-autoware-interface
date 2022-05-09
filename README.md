@@ -30,7 +30,7 @@ param:
 
 
 ## Installation of Autoware 
-See [Documentation](https://autowarefoundation.gitlab.io/autoware.auto/AutowareAuto/installation.html). The recommended method for installation is through the use of [ADE](https://ade-cli.readthedocs.io/en/latest/), a Docker-based tool to ensure that all developers in a project have a common, consistent development environment. 
+See [Documentation](https://autowarefoundation.gitlab.io/autoware.auto/AutowareAuto/installation.html). The recommended method for installation is through the use of [ADE](https://ade-cli.readthedocs.io/en/latest/), a Docker-based tool to ensure that all developers in a project have a common, consistent development environment. An exemplar installation guidance in the lab PC can be found [here](https://gitlab.lrz.de/cps/dfg-car/-/wikis/Installation-of-Autoware.Auto-in-the-lab-PC),
 
 ## How to start
 
@@ -38,7 +38,7 @@ See [Documentation](https://autowarefoundation.gitlab.io/autoware.auto/AutowareA
    - `ade --rc amd64-foxy-lgsvl start`
 then use [terminator](https://wiki.ubuntuusers.de/Terminator/) to open 4 terminals for the following steps, each run:
    - `ade enter`
-   - navigate to `workspace/dfg-car`
+   - navigate to `workspace/dfg-car` 
 (note: if you reboot the laptop or use `ade stop` to exist the ade environment, you have to use `ade --rc amd64-foxy-lgsvl start` to enter the image. If you just log out, you don't have to start the ade image again.)
 
 1. Terminal **1**: open rviz 
@@ -69,6 +69,7 @@ Video:  /home/drivingsim/Videos/how_to_run.webm
    - navigate to `~/pycharm/pycharm-community-2021.3.1/bin`
    - enter `./pycharm.sh`
 2. git pull and edit the source code
+   - * for the first time: creat `workspace` folder
 3. compile **cr2autoware** package from source.
    - `source /opt/AutowareAuto/setup.bash`
    - navigate to `workspace/dfg-car` directory
