@@ -48,11 +48,11 @@ See [Documentation](https://autowarefoundation.gitlab.io/autoware.auto/AutowareA
 ## How to use
 
 0. to run the docker image, open a terminal and enter under `~/adehome/Autoware`:
-   - `ade --rc .aderc-amd64-foxy-lgsvl start`
+   - `ade --rc .aderc-amd64-foxy-lgsvl start -f`
 then use [terminator](https://wiki.ubuntuusers.de/Terminator/) to open 4 terminals for the following steps, each run:
    - `ade enter`
    - navigate to `workspace/dfg-car` 
-(note: if you reboot the laptop or use `ade stop` to exist the ade environment, you have to use `ade --rc .aderc-amd64-foxy-lgsvl start` to enter the image. If you just log out, you don't have to start the ade image again.)
+(note: if you reboot the laptop or use `ade stop` to exist the ade environment, you have to use `ade --rc .aderc-amd64-foxy-lgsvl start -f` to enter the image. If you just log out, you don't have to start the ade image again.)
 
 1. Terminal **1**: open rviz 
    - `source ./install/setup.bash`
