@@ -14,7 +14,8 @@
 
 """Launch Modules for Milestone 3 of the AVP 2020 Demo."""
 
-from ament_index_python import get_package_share_directory
+# from ament_index_python import get_package_share_directory
+from ament_index_python import *
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.actions import IncludeLaunchDescription
@@ -237,8 +238,13 @@ def generate_launch_description():
         condition=IfCondition(LaunchConfiguration('with_lgsvl')),
     )
 
+    # core_launch = IncludeLaunchDescription(
+    #     PythonLaunchDescriptionSource([avp_demo_pkg_prefix, '/launch/avp_core.launch.py']),
+    #     launch_arguments={}.items()
+    # )
+
     core_launch = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource([avp_demo_pkg_prefix, '/launch/avp_core.launch.py']),
+        PythonLaunchDescriptionSource([os.path.join(os.getcwd(), 'src/cr2autoware/launch/avp_core.launch.py')]),
         launch_arguments={}.items()
     )
 
