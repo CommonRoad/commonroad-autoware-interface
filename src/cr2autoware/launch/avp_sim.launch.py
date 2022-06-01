@@ -25,7 +25,6 @@ from launch_ros.actions import Node
 
 import os
 
-
 def generate_launch_description():
     """
     Launch all nodes defined in the architecture for Milestone 3 of the AVP 2020 Demo.
@@ -41,7 +40,7 @@ def generate_launch_description():
     lgsvl_sim_param_file = os.path.join(
         avp_demo_pkg_prefix, 'param/avp/lgsvl_simulation.param.yaml')
     map_publisher_param_file = os.path.join(
-        avp_demo_pkg_prefix, 'param/avp/map_publisher_sim.param.yaml')
+        os.getcwd(), 'src/cr2autoware/param/map_publisher_sim.param.yaml')
     ndt_localizer_param_file = os.path.join(
         avp_demo_pkg_prefix, 'param/avp/ndt_localizer_sim.param.yaml')
     pc_filter_transform_param_file = os.path.join(
@@ -59,13 +58,6 @@ def generate_launch_description():
     urdf_path = os.path.join(urdf_pkg_prefix, 'urdf/lexus_rx_450h.urdf')
     with open(urdf_path, 'r') as infp:
         urdf_file = infp.read()
-
-    map_pcd_file = os.path.join(
-        avp_demo_pkg_prefix, 'data/autonomoustuff_parking_lot_lgsvl.pcd')
-    map_yaml_file = os.path.join(
-        avp_demo_pkg_prefix, 'data/autonomoustuff_parking_lot_lgsvl.yaml')
-
-    # Arguments
 
     with_lgsvl_param = DeclareLaunchArgument(
         'with_lgsvl',
@@ -154,9 +146,7 @@ def generate_launch_description():
         package='ndt_nodes',
         executable='ndt_map_publisher_exe',
         namespace='localization',
-        parameters=[LaunchConfiguration('map_publisher_param_file'),
-                    {"map_pcd_file": map_pcd_file,
-                     "map_yaml_file": map_yaml_file}]
+        parameters=[LaunchConfiguration('map_publisher_param_file')]
     )
     urdf_publisher = Node(
         package='robot_state_publisher',
@@ -236,11 +226,6 @@ def generate_launch_description():
         }.items(),
         condition=IfCondition(LaunchConfiguration('with_lgsvl')),
     )
-
-    # core_launch = IncludeLaunchDescription(
-    #     PythonLaunchDescriptionSource([avp_demo_pkg_prefix, '/launch/avp_core.launch.py']),
-    #     launch_arguments={}.items()
-    # )
 
     core_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([os.path.join(os.getcwd(), 'src/cr2autoware/launch/avp_core.launch.py')]),
