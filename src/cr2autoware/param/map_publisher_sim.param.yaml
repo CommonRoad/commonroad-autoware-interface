@@ -2,8 +2,8 @@
   ros__parameters:
 #    map_pcd_file: "/opt/AutowareAuto/share/autoware_demos/data/autonomoustuff_parking_lot_lgsvl.pcd"
 #    map_yaml_file: "/opt/AutowareAuto/share/autoware_demos/data/autonomoustuff_parking_lot_lgsvl.yaml"
-    map_pcd_file: "/home/koray/workspace/dfg-car/src/cr2autoware/data/SingleLaneRoad.pcd"
-    map_yaml_file: "/home/koray/workspace/dfg-car/src/cr2autoware/data/SingleLaneRoad.yaml"
+    map_pcd_file: "/home/drivingsim/workspace/dfg-car/src/cr2autoware/data/autonomoustuff_parking_lot_lgsvl.pcd"
+    map_yaml_file: "/home/drivingsim/workspace/dfg-car/src/cr2autoware/data/autonomoustuff_parking_lot_lgsvl.yaml"
     map_frame: "map"
     map_config:
       capacity: 1000000

@@ -4,7 +4,7 @@
 /**:
    ros__parameters:
 #     map_osm_file: "/opt/AutowareAuto/share/autoware_demos/data/autonomoustuff_parking_lot.osm"
-     map_osm_file: "/home/koray/workspace/dfg-car/src/cr2autoware/data/SingleLaneRoad.osm"
+     map_osm_file: "/home/drivingsim/workspace/dfg-car/src/cr2autoware/data/autonomoustuff_parking_lot.osm"
      # The earth-map transform is given by the point cloud map, but when the osm file is projected
      # into the map frame, they might not match exactly. These parameters allow specifying a small
      # correction to the position of the map frame origin for the purpose of this projection. 
