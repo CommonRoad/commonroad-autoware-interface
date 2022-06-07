@@ -42,10 +42,8 @@ def generate_launch_description():
         autoware_launch_pkg_prefix, 'param/ray_ground_classifier.param.yaml')
     scan_downsampler_param_file = os.path.join(
         autoware_launch_pkg_prefix, 'param/scan_downsampler.param.yaml')
-
     lanelet2_map_provider_param_file = os.path.join(
-        avp_demo_pkg_prefix, 'param/avp/lanelet2_map_provider.param.yaml')
-
+        os.getcwd(), 'src/cr2autoware/param/lanelet2_map_provider.param.yaml')
     lane_planner_param_file = os.path.join(
         autoware_launch_pkg_prefix, 'param/lane_planner.param.yaml')
     costmap_generator_param_file = os.path.join(
@@ -74,9 +72,6 @@ def generate_launch_description():
 
     point_cloud_fusion_node_pkg_prefix = get_package_share_directory(
         'point_cloud_fusion_nodes')
-
-    map_osm_file = os.path.join(
-        avp_demo_pkg_prefix, 'data/autonomoustuff_parking_lot.osm')
 
     # Arguments
 
@@ -209,8 +204,7 @@ def generate_launch_description():
         executable='lanelet2_map_provider_exe',
         namespace='had_maps',
         name='lanelet2_map_provider_node',
-        parameters=[LaunchConfiguration('lanelet2_map_provider_param_file'),
-                    {'map_osm_file': map_osm_file}]
+        parameters=[LaunchConfiguration('lanelet2_map_provider_param_file')]
     )
     lanelet2_map_visualizer = Node(
         package='lanelet2_map_provider',
