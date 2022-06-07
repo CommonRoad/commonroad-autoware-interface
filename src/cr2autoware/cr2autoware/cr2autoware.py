@@ -30,7 +30,7 @@ from geometry_msgs.msg import PoseStamped, Quaternion, Point
 from autoware_auto_perception_msgs.msg import BoundingBoxArray
 from autoware_auto_planning_msgs.msg import TrajectoryPoint
 from autoware_auto_planning_msgs.msg import Trajectory as AWTrajectory
-from autoware_auto_vehicle_msgs.msg import VehicleKinematicState
+from nav_msgs.msg import Odometry
 import tf2_ros
 from tf2_ros.buffer import Buffer
 from tf2_ros.transform_listener import TransformListener
@@ -75,8 +75,8 @@ class Cr2Auto(Node):
 
         # subscribe current position of vehicle
         self.current_state_sub = self.create_subscription(
-            VehicleKinematicState,
-            '/vehicle/vehicle_kinematic_state',
+            Odometry,
+            '/localization/kinematic_state',
             self.current_state_callback,
             10
         )
@@ -97,7 +97,7 @@ class Cr2Auto(Node):
         # publish trajectory
         self.traj_pub = self.create_publisher(
             AWTrajectory,
-            '/planning/trajectory',
+            '/planning/scenario_planning/trajectory',
             10
         )
         # create a timer to update scenario
@@ -165,7 +165,7 @@ class Cr2Auto(Node):
         # save map
         self.write_scenario()
 
-    def current_state_callback(self, msg: VehicleKinematicState) -> None:
+    def current_state_callback(self, msg: Odometry) -> None:
         """
         position: (state.x, state.y)
         velocity: state.longitudinal_velocity_mps
@@ -187,14 +187,14 @@ class Cr2Auto(Node):
         if source_frame != "map":
             temp_pose_stamped = PoseStamped()
             temp_pose_stamped.header = msg.header
-            temp_pose_stamped.pose = msg.state.pose
+            temp_pose_stamped.pose = msg.pose
             pose_transformed = self._transform_pose_to_map(temp_pose_stamped)
         position = self.map2utm(pose_transformed.pose.position)
         orientation = Cr2Auto.quaternion2orientation(pose_transformed.pose.orientation)
         self.ego_vehicle_state = State(position=position,
                                        orientation=orientation,
-                                       velocity=msg.state.longitudinal_velocity_mps,
-                                       yaw_rate=msg.state.heading_rate_rps,
+                                       velocity=msg.twist.linear.x,
+                                       yaw_rate=msg.twist.angular.z,
                                        slip_angle=0.0,
                                        time_step=0)
 
