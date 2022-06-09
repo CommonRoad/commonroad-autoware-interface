@@ -27,7 +27,7 @@ from SMP.maneuver_automaton.maneuver_automaton import ManeuverAutomaton
 from crdesigner.input_output.api import lanelet_to_commonroad
 
 from geometry_msgs.msg import PoseStamped, Quaternion, Point
-from autoware_auto_perception_msgs.msg import BoundingBoxArray
+from autoware_auto_perception_msgs.msg import DetectedObjects
 from autoware_auto_planning_msgs.msg import TrajectoryPoint
 from autoware_auto_planning_msgs.msg import Trajectory as AWTrajectory
 from nav_msgs.msg import Odometry
@@ -82,8 +82,8 @@ class Cr2Auto(Node):
         )
         # subscribe static obstacles
         self.static_obs_sub = self.create_subscription(
-            BoundingBoxArray,
-            '/perception/lidar_bounding_boxes_filtered',
+            DetectedObjects,
+            '/perception/object_recognition/detection/objects',
             self.static_obs_callback,
             10
         )
@@ -198,7 +198,7 @@ class Cr2Auto(Node):
                                        slip_angle=0.0,
                                        time_step=0)
 
-    def static_obs_callback(self, msg: BoundingBoxArray) -> None:
+    def static_obs_callback(self, msg: DetectedObjects) -> None:
         """
         Callback to static obstacles, which are transformed and add to scenario
         :param msg:
@@ -208,14 +208,14 @@ class Cr2Auto(Node):
 
         temp_pose = PoseStamped()
         temp_pose.header = msg.header
-        for box in msg.boxes:
-            temp_pose.pose.position.x = box.centroid.x
-            temp_pose.pose.position.y = box.centroid.y
-            temp_pose.pose.position.z = box.centroid.z
-            temp_pose.pose.orientation.x = box.orientation.x
-            temp_pose.pose.orientation.y = box.orientation.y
-            temp_pose.pose.orientation.z = box.orientation.z
-            temp_pose.pose.orientation.w = box.orientation.w
+        for box in msg.objects:
+            temp_pose.pose.position.x = box.kinematics.pose_with_covariance.pose.position.x
+            temp_pose.pose.position.y = box.kinematics.pose_with_covariance.pose.position.y
+            temp_pose.pose.position.z = box.kinematics.pose_with_covariance.pose.position.z
+            temp_pose.pose.orientation.x = box.kinematics.pose_with_covariance.pose.orientation.x
+            temp_pose.pose.orientation.y = box.kinematics.pose_with_covariance.pose.orientation.y
+            temp_pose.pose.orientation.z = box.kinematics.pose_with_covariance.pose.orientation.z
+            temp_pose.pose.orientation.w = box.kinematics.pose_with_covariance.pose.orientation.w
             pose_map = self._transform_pose_to_map(temp_pose)
             if pose_map is None:
                 continue
@@ -223,8 +223,8 @@ class Cr2Auto(Node):
             x = pose_map.pose.position.x + self.origin_x
             y = pose_map.pose.position.y + self.origin_y
             orientation = Cr2Auto.quaternion2orientation(pose_map.pose.orientation)
-            width = box.size.x
-            length = box.size.y
+            width = box.shape.dimensions.y
+            length = box.shape.dimensions.x
 
             self.static_obstacles.append(Box(x, y, width, length, orientation))
 
