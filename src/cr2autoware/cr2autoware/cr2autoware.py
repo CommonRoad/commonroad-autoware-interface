@@ -52,7 +52,7 @@ class Box:
 class Cr2Auto(Node):
     def __init__(self):
         super().__init__('cr2autoware')
-        self.proj_str = "+proj=utm +zone=10 +datum=WGS84 +ellps=WGS84"
+        self.proj_str = "+proj=utm +zone=54 +datum=WGS84 +ellps=WGS84"
 
         self.ego_vehicle = None
         self.ego_vehicle_state: State = None
@@ -119,11 +119,11 @@ class Cr2Auto(Node):
         origin_latitude = self.get_parameter("latitude").get_parameter_value().double_value
         origin_longitude = self.get_parameter("longitude").get_parameter_value().double_value
         origin_elevation = self.get_parameter("elevation").get_parameter_value().double_value
-        orgin_offset_lat = self.get_parameter("origin_offset_lat").get_parameter_value().double_value
-        orgin_offset_lon = self.get_parameter("origin_offset_lon").get_parameter_value().double_value
+        origin_offset_lat = self.get_parameter("origin_offset_lat").get_parameter_value().double_value
+        origin_offset_lon = self.get_parameter("origin_offset_lon").get_parameter_value().double_value
 
-        origin_latitude = origin_latitude + orgin_offset_lat
-        origin_longitude = origin_longitude + orgin_offset_lon
+        origin_latitude = origin_latitude + origin_offset_lat
+        origin_longitude = origin_longitude + origin_offset_lon
         self.get_logger().info("origin lat: %s,   origin lon: %s" % (origin_latitude, origin_longitude))
 
         proj = Proj(self.proj_str)
@@ -373,9 +373,9 @@ class Cr2Auto(Node):
            }
         })
         self.scenario.draw(self.rnd, draw_params={'lanelet': {"show_label": False}})
-        self.planning_problem_set.draw(self.rnd)
+        #self.planning_problem_set.draw(self.rnd)
         self.rnd.render()
-        plt.pause(0.1)
+        plt.pause(100)
 
     def _create_ego_with_cur_location(self):
         # create a new ego vehicle with current position
