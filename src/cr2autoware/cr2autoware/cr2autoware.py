@@ -24,7 +24,8 @@ sys.path.append('/home/drivingsim/workspace/commonroad-search')
 from SMP.motion_planner.motion_planner import MotionPlanner
 from SMP.maneuver_automaton.maneuver_automaton import ManeuverAutomaton
 
-from crdesigner.input_output.api import lanelet_to_commonroad
+#from crdesigner.input_output.api import lanelet_to_commonroad
+from crdesigner.map_conversion.map_conversion_interface import lanelet_to_commonroad
 
 from geometry_msgs.msg import PoseStamped, Quaternion, Point
 from autoware_auto_perception_msgs.msg import DetectedObjects
@@ -90,7 +91,7 @@ class Cr2Auto(Node):
         # subscribe goal pose
         self.goal_pose_sub = self.create_subscription(
             PoseStamped,
-            '/planning/goal_pose_cr',
+            '/planning/mission_planning/goal',
             self.goal_pose_callback,
             10
         )
@@ -184,17 +185,20 @@ class Cr2Auto(Node):
             self.get_logger().error(f"Failed to transform from {source_frame} to map frame")
             return None
 
-        if source_frame != "map":
+        if source_frame != "map":    
             temp_pose_stamped = PoseStamped()
             temp_pose_stamped.header = msg.header
-            temp_pose_stamped.pose = msg.pose
+            temp_pose_stamped.pose = msg.pose.pose
             pose_transformed = self._transform_pose_to_map(temp_pose_stamped)
-        position = self.map2utm(pose_transformed.pose.position)
-        orientation = Cr2Auto.quaternion2orientation(pose_transformed.pose.orientation)
+            position = self.map2utm(pose_transformed.pose.position)
+            orientation = Cr2Auto.quaternion2orientation(pose_transformed.pose.orientation)
+        else:
+            position = self.map2utm(msg.pose.pose.position)
+            orientation = Cr2Auto.quaternion2orientation(msg.pose.pose.orientation)
         self.ego_vehicle_state = State(position=position,
                                        orientation=orientation,
-                                       velocity=msg.twist.linear.x,
-                                       yaw_rate=msg.twist.angular.z,
+                                       velocity=msg.twist.twist.linear.x,
+                                       yaw_rate=msg.twist.twist.angular.z,
                                        slip_angle=0.0,
                                        time_step=0)
 
@@ -271,7 +275,7 @@ class Cr2Auto(Node):
         Callback to goal pose. Create goal region with given goal pose and planning problem.
         :param msg: Goal Pose
         """
-        self.get_logger().info("Subscribe Goal Pose ...")
+        self.get_logger().info("Received Goal Pose ...")
         position = self.map2utm(msg.pose.position)
         orientation = Cr2Auto.quaternion2orientation(msg.pose.orientation)
         if self.ego_vehicle_state is None:
@@ -381,6 +385,10 @@ class Cr2Auto(Node):
         return StaticObstacle(ego_vehicle_id, ego_vehicle_type, ego_vehicle_shape, self.ego_vehicle_state)
 
     def update_scenario(self):
+        if self.ego_vehicle_state is None:
+            self.get_logger().info("has not received a vehicle state yet!")
+            return
+
         if not self.is_computing_trajectory:
             # remove past obstacles
             self.scenario.remove_obstacle(self.scenario.static_obstacles)
