@@ -40,7 +40,6 @@ from tf2_ros.transform_listener import TransformListener
 from cr2autoware.tf2_geometry_msgs import do_transform_pose
 from cr2autoware.utils import visualize_solution, display_steps
 
-
 @dataclass
 class Box:
     x:           float
@@ -53,12 +52,13 @@ class Box:
 class Cr2Auto(Node):
     def __init__(self):
         super().__init__('cr2autoware')
+        # TODO: get zone value from yaml file
         self.proj_str = "+proj=utm +zone=54 +datum=WGS84 +ellps=WGS84"
 
         self.ego_vehicle = None
         self.ego_vehicle_state: State = None
         # buffer for static obstacles
-        self.static_obstacles = []                  # a list save static obstacles from at the lastest time
+        self.static_obstacles = []                  # a list save static obstacles from at the latest time
 
         self.current_planning_problem_id = 0
         self.planning_problem_set = PlanningProblemSet()
@@ -69,7 +69,7 @@ class Cr2Auto(Node):
         self.planner = MotionPlanner.BreadthFirstSearch
 
         self.tf_buffer = Buffer(cache_time=rclpy.duration.Duration(seconds=10.0))
-        self.tf_listner = TransformListener(self.tf_buffer, self)  # convert among frames
+        self.tf_listener = TransformListener(self.tf_buffer, self)  # convert among frames
 
         self.convert_origin()
         self.ego_vechile_info()                 # compute ego vehicle width and height
@@ -186,7 +186,7 @@ class Cr2Auto(Node):
             self.get_logger().error(f"Failed to transform from {source_frame} to map frame")
             return None
 
-        if source_frame != "map":    
+        if source_frame != "map":
             temp_pose_stamped = PoseStamped()
             temp_pose_stamped.header = msg.header
             temp_pose_stamped.pose = msg.pose.pose
@@ -376,7 +376,7 @@ class Cr2Auto(Node):
         self.scenario.draw(self.rnd, draw_params={'lanelet': {"show_label": False}})
         #self.planning_problem_set.draw(self.rnd)
         self.rnd.render()
-        plt.pause(100)
+        plt.pause(0.1)
 
     def _create_ego_with_cur_location(self):
         # create a new ego vehicle with current position
@@ -424,7 +424,7 @@ class Cr2Auto(Node):
         :return:
         """
         source_frame = pose_in.header.frame_id
-        # lookup transform validty
+        # lookup transform validity
         succeed = self.tf_buffer.can_transform("map", 
                                                source_frame,
                                                rclpy.time.Time(),

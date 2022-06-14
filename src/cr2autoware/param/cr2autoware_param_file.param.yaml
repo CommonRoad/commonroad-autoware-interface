@@ -2,9 +2,9 @@
 
 /**:
   ros__parameters:
-    map_osm_file: "/home/drivingsim/workspace/dfg-car/src/cr2autoware/data/test.osm"
-    latitude: 35.90361
-    longitude: 139.93323
+    map_osm_file: "/home/koray/workspace/dfg-car/src/cr2autoware/data/kashiwanoha_map.osm"
+    latitude: 35.238094905136874
+    longitude: 139.90095439549778
     elevation: 1.0
     origin_offset_lat: -5.239983224214484e-06
     origin_offset_lon: 4.5845488187978845e-06
