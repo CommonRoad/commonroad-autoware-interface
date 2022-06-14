@@ -20,7 +20,8 @@ from commonroad.scenario.trajectory import State
 from commonroad.scenario.trajectory import Trajectory as CRTrajectory
 from commonroad.prediction.prediction import TrajectoryPrediction
 from commonroad.visualization.mp_renderer import MPRenderer
-sys.path.append('/home/drivingsim/workspace/commonroad-search')
+#sys.path.append('/home/drivingsim/workspace/commonroad-search')
+sys.path.append(os.path.join("/".join(os.getcwd().split("/")[:4]), "commonroad-search"))
 from SMP.motion_planner.motion_planner import MotionPlanner
 from SMP.maneuver_automaton.maneuver_automaton import ManeuverAutomaton
 
