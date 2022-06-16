@@ -250,18 +250,25 @@ class Cr2Auto(Node):
         """
         self.dynamic_obstacles = []
         for object in msg.objects:
-            # ToDo: get correct size
-            width = 2
-            length = 4
+            width = object.shape.dimensions.y
+            length = object.shape.dimensions.x
 
             position = self.map2utm(object.kinematics.initial_pose_with_covariance.pose.position)
             orientation = Cr2Auto.quaternion2orientation(object.kinematics.initial_pose_with_covariance.pose.orientation)
             dynamic_obstacle_initial_state = State(position=position,
-                                               orientation=orientation,
-                                               time_step=0)
+                                                   orientation=orientation,
+                                                   time_step=0)
             traj = []
             # ToDo: check why there are multiple predicted paths per obstacle
-            for point in object.kinematics.predicted_paths[0].path:
+            highest_conf_val = 0
+            highest_conf_idx = 0
+            for i in range(len(object.kinematics.predicted_paths)):
+                conf_val = object.kinematics.predicted_paths[i].confidence
+                if conf_val > highest_conf_val:
+                    highest_conf_val = conf_val
+                    highest_conf_idx = i
+            # self.get_logger().info(f"confidence value: {object.kinematics.predicted_paths[highest_conf_idx].confidence}")
+            for point in object.kinematics.predicted_paths[highest_conf_idx].path:
                 traj.append(point)
 
             # ToDo: sync timesteps of autoware and commonroad
@@ -355,15 +362,17 @@ class Cr2Auto(Node):
                             continue
                     valid_states.append(state)
 
-            for i in range(1, len(valid_states)):
+            for i in range(0, len(valid_states)):
                 new_point = TrajectoryPoint()
                 t = valid_states[i].time_step * self.scenario.dt
                 nano_sec, sec = math.modf(t)
                 new_point.time_from_start = Duration(sec=int(sec), nanosec=int(nano_sec*1e9))
                 new_point.pose.position = self.utm2map(valid_states[i].position)
                 new_point.pose.orientation = Cr2Auto.orientation2quaternion(valid_states[i].orientation)
-                new_point.longitudinal_velocity_mps = valid_states[i].velocity * 0.277778
-                #self.get_logger().info(f"longitudinal_velocity: {valid_states[i].velocity}")
+                if valid_states[0].velocity == 0.0:
+                    valid_states[0].velocity = 0.1
+                new_point.longitudinal_velocity_mps = valid_states[i].velocity
+                # self.get_logger().info(f"longitudinal_velocity_mps{i}: {new_point.longitudinal_velocity_mps}")
                 new_point.front_wheel_angle_rad = valid_states[i].steering_angle
                 if "acceleration" in valid_states[i].attributes:
                     new_point.acceleration_mps2 = valid_states[i].acceleration
