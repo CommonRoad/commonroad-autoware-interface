@@ -326,14 +326,15 @@ class Cr2Auto(Node):
                             continue
                     valid_states.append(state)
 
-            for i in range(len(valid_states)):
+            for i in range(1, len(valid_states)):
                 new_point = TrajectoryPoint()
                 t = valid_states[i].time_step * self.scenario.dt
                 nano_sec, sec = math.modf(t)
                 new_point.time_from_start = Duration(sec=int(sec), nanosec=int(nano_sec*1e9))
                 new_point.pose.position = self.utm2map(valid_states[i].position)
                 new_point.pose.orientation = Cr2Auto.orientation2quaternion(valid_states[i].orientation)
-                new_point.longitudinal_velocity_mps = valid_states[i].velocity
+                new_point.longitudinal_velocity_mps = valid_states[i].velocity * 0.277778
+                #self.get_logger().info(f"longitudinal_velocity: {valid_states[i].velocity}")
                 new_point.front_wheel_angle_rad = valid_states[i].steering_angle
                 if "acceleration" in valid_states[i].attributes:
                     new_point.acceleration_mps2 = valid_states[i].acceleration
