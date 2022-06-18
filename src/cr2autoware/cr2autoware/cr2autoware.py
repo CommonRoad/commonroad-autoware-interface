@@ -21,10 +21,16 @@ from commonroad.scenario.trajectory import State
 from commonroad.scenario.trajectory import Trajectory as CRTrajectory
 from commonroad.prediction.prediction import TrajectoryPrediction
 from commonroad.visualization.mp_renderer import MPRenderer
+
 #sys.path.append('/home/drivingsim/workspace/commonroad-search')
 sys.path.append("/home/" + getuser() + "/workspace/commonroad-search")
 from SMP.motion_planner.motion_planner import MotionPlanner
 from SMP.maneuver_automaton.maneuver_automaton import ManeuverAutomaton
+
+from commonroad_rp.reactive_planner import ReactivePlanner
+from commonroad_rp.configuration import build_configuration
+from commonroad_route_planner.route_planner import RoutePlanner
+from copy import deepcopy
 
 #from crdesigner.input_output.api import lanelet_to_commonroad
 from crdesigner.map_conversion.map_conversion_interface import lanelet_to_commonroad
@@ -68,7 +74,18 @@ class Cr2Auto(Node):
         name_file_motion_primitives = 'V_0.0_20.0_Vstep_4.0_SA_-1.066_1.066_SAstep_0.18_T_0.5_Model_BMW_320i.xml'
         self.automaton = ManeuverAutomaton.generate_automaton(name_file_motion_primitives)
         self.is_computing_trajectory = False  # stop update scenario when trajectory is computing
-        self.planner = MotionPlanner.BreadthFirstSearch
+
+        self.declare_parameter("planner_type", 1)
+        self.planner_type = self.get_parameter("planner_type").get_parameter_value().integer_value
+        if self.planner_type == 1:
+            self.planner = MotionPlanner.BreadthFirstSearch
+        elif self.planner_type == 2:
+            self.planner = ReactivePlanner
+            self.config = build_configuration()
+        else:
+            self.get_logger().info("Planner type is not correctly specified ... Using Default Planner")
+            self.planner_type = 1
+            self.planner = MotionPlanner.BreadthFirstSearch
 
         self.tf_buffer = Buffer(cache_time=rclpy.duration.Duration(seconds=10.0))
         self.tf_listener = TransformListener(self.tf_buffer, self)  # convert among frames
@@ -330,6 +347,102 @@ class Cr2Auto(Node):
         self.write_scenario()
         self._solve_planning_problem(msg)
 
+    def run_reactive_planner(self):
+        DT = self.config.planning.dt
+
+        planning_problem = self.planning_problem_set.find_planning_problem_by_id(self.current_planning_problem_id)
+        problem_init_state = planning_problem.initial_state
+        if not hasattr(problem_init_state, 'acceleration'):
+            problem_init_state.acceleration = 0.
+        x_0 = deepcopy(problem_init_state)
+
+        planner = self.planner(self.config)
+        planner.set_d_sampling_parameters(self.config.sampling.d_min, self.config.sampling.d_max)
+        planner.set_t_sampling_parameters(self.config.sampling.t_min, self.config.planning.dt, self.config.planning.planning_horizon)
+        planner.set_collision_checker(self.scenario)
+
+        route_planner = RoutePlanner(self.scenario, planning_problem)
+        ref_path = route_planner.plan_routes().retrieve_first_route().reference_path
+        planner.set_reference_path(ref_path)
+
+        record_state_list = list()
+        record_input_list = list()
+        x_cl = None
+
+        record_state_list.append(x_0)
+        delattr(record_state_list[0], "slip_angle")
+        record_state_list[0].steering_angle = np.arctan2(self.config.vehicle.wheelbase * record_state_list[0].yaw_rate,
+                                                         record_state_list[0].velocity)
+        record_input_state = State(
+            steering_angle=np.arctan2(self.config.vehicle.wheelbase * x_0.yaw_rate, x_0.velocity),
+            acceleration=x_0.acceleration,
+            time_step=x_0.time_step,
+            steering_angle_speed=0.)
+        record_input_list.append(record_input_state)
+
+        # Run planner
+        while not planning_problem.goal.is_reached(x_0):
+            current_count = len(record_state_list) - 1
+            if current_count % self.config.planning.replanning_frequency == 0:
+                # new planning cycle -> plan a new optimal trajectory
+
+                current_velocity = x_0.velocity
+                planner.set_desired_velocity(x_0.velocity)
+
+                # plan trajectory
+                optimal = planner.plan(x_0, x_cl)  # returns the planned (i.e., optimal) trajectory
+
+                # if the planner fails to find an optimal trajectory -> terminate
+                if not optimal:
+                    self.get_logger().info("not optimal")
+                    break
+
+                # correct orientation angle
+                new_state_list = planner.shift_orientation(optimal[0])
+
+                # add new state to recorded state list
+                new_state = new_state_list.state_list[1]
+                new_state.time_step = current_count + 1
+                record_state_list.append(new_state)
+
+                # add input to recorded input list
+                record_input_list.append(State(
+                    steering_angle=new_state.steering_angle,
+                    acceleration=new_state.acceleration,
+                    steering_angle_speed=(new_state.steering_angle - record_input_list[-1].steering_angle) / DT,
+                    time_step=new_state.time_step
+                ))
+
+                # update init state and curvilinear state
+                x_0 = deepcopy(record_state_list[-1])
+                x_cl = (optimal[2][1], optimal[3][1])
+
+            else:
+                # not a planning cycle -> no trajectories sampled -> set sampled_trajectory_bundle to None
+                sampled_trajectory_bundle = None
+
+                # continue on optimal trajectory
+                temp = current_count % self.config.planning.replanning_frequency
+
+                # add new state to recorded state list
+                new_state = new_state_list.state_list[1 + temp]
+                new_state.time_step = current_count + 1
+                record_state_list.append(new_state)
+
+                # add input to recorded input list
+                record_input_list.append(State(
+                    steering_angle=new_state.steering_angle,
+                    acceleration=new_state.acceleration,
+                    steering_angle_speed=(new_state.steering_angle - record_input_list[-1].steering_angle) / DT,
+                    time_step=new_state.time_step
+                ))
+
+                # update init state and curvilinear state
+                x_0 = deepcopy(record_state_list[-1])
+                x_cl = (optimal[2][1 + temp], optimal[3][1 + temp])
+
+        return optimal
+
     def _solve_planning_problem(self, msg: PoseStamped) -> None:
         """
         Solve planning problem with algorithms offered by commonroad. Now BreadthFirstSearch is in use, but can
@@ -338,14 +451,18 @@ class Cr2Auto(Node):
         """
         self.is_computing_trajectory = True
         # construct motion planner
-        planner = self.planner(scenario=self.scenario,
-                               planning_problem=self.planning_problem_set.find_planning_problem_by_id(self.current_planning_problem_id),
-                               automaton=self.automaton)
+        if self.planner_type == 1:  # Breadth First Search
+            planner = self.planner(scenario=self.scenario,
+                                   planning_problem=self.planning_problem_set.find_planning_problem_by_id(self.current_planning_problem_id),
+                                   automaton=self.automaton)
+            # visualize searching process
+            # scenario_data = (self.scenario, planner.state_initial, planner.shape_ego, self.planning_problem)
+            # display_steps(scenario_data, planner.execute_search, planner.config_plot)
 
-        # visualize searching process
-        # scenario_data = (self.scenario, planner.state_initial, planner.shape_ego, self.planning_problem)
-        # display_steps(scenario_data, planner.execute_search, planner.config_plot)
-        path, _, _ = planner.execute_search()
+            path, _, _ = planner.execute_search()
+
+        if self.planner_type == 2:  # Reactive Planner
+            path = self.run_reactive_planner()
 
         if path is not None:
             self.get_logger().info('Found trajectory to goal region !!!')
