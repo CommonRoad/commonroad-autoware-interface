@@ -19,5 +19,5 @@
       front_overhang_m: 0.5
       rear_overhang_m: 0.5
 
-    # for search based planner: 1 (default), for reactive planner: 2
-    planner_type: 1
+    # Planner type #1: Search based planner (default), #2: reactive planner
+    planner_type: 2

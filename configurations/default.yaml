@@ -3,7 +3,7 @@ planning:
   # planner time step (in s)
   dt: 0.1
   # planning time horizon (in s)
-  planning_horizon: 2
+  planning_horizon: 0.4
   # replanning frequency (in time steps)
   replanning_frequency: 3
   # planner mode TODO: modes not implemented yet
