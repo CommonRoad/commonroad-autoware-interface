@@ -14,15 +14,15 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get -y install --no-ins
   sqlite3 \
   python3-tk
 
-RUN pip --no-input install python-dateutil>=2.8.2 \
+RUN pip --no-input install 'python-dateutil>=2.8.2' \
   commonroad-drivability-checker \
   ipywidgets \
   pyproj \
   tqdm
 
-RUN wget https://download.osgeo.org/proj/proj-9.0.0.tar.gz
+RUN cd && wget https://download.osgeo.org/proj/proj-9.0.0.tar.gz
 
-RUN tar -xvf proj-9.0.0.tar.gz \
+RUN cd && tar -xvf proj-9.0.0.tar.gz \
   && cd proj-9.0.0 && mkdir build && cd build \
   && cmake .. \
   && cmake --build . \
@@ -37,7 +37,7 @@ RUN cd && git clone https://gitlab.lrz.de/tum-cps/commonroad-scenario-designer.g
 RUN cd && git clone https://github.com/tier4/autoware_auto_msgs.git
 
 # Clean up unnecessary files
-RUN rm -rf \
+RUN cd && rm -rf \
   proj-9.0.0.tar.gz
 
 #CMD source ~/workspace/dfg-car/install/setup.bash && source /opt/ros/foxy/setup.bash
