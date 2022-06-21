@@ -8,7 +8,6 @@ import math
 import numpy as np
 from pyproj import Proj
 import matplotlib.pyplot as plt
-from getpass import getuser
 # import necessary classes from different modules
 from commonroad.scenario.scenario import Tag
 from commonroad.common.file_writer import CommonRoadFileWriter, OverwriteExistingFile
@@ -22,7 +21,7 @@ from commonroad.scenario.trajectory import Trajectory as CRTrajectory
 from commonroad.prediction.prediction import TrajectoryPrediction
 from commonroad.visualization.mp_renderer import MPRenderer
 #sys.path.append('/home/drivingsim/workspace/commonroad-search')
-sys.path.append("/home/" + getuser() + "/workspace/commonroad-search")
+sys.path.append("/root/workspace/commonroad-search")
 from SMP.motion_planner.motion_planner import MotionPlanner
 from SMP.maneuver_automaton.maneuver_automaton import ManeuverAutomaton
 

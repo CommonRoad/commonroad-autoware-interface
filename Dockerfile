@@ -1,9 +1,6 @@
-# syntax=docker/dockerfile:1
 FROM osrf/ros:galactic-desktop
 
 SHELL ["/bin/bash", "-c"]
-
-# RUN useradd -ms /bin/bash drivingsim
 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get -y install --no-install-recommends \
   git \
@@ -34,10 +31,22 @@ RUN cd && git clone https://gitlab.lrz.de/tum-cps/commonroad-scenario-designer.g
   && cd commonroad-scenario-designer \
   && pip install -e .
 
-RUN cd && git clone https://github.com/tier4/autoware_auto_msgs.git
+RUN cd && git clone https://github.com/swri-robotics/swri_console.git \
+  && cd swri_console \
+  && git checkout ros2-devel \
+  && . /opt/ros/galactic/setup.sh \
+  && colcon build
+
+RUN cd && git clone https://github.com/tier4/autoware_auto_msgs.git \
+  && cd autoware_auto_msgs \
+  && . /opt/ros/galactic/setup.sh \
+  && colcon build
 
 # Clean up unnecessary files
 RUN cd && rm -rf \
   proj-9.0.0.tar.gz
 
-#CMD source ~/workspace/dfg-car/install/setup.bash && source /opt/ros/foxy/setup.bash
+COPY ./docker-entrypoint.sh /
+RUN chmod a+x /docker-entrypoint.sh
+
+ENTRYPOINT [ "/docker-entrypoint.sh" , "bash"]
