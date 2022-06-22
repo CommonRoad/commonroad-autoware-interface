@@ -1,0 +1,119 @@
+ScenarioModifiers:
+  ScenarioModifier: []
+OpenSCENARIO:
+  FileHeader:
+    revMajor: 1
+    revMinor: 1
+    date: '2022-06-21T20:55:46.299Z'
+    description: ''
+    author: ''
+  ParameterDeclarations:
+    ParameterDeclaration: []
+  CatalogLocations:
+    CatalogLocation: []
+  RoadNetwork:
+    LogicFile:
+      filepath: /home/koray/workspace/dfg-car/src/cr2autoware/data/sample-map-park/lanelet2_map.osm
+    SceneGraphFile:
+      filepath: /home/koray/workspace/dfg-car/src/cr2autoware/data/sample-map-park/pointcloud_map.pcd
+    TrafficSignals:
+      TrafficSignalController: []
+  Entities:
+    ScenarioObject:
+      - name: ego
+        Vehicle:
+          name: ''
+          vehicleCategory: car
+          BoundingBox:
+            Center:
+              x: 1.355
+              y: 0
+              z: 1.25
+            Dimensions:
+              width: 2.25
+              length: 4.77
+              height: 2.5
+          Performance:
+            maxSpeed: 50
+            maxAcceleration: INF
+            maxDeceleration: INF
+          Axles:
+            FrontAxle:
+              maxSteering: 0.5236
+              wheelDiameter: 0.78
+              trackWidth: 1.63
+              positionX: 1.385
+              positionZ: 0.39
+            RearAxle:
+              maxSteering: 0.5236
+              wheelDiameter: 0.78
+              trackWidth: 1.63
+              positionX: -1.355
+              positionZ: 0.39
+          Properties:
+            Property: []
+        ObjectController:
+          Controller:
+            name: ''
+            Properties:
+              Property:
+                - name: isEgo
+                  value: 'true'
+  Storyboard:
+    Init:
+      Actions:
+        Private:
+          - entityRef: ego
+            PrivateAction:
+              - TeleportAction:
+                  Position:
+                    WorldPosition:
+                      x: 96574.0998
+                      y: 37632.6528
+                      z: -0.8298
+                      h: 0
+                      p: -0.0
+                      r: 0
+    Story:
+      - name: ''
+        Act:
+          - name: _EndCondition
+            ManeuverGroup:
+              - maximumExecutionCount: 1
+                name: ''
+                Actors:
+                  selectTriggeringEntities: false
+                  EntityRef:
+                    - entityRef: ego
+                Maneuver:
+                  - name: ''
+                    Event:
+                      - name: ''
+                        priority: parallel
+                        StartTrigger:
+                          ConditionGroup:
+                            - Condition:
+                                - name: ''
+                                  delay: 0
+                                  conditionEdge: none
+                                  ByValueCondition:
+                                    SimulationTimeCondition:
+                                      value: 180
+                                      rule: greaterThan
+                        Action:
+                          - name: ''
+                            UserDefinedAction:
+                              CustomCommandAction:
+                                type: exitFailure
+            StartTrigger:
+              ConditionGroup:
+                - Condition:
+                    - name: ''
+                      delay: 0
+                      conditionEdge: none
+                      ByValueCondition:
+                        SimulationTimeCondition:
+                          value: 0
+                          rule: greaterThan
+    StopTrigger:
+      ConditionGroup: []

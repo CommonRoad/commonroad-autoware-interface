@@ -1,6 +1,8 @@
 #!/bin/bash
 
 # setup ros environment
+cd "/root/workspace/reactive-planner"
+pip install .
 source "/opt/ros/galactic/setup.bash"
 cd "/root/workspace/dfg-car"
 colcon build

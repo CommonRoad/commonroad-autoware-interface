@@ -29,6 +29,7 @@ from SMP.maneuver_automaton.maneuver_automaton import ManeuverAutomaton
 from commonroad_rp.reactive_planner import ReactivePlanner
 from commonroad_rp.configuration import build_configuration
 from commonroad_route_planner.route_planner import RoutePlanner
+from commonroad_rp.utility.evaluation import create_planning_problem_solution, reconstruct_inputs, reconstruct_states
 from copy import deepcopy
 
 #from crdesigner.input_output.api import lanelet_to_commonroad
@@ -38,6 +39,8 @@ from geometry_msgs.msg import PoseStamped, Quaternion, Point
 from autoware_auto_perception_msgs.msg import DetectedObjects, PredictedObjects
 from autoware_auto_planning_msgs.msg import TrajectoryPoint
 from autoware_auto_planning_msgs.msg import Trajectory as AWTrajectory
+from autoware_auto_system_msgs.msg import AutowareState
+
 from nav_msgs.msg import Odometry
 import tf2_ros
 from tf2_ros.buffer import Buffer
@@ -86,11 +89,13 @@ class Cr2Auto(Node):
             self.planner_type = 1
             self.planner = MotionPlanner.BreadthFirstSearch
 
+        # https://github.com/tier4/autoware_auto_msgs/blob/tier4/main/autoware_auto_system_msgs/msg/AutowareState.idl
+        self._aw_state = 1  # 1 = initializing
         self.tf_buffer = Buffer(cache_time=rclpy.duration.Duration(seconds=10.0))
         self.tf_listener = TransformListener(self.tf_buffer, self)  # convert among frames
 
         self.convert_origin()
-        self.ego_vechile_info()                 # compute ego vehicle width and height
+        self.ego_vehicle_info()                 # compute ego vehicle width and height
         self.build_scenario()                   # build scenario from osm map
 
         # subscribe current position of vehicle
@@ -119,6 +124,13 @@ class Cr2Auto(Node):
             PoseStamped,
             '/planning/mission_planning/goal',
             self.goal_pose_callback,
+            10
+        )
+        # subscribe autoware states
+        self.aw_state_sub = self.create_subscription(
+            AutowareState,
+            '/autoware/state',
+            self.state_callback,
             10
         )
         # publish trajectory
@@ -156,7 +168,7 @@ class Cr2Auto(Node):
         self.origin_x, self.origin_y = proj(origin_longitude, origin_latitude)
         self.get_logger().info("origin x: %s,   origin  y: %s" % (self.origin_x, self.origin_y))
 
-    def ego_vechile_info(self):
+    def ego_vehicle_info(self):
         """
         compute size of ego vehicle: (length, width)
         :return:
@@ -346,6 +358,9 @@ class Cr2Auto(Node):
         self.write_scenario()
         self._solve_planning_problem(msg)
 
+    def state_callback(self, msg: AutowareState) -> None:
+        self._aw_state = msg.state
+
     def _solve_planning_problem(self, msg: PoseStamped) -> None:
         """
         Solve planning problem with algorithms offered by commonroad. Now BreadthFirstSearch is in use, but can
@@ -420,21 +435,36 @@ class Cr2Auto(Node):
             self.get_logger().error("Failed to solve the planning problem.")
 
     def run_reactive_planner(self):
-        DT = self.config.planning.dt
+        DT = self.config.planning.dt  # planning time step
 
+        # planning_problem = list(self.planning_problem_set.planning_problem_dict.values())[0]
         planning_problem = self.planning_problem_set.find_planning_problem_by_id(self.current_planning_problem_id)
         problem_init_state = planning_problem.initial_state
-
+        current_velocity = problem_init_state.velocity
         if not hasattr(problem_init_state, 'acceleration'):
             problem_init_state.acceleration = 0.
         x_0 = deepcopy(problem_init_state)
+
+        # goal state configuration
+        goal = planning_problem.goal
+        if hasattr(planning_problem.goal.state_list[0], 'velocity'):
+            if planning_problem.goal.state_list[0].velocity.start != 0:
+                desired_velocity = (planning_problem.goal.state_list[0].velocity.start +
+                                    planning_problem.goal.state_list[0].velocity.end) / 2
+            else:
+                desired_velocity = (planning_problem.goal.state_list[0].velocity.start
+                                    + planning_problem.goal.state_list[0].velocity.end) / 2
+        else:
+            desired_velocity = x_0.velocity
 
         # construct motion planner
         planner = self.planner(self.config)
         planner.set_d_sampling_parameters(self.config.sampling.d_min, self.config.sampling.d_max)
         planner.set_t_sampling_parameters(self.config.sampling.t_min, self.config.planning.dt, self.config.planning.planning_horizon)
+        # set collision checker
         planner.set_collision_checker(self.scenario)
 
+        # initialize route planner and set reference path
         route_planner = RoutePlanner(self.scenario, planning_problem)
         ref_path = route_planner.plan_routes().retrieve_first_route().reference_path
         planner.set_reference_path(ref_path)
@@ -442,6 +472,8 @@ class Cr2Auto(Node):
         record_state_list = list()
         record_input_list = list()
         x_cl = None
+        current_count = 0
+        ego_vehicle = None
 
         record_state_list.append(x_0)
         delattr(record_state_list[0], "slip_angle")
@@ -455,14 +487,14 @@ class Cr2Auto(Node):
         record_input_list.append(record_input_state)
 
         # Run planner
-        while not planning_problem.goal.is_reached(x_0):
+        while not goal.is_reached(x_0) or self._aw_state == 6:  # 6 = arrived goal
             self.get_logger().info("Reactive Planner Running")
             current_count = len(record_state_list) - 1
             if current_count % self.config.planning.replanning_frequency == 0:
                 # new planning cycle -> plan a new optimal trajectory
 
                 current_velocity = x_0.velocity
-                planner.set_desired_velocity(x_0.velocity)
+                planner.set_desired_velocity(desired_velocity)
 
                 # plan trajectory
                 optimal = planner.plan(x_0, x_cl)  # returns the planned (i.e., optimal) trajectory
@@ -480,6 +512,14 @@ class Cr2Auto(Node):
                 new_state.time_step = current_count + 1
                 record_state_list.append(new_state)
 
+                # add input to recorded input list
+                record_input_list.append(State(
+                    steering_angle=new_state.steering_angle,
+                    acceleration=new_state.acceleration,
+                    steering_angle_speed=(new_state.steering_angle - record_input_list[-1].steering_angle) / DT,
+                    time_step=new_state.time_step
+                ))
+
                 # update init state and curvilinear state
                 x_0 = deepcopy(record_state_list[-1])
                 x_cl = (optimal[2][1], optimal[3][1])
@@ -496,27 +536,37 @@ class Cr2Auto(Node):
                 new_state.time_step = current_count + 1
                 record_state_list.append(new_state)
 
+                # add input to recorded input list
+                record_input_list.append(State(
+                    steering_angle=new_state.steering_angle,
+                    acceleration=new_state.acceleration,
+                    steering_angle_speed=(new_state.steering_angle - record_input_list[-1].steering_angle) / DT,
+                    time_step=new_state.time_step
+                ))
+
                 # update init state and curvilinear state
                 x_0 = deepcopy(record_state_list[-1])
                 x_cl = (optimal[2][1 + temp], optimal[3][1 + temp])
 
             # prepare the message
+            found_traj = optimal[0].final_state
+
             traj = AWTrajectory()
             traj.header.frame_id = "map"
 
             new_point = TrajectoryPoint()
-            t = new_state.time_step * self.scenario.dt
+            t = found_traj.time_step * self.scenario.dt
             nano_sec, sec = math.modf(t)
             new_point.time_from_start = Duration(sec=int(sec), nanosec=int(nano_sec * 1e9))
-            new_point.pose.position = self.utm2map(new_state.position)
-            new_point.pose.orientation = Cr2Auto.orientation2quaternion(new_state.orientation)
-            if new_state.velocity == 0.0:
-                new_state.velocity = 0.1
-            new_point.longitudinal_velocity_mps = new_state.velocity
+            new_point.pose.position = self.utm2map(found_traj.position)
+            new_point.pose.orientation = Cr2Auto.orientation2quaternion(found_traj.orientation)
+            if found_traj.velocity == 0.0:
+                found_traj.velocity = 0.1
+            new_point.longitudinal_velocity_mps = found_traj.velocity
             # self.get_logger().info(f"longitudinal_velocity_mps{i}: {new_point.longitudinal_velocity_mps}")
-            new_point.front_wheel_angle_rad = new_state.steering_angle
-            if "acceleration" in new_state.attributes:
-                new_point.acceleration_mps2 = new_state.acceleration
+            new_point.front_wheel_angle_rad = found_traj.steering_angle
+            if "acceleration" in found_traj.attributes:
+                new_point.acceleration_mps2 = found_traj.acceleration
             else:
                 new_point.acceleration_mps2 = 0.0  # acceleration is 0 for the last state
 
@@ -524,6 +574,19 @@ class Cr2Auto(Node):
 
             self.get_logger().info('Found trajectory to goal region !!!')
             self.traj_pub.publish(traj)
+
+        # remove first element
+        record_input_list.pop(0)
+
+        # create CR solution
+        solution = create_planning_problem_solution(self.config, record_state_list, self.scenario, planning_problem)
+        # check feasibility
+        # reconstruct inputs (state transition optimizations)
+        feasible, reconstructed_inputs = reconstruct_inputs(self.config, solution.planning_problem_solutions[0])
+        # reconstruct states from inputs
+        reconstructed_states = reconstruct_states(self.config, record_state_list, reconstructed_inputs)
+
+        # found_traj = solution.planning_problem_solutions[0].trajectory.final_state
 
     def plot_scenario(self):
         self.rnd.clear()

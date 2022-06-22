@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<osm version='0.6' generator='JOSM'>
+<osm version='0.6' generator='VBM'>
   <node id='1001' visible='true' version='1' lat='37.38143282929' lon='-121.90825956337'>
     <tag k='ele' v='-1.4483755826950073' />
   </node>
