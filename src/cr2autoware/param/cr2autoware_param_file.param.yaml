@@ -18,6 +18,8 @@
       width_m: 2.0
       front_overhang_m: 0.5
       rear_overhang_m: 0.5
+      max_velocity: 5.0
+      min_velocity: 2.0
 
     # Planner type #1: Search based planner (default), #2: reactive planner
     planner_type: 2

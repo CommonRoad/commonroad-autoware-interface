@@ -40,6 +40,7 @@ from autoware_auto_perception_msgs.msg import DetectedObjects, PredictedObjects
 from autoware_auto_planning_msgs.msg import TrajectoryPoint
 from autoware_auto_planning_msgs.msg import Trajectory as AWTrajectory
 from autoware_auto_system_msgs.msg import AutowareState
+from autoware_auto_vehicle_msgs.msg import Engage
 
 from nav_msgs.msg import Odometry
 import tf2_ros
@@ -91,6 +92,7 @@ class Cr2Auto(Node):
 
         # https://github.com/tier4/autoware_auto_msgs/blob/tier4/main/autoware_auto_system_msgs/msg/AutowareState.idl
         self._aw_state = 1  # 1 = initializing
+        self._engage = Engage()
         self.tf_buffer = Buffer(cache_time=rclpy.duration.Duration(seconds=10.0))
         self.tf_listener = TransformListener(self.tf_buffer, self)  # convert among frames
 
@@ -137,6 +139,11 @@ class Cr2Auto(Node):
         self.traj_pub = self.create_publisher(
             AWTrajectory,
             '/planning/scenario_planning/trajectory',
+            10
+        )
+        self.engage_pub = self.create_publisher(
+            Engage,
+            '/autoware/engage',
             10
         )
         # create a timer to update scenario
@@ -347,8 +354,15 @@ class Cr2Auto(Node):
             self.get_logger().error("ego vehicle state is None")
             return
 
+        self.declare_parameter('max_velocity', 5.0)
+        self.declare_parameter('min_velocity', 1.0)
+        max_vel = self.get_parameter('max_velocity').get_parameter_value().double_value
+        min_vel = self.get_parameter('min_velocity').get_parameter_value().double_value
+        velocity_interval = Interval(min_vel, max_vel)
+
         region = Rectangle(length=4, width=4, center=position, orientation=orientation)
-        goal_state = State(position=region, time_step=Interval(10, 50), velocity=Interval(0.0, 0.1))
+        goal_state = State(position=region, time_step=Interval(10, 50), velocity=velocity_interval)
+
         goal_region = GoalRegion([goal_state])
         self.current_planning_problem_id += 1      # generate new id when a new planning problem is added
         planning_problem = PlanningProblem(planning_problem_id=self.current_planning_problem_id,
@@ -377,6 +391,40 @@ class Cr2Auto(Node):
 
         self.is_computing_trajectory = False
 
+    # prepare the message
+    def prepare_traj_mes(self, states):
+        self.get_logger().info('Found trajectory to goal region !!!')
+
+        traj = AWTrajectory()
+        traj.header.frame_id = "map"
+
+        for i in range(0, len(states)):
+            new_point = TrajectoryPoint()
+            t = states[i].time_step * self.scenario.dt
+            nano_sec, sec = math.modf(t)
+            new_point.time_from_start = Duration(sec=int(sec), nanosec=int(nano_sec * 1e9))
+            new_point.pose.position = self.utm2map(states[i].position)
+            new_point.pose.orientation = Cr2Auto.orientation2quaternion(states[i].orientation)
+            if states[0].velocity == 0.0:
+                states[0].velocity = 0.1
+            new_point.longitudinal_velocity_mps = states[i].velocity
+            new_point.front_wheel_angle_rad = states[i].steering_angle
+            if "acceleration" in states[i].attributes:
+                new_point.acceleration_mps2 = states[i].acceleration
+            else:
+                if i < len(states) - 1:
+                    cur_vel = states[i].velocity
+                    next_vel = states[i + 1].velocity
+                    acc = (next_vel - cur_vel) / self.scenario.dt
+                    new_point.acceleration_mps2 = acc
+                else:
+                    new_point.acceleration_mps2 = 0.0  # acceleration is 0 for the last state
+
+            traj.points.append(new_point)
+
+        self.traj_pub.publish(traj)
+        # visualize_solution(self.scenario, self.planning_problem_set, create_trajectory_from_list_states(path))
+
     def run_search_planner(self):
         # construct motion planner
         planner = self.planner(scenario=self.scenario,
@@ -390,10 +438,6 @@ class Cr2Auto(Node):
         path, _, _ = planner.execute_search()
 
         if path is not None:
-            self.get_logger().info('Found trajectory to goal region !!!')
-            traj = AWTrajectory()
-            traj.header.frame_id = "map"
-
             valid_states = []
             # there are duplicated points, which will arise "same point" exception in AutowareAuto
             for states in path:
@@ -404,32 +448,7 @@ class Cr2Auto(Node):
                             continue
                     valid_states.append(state)
 
-            for i in range(0, len(valid_states)):
-                new_point = TrajectoryPoint()
-                t = valid_states[i].time_step * self.scenario.dt
-                nano_sec, sec = math.modf(t)
-                new_point.time_from_start = Duration(sec=int(sec), nanosec=int(nano_sec*1e9))
-                new_point.pose.position = self.utm2map(valid_states[i].position)
-                new_point.pose.orientation = Cr2Auto.orientation2quaternion(valid_states[i].orientation)
-                if valid_states[0].velocity == 0.0:
-                    valid_states[0].velocity = 0.1
-                new_point.longitudinal_velocity_mps = valid_states[i].velocity
-                # self.get_logger().info(f"longitudinal_velocity_mps{i}: {new_point.longitudinal_velocity_mps}")
-                new_point.front_wheel_angle_rad = valid_states[i].steering_angle
-                if "acceleration" in valid_states[i].attributes:
-                    new_point.acceleration_mps2 = valid_states[i].acceleration
-                else:
-                    if i < len(valid_states) - 1:
-                        cur_vel = valid_states[i].velocity
-                        next_vel = valid_states[i+1].velocity
-                        acc = (next_vel - cur_vel) / self.scenario.dt
-                        new_point.acceleration_mps2 = acc
-                    else:
-                        new_point.acceleration_mps2 = 0.0               # acceleration is 0 for the last state
-
-                traj.points.append(new_point)
-
-            self.traj_pub.publish(traj)
+            self.prepare_traj_mes(valid_states)
             # visualize_solution(self.scenario, self.planning_problem_set, create_trajectory_from_list_states(path))
         else:
             self.get_logger().error("Failed to solve the planning problem.")
@@ -472,8 +491,6 @@ class Cr2Auto(Node):
         record_state_list = list()
         record_input_list = list()
         x_cl = None
-        current_count = 0
-        ego_vehicle = None
 
         record_state_list.append(x_0)
         delattr(record_state_list[0], "slip_angle")
@@ -502,7 +519,7 @@ class Cr2Auto(Node):
                 # if the planner fails to find an optimal trajectory -> terminate
                 if not optimal:
                     self.get_logger().info("not optimal")
-                    break
+                    return
 
                 # correct orientation angle
                 new_state_list = planner.shift_orientation(optimal[0])
@@ -512,21 +529,12 @@ class Cr2Auto(Node):
                 new_state.time_step = current_count + 1
                 record_state_list.append(new_state)
 
-                # add input to recorded input list
-                record_input_list.append(State(
-                    steering_angle=new_state.steering_angle,
-                    acceleration=new_state.acceleration,
-                    steering_angle_speed=(new_state.steering_angle - record_input_list[-1].steering_angle) / DT,
-                    time_step=new_state.time_step
-                ))
-
                 # update init state and curvilinear state
                 x_0 = deepcopy(record_state_list[-1])
                 x_cl = (optimal[2][1], optimal[3][1])
 
             else:
                 # not a planning cycle -> no trajectories sampled -> set sampled_trajectory_bundle to None
-                sampled_trajectory_bundle = None
 
                 # continue on optimal trajectory
                 temp = current_count % self.config.planning.replanning_frequency
@@ -536,57 +544,22 @@ class Cr2Auto(Node):
                 new_state.time_step = current_count + 1
                 record_state_list.append(new_state)
 
-                # add input to recorded input list
-                record_input_list.append(State(
-                    steering_angle=new_state.steering_angle,
-                    acceleration=new_state.acceleration,
-                    steering_angle_speed=(new_state.steering_angle - record_input_list[-1].steering_angle) / DT,
-                    time_step=new_state.time_step
-                ))
-
                 # update init state and curvilinear state
                 x_0 = deepcopy(record_state_list[-1])
                 x_cl = (optimal[2][1 + temp], optimal[3][1 + temp])
 
-            # prepare the message
-            found_traj = optimal[0].final_state
+            valid_states = []
+            # there are duplicated points, which will arise "same point" exception in AutowareAuto
+            for state in optimal[0].state_list:
+                if len(valid_states) > 0:
+                    last_state = valid_states[-1]
+                    if last_state.time_step == state.time_step:
+                        continue
+                valid_states.append(state)
 
-            traj = AWTrajectory()
-            traj.header.frame_id = "map"
-
-            new_point = TrajectoryPoint()
-            t = found_traj.time_step * self.scenario.dt
-            nano_sec, sec = math.modf(t)
-            new_point.time_from_start = Duration(sec=int(sec), nanosec=int(nano_sec * 1e9))
-            new_point.pose.position = self.utm2map(found_traj.position)
-            new_point.pose.orientation = Cr2Auto.orientation2quaternion(found_traj.orientation)
-            if found_traj.velocity == 0.0:
-                found_traj.velocity = 0.1
-            new_point.longitudinal_velocity_mps = found_traj.velocity
-            # self.get_logger().info(f"longitudinal_velocity_mps{i}: {new_point.longitudinal_velocity_mps}")
-            new_point.front_wheel_angle_rad = found_traj.steering_angle
-            if "acceleration" in found_traj.attributes:
-                new_point.acceleration_mps2 = found_traj.acceleration
-            else:
-                new_point.acceleration_mps2 = 0.0  # acceleration is 0 for the last state
-
-            traj.points.append(new_point)
-
-            self.get_logger().info('Found trajectory to goal region !!!')
-            self.traj_pub.publish(traj)
-
-        # remove first element
-        record_input_list.pop(0)
-
-        # create CR solution
-        solution = create_planning_problem_solution(self.config, record_state_list, self.scenario, planning_problem)
-        # check feasibility
-        # reconstruct inputs (state transition optimizations)
-        feasible, reconstructed_inputs = reconstruct_inputs(self.config, solution.planning_problem_solutions[0])
-        # reconstruct states from inputs
-        reconstructed_states = reconstruct_states(self.config, record_state_list, reconstructed_inputs)
-
-        # found_traj = solution.planning_problem_solutions[0].trajectory.final_state
+            self.prepare_traj_mes(valid_states)
+            self._engage.engage = True
+            self.engage_pub.publish(self._engage)
 
     def plot_scenario(self):
         self.rnd.clear()
