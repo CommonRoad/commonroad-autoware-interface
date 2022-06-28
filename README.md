@@ -49,10 +49,14 @@ To update the docker image in the container registry run the following commands 
 
 ### autoware.universe setup
 First log in to the docker registry `docker login gitlab.lrz.de:5005`.
-Then to the dockerimage just run the comand to start the container: `rocker --nvidia --x11 --user --volume $HOME/workspace/autoware:$HOME/autoware --volume $HOME/workspace/workspace:$HOME/workspace -- ghcr.io/autowarefoundation/autoware-universe:galactic-latest-prebuilt`. It will fetch the image from the container registry of this repository.
+Then to the dockerimage just run the comand to start the container: `rocker --nvidia --x11 --user --volume $HOME/workspace/autoware:$HOME/autoware --volume $HOME/workspace/workspace:$HOME/workspace -- gitlab.lrz.de:5005/cps/dfg-car:autoware-universe`. It will fetch the image from the container registry of this repository.
 
-Setup the autoware repository in the container:
+Setup the autoware repository in the container (only if first time setup):
    - `sudo apt update`
+   - `cd ~/autoware`
+   - `mkdir src`
+   - `vcs import src < autoware.repos`
+   - `vcs import src < simulator.repos`
    - `source /opt/ros/galactic/setup.bash`
    - `rosdep update`
    - `rosdep install --from-paths src --ignore-src --rosdistro $ROS_DISTRO -y`
