@@ -62,6 +62,25 @@ class Box:
 class Cr2Auto(Node):
     def __init__(self):
         super().__init__('cr2autoware')
+        
+        # declare ros parameter
+        self.declare_parameter('vehicle.max_velocity', 5.0)
+        self.declare_parameter('vehicle.min_velocity', 1.0)
+        self.declare_parameter("planner_type", 1)
+        self.declare_parameter("latitude", 0.0)
+        self.declare_parameter("longitude", 0.0)
+        self.declare_parameter("elevation", 0.0)
+        self.declare_parameter("origin_offset_lat", 0.0)
+        self.declare_parameter("origin_offset_lon", 0.0)
+        self.declare_parameter('vehicle.cg_to_front_m', 1.0)
+        self.declare_parameter('vehicle.cg_to_rear_m', 1.0)
+        self.declare_parameter('vehicle.width_m', 2.0)
+        self.declare_parameter('vehicle.front_overhang_m', 0.5)
+        self.declare_parameter('vehicle.rear_overhang_m', 0.5)
+        self.declare_parameter('map_osm_file', '')
+        self.declare_parameter('left_driving', False)
+        self.declare_parameter('adjacencies', False)
+        
         # TODO: get zone value from yaml file
         self.proj_str = "+proj=utm +zone=54 +datum=WGS84 +ellps=WGS84"
 
@@ -78,7 +97,6 @@ class Cr2Auto(Node):
         self.automaton = ManeuverAutomaton.generate_automaton(name_file_motion_primitives)
         self.is_computing_trajectory = False  # stop update scenario when trajectory is computing
 
-        self.declare_parameter("planner_type", 1)
         self.planner_type = self.get_parameter("planner_type").get_parameter_value().integer_value
         if self.planner_type == 1:
             self.planner = MotionPlanner.BreadthFirstSearch
@@ -156,11 +174,6 @@ class Cr2Auto(Node):
         compute coordinate of the origin in UTM (used in commonroad) frame
         :return:
         """
-        self.declare_parameter("latitude", 0.0)
-        self.declare_parameter("longitude", 0.0)
-        self.declare_parameter("elevation", 0.0)
-        self.declare_parameter("origin_offset_lat", 0.0)
-        self.declare_parameter("origin_offset_lon", 0.0)
         origin_latitude = self.get_parameter("latitude").get_parameter_value().double_value
         origin_longitude = self.get_parameter("longitude").get_parameter_value().double_value
         origin_elevation = self.get_parameter("elevation").get_parameter_value().double_value
@@ -180,11 +193,6 @@ class Cr2Auto(Node):
         compute size of ego vehicle: (length, width)
         :return:
         """
-        self.declare_parameter('vehicle.cg_to_front_m', 1.0)
-        self.declare_parameter('vehicle.cg_to_rear_m', 1.0)
-        self.declare_parameter('vehicle.width_m', 2.0)
-        self.declare_parameter('vehicle.front_overhang_m', 0.5)
-        self.declare_parameter('vehicle.rear_overhang_m', 0.5)
         cg_to_front = self.get_parameter("vehicle.cg_to_front_m").get_parameter_value().double_value
         cg_to_rear = self.get_parameter("vehicle.cg_to_rear_m").get_parameter_value().double_value
         width = self.get_parameter("vehicle.width_m").get_parameter_value().double_value
@@ -198,9 +206,6 @@ class Cr2Auto(Node):
         transform map from osm format to commonroad scenario
         :return:
         """
-        self.declare_parameter('map_osm_file', '')
-        self.declare_parameter('left_driving', False)
-        self.declare_parameter('adjacencies', False)
         map_filename = self.get_parameter('map_osm_file').get_parameter_value().string_value
         left_driving = self.get_parameter('left_driving').get_parameter_value()
         adjacencies = self.get_parameter('adjacencies').get_parameter_value()
@@ -354,10 +359,8 @@ class Cr2Auto(Node):
             self.get_logger().error("ego vehicle state is None")
             return
 
-        self.declare_parameter('max_velocity', 5.0)
-        self.declare_parameter('min_velocity', 1.0)
-        max_vel = self.get_parameter('max_velocity').get_parameter_value().double_value
-        min_vel = self.get_parameter('min_velocity').get_parameter_value().double_value
+        max_vel = self.get_parameter('vehicle.max_velocity').get_parameter_value().double_value
+        min_vel = self.get_parameter('vehicle.min_velocity').get_parameter_value().double_value
         velocity_interval = Interval(min_vel, max_vel)
 
         region = Rectangle(length=4, width=4, center=position, orientation=orientation)
@@ -393,7 +396,7 @@ class Cr2Auto(Node):
 
     # prepare the message
     def prepare_traj_mes(self, states):
-        self.get_logger().info('Found trajectory to goal region !!!')
+        #self.get_logger().info('Found trajectory to goal region !!!')
 
         traj = AWTrajectory()
         traj.header.frame_id = "map"
@@ -410,6 +413,7 @@ class Cr2Auto(Node):
             new_point.longitudinal_velocity_mps = states[i].velocity
             new_point.front_wheel_angle_rad = states[i].steering_angle
             if "acceleration" in states[i].attributes:
+                self.get_logger().info("states[i].acceleration: " + str(states[i].acceleration))
                 new_point.acceleration_mps2 = states[i].acceleration
             else:
                 if i < len(states) - 1:
@@ -417,6 +421,7 @@ class Cr2Auto(Node):
                     next_vel = states[i + 1].velocity
                     acc = (next_vel - cur_vel) / self.scenario.dt
                     new_point.acceleration_mps2 = acc
+                    self.get_logger().info("new_point.acceleration_mps2: " + str(new_point.acceleration_mps2))
                 else:
                     new_point.acceleration_mps2 = 0.0  # acceleration is 0 for the last state
 
@@ -490,7 +495,6 @@ class Cr2Auto(Node):
 
         record_state_list = list()
         record_input_list = list()
-        x_cl = None
 
         record_state_list.append(x_0)
         delattr(record_state_list[0], "slip_angle")
@@ -503,9 +507,17 @@ class Cr2Auto(Node):
             steering_angle_speed=0.)
         record_input_list.append(record_input_state)
 
+        #while self._aw_state != 6:
+
+        x_cl = None
+        #x_0 = deepcopy(self.ego_vehicle_state)
+        #optimal = None
+        #new_state_list = None
+        #self.get_logger().info("Reactive Planner Running")
+        valid_states = []
+
         # Run planner
-        while not goal.is_reached(x_0) or self._aw_state == 6:  # 6 = arrived goal
-            self.get_logger().info("Reactive Planner Running")
+        while not goal.is_reached(x_0):  # or self._aw_state == 6:  # 6 = arrived goal
             current_count = len(record_state_list) - 1
             if current_count % self.config.planning.replanning_frequency == 0:
                 # new planning cycle -> plan a new optimal trajectory
@@ -548,7 +560,7 @@ class Cr2Auto(Node):
                 x_0 = deepcopy(record_state_list[-1])
                 x_cl = (optimal[2][1 + temp], optimal[3][1 + temp])
 
-            valid_states = []
+
             # there are duplicated points, which will arise "same point" exception in AutowareAuto
             for state in optimal[0].state_list:
                 if len(valid_states) > 0:
