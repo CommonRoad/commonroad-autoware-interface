@@ -1,13 +1,9 @@
 # Our DFG-Car: **EDGAR**
 
 ## Description
-<hr>
-
 This project builds an interface between commonroad and autoware.universe/core. 
 
 ## Introduction of files
-<hr>
-
 cr2autoware
 * cr2autoware.py: a ros node that subscribe information from autoware and process information and publish data to autoware
 * tf2_geometry_msgs.py: define help-functions for transformation between map frame and other frames.
@@ -27,9 +23,17 @@ launch:
 param:
 * cr2autoware_param_file.param.yaml: parameter for initialization of map and vehicle etc.
 
-## Docker 
-<hr>
+## Environment setup
+Install **Docker**, **NVIDIA Container Toolkit** and **rocker**. See for that: https://autowarefoundation.github.io/autoware-documentation/latest/installation/autoware/docker-installation/
 
+In the following we use a folder `~/workspace` to collect all repositories and code. You are free to use any other path for that folder.
+
+1. `mkdir ~/workspace && mkdir ~/workspace/workspace`
+2. `cd ~/workspace && git clone https://github.com/autowarefoundation/autoware.git`
+3. `cd ~/workspace/workspace && git clone https://gitlab.lrz.de/cps/dfg-car.git`
+4. Do the setup of the docker containers for [cr2autoware](#cr2autoware-setup) and [autoware.universe](#autowareuniverse-setup).
+
+## Docker 
 Here the docker setup is described:
 
 ### cr2autoware setup
@@ -64,30 +68,13 @@ To update the docker image in the container registry run the following commands 
 4. Rename image `docker tag ghcr.io/autowarefoundation/autoware-universe:galactic-latest-prebuilt gitlab.lrz.de:5005/cps/dfg-car:autoware-universe`
 5. Upload image `docker push gitlab.lrz.de:5005/cps/dfg-car:autoware-universe`
 
-
-## Environment setup
-<hr>
-
-Install **Docker**, **NVIDIA Container Toolkit** and **rocker**. See for that: https://autowarefoundation.github.io/autoware-documentation/latest/installation/autoware/docker-installation/
-
-In the following we use a folder `~/workspace` to collect all repositories and code. You are free to use any other path for that folder.
-
-1. `mkdir ~/workspace && mkdir ~/workspace/workspace`
-2. `cd ~/workspace && git clone https://github.com/autowarefoundation/autoware.git`
-3. `cd ~/workspace/workspace && git clone https://gitlab.lrz.de/cps/dfg-car.git`
-4. Do the setup of the docker containers for [cr2autoware](#cr2autoware-setup) and [autoware.universe](#autowareuniverse-setup).
-
 ## Modifications to autoware.universe
-<hr>
-
 ### Disable trajectory planning of autoware
 
 1. Comment out the planning part in the launch file: `~/workspace/autoware/src/launcher/autoware_launch/autoware_launch/launch/planning_simulator.launch.xml`
 2. Run `colcon build --packages-select autoware_launch && source ~/autoware/install/setup.bash` in the autoware container.
 
 ## How to use
-<hr>
-
 0. Create **2** terminals (maybe Terminator is usefull here)
 
 1. Terminal **1**: open cr2autoware container 
