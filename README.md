@@ -37,7 +37,8 @@ In the following we use a folder `~/workspace` to collect all repositories and c
 Here the docker setup is described:
 
 ### cr2autoware setup
-To download the dockerfile just run the comand to start the container: `rocker --nvidia --x11 --volume $HOME/workspace/workspace:/root/workspace -- gitlab.lrz.de:5005/cps/dfg-car`. It will fetch the image from the container registry of this repository.
+First log in to the docker registry `docker login gitlab.lrz.de:5005`.
+Then to download the dockerimage just run the comand to start the container: `rocker --nvidia --x11 --volume $HOME/workspace/workspace:/root/workspace -- gitlab.lrz.de:5005/cps/dfg-car`. It will fetch the image from the container registry of this repository.
 
 ### cr2autoware update
 To update the docker image in the container registry run the following commands in the main repository folder:
@@ -47,7 +48,8 @@ To update the docker image in the container registry run the following commands 
 4. `docker push gitlab.lrz.de:5005/cps/dfg-car`
 
 ### autoware.universe setup
-To download the dockerfile just run the comand to start the container: `rocker --nvidia --x11 --user --volume $HOME/workspace/autoware:$HOME/autoware --volume $HOME/workspace/workspace:$HOME/workspace -- gitlab.lrz.de:5005/cps/dfg-car:autoware-universe`. It will fetch the image from the container registry of this repository.
+First log in to the docker registry `docker login gitlab.lrz.de:5005`.
+Then to the dockerimage just run the comand to start the container: `rocker --nvidia --x11 --user --volume $HOME/workspace/autoware:$HOME/autoware --volume $HOME/workspace/workspace:$HOME/workspace -- gitlab.lrz.de:5005/cps/dfg-car:autoware-universe`. It will fetch the image from the container registry of this repository.
 
 Setup the autoware repository:
    - `rocker --nvidia --x11 --user --volume $HOME/workspace/autoware:$HOME/autoware --volume $HOME/workspace/workspace:$HOME/workspace -- ghcr.io/autowarefoundation/autoware-universe:galactic-latest-prebuilt`
