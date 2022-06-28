@@ -90,8 +90,7 @@ class Cr2Auto(Node):
         self.static_obstacles = []                  # a list save static obstacles from at the latest time
         self.dynamic_obstacles = []                  # a list save dynamic obstacles from at the latest time
 
-        self.current_planning_problem_id = 0
-        self.planning_problem_set = PlanningProblemSet()
+        self.planning_problem = None
         # load the xml with stores the motion primitives
         name_file_motion_primitives = 'V_0.0_20.0_Vstep_4.0_SA_-1.066_1.066_SAstep_0.18_T_0.5_Model_BMW_320i.xml'
         self.automaton = ManeuverAutomaton.generate_automaton(name_file_motion_primitives)
@@ -367,11 +366,9 @@ class Cr2Auto(Node):
         goal_state = State(position=region, time_step=Interval(10, 50), velocity=velocity_interval)
 
         goal_region = GoalRegion([goal_state])
-        self.current_planning_problem_id += 1      # generate new id when a new planning problem is added
-        planning_problem = PlanningProblem(planning_problem_id=self.current_planning_problem_id,
-                                           initial_state=self.ego_vehicle_state,
-                                           goal_region=goal_region)
-        self.planning_problem_set.add_planning_problem(planning_problem)
+        self.planning_problem = PlanningProblem(planning_problem_id=1,
+                                                initial_state=self.ego_vehicle_state,
+                                                goal_region=goal_region)
         self.write_scenario()
         self._solve_planning_problem(msg)
 
@@ -413,7 +410,6 @@ class Cr2Auto(Node):
             new_point.longitudinal_velocity_mps = states[i].velocity
             new_point.front_wheel_angle_rad = states[i].steering_angle
             if "acceleration" in states[i].attributes:
-                self.get_logger().info("states[i].acceleration: " + str(states[i].acceleration))
                 new_point.acceleration_mps2 = states[i].acceleration
             else:
                 if i < len(states) - 1:
@@ -421,20 +417,18 @@ class Cr2Auto(Node):
                     next_vel = states[i + 1].velocity
                     acc = (next_vel - cur_vel) / self.scenario.dt
                     new_point.acceleration_mps2 = acc
-                    self.get_logger().info("new_point.acceleration_mps2: " + str(new_point.acceleration_mps2))
                 else:
                     new_point.acceleration_mps2 = 0.0  # acceleration is 0 for the last state
 
             traj.points.append(new_point)
 
         self.traj_pub.publish(traj)
-        # visualize_solution(self.scenario, self.planning_problem_set, create_trajectory_from_list_states(path))
+        # visualize_solution(self.scenario, self.planning_problem, create_trajectory_from_list_states(path)) #ToDo: test
 
     def run_search_planner(self):
         # construct motion planner
         planner = self.planner(scenario=self.scenario,
-                               planning_problem=self.planning_problem_set.find_planning_problem_by_id(
-                                   self.current_planning_problem_id),
+                               planning_problem=self.planning_problem,
                                automaton=self.automaton)
         # visualize searching process
         # scenario_data = (self.scenario, planner.state_initial, planner.shape_ego, self.planning_problem)
@@ -454,30 +448,28 @@ class Cr2Auto(Node):
                     valid_states.append(state)
 
             self.prepare_traj_mes(valid_states)
-            # visualize_solution(self.scenario, self.planning_problem_set, create_trajectory_from_list_states(path))
+            # visualize_solution(self.scenario, self.planning_problem, create_trajectory_from_list_states(path)) #ToDo: check if working
         else:
             self.get_logger().error("Failed to solve the planning problem.")
 
     def run_reactive_planner(self):
         DT = self.config.planning.dt  # planning time step
 
-        # planning_problem = list(self.planning_problem_set.planning_problem_dict.values())[0]
-        planning_problem = self.planning_problem_set.find_planning_problem_by_id(self.current_planning_problem_id)
-        problem_init_state = planning_problem.initial_state
+        problem_init_state = self.planning_problem.initial_state
         current_velocity = problem_init_state.velocity
         if not hasattr(problem_init_state, 'acceleration'):
             problem_init_state.acceleration = 0.
         x_0 = deepcopy(problem_init_state)
 
         # goal state configuration
-        goal = planning_problem.goal
-        if hasattr(planning_problem.goal.state_list[0], 'velocity'):
-            if planning_problem.goal.state_list[0].velocity.start != 0:
-                desired_velocity = (planning_problem.goal.state_list[0].velocity.start +
-                                    planning_problem.goal.state_list[0].velocity.end) / 2
+        goal = self.planning_problem.goal
+        if hasattr(self.planning_problem.goal.state_list[0], 'velocity'):
+            if self.planning_problem.goal.state_list[0].velocity.start != 0:
+                desired_velocity = (self.planning_problem.goal.state_list[0].velocity.start +
+                                    self.planning_problem.goal.state_list[0].velocity.end) / 2
             else:
-                desired_velocity = (planning_problem.goal.state_list[0].velocity.start
-                                    + planning_problem.goal.state_list[0].velocity.end) / 2
+                desired_velocity = (self.planning_problem.goal.state_list[0].velocity.start
+                                    + self.planning_problem.goal.state_list[0].velocity.end) / 2
         else:
             desired_velocity = x_0.velocity
 
@@ -489,7 +481,7 @@ class Cr2Auto(Node):
         planner.set_collision_checker(self.scenario)
 
         # initialize route planner and set reference path
-        route_planner = RoutePlanner(self.scenario, planning_problem)
+        route_planner = RoutePlanner(self.scenario, self.planning_problem)
         ref_path = route_planner.plan_routes().retrieve_first_route().reference_path
         planner.set_reference_path(ref_path)
 
@@ -592,7 +584,7 @@ class Cr2Auto(Node):
            }
         })
         self.scenario.draw(self.rnd, draw_params={'lanelet': {"show_label": False}})
-        #self.planning_problem_set.draw(self.rnd)
+        #self.planning_problem.draw(self.rnd) #ToDo: check if working
         self.rnd.render()
         plt.pause(0.1)
 
@@ -629,7 +621,7 @@ class Cr2Auto(Node):
         # store converted file as CommonRoad scenario
         writer = CommonRoadFileWriter(
             scenario=self.scenario,
-            planning_problem_set=self.planning_problem_set,
+            planning_problem_set=PlanningProblemSet([]),
             author="",
             affiliation="Technical University of Munich",
             source="",
