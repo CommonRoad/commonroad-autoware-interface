@@ -109,7 +109,6 @@ class Cr2Auto(Node):
 
         # https://github.com/tier4/autoware_auto_msgs/blob/tier4/main/autoware_auto_system_msgs/msg/AutowareState.idl
         self._aw_state = 1  # 1 = initializing
-        self._engage = Engage()
         self.tf_buffer = Buffer(cache_time=rclpy.duration.Duration(seconds=10.0))
         self.tf_listener = TransformListener(self.tf_buffer, self)  # convert among frames
 
@@ -362,8 +361,8 @@ class Cr2Auto(Node):
         min_vel = self.get_parameter('vehicle.min_velocity').get_parameter_value().double_value
         velocity_interval = Interval(min_vel, max_vel)
 
-        region = Rectangle(length=4, width=4, center=position, orientation=orientation)
-        goal_state = State(position=region, time_step=Interval(10, 50), velocity=velocity_interval)
+        region = Rectangle(length=self.vehicle_length + 0.25 * self.vehicle_length, width=4, center=position, orientation=orientation) # ToDo: set good width
+        goal_state = State(position=region, time_step=Interval(0, 0), velocity=velocity_interval)  # is Interval(0, 0) fine?
 
         goal_region = GoalRegion([goal_state])
         self.planning_problem = PlanningProblem(planning_problem_id=1,
@@ -391,10 +390,7 @@ class Cr2Auto(Node):
 
         self.is_computing_trajectory = False
 
-    # prepare the message
-    def prepare_traj_mes(self, states):
-        #self.get_logger().info('Found trajectory to goal region !!!')
-
+    def prepare_traj_msg(self, states):
         traj = AWTrajectory()
         traj.header.frame_id = "map"
 
@@ -423,6 +419,7 @@ class Cr2Auto(Node):
             traj.points.append(new_point)
 
         self.traj_pub.publish(traj)
+        self.get_logger().info('New trajectory published !!!')
         # visualize_solution(self.scenario, self.planning_problem, create_trajectory_from_list_states(path)) #ToDo: test
 
     def run_search_planner(self):
@@ -447,7 +444,7 @@ class Cr2Auto(Node):
                             continue
                     valid_states.append(state)
 
-            self.prepare_traj_mes(valid_states)
+            self.prepare_traj_msg(valid_states)
             # visualize_solution(self.scenario, self.planning_problem, create_trajectory_from_list_states(path)) #ToDo: check if working
         else:
             self.get_logger().error("Failed to solve the planning problem.")
@@ -561,9 +558,10 @@ class Cr2Auto(Node):
                         continue
                 valid_states.append(state)
 
-            self.prepare_traj_mes(valid_states)
-            self._engage.engage = True
-            self.engage_pub.publish(self._engage)
+            self.prepare_traj_msg(valid_states)
+            engage_msg = Engage()
+            engage_msg.engage = True
+            self.engage_pub.publish(engage_msg)
 
     def plot_scenario(self):
         self.rnd.clear()
