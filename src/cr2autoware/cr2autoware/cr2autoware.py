@@ -362,7 +362,7 @@ class Cr2Auto(Node):
         velocity_interval = Interval(min_vel, max_vel)
 
         region = Rectangle(length=self.vehicle_length + 0.25 * self.vehicle_length, width=4, center=position, orientation=orientation) # ToDo: set good width
-        goal_state = State(position=region, time_step=Interval(0, 0), velocity=velocity_interval)  # is Interval(0, 0) fine?
+        goal_state = State(position=region, time_step=Interval(0, 1000), velocity=velocity_interval)
 
         goal_region = GoalRegion([goal_state])
         self.planning_problem = PlanningProblem(planning_problem_id=1,
@@ -470,6 +470,8 @@ class Cr2Auto(Node):
         else:
             desired_velocity = x_0.velocity
 
+        # ToDo: set parameters here from ros yaml
+
         # construct motion planner
         planner = self.planner(self.config)
         planner.set_d_sampling_parameters(self.config.sampling.d_min, self.config.sampling.d_max)
@@ -562,6 +564,7 @@ class Cr2Auto(Node):
             engage_msg = Engage()
             engage_msg.engage = True
             self.engage_pub.publish(engage_msg)
+            planner.set_collision_checker(self.scenario)
 
     def plot_scenario(self):
         self.rnd.clear()
