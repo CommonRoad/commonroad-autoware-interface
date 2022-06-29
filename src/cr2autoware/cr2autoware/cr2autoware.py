@@ -80,10 +80,9 @@ class Cr2Auto(Node):
         self.declare_parameter('map_osm_file', '')
         self.declare_parameter('left_driving', False)
         self.declare_parameter('adjacencies', False)
-        
-        # TODO: get zone value from yaml file
-        self.proj_str = "+proj=utm +zone=54 +datum=WGS84 +ellps=WGS84"
+        self.declare_parameter('proj_str', '')
 
+        self.proj_str = self.get_parameter('proj_str').get_parameter_value().string_value
         self.ego_vehicle = None
         self.ego_vehicle_state: State = None
         # buffer for static obstacles
@@ -103,7 +102,7 @@ class Cr2Auto(Node):
             self.planner = ReactivePlanner
             self.config = build_configuration()
         else:
-            self.get_logger().info("Planner type is not correctly specified ... Using Default Planner")
+            self.get_logger().warn("Planner type is not correctly specified ... Using Default Planner")
             self.planner_type = 1
             self.planner = MotionPlanner.BreadthFirstSearch
 
@@ -361,7 +360,18 @@ class Cr2Auto(Node):
         min_vel = self.get_parameter('vehicle.min_velocity').get_parameter_value().double_value
         velocity_interval = Interval(min_vel, max_vel)
 
-        region = Rectangle(length=self.vehicle_length + 0.25 * self.vehicle_length, width=4, center=position, orientation=orientation) # ToDo: set good width
+        pos_x = round(position[0])
+        pos_y = round(position[1])
+        goal_lanelet_id = self.scenario.lanelet_network.find_lanelet_by_position([np.array([pos_x, pos_y])])
+        if goal_lanelet_id:
+            goal_lanelet = self.scenario.lanelet_network.find_lanelet_by_id(goal_lanelet_id[0][0])
+            left_vertices = goal_lanelet.left_vertices
+            right_vertices = goal_lanelet.right_vertices
+            goal_lanelet_width = np.linalg.norm(left_vertices[0] - right_vertices[0])
+        else:
+            goal_lanelet_width = 3.0
+
+        region = Rectangle(length=self.vehicle_length + 0.25 * self.vehicle_length, width=goal_lanelet_width, center=position, orientation=orientation)
         goal_state = State(position=region, time_step=Interval(0, 1000), velocity=velocity_interval)
 
         goal_region = GoalRegion([goal_state])
