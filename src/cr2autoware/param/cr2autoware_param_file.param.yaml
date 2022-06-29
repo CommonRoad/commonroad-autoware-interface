@@ -24,3 +24,17 @@
 
     # Planner type #1: Search based planner (default), #2: reactive planner
     planner_type: 2
+
+    # parameters for reactive planner
+    reactive_planner:
+      sampling:
+        d_min: -3
+        d_max: 3
+        t_min: 0.4
+
+      planning:
+        dt: 0.1
+        planning_horizon: 0.4
+        replanning_frequency: 3
+
+

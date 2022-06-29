@@ -81,6 +81,12 @@ class Cr2Auto(Node):
         self.declare_parameter('left_driving', False)
         self.declare_parameter('adjacencies', False)
         self.declare_parameter('proj_str', '')
+        self.declare_parameter('reactive_planner.sampling.d_min', -3)
+        self.declare_parameter('reactive_planner.sampling.d_max', 3)
+        self.declare_parameter('reactive_planner.sampling.t_min', 0.4)
+        self.declare_parameter('reactive_planner.planning.dt', 0.1)
+        self.declare_parameter('reactive_planner.planning.planning_horizon', 0.4)
+        self.declare_parameter('reactive_planner.planning.replanning_frequency', 3)
 
         self.proj_str = self.get_parameter('proj_str').get_parameter_value().string_value
         self.ego_vehicle = None
@@ -460,8 +466,6 @@ class Cr2Auto(Node):
             self.get_logger().error("Failed to solve the planning problem.")
 
     def run_reactive_planner(self):
-        DT = self.config.planning.dt  # planning time step
-
         problem_init_state = self.planning_problem.initial_state
         current_velocity = problem_init_state.velocity
         if not hasattr(problem_init_state, 'acceleration'):
@@ -480,12 +484,16 @@ class Cr2Auto(Node):
         else:
             desired_velocity = x_0.velocity
 
-        # ToDo: set parameters here from ros yaml
+        replanning_frequency = self.get_parameter('reactive_planner.planning.replanning_frequency').get_parameter_value().integer_value
 
         # construct motion planner
         planner = self.planner(self.config)
-        planner.set_d_sampling_parameters(self.config.sampling.d_min, self.config.sampling.d_max)
-        planner.set_t_sampling_parameters(self.config.sampling.t_min, self.config.planning.dt, self.config.planning.planning_horizon)
+        planner.set_d_sampling_parameters(self.get_parameter('reactive_planner.sampling.d_min').get_parameter_value().integer_value,
+                                          self.get_parameter('reactive_planner.sampling.d_max').get_parameter_value().integer_value)
+        planner.set_t_sampling_parameters(self.get_parameter('reactive_planner.sampling.t_min').get_parameter_value().double_value,
+                                          self.get_parameter('reactive_planner.planning.dt').get_parameter_value().double_value,
+                                          self.get_parameter('reactive_planner.planning.planning_horizon').get_parameter_value().double_value)
+
         # set collision checker
         planner.set_collision_checker(self.scenario)
 
@@ -520,7 +528,7 @@ class Cr2Auto(Node):
         # Run planner
         while not goal.is_reached(x_0):  # or self._aw_state == 6:  # 6 = arrived goal
             current_count = len(record_state_list) - 1
-            if current_count % self.config.planning.replanning_frequency == 0:
+            if current_count % replanning_frequency == 0:
                 # new planning cycle -> plan a new optimal trajectory
 
                 current_velocity = x_0.velocity
@@ -550,7 +558,7 @@ class Cr2Auto(Node):
                 # not a planning cycle -> no trajectories sampled -> set sampled_trajectory_bundle to None
 
                 # continue on optimal trajectory
-                temp = current_count % self.config.planning.replanning_frequency
+                temp = current_count % replanning_frequency
 
                 # add new state to recorded state list
                 new_state = new_state_list.state_list[1 + temp]
