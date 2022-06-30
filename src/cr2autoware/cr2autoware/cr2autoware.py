@@ -77,7 +77,7 @@ class Cr2Auto(Node):
         self.tf_listener = TransformListener(self.tf_buffer, self)  # convert among frames
 
         self.convert_origin()
-        self.ego_vechile_info()  # compute ego vehicle width and height
+        self.ego_vehicle_info()  # compute ego vehicle width and height
         self.build_scenario()  # build scenario from osm map
 
         # subscribe current position of vehicle
@@ -143,7 +143,7 @@ class Cr2Auto(Node):
         self.origin_x, self.origin_y = proj(origin_longitude, origin_latitude)
         self.get_logger().info("origin x: %s,   origin  y: %s" % (self.origin_x, self.origin_y))
 
-    def ego_vechile_info(self):
+    def ego_vehicle_info(self):
         """
         compute size of ego vehicle: (length, width)
         :return:
