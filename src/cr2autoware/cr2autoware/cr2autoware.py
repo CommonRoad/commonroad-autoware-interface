@@ -250,11 +250,12 @@ class Cr2Auto(Node):
         for object in msg.objects:
             width = object.shape.dimensions.y
             length = object.shape.dimensions.x
-
             position = self.map2utm(object.kinematics.initial_pose_with_covariance.pose.position)
             orientation = Cr2Auto.quaternion2orientation(object.kinematics.initial_pose_with_covariance.pose.orientation)
             dynamic_obstacle_initial_state = State(position=position,
                                                    orientation=orientation,
+                                                   velocity=object.kinematics.initial_twist_with_covariance.twist.linear.x,
+                                                   yaw_rate=object.kinematics.initial_twist_with_covariance.twist.angular.z,
                                                    time_step=0)
             traj = []
             # ToDo: check why there are multiple predicted paths per obstacle
