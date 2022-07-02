@@ -34,7 +34,8 @@ from copy import deepcopy
 #from crdesigner.input_output.api import lanelet_to_commonroad
 from crdesigner.map_conversion.map_conversion_interface import lanelet_to_commonroad
 
-from geometry_msgs.msg import PoseStamped, Quaternion, Point
+from geometry_msgs.msg import PoseStamped, Quaternion, Point, Vector3
+from visualization_msgs.msg import MarkerArray, Marker
 from autoware_auto_perception_msgs.msg import DetectedObjects, PredictedObjects
 from autoware_auto_planning_msgs.msg import TrajectoryPoint
 from autoware_auto_planning_msgs.msg import Trajectory as AWTrajectory
@@ -45,6 +46,10 @@ from nav_msgs.msg import Odometry
 import tf2_ros
 from tf2_ros.buffer import Buffer
 from tf2_ros.transform_listener import TransformListener
+
+import rclpy
+from rclpy.qos import QoSDurabilityPolicy, QoSHistoryPolicy, QoSReliabilityPolicy
+from rclpy.qos import QoSProfile
 
 from cr2autoware.tf2_geometry_msgs import do_transform_pose
 from cr2autoware.utils import visualize_solution, display_steps
@@ -166,6 +171,17 @@ class Cr2Auto(Node):
             '/planning/scenario_planning/trajectory',
             10
         )
+        # publish route marker
+        qos_route_pub = QoSProfile(depth=5)
+        qos_route_pub.history = QoSHistoryPolicy.KEEP_LAST
+        qos_route_pub.reliability = QoSReliabilityPolicy.RELIABLE
+        qos_route_pub.durability = QoSDurabilityPolicy.TRANSIENT_LOCAL
+        self.route_pub = self.create_publisher(
+            MarkerArray,
+            '/planning/mission_planning/route_marker',
+            qos_route_pub
+        )
+        # publish autoware engage
         self.engage_pub = self.create_publisher(
             Engage,
             '/autoware/engage',
@@ -466,6 +482,10 @@ class Cr2Auto(Node):
 
         self.traj_pub.publish(traj)
         self.get_logger().info('New trajectory published !!!')
+
+        engage_msg = Engage()
+        engage_msg.engage = True
+        self.engage_pub.publish(engage_msg)
         # visualize_solution(self.scenario, self.planning_problem, create_trajectory_from_list_states(path)) #ToDo: test
 
     def run_search_planner(self):
@@ -535,6 +555,7 @@ class Cr2Auto(Node):
         route_planner = RoutePlanner(self.scenario, self.planning_problem)
         ref_path = route_planner.plan_routes().retrieve_first_route().reference_path
         planner.set_reference_path(ref_path)
+        self.pub_route(ref_path)
 
         record_state_list = list()
         record_input_list = list()
@@ -613,10 +634,34 @@ class Cr2Auto(Node):
                 valid_states.append(state)
 
             self.prepare_traj_msg(valid_states)
-            engage_msg = Engage()
-            engage_msg.engage = True
-            self.engage_pub.publish(engage_msg)
             planner.set_collision_checker(self.scenario)
+
+    def pub_route(self, path):
+        route = Marker()
+        route.header.frame_id = "map"
+        route.id = 1
+        route.ns = "route"
+        route.frame_locked = True
+        route.type = Marker.LINE_STRIP
+        route.action = Marker.ADD
+        route.scale.x = 0.1
+        route.scale.y = 0.1
+        route.scale.z = 0.1
+        route.color.r = 0.0
+        route.color.g = 0.0
+        route.color.b = 1.0
+        route.color.a = 1.0
+        for point in path:
+            p = Point()
+            p.x = point[0] - self.origin_x
+            p.y = point[1] - self.origin_y
+            p.z = 0.0
+            route.points.append(p)
+            route.colors.append(route.color)
+
+        route_msg = MarkerArray()
+        route_msg.markers.append(route)
+        self.route_pub.publish(route_msg)
 
     def plot_scenario(self):
         self.rnd.clear()
