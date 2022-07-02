@@ -9,8 +9,9 @@
     origin_offset_lat: -5.239983224214484e-06
     origin_offset_lon: 4.5845488187978845e-06
     left_driving: True
-    adjacencies: False 
+    adjacencies: False
     write_scenario: False # write generated scenario as xml file after map is converted
+    filename: "ZAM_Lanelet-1_1-T1.xml" # name of the scenario for saving
 
     vehicle:
       cg_to_front_m: 1.0

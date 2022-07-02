@@ -57,6 +57,7 @@ class Cr2Auto(Node):
         self.proj_str = "+proj=utm +zone=54 +datum=WGS84 +ellps=WGS84"
 
         self.declare_parameter("write_scenario", False)
+        self.declare_parameter("filename", "output.xml")
 
         self.ego_vehicle = None
         self.ego_vehicle_state: State = None
@@ -177,7 +178,8 @@ class Cr2Auto(Node):
                                               left_driving=left_driving,
                                               adjacencies=adjacencies)
         # save map
-        self.write_scenario()
+        filename = self.get_parameter('filename').get_parameter_value().string_value
+        self.write_scenario(filename=filename)
 
     def current_state_callback(self, msg: Odometry) -> None:
         """
@@ -482,7 +484,7 @@ class Cr2Auto(Node):
                 self.scenario.add_objects(dynamic_obs)
             self.plot_scenario()
 
-    def write_scenario(self, filename='ZAM_Lanelet-1_1-T1.xml'):
+    def write_scenario(self, filename=""):
         # save map
         # store converted file as CommonRoad scenario
         if self.get_parameter('write_scenario').get_parameter_value().bool_value:
