@@ -81,14 +81,16 @@ class Cr2Auto(Node):
         self.declare_parameter('left_driving', False)
         self.declare_parameter('adjacencies', False)
         self.declare_parameter('proj_str', '')
+        self.declare_parameter('reactive_planner.default_yaml_folder', '')
         self.declare_parameter('reactive_planner.sampling.d_min', -3)
         self.declare_parameter('reactive_planner.sampling.d_max', 3)
         self.declare_parameter('reactive_planner.sampling.t_min', 0.4)
         self.declare_parameter('reactive_planner.planning.dt', 0.1)
         self.declare_parameter('reactive_planner.planning.planning_horizon', 0.4)
         self.declare_parameter('reactive_planner.planning.replanning_frequency', 3)
-        self.proj_str = self.get_parameter('proj_str').get_parameter_value().string_value
         self.declare_parameter("write_scenario", False)
+
+        self.proj_str = self.get_parameter('proj_str').get_parameter_value().string_value
 
         self.ego_vehicle = None
         self.ego_vehicle_state: State = None
@@ -108,7 +110,7 @@ class Cr2Auto(Node):
             self.planner = MotionPlanner.BreadthFirstSearch
         elif self.planner_type == 2:
             self.planner = ReactivePlanner
-            self.config = build_configuration()
+            self.config = build_configuration(dir_default_config=self.get_parameter("reactive_planner.default_yaml_folder").get_parameter_value().string_value)
         else:
             self.get_logger().warn("Planner type is not correctly specified ... Using Default Planner")
             self.planner_type = 1
@@ -521,6 +523,10 @@ class Cr2Auto(Node):
         planner.set_t_sampling_parameters(self.get_parameter('reactive_planner.sampling.t_min').get_parameter_value().double_value,
                                           self.get_parameter('reactive_planner.planning.dt').get_parameter_value().double_value,
                                           self.get_parameter('reactive_planner.planning.planning_horizon').get_parameter_value().double_value)
+        planner.vehicle_params.length = self.vehicle_length
+        planner.vehicle_params.width = self.vehicle_width
+        planner.vehicle_params.wheelbase = self.get_parameter("vehicle.cg_to_front_m").get_parameter_value().double_value \
+                                           + self.get_parameter("vehicle.cg_to_rear_m").get_parameter_value().double_value
 
         # set collision checker
         planner.set_collision_checker(self.scenario)
