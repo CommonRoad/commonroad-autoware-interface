@@ -21,7 +21,6 @@ from commonroad.scenario.trajectory import Trajectory as CRTrajectory
 from commonroad.prediction.prediction import TrajectoryPrediction
 from commonroad.visualization.mp_renderer import MPRenderer
 
-#sys.path.append('/home/drivingsim/workspace/commonroad-search')
 sys.path.append("/root/workspace/commonroad-search")
 from SMP.motion_planner.motion_planner import MotionPlanner
 from SMP.maneuver_automaton.maneuver_automaton import ManeuverAutomaton
@@ -50,19 +49,20 @@ from tf2_ros.transform_listener import TransformListener
 from cr2autoware.tf2_geometry_msgs import do_transform_pose
 from cr2autoware.utils import visualize_solution, display_steps
 
+
 @dataclass
 class Box:
-    x:           float
-    y:           float
-    width:       float
-    length:      float
+    x: float
+    y: float
+    width: float
+    length: float
     orientation: float
 
 
 class Cr2Auto(Node):
     def __init__(self):
         super().__init__('cr2autoware')
-        
+
         # declare ros parameter
         self.declare_parameter('vehicle.max_velocity', 5.0)
         self.declare_parameter('vehicle.min_velocity', 1.0)
@@ -87,13 +87,15 @@ class Cr2Auto(Node):
         self.declare_parameter('reactive_planner.planning.dt', 0.1)
         self.declare_parameter('reactive_planner.planning.planning_horizon', 0.4)
         self.declare_parameter('reactive_planner.planning.replanning_frequency', 3)
-
         self.proj_str = self.get_parameter('proj_str').get_parameter_value().string_value
+        self.declare_parameter("write_scenario", False)
+
         self.ego_vehicle = None
         self.ego_vehicle_state: State = None
         # buffer for static obstacles
-        self.static_obstacles = []                  # a list save static obstacles from at the latest time
-        self.dynamic_obstacles = []                  # a list save dynamic obstacles from at the latest time
+        self.static_obstacles = []  # a list save static obstacles from at the latest time
+        self.dynamic_obstacles = []  # a list save dynamic obstacles from at the latest time
+        self.last_trajectory = None
 
         self.planning_problem = None
         # load the xml with stores the motion primitives
@@ -118,8 +120,8 @@ class Cr2Auto(Node):
         self.tf_listener = TransformListener(self.tf_buffer, self)  # convert among frames
 
         self.convert_origin()
-        self.ego_vehicle_info()                 # compute ego vehicle width and height
-        self.build_scenario()                   # build scenario from osm map
+        self.ego_vehicle_info()  # compute ego vehicle width and height
+        self.build_scenario()  # build scenario from osm map
 
         # subscribe current position of vehicle
         self.current_state_sub = self.create_subscription(
@@ -210,10 +212,10 @@ class Cr2Auto(Node):
         :return:
         """
         map_filename = self.get_parameter('map_osm_file').get_parameter_value().string_value
-        left_driving = self.get_parameter('left_driving').get_parameter_value()
-        adjacencies = self.get_parameter('adjacencies').get_parameter_value()
+        left_driving = self.get_parameter('left_driving').get_parameter_value().bool_value
+        adjacencies = self.get_parameter('adjacencies').get_parameter_value().bool_value
         self.scenario = lanelet_to_commonroad(map_filename,
-                                              proj=self.proj_str, 
+                                              proj=self.proj_str,
                                               left_driving=left_driving,
                                               adjacencies=adjacencies)
         # save map
@@ -267,6 +269,7 @@ class Cr2Auto(Node):
         temp_pose = PoseStamped()
         temp_pose.header = msg.header
         for box in msg.objects:
+            # ToDo: COmmonRoad can also consider uncertain states of obstacles, which we could derive from the covariances
             temp_pose.pose.position.x = box.kinematics.pose_with_covariance.pose.position.x
             temp_pose.pose.position.y = box.kinematics.pose_with_covariance.pose.position.y
             temp_pose.pose.position.z = box.kinematics.pose_with_covariance.pose.position.z
@@ -277,7 +280,7 @@ class Cr2Auto(Node):
             pose_map = self._transform_pose_to_map(temp_pose)
             if pose_map is None:
                 continue
-            
+
             x = pose_map.pose.position.x + self.origin_x
             y = pose_map.pose.position.y + self.origin_y
             orientation = Cr2Auto.quaternion2orientation(pose_map.pose.orientation)
@@ -295,14 +298,15 @@ class Cr2Auto(Node):
         for object in msg.objects:
             width = object.shape.dimensions.y
             length = object.shape.dimensions.x
-
             position = self.map2utm(object.kinematics.initial_pose_with_covariance.pose.position)
-            orientation = Cr2Auto.quaternion2orientation(object.kinematics.initial_pose_with_covariance.pose.orientation)
+            orientation = Cr2Auto.quaternion2orientation(
+                object.kinematics.initial_pose_with_covariance.pose.orientation)
             dynamic_obstacle_initial_state = State(position=position,
                                                    orientation=orientation,
+                                                   velocity=object.kinematics.initial_twist_with_covariance.twist.linear.x,
+                                                   yaw_rate=object.kinematics.initial_twist_with_covariance.twist.angular.z,
                                                    time_step=0)
             traj = []
-            # ToDo: check why there are multiple predicted paths per obstacle
             highest_conf_val = 0
             highest_conf_idx = 0
             for i in range(len(object.kinematics.predicted_paths)):
@@ -310,45 +314,70 @@ class Cr2Auto(Node):
                 if conf_val > highest_conf_val:
                     highest_conf_val = conf_val
                     highest_conf_idx = i
-            # self.get_logger().info(f"confidence value: {object.kinematics.predicted_paths[highest_conf_idx].confidence}")
+
             for point in object.kinematics.predicted_paths[highest_conf_idx].path:
                 traj.append(point)
 
             # ToDo: sync timesteps of autoware and commonroad
-            self.add_dynamic_obstacles(dynamic_obstacle_initial_state, traj, width, length)
+            self.add_dynamic_obstacle(dynamic_obstacle_initial_state, traj, width, length)
 
-    def add_dynamic_obstacles(self, dynamic_obstacle_initial_state, traj, width, length) -> None:
+    def add_dynamic_obstacle(self, initial_state, traj, width, length) -> None:
+        """
+        Add dynamic obstacles with their trajectory
+        :param initial_state: initial state of obstacle
+        :param traj: trajectory of obstacle
+        :param width: width of obstacle
+        :param length: length of obstacle
+        """
+        dynamic_obstacle_shape = Rectangle(width=width, length=length)
+        dynamic_obstacle_id = self.scenario.generate_object_id()
+        dynamic_obstacle_type = ObstacleType.CAR
+
+        if len(traj) > 2:
+            # create the trajectory of the obstacle, starting at time step 1
+            dynamic_obstacle_trajectory = self._awtrajectory_to_crtrajectory(2, 1, traj)
+
+            # create the prediction using the trajectory and the shape of the obstacle
+            dynamic_obstacle_prediction = TrajectoryPrediction(dynamic_obstacle_trajectory, dynamic_obstacle_shape)
+
+            dynamic_obstacle = DynamicObstacle(dynamic_obstacle_id,
+                                               dynamic_obstacle_type,
+                                               dynamic_obstacle_shape,
+                                               initial_state,
+                                               dynamic_obstacle_prediction)
+        else:
+            dynamic_obstacle = DynamicObstacle(dynamic_obstacle_id,
+                                               dynamic_obstacle_type,
+                                               dynamic_obstacle_shape,
+                                               initial_state)
+        # add dynamic obstacle to the scenario
+        self.dynamic_obstacles.append(dynamic_obstacle)
+
+    def _awtrajectory_to_crtrajectory(self, mode, timestep, traj):
         """
         Add dynamic obstacles with their trajectories
-        :param traj: trajectory of obstacles
+        :param mode: 1=TrajectoryPoint mode, 2=pose mode
+        :param timestep: timestep from which to start
+        :param traj: the trajectory in autoware format
+        :return CRTrajectory: the trajectory in commonroad format
         """
         state_list = []
-        for i in range(1, len(traj)):
+        work_traj = []
+        if mode == 1:
+            for TrajectoryPoint in traj:
+                work_traj.append(TrajectoryPoint.pose)
+        else:
+            work_traj = traj
+        for i in range(timestep, len(work_traj)):
             # compute new position
-            position = self.map2utm(traj[i].position)
-            orientation = Cr2Auto.quaternion2orientation(traj[i].orientation)
+            position = self.map2utm(work_traj[i].position)
+            orientation = Cr2Auto.quaternion2orientation(work_traj[i].orientation)
             # create new state
             new_state = State(position=position, orientation=orientation, time_step=i)
             # add new state to state_list
             state_list.append(new_state)
 
-        # create the trajectory of the obstacle, starting at time step 1
-        dynamic_obstacle_trajectory = CRTrajectory(1, state_list)
-
-        # create the prediction using the trajectory and the shape of the obstacle
-        dynamic_obstacle_shape = Rectangle(width=width, length=length)
-        dynamic_obstacle_prediction = TrajectoryPrediction(dynamic_obstacle_trajectory, dynamic_obstacle_shape)
-
-        # generate the dynamic obstacle according to the specification
-        dynamic_obstacle_id = self.scenario.generate_object_id()
-        dynamic_obstacle_type = ObstacleType.CAR
-        dynamic_obstacle = DynamicObstacle(dynamic_obstacle_id,
-                                           dynamic_obstacle_type,
-                                           dynamic_obstacle_shape,
-                                           dynamic_obstacle_initial_state,
-                                           dynamic_obstacle_prediction)
-        # add dynamic obstacle to the scenario
-        self.dynamic_obstacles.append(dynamic_obstacle)
+        return CRTrajectory(timestep, state_list)
 
     def goal_pose_callback(self, msg: PoseStamped) -> None:
         """
@@ -384,7 +413,6 @@ class Cr2Auto(Node):
         self.planning_problem = PlanningProblem(planning_problem_id=1,
                                                 initial_state=self.ego_vehicle_state,
                                                 goal_region=goal_region)
-        self.write_scenario()
         self._solve_planning_problem(msg)
 
     def state_callback(self, msg: AutowareState) -> None:
@@ -588,19 +616,19 @@ class Cr2Auto(Node):
         self.rnd.clear()
         self.ego_vehicle = self._create_ego_with_cur_location()
         self.ego_vehicle.draw(self.rnd, draw_params={
-           "static_obstacle": {
-                   "occupancy": {
-                       "shape": {
-                           "rectangle": {
-                               "facecolor": "#ff0000",
-                               "edgecolor": '#000000',
-                               "zorder": 50,
-                               "opacity": 1
-                           }
-                       }
-                   }
+            "static_obstacle": {
+                "occupancy": {
+                    "shape": {
+                        "rectangle": {
+                            "facecolor": "#ff0000",
+                            "edgecolor": '#000000',
+                            "zorder": 50,
+                            "opacity": 1
+                        }
+                    }
+                }
 
-           }
+            }
         })
         self.scenario.draw(self.rnd, draw_params={'lanelet': {"show_label": False}})
         #self.planning_problem.draw(self.rnd) #ToDo: check if working
@@ -612,7 +640,14 @@ class Cr2Auto(Node):
         ego_vehicle_id = self.scenario.generate_object_id()
         ego_vehicle_type = ObstacleType.CAR
         ego_vehicle_shape = Rectangle(width=self.vehicle_width, length=self.vehicle_length)
-        return StaticObstacle(ego_vehicle_id, ego_vehicle_type, ego_vehicle_shape, self.ego_vehicle_state)
+        if self.last_trajectory is None:
+            return DynamicObstacle(ego_vehicle_id, ego_vehicle_type, ego_vehicle_shape, self.ego_vehicle_state)
+        else:
+
+            pred_traj = TrajectoryPrediction(self._awtrajectory_to_crtrajectory(1, 0, self.last_trajectory.points),
+                                             ego_vehicle_shape)
+            return DynamicObstacle(ego_vehicle_id, ego_vehicle_type, ego_vehicle_shape, self.ego_vehicle_state,
+                                   prediction=pred_traj)
 
     def update_scenario(self):
         if self.ego_vehicle_state is None:
@@ -628,26 +663,27 @@ class Cr2Auto(Node):
                 obs_id = self.scenario.generate_object_id()
                 obs_type = ObstacleType.UNKNOWN
                 obs_shape = Rectangle(width=static_obs.width, length=static_obs.length)
-                obs_state = State(position=np.array([static_obs.x, static_obs.y]), orientation=static_obs.orientation, time_step=0)
+                obs_state = State(position=np.array([static_obs.x, static_obs.y]), orientation=static_obs.orientation,
+                                  time_step=0)
                 self.scenario.add_objects(StaticObstacle(obs_id, obs_type, obs_shape, obs_state))
             for dynamic_obs in self.dynamic_obstacles:
                 self.scenario.add_objects(dynamic_obs)
-            self.write_scenario()
             self.plot_scenario()
 
     def write_scenario(self, filename='ZAM_Lanelet-1_1-T1.xml'):
         # save map
         # store converted file as CommonRoad scenario
-        writer = CommonRoadFileWriter(
-            scenario=self.scenario,
-            planning_problem_set=PlanningProblemSet([]),
-            author="",
-            affiliation="Technical University of Munich",
-            source="",
-            tags={Tag.URBAN},
-        )
-        os.makedirs('output', exist_ok=True)
-        writer.write_to_file(os.path.join('output', filename), OverwriteExistingFile.ALWAYS)
+        if self.get_parameter('write_scenario').get_parameter_value().bool_value:
+            writer = CommonRoadFileWriter(
+                scenario=self.scenario,
+                planning_problem_set=self.planning_problem_set,
+                author="",
+                affiliation="Technical University of Munich",
+                source="",
+                tags={Tag.URBAN},
+            )
+            os.makedirs('output', exist_ok=True)
+            writer.write_to_file(os.path.join('output', filename), OverwriteExistingFile.ALWAYS)
 
     def _transform_pose_to_map(self, pose_in):
         """
@@ -657,16 +693,17 @@ class Cr2Auto(Node):
         """
         source_frame = pose_in.header.frame_id
         # lookup transform validity
-        succeed = self.tf_buffer.can_transform("map", 
+        succeed = self.tf_buffer.can_transform("map",
                                                source_frame,
                                                rclpy.time.Time(),
                                                )
         if not succeed:
             self.get_logger().error(f"Failed to transform from {source_frame} to map frame")
             return None
-        
+
         try:
-            tf_map = self.tf_buffer.lookup_transform("map", source_frame, rclpy.time.Time.from_msg(pose_in.header.stamp))
+            tf_map = self.tf_buffer.lookup_transform("map", source_frame,
+                                                     rclpy.time.Time.from_msg(pose_in.header.stamp))
         except tf2_ros.ExtrapolationException:
             tf_map = self.tf_buffer.lookup_transform("map", source_frame, rclpy.time.Time())
 
