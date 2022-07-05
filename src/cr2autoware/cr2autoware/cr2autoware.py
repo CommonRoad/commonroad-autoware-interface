@@ -1,8 +1,13 @@
 import os
 import sys
+from threading import Thread
 from dataclasses import dataclass
 import rclpy
 from rclpy.node import Node
+from rclpy.executors import MultiThreadedExecutor
+from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.qos import QoSDurabilityPolicy, QoSHistoryPolicy, QoSReliabilityPolicy
+from rclpy.qos import QoSProfile
 from builtin_interfaces.msg import Duration
 import math
 import numpy as np
@@ -46,10 +51,6 @@ from nav_msgs.msg import Odometry
 import tf2_ros
 from tf2_ros.buffer import Buffer
 from tf2_ros.transform_listener import TransformListener
-
-import rclpy
-from rclpy.qos import QoSDurabilityPolicy, QoSHistoryPolicy, QoSReliabilityPolicy
-from rclpy.qos import QoSProfile
 
 from cr2autoware.tf2_geometry_msgs import do_transform_pose
 from cr2autoware.utils import visualize_solution, display_steps
@@ -130,13 +131,16 @@ class Cr2Auto(Node):
         self.ego_vehicle_info()  # compute ego vehicle width and height
         self.build_scenario()  # build scenario from osm map
 
+        #self.callback_group = ReentrantCallbackGroup()
+
         # subscribe current position of vehicle
         self.current_state_sub = self.create_subscription(
             Odometry,
             '/localization/kinematic_state',
             self.current_state_callback,
-            10
-        )
+            10)#,
+            #callback_group=self.callback_group
+        #)
         # subscribe static obstacles
         self.static_obs_sub = self.create_subscription(
             DetectedObjects,
@@ -156,8 +160,9 @@ class Cr2Auto(Node):
             PoseStamped,
             '/planning/mission_planning/goal',
             self.goal_pose_callback,
-            10
-        )
+            10)#,
+            #callback_group=self.callback_group
+        #)
         # subscribe autoware states
         self.aw_state_sub = self.create_subscription(
             AutowareState,
@@ -274,6 +279,7 @@ class Cr2Auto(Node):
                                        yaw_rate=msg.twist.twist.angular.z,
                                        slip_angle=0.0,
                                        time_step=0)
+        #self.get_logger().info("state update")
 
     def static_obs_callback(self, msg: DetectedObjects) -> None:
         """
@@ -580,8 +586,11 @@ class Cr2Auto(Node):
         #self.get_logger().info("Reactive Planner Running")
         valid_states = []
 
+        #self.get_logger().info("1")
+
         # Run planner
         while not goal.is_reached(x_0):  # or self._aw_state == 6:  # 6 = arrived goal
+            #x_0 = deepcopy(self.ego_vehicle_state)
             current_count = len(record_state_list) - 1
             if current_count % replanning_frequency == 0:
                 # new planning cycle -> plan a new optimal trajectory
@@ -591,6 +600,7 @@ class Cr2Auto(Node):
 
                 # plan trajectory
                 optimal = planner.plan(x_0, x_cl)  # returns the planned (i.e., optimal) trajectory
+                #self.get_logger().info("2")
 
                 # if the planner fails to find an optimal trajectory -> terminate
                 if not optimal:
@@ -626,6 +636,7 @@ class Cr2Auto(Node):
 
 
             # there are duplicated points, which will arise "same point" exception in AutowareAuto
+            valid_states = []
             for state in optimal[0].state_list:
                 if len(valid_states) > 0:
                     last_state = valid_states[-1]
@@ -635,6 +646,7 @@ class Cr2Auto(Node):
 
             self.prepare_traj_msg(valid_states)
             planner.set_collision_checker(self.scenario)
+        self.get_logger().info("reactive planner ended")
 
     def pub_route(self, path):
         route = Marker()
@@ -817,10 +829,17 @@ class Cr2Auto(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-
     cr2auto = Cr2Auto()
 
+    #spin_thread = Thread(target=rclpy.spin, args=(cr2auto,))
+    #spin_thread.start()
+
+    #executor = MultiThreadedExecutor()
+    #executor.add_node(cr2auto)
+    #executor.spin()
+
     rclpy.spin(cr2auto)
+
 
     # Destroy the node explicitly
     # (optional - otherwise it will be done automatically

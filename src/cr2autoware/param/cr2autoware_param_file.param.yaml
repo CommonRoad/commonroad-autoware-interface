@@ -31,7 +31,7 @@
       sampling:
         d_min: -3
         d_max: 3
-        t_min: 0.4
+        t_min: 0.1
 
       planning:
         dt: 0.1
