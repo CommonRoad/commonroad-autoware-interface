@@ -12,6 +12,8 @@ from builtin_interfaces.msg import Duration
 import math
 import numpy as np
 from pyproj import Proj
+import matplotlib
+matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 # import necessary classes from different modules
 from commonroad.scenario.scenario import Tag
@@ -131,44 +133,48 @@ class Cr2Auto(Node):
         self.ego_vehicle_info()  # compute ego vehicle width and height
         self.build_scenario()  # build scenario from osm map
 
-        #self.callback_group = ReentrantCallbackGroup()
+        # create callback group for async execution
+        self.callback_group = ReentrantCallbackGroup()
 
         # subscribe current position of vehicle
         self.current_state_sub = self.create_subscription(
             Odometry,
             '/localization/kinematic_state',
             self.current_state_callback,
-            10)#,
-            #callback_group=self.callback_group
-        #)
+            10,
+            callback_group=self.callback_group
+        )
         # subscribe static obstacles
         self.static_obs_sub = self.create_subscription(
             DetectedObjects,
             '/perception/object_recognition/detection/objects',
             self.static_obs_callback,
-            10
+            10,
+            callback_group=self.callback_group
         )
         # subscribe dynamic obstacles
         self.static_obs_sub = self.create_subscription(
             PredictedObjects,
             '/perception/object_recognition/objects',
             self.dynamic_obs_callback,
-            10
+            10,
+            callback_group=self.callback_group
         )
         # subscribe goal pose
         self.goal_pose_sub = self.create_subscription(
             PoseStamped,
             '/planning/mission_planning/goal',
             self.goal_pose_callback,
-            10)#,
-            #callback_group=self.callback_group
-        #)
+            10,
+            callback_group=self.callback_group
+        )
         # subscribe autoware states
         self.aw_state_sub = self.create_subscription(
             AutowareState,
             '/autoware/state',
             self.state_callback,
-            10
+            10,
+            callback_group=self.callback_group
         )
         # publish trajectory
         self.traj_pub = self.create_publisher(
@@ -193,9 +199,8 @@ class Cr2Auto(Node):
             10
         )
         # create a timer to update scenario
-        self.rnd = MPRenderer()
-        plt.ion()
-        self.timer = self.create_timer(timer_period_sec=0.1, callback=self.update_scenario)
+        self.rnd = None
+        self.timer = self.create_timer(timer_period_sec=0.1, callback=self.update_scenario, callback_group=self.callback_group)
 
     def convert_origin(self):
         """
@@ -279,7 +284,6 @@ class Cr2Auto(Node):
                                        yaw_rate=msg.twist.twist.angular.z,
                                        slip_angle=0.0,
                                        time_step=0)
-        #self.get_logger().info("state update")
 
     def static_obs_callback(self, msg: DetectedObjects) -> None:
         """
@@ -676,6 +680,10 @@ class Cr2Auto(Node):
         self.route_pub.publish(route_msg)
 
     def plot_scenario(self):
+        if self.rnd is None:
+            self.rnd = MPRenderer()
+            plt.ion()
+
         self.rnd.clear()
         self.ego_vehicle = self._create_ego_with_cur_location()
         self.ego_vehicle.draw(self.rnd, draw_params={
@@ -831,15 +839,10 @@ def main(args=None):
     rclpy.init(args=args)
     cr2auto = Cr2Auto()
 
-    #spin_thread = Thread(target=rclpy.spin, args=(cr2auto,))
-    #spin_thread.start()
-
-    #executor = MultiThreadedExecutor()
-    #executor.add_node(cr2auto)
-    #executor.spin()
-
-    rclpy.spin(cr2auto)
-
+    # Create executor for multithreded execution
+    executor = MultiThreadedExecutor()
+    executor.add_node(cr2auto)
+    executor.spin()
 
     # Destroy the node explicitly
     # (optional - otherwise it will be done automatically
