@@ -97,6 +97,7 @@ class Cr2Auto(Node):
         self.declare_parameter('reactive_planner.planning.planning_horizon', 0.4)
         self.declare_parameter('reactive_planner.planning.replanning_frequency', 3)
         self.declare_parameter("write_scenario", False)
+        self.declare_parameter("plot_scenario", False)
 
         self.proj_str = self.get_parameter('proj_str').get_parameter_value().string_value
 
@@ -464,23 +465,40 @@ class Cr2Auto(Node):
 
         self.is_computing_trajectory = False
 
-    def prepare_traj_msg(self, states):
+    def prepare_traj_msg(self, states, contains_goal=False):
         traj = AWTrajectory()
         traj.header.frame_id = "map"
 
+        if states[0].velocity == 0.0:
+            states[0].velocity = 0.1
+
+        if contains_goal and len(states) > 10:
+            states[-1].velocity = 0.0
+            states[-2].velocity = states[-2].velocity/10
+            states[-3].velocity = states[-3].velocity/9
+            states[-4].velocity = states[-4].velocity/8
+            states[-5].velocity = states[-5].velocity/7
+            states[-6].velocity = states[-6].velocity/6
+            states[-7].velocity = states[-7].velocity/5
+            states[-8].velocity = states[-8].velocity/4
+            states[-9].velocity = states[-9].velocity/3
+            states[-10].velocity = states[-10].velocity/2
+
         for i in range(0, len(states)):
             new_point = TrajectoryPoint()
-            t = states[i].time_step * self.scenario.dt
-            nano_sec, sec = math.modf(t)
-            new_point.time_from_start = Duration(sec=int(sec), nanosec=int(nano_sec * 1e9))
+            # time_from_start not given by autoware planner
+            #t = states[i].time_step * self.scenario.dt
+            #nano_sec, sec = math.modf(t)
+            #new_point.time_from_start = Duration(sec=int(sec), nanosec=int(nano_sec * 1e9))
             new_point.pose.position = self.utm2map(states[i].position)
             new_point.pose.orientation = Cr2Auto.orientation2quaternion(states[i].orientation)
-            if states[0].velocity == 0.0:
-                states[0].velocity = 0.1
-            new_point.longitudinal_velocity_mps = states[i].velocity
-            new_point.front_wheel_angle_rad = states[i].steering_angle
+            new_point.longitudinal_velocity_mps = float(states[i].velocity)
+            self.get_logger().info(str(states[i].velocity))
+
+            # front_wheel_angle_rad not given by autoware planner
+            #new_point.front_wheel_angle_rad = states[i].steering_angle
             if "acceleration" in states[i].attributes:
-                new_point.acceleration_mps2 = states[i].acceleration
+                new_point.acceleration_mps2 = float(states[i].acceleration)
             else:
                 if i < len(states) - 1:
                     cur_vel = states[i].velocity
@@ -531,20 +549,24 @@ class Cr2Auto(Node):
         problem_init_state = self.planning_problem.initial_state
         current_velocity = problem_init_state.velocity
         if not hasattr(problem_init_state, 'acceleration'):
-            problem_init_state.acceleration = 0.
+            problem_init_state.acceleration = 0.0
         x_0 = deepcopy(problem_init_state)
 
         # goal state configuration
         goal = self.planning_problem.goal
-        if hasattr(self.planning_problem.goal.state_list[0], 'velocity'):
+        if hasattr(goal.state_list[0], 'velocity'):
             if self.planning_problem.goal.state_list[0].velocity.start != 0:
-                desired_velocity = (self.planning_problem.goal.state_list[0].velocity.start +
-                                    self.planning_problem.goal.state_list[0].velocity.end) / 2
+                desired_velocity = (goal.state_list[0].velocity.start +
+                                    goal.state_list[0].velocity.end) / 2
             else:
-                desired_velocity = (self.planning_problem.goal.state_list[0].velocity.start
-                                    + self.planning_problem.goal.state_list[0].velocity.end) / 2
+                desired_velocity = (goal.state_list[0].velocity.start
+                                    + goal.state_list[0].velocity.end) / 2
         else:
             desired_velocity = x_0.velocity
+
+        self.get_logger().info(str(self.utm2map(goal.state_list[0].position.center)))
+
+
 
         replanning_frequency = self.get_parameter('reactive_planner.planning.replanning_frequency').get_parameter_value().integer_value
 
@@ -592,21 +614,32 @@ class Cr2Auto(Node):
         #self.get_logger().info("Reactive Planner Running")
         valid_states = []
 
-        #self.get_logger().info("1")
 
         # Run planner
         while not goal.is_reached(x_0):  # or self._aw_state == 6:  # 6 = arrived goal
-            #x_0 = deepcopy(self.ego_vehicle_state)
+            x_0_new = deepcopy(self.ego_vehicle_state)
+            x_0_new.acceleration = x_0.acceleration
+            #x_0_new.steering_angle = x_0.steering_angle
+            x_0_new.velocity = x_0.velocity
+            x_0 = deepcopy(x_0_new)
+            #self.get_logger().info("deepcopy")
             current_count = len(record_state_list) - 1
             if current_count % replanning_frequency == 0:
                 # new planning cycle -> plan a new optimal trajectory
 
-                current_velocity = x_0.velocity
+                #current_velocity = x_0.velocity
+                #distance_to_goal = ((x_0.position[0] - goal.state_list[0].position.center[0]) ** 2 + (
+                #            x_0.position[1] - goal.state_list[0].position.center[1]) ** 2) ** 0.5
+                #self.get_logger().info(str(distance_to_goal))
+                #if distance_to_goal > 10.0:
+                #        desired_velocity = self.get_parameter('vehicle.max_velocity').get_parameter_value().double_value
+                #else:
+                #    desired_velocity = self.get_parameter('vehicle.max_velocity').get_parameter_value().double_value / (10-distance_to_goal)
+                #self.get_logger().info("desired_velocity: "+ str(desired_velocity))
                 planner.set_desired_velocity(desired_velocity)
 
                 # plan trajectory
-                optimal = planner.plan(x_0, x_cl)  # returns the planned (i.e., optimal) trajectory
-                #self.get_logger().info("2")
+                optimal = planner.plan(x_0)#, x_cl)  # returns the planned (i.e., optimal) trajectory
 
                 # if the planner fails to find an optimal trajectory -> terminate
                 if not optimal:
@@ -617,33 +650,34 @@ class Cr2Auto(Node):
                 new_state_list = planner.shift_orientation(optimal[0])
 
                 # add new state to recorded state list
-                new_state = new_state_list.state_list[1]
-                new_state.time_step = current_count + 1
-                record_state_list.append(new_state)
+                #new_state = new_state_list.state_list[1]
+                #new_state.time_step = current_count + 1
+                #record_state_list.append(new_state)
 
                 # update init state and curvilinear state
-                x_0 = deepcopy(record_state_list[-1])
-                x_cl = (optimal[2][1], optimal[3][1])
+                x_0 = deepcopy(new_state_list.state_list[1])
+                #x_cl = (optimal[2][1], optimal[3][1])
 
-            else:
-                # not a planning cycle -> no trajectories sampled -> set sampled_trajectory_bundle to None
+            # #else:
+            # # not a planning cycle -> no trajectories sampled -> set sampled_trajectory_bundle to None
+            #
+            # # continue on optimal trajectory
+            # temp = current_count % replanning_frequency
+            #
+            # # add new state to recorded state list
+            # new_state = new_state_list.state_list[1 + temp]
+            # new_state.time_step = current_count + 1
+            # record_state_list.append(new_state)
+            #
+            # # update init state and curvilinear state
+            # x_0 = deepcopy(record_state_list[-1])
+            # x_cl = (optimal[2][1 + temp], optimal[3][1 + temp])
+            #
+            # # there are duplicated points, which will arise "same point" exception in AutowareAuto
 
-                # continue on optimal trajectory
-                temp = current_count % replanning_frequency
-
-                # add new state to recorded state list
-                new_state = new_state_list.state_list[1 + temp]
-                new_state.time_step = current_count + 1
-                record_state_list.append(new_state)
-
-                # update init state and curvilinear state
-                x_0 = deepcopy(record_state_list[-1])
-                x_cl = (optimal[2][1 + temp], optimal[3][1 + temp])
-
-
-            # there are duplicated points, which will arise "same point" exception in AutowareAuto
             valid_states = []
-            for state in optimal[0].state_list:
+
+            for state in new_state_list.state_list:
                 if len(valid_states) > 0:
                     last_state = valid_states[-1]
                     if last_state.time_step == state.time_step:
@@ -652,6 +686,8 @@ class Cr2Auto(Node):
 
             self.prepare_traj_msg(valid_states)
             planner.set_collision_checker(self.scenario)
+
+        self.prepare_traj_msg(valid_states, contains_goal=True)
         self.get_logger().info("reactive planner ended")
 
     def pub_route(self, path):
@@ -741,7 +777,8 @@ class Cr2Auto(Node):
                 self.scenario.add_objects(StaticObstacle(obs_id, obs_type, obs_shape, obs_state))
             for dynamic_obs in self.dynamic_obstacles:
                 self.scenario.add_objects(dynamic_obs)
-            self.plot_scenario()
+            if self.get_parameter('plot_scenario').get_parameter_value().bool_value:
+                self.plot_scenario()
 
     def write_scenario(self, filename='ZAM_Lanelet-1_1-T1.xml'):
         # save map

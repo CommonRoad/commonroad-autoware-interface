@@ -12,6 +12,7 @@
     left_driving: True
     adjacencies: False 
     write_scenario: False # write generated scenario as xml file after map is converted
+    plot_scenario: False
 
     vehicle:
       cg_to_front_m: 1.0
