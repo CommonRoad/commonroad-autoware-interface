@@ -53,7 +53,7 @@ class Box:
 class Cr2Auto(Node):
     def __init__(self):
         super().__init__('cr2autoware')
-        # TODO: get zone value from yaml file
+        # TODO: write a function to get zone value from coordinates automatically
         self.proj_str = "+proj=utm +zone=54 +datum=WGS84 +ellps=WGS84"
 
         self.declare_parameter("write_scenario", False)
@@ -191,8 +191,8 @@ class Cr2Auto(Node):
         time_step: Interval()
         """
         source_frame = msg.header.frame_id
-        time_step = msg.header.stamp.sec
-        # time_step = 0
+        time_step = 0  # initial state has a time step of 0
+        # time_step = msg.header.stamp.sec
         # lookup transform
         succeed = self.tf_buffer.can_transform("map",
                                                source_frame,
@@ -263,8 +263,7 @@ class Cr2Auto(Node):
                 object.kinematics.initial_pose_with_covariance.pose.orientation)
             velocity = object.kinematics.initial_twist_with_covariance.twist.linear.x
             yaw_rate = object.kinematics.initial_twist_with_covariance.twist.angular.z
-            time_step = msg.header.stamp.sec
-            # time_step = 0
+            # time_step = msg.header.stamp.sec
             traj = []
             highest_conf_val = 0
             highest_conf_idx = 0
@@ -285,10 +284,10 @@ class Cr2Auto(Node):
                                                        orientation=orientation,
                                                        velocity=velocity,
                                                        yaw_rate=yaw_rate,
-                                                       time_step=time_step)
+                                                       time_step=0)
                 object_id_cr = self.scenario.generate_object_id()
                 self.dynamic_obstacles_ids[object_id_cr] = object_id_aw
-                self.add_dynamic_obstacle(dynamic_obstacle_initial_state, traj, width, length, object_id_cr, time_step)
+                self.add_dynamic_obstacle(dynamic_obstacle_initial_state, traj, width, length, object_id_cr, 0)
 
             else:
                 for key, value in self.dynamic_obstacles_ids.items():
@@ -299,11 +298,10 @@ class Cr2Auto(Node):
                             dynamic_obs.initial_state.orientation = orientation
                             dynamic_obs.initial_state.velocity = velocity
                             dynamic_obs.initial_state.yaw_rate = yaw_rate
-                            dynamic_obs.initial_state.time_step = time_step
                             if len(traj) > 2:
-                                dynamic_obs.prediction = TrajectoryPrediction(self._awtrajectory_to_crtrajectory(2,
-                                                                              time_step, traj),
-                                                                              dynamic_obs.obstacle_shape)
+                                dynamic_obs.prediction = TrajectoryPrediction(
+                                    self._awtrajectory_to_crtrajectory(2, dynamic_obs.initial_state.time_step, traj),
+                                                                       dynamic_obs.obstacle_shape)
 
     def add_dynamic_obstacle(self, initial_state, traj, width, length, object_id, time_step) -> None:
         """
