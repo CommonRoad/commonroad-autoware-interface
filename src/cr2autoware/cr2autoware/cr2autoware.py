@@ -192,7 +192,6 @@ class Cr2Auto(Node):
         """
         source_frame = msg.header.frame_id
         time_step = 0  # initial state has a time step of 0
-        # time_step = msg.header.stamp.sec
         # lookup transform
         succeed = self.tf_buffer.can_transform("map",
                                                source_frame,
@@ -264,6 +263,7 @@ class Cr2Auto(Node):
             velocity = object.kinematics.initial_twist_with_covariance.twist.linear.x
             yaw_rate = object.kinematics.initial_twist_with_covariance.twist.angular.z
             # time_step = msg.header.stamp.sec
+            time_step = 0
             traj = []
             highest_conf_val = 0
             highest_conf_idx = 0
@@ -284,20 +284,20 @@ class Cr2Auto(Node):
                                                        orientation=orientation,
                                                        velocity=velocity,
                                                        yaw_rate=yaw_rate,
-                                                       time_step=0)
+                                                       time_step=time_step)
                 object_id_cr = self.scenario.generate_object_id()
                 self.dynamic_obstacles_ids[object_id_cr] = object_id_aw
-                self.add_dynamic_obstacle(dynamic_obstacle_initial_state, traj, width, length, object_id_cr, 0)
-
+                self.add_dynamic_obstacle(dynamic_obstacle_initial_state, traj, width, length, object_id_cr, time_step)
             else:
                 for key, value in self.dynamic_obstacles_ids.items():
                     if np.array_equal(object_id_aw, value):
                         dynamic_obs = self.scenario.obstacle_by_id(key)
                         if dynamic_obs:
-                            dynamic_obs.initial_state.position = position
-                            dynamic_obs.initial_state.orientation = orientation
-                            dynamic_obs.initial_state.velocity = velocity
-                            dynamic_obs.initial_state.yaw_rate = yaw_rate
+                            dynamic_obs.initial_state = State(position=position,
+                                                              orientation=orientation,
+                                                              velocity=velocity,
+                                                              yaw_rate=yaw_rate,
+                                                              time_step=time_step)
                             if len(traj) > 2:
                                 dynamic_obs.prediction = TrajectoryPrediction(
                                     self._awtrajectory_to_crtrajectory(2, dynamic_obs.initial_state.time_step, traj),
@@ -357,7 +357,7 @@ class Cr2Auto(Node):
             position = self.map2utm(work_traj[i].position)
             orientation = Cr2Auto.quaternion2orientation(work_traj[i].orientation)
             # create new state
-            new_state = State(position=position, orientation=orientation, time_step=time_step+i)
+            new_state = State(position=position, orientation=orientation, time_step=time_step+i*10)  # time_step in CR 0.1 sec, in AW 1 sec
             # add new state to state_list
             state_list.append(new_state)
 
@@ -493,21 +493,16 @@ class Cr2Auto(Node):
             return
 
         if not self.is_computing_trajectory:
-            # self.scenario.remove_obstacle(self.scenario.static_obstacles)
-            # # add newly detected static obstacles
-            # for static_obs in self.static_obstacles:
-            #     obs_id = self.scenario.generate_object_id()
-            #     # ToDo: get object type from autoware
-            #     obs_type = ObstacleType.UNKNOWN
-            #     obs_shape = Rectangle(width=static_obs.width, length=static_obs.length)
-            #     obs_state = State(position=np.array([static_obs.x, static_obs.y]), orientation=static_obs.orientation,
-            #                       time_step=0)
-                #self.scenario.add_objects(StaticObstacle(obs_id, obs_type, obs_shape, obs_state))
-            # for dynamic_obs_id in self.dynamic_obstacles_ids.keys():
-            #     dynamic_obs = self.scenario.obstacle_by_id(dynamic_obs_id)
-            #     if dynamic_obs:
-            #         dynamic_obs.translate_rotate(dynamic_obs.initial_state.position,
-            #                                      dynamic_obs.initial_state.orientation)
+            self.scenario.remove_obstacle(self.scenario.static_obstacles)
+            # add static obstacles
+            for static_obs in self.static_obstacles:
+                obs_id = self.scenario.generate_object_id()
+                # ToDo: get object type from autoware
+                obs_type = ObstacleType.UNKNOWN
+                obs_shape = Rectangle(width=static_obs.width, length=static_obs.length)
+                obs_state = State(position=np.array([static_obs.x, static_obs.y]), orientation=static_obs.orientation,
+                                  time_step=0)
+                self.scenario.add_objects(StaticObstacle(obs_id, obs_type, obs_shape, obs_state))
 
             self.plot_scenario()
 
