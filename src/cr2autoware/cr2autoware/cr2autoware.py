@@ -493,7 +493,7 @@ class Cr2Auto(Node):
             new_point.pose.position = self.utm2map(states[i].position)
             new_point.pose.orientation = Cr2Auto.orientation2quaternion(states[i].orientation)
             new_point.longitudinal_velocity_mps = float(states[i].velocity)
-            self.get_logger().info(str(states[i].velocity))
+            #self.get_logger().info(str(states[i].velocity))
 
             # front_wheel_angle_rad not given by autoware planner
             #new_point.front_wheel_angle_rad = states[i].steering_angle
@@ -564,9 +564,7 @@ class Cr2Auto(Node):
         else:
             desired_velocity = x_0.velocity
 
-        self.get_logger().info(str(self.utm2map(goal.state_list[0].position.center)))
-
-
+        #self.get_logger().info(str(self.utm2map(goal.state_list[0].position.center)))
 
         replanning_frequency = self.get_parameter('reactive_planner.planning.replanning_frequency').get_parameter_value().integer_value
 
