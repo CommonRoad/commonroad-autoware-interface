@@ -141,7 +141,7 @@ class Cr2Auto(Node):
             Odometry,
             '/localization/kinematic_state',
             self.current_state_callback,
-            10,
+            1,
             callback_group=self.callback_group
         )
         # subscribe static obstacles
@@ -149,7 +149,7 @@ class Cr2Auto(Node):
             DetectedObjects,
             '/perception/object_recognition/detection/objects',
             self.static_obs_callback,
-            10,
+            1,
             callback_group=self.callback_group
         )
         # subscribe dynamic obstacles
@@ -157,7 +157,7 @@ class Cr2Auto(Node):
             PredictedObjects,
             '/perception/object_recognition/objects',
             self.dynamic_obs_callback,
-            10,
+            1,
             callback_group=self.callback_group
         )
         # subscribe goal pose
@@ -165,7 +165,7 @@ class Cr2Auto(Node):
             PoseStamped,
             '/planning/mission_planning/goal',
             self.goal_pose_callback,
-            10,
+            1,
             callback_group=self.callback_group
         )
         # subscribe autoware states
@@ -173,17 +173,24 @@ class Cr2Auto(Node):
             AutowareState,
             '/autoware/state',
             self.state_callback,
-            10,
+            1,
             callback_group=self.callback_group
         )
+
         # publish trajectory
         self.traj_pub = self.create_publisher(
             AWTrajectory,
             '/planning/scenario_planning/trajectory',
-            10
+            1
+        )
+        # publish autoware engage
+        self.engage_pub = self.create_publisher(
+            Engage,
+            '/autoware/engage',
+            1
         )
         # publish route marker
-        qos_route_pub = QoSProfile(depth=5)
+        qos_route_pub = QoSProfile(depth=1)
         qos_route_pub.history = QoSHistoryPolicy.KEEP_LAST
         qos_route_pub.reliability = QoSReliabilityPolicy.RELIABLE
         qos_route_pub.durability = QoSDurabilityPolicy.TRANSIENT_LOCAL
@@ -192,12 +199,7 @@ class Cr2Auto(Node):
             '/planning/mission_planning/route_marker',
             qos_route_pub
         )
-        # publish autoware engage
-        self.engage_pub = self.create_publisher(
-            Engage,
-            '/autoware/engage',
-            10
-        )
+
         # create a timer to update scenario
         self.rnd = None
         self.timer = self.create_timer(timer_period_sec=0.1, callback=self.update_scenario, callback_group=self.callback_group)
