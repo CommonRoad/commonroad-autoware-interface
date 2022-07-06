@@ -540,7 +540,7 @@ class Cr2Auto(Node):
                             continue
                     valid_states.append(state)
 
-            self.prepare_traj_msg(valid_states)
+            self.prepare_traj_msg(valid_states, contains_goal=True)
             # visualize_solution(self.scenario, self.planning_problem, create_trajectory_from_list_states(path)) #ToDo: check if working
         else:
             self.get_logger().error("Failed to solve the planning problem.")
