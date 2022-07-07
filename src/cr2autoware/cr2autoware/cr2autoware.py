@@ -191,7 +191,7 @@ class Cr2Auto(Node):
         time_step: Interval()
         """
         source_frame = msg.header.frame_id
-        time_step = 0  # initial state has a time step of 0
+        time_step = 0
         # lookup transform
         succeed = self.tf_buffer.can_transform("map",
                                                source_frame,
@@ -262,7 +262,8 @@ class Cr2Auto(Node):
                 object.kinematics.initial_pose_with_covariance.pose.orientation)
             velocity = object.kinematics.initial_twist_with_covariance.twist.linear.x
             yaw_rate = object.kinematics.initial_twist_with_covariance.twist.angular.z
-            # time_step = msg.header.stamp.sec
+            width = object.shape.dimensions.y
+            length = object.shape.dimensions.x
             time_step = 0
             traj = []
             highest_conf_val = 0
@@ -278,8 +279,6 @@ class Cr2Auto(Node):
             object_id_aw = object.object_id.uuid
             aw_id_list = [list(value) for value in self.dynamic_obstacles_ids.values()]
             if list(object_id_aw) not in aw_id_list:
-                width = object.shape.dimensions.y
-                length = object.shape.dimensions.x
                 dynamic_obstacle_initial_state = State(position=position,
                                                        orientation=orientation,
                                                        velocity=velocity,
@@ -298,6 +297,7 @@ class Cr2Auto(Node):
                                                               velocity=velocity,
                                                               yaw_rate=yaw_rate,
                                                               time_step=time_step)
+                            dynamic_obs.obstacle_shape = Rectangle(width=width, length=length)
                             if len(traj) > 2:
                                 dynamic_obs.prediction = TrajectoryPrediction(
                                     self._awtrajectory_to_crtrajectory(2, dynamic_obs.initial_state.time_step, traj),
@@ -357,7 +357,7 @@ class Cr2Auto(Node):
             position = self.map2utm(work_traj[i].position)
             orientation = Cr2Auto.quaternion2orientation(work_traj[i].orientation)
             # create new state
-            new_state = State(position=position, orientation=orientation, time_step=time_step+i*10)  # time_step in CR 0.1 sec, in AW 1 sec
+            new_state = State(position=position, orientation=orientation, time_step=i)
             # add new state to state_list
             state_list.append(new_state)
 
