@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 # import necessary classes from different modules
 from commonroad.scenario.scenario import Tag
 from commonroad.common.file_writer import CommonRoadFileWriter, OverwriteExistingFile
-from commonroad.planning.planning_problem import PlanningProblemSet, PlanningProblem
+from commonroad.planning.planning_problem import PlanningProblem
 from commonroad.planning.goal import GoalRegion
 from commonroad.common.util import Interval
 from commonroad.geometry.shape import Rectangle
@@ -633,57 +633,27 @@ class Cr2Auto(Node):
             steering_angle_speed=0.)
         record_input_list.append(record_input_state)
 
-        #while self._aw_state != 6:
-
-        x_cl = None
-        #x_0 = deepcopy(self.ego_vehicle_state)
-        #optimal = None
-        #new_state_list = None
-        #self.get_logger().info("Reactive Planner Running")
-        valid_states = []
-
-
         # Run planner
         while not goal.is_reached(x_0):  # or self._aw_state == 6:  # 6 = arrived goal
             x_0_new = deepcopy(self.ego_vehicle_state)
             #self.get_logger().info(str(x_0_new))
             x_0_new.acceleration = x_0.acceleration
             x_0 = deepcopy(x_0_new)
-            #self.get_logger().info("deepcopy")
-            #current_count = len(record_state_list) - 1
-
-            # new planning cycle -> plan a new optimal trajectory
-
-            #current_velocity = x_0.velocity
-            #distance_to_goal = ((x_0.position[0] - goal.state_list[0].position.center[0]) ** 2 + (
-            #            x_0.position[1] - goal.state_list[0].position.center[1]) ** 2) ** 0.5
-            #self.get_logger().info(str(distance_to_goal))
-            #if distance_to_goal > 10.0:
-            #        desired_velocity = self.get_parameter('vehicle.max_velocity').get_parameter_value().double_value
-            #else:
-            #    desired_velocity = self.get_parameter('vehicle.max_velocity').get_parameter_value().double_value / (10-distance_to_goal)
-            #self.get_logger().info("desired_velocity: "+ str(desired_velocity))
+        
             planner.set_desired_velocity(desired_velocity)
 
             # plan trajectory
-            optimal = planner.plan(x_0)#, x_cl)  # returns the planned (i.e., optimal) trajectory
+            optimal = planner.plan(x_0)  # returns the planned (i.e., optimal) trajectory
 
             # if the planner fails to find an optimal trajectory -> terminate
             if not optimal:
-                self.get_logger().info("not optimal")
-                #return
+                self.get_logger().error("not optimal")
             else:
                 # correct orientation angle
                 new_state_list = planner.shift_orientation(optimal[0])
 
-                # add new state to recorded state list
-                #new_state = new_state_list.state_list[1]
-                #new_state.time_step = current_count + 1
-                #record_state_list.append(new_state)
-
                 # update init state and curvilinear state
                 x_0 = deepcopy(new_state_list.state_list[1])
-                #x_cl = (optimal[2][1], optimal[3][1])
 
                 valid_states = []
 
