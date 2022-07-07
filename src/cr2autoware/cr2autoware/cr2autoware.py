@@ -1,12 +1,19 @@
 import os
 import sys
+from threading import Thread
 from dataclasses import dataclass
 import rclpy
 from rclpy.node import Node
+from rclpy.executors import MultiThreadedExecutor
+from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.qos import QoSDurabilityPolicy, QoSHistoryPolicy, QoSReliabilityPolicy
+from rclpy.qos import QoSProfile
 from builtin_interfaces.msg import Duration
 import math
 import numpy as np
 from pyproj import Proj
+import matplotlib
+matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 # import necessary classes from different modules
 from commonroad.scenario.scenario import Tag
@@ -21,7 +28,6 @@ from commonroad.scenario.trajectory import Trajectory as CRTrajectory
 from commonroad.prediction.prediction import TrajectoryPrediction
 from commonroad.visualization.mp_renderer import MPRenderer
 
-#sys.path.append('/home/drivingsim/workspace/commonroad-search')
 sys.path.append("/root/workspace/commonroad-search")
 from SMP.motion_planner.motion_planner import MotionPlanner
 from SMP.maneuver_automaton.maneuver_automaton import ManeuverAutomaton
@@ -35,7 +41,8 @@ from copy import deepcopy
 #from crdesigner.input_output.api import lanelet_to_commonroad
 from crdesigner.map_conversion.map_conversion_interface import lanelet_to_commonroad
 
-from geometry_msgs.msg import PoseStamped, Quaternion, Point
+from geometry_msgs.msg import PoseStamped, Quaternion, Point, Vector3
+from visualization_msgs.msg import MarkerArray, Marker
 from autoware_auto_perception_msgs.msg import DetectedObjects, PredictedObjects
 from autoware_auto_planning_msgs.msg import TrajectoryPoint
 from autoware_auto_planning_msgs.msg import Trajectory as AWTrajectory
@@ -50,19 +57,20 @@ from tf2_ros.transform_listener import TransformListener
 from cr2autoware.tf2_geometry_msgs import do_transform_pose
 from cr2autoware.utils import visualize_solution, display_steps
 
+
 @dataclass
 class Box:
-    x:           float
-    y:           float
-    width:       float
-    length:      float
+    x: float
+    y: float
+    width: float
+    length: float
     orientation: float
 
 
 class Cr2Auto(Node):
     def __init__(self):
         super().__init__('cr2autoware')
-        
+
         # declare ros parameter
         self.declare_parameter('vehicle.max_velocity', 5.0)
         self.declare_parameter('vehicle.min_velocity', 1.0)
@@ -81,19 +89,24 @@ class Cr2Auto(Node):
         self.declare_parameter('left_driving', False)
         self.declare_parameter('adjacencies', False)
         self.declare_parameter('proj_str', '')
+        self.declare_parameter('reactive_planner.default_yaml_folder', '')
         self.declare_parameter('reactive_planner.sampling.d_min', -3)
         self.declare_parameter('reactive_planner.sampling.d_max', 3)
         self.declare_parameter('reactive_planner.sampling.t_min', 0.4)
         self.declare_parameter('reactive_planner.planning.dt', 0.1)
         self.declare_parameter('reactive_planner.planning.planning_horizon', 0.4)
         self.declare_parameter('reactive_planner.planning.replanning_frequency', 3)
+        self.declare_parameter("write_scenario", False)
+        self.declare_parameter("plot_scenario", False)
 
         self.proj_str = self.get_parameter('proj_str').get_parameter_value().string_value
+
         self.ego_vehicle = None
         self.ego_vehicle_state: State = None
         # buffer for static obstacles
-        self.static_obstacles = []                  # a list save static obstacles from at the latest time
-        self.dynamic_obstacles = []                  # a list save dynamic obstacles from at the latest time
+        self.static_obstacles = []  # a list save static obstacles from at the latest time
+        self.dynamic_obstacles = []  # a list save dynamic obstacles from at the latest time
+        self.last_trajectory = None
 
         self.planning_problem = None
         # load the xml with stores the motion primitives
@@ -106,7 +119,7 @@ class Cr2Auto(Node):
             self.planner = MotionPlanner.BreadthFirstSearch
         elif self.planner_type == 2:
             self.planner = ReactivePlanner
-            self.config = build_configuration()
+            self.config = build_configuration(dir_default_config=self.get_parameter("reactive_planner.default_yaml_folder").get_parameter_value().string_value)
         else:
             self.get_logger().warn("Planner type is not correctly specified ... Using Default Planner")
             self.planner_type = 1
@@ -118,59 +131,79 @@ class Cr2Auto(Node):
         self.tf_listener = TransformListener(self.tf_buffer, self)  # convert among frames
 
         self.convert_origin()
-        self.ego_vehicle_info()                 # compute ego vehicle width and height
-        self.build_scenario()                   # build scenario from osm map
+        self.ego_vehicle_info()  # compute ego vehicle width and height
+        self.build_scenario()  # build scenario from osm map
+
+        # create callback group for async execution
+        self.callback_group = ReentrantCallbackGroup()
 
         # subscribe current position of vehicle
         self.current_state_sub = self.create_subscription(
             Odometry,
             '/localization/kinematic_state',
             self.current_state_callback,
-            10
+            1,
+            callback_group=self.callback_group
         )
         # subscribe static obstacles
         self.static_obs_sub = self.create_subscription(
             DetectedObjects,
             '/perception/object_recognition/detection/objects',
             self.static_obs_callback,
-            10
+            1,
+            callback_group=self.callback_group
         )
         # subscribe dynamic obstacles
         self.static_obs_sub = self.create_subscription(
             PredictedObjects,
             '/perception/object_recognition/objects',
             self.dynamic_obs_callback,
-            10
+            1,
+            callback_group=self.callback_group
         )
         # subscribe goal pose
         self.goal_pose_sub = self.create_subscription(
             PoseStamped,
             '/planning/mission_planning/goal',
             self.goal_pose_callback,
-            10
+            1,
+            callback_group=self.callback_group
         )
         # subscribe autoware states
         self.aw_state_sub = self.create_subscription(
             AutowareState,
             '/autoware/state',
             self.state_callback,
-            10
+            1,
+            callback_group=self.callback_group
         )
+
         # publish trajectory
         self.traj_pub = self.create_publisher(
             AWTrajectory,
             '/planning/scenario_planning/trajectory',
-            10
+            1
         )
+        # publish autoware engage
         self.engage_pub = self.create_publisher(
             Engage,
             '/autoware/engage',
-            10
+            1
         )
+        # publish route marker
+        qos_route_pub = QoSProfile(depth=1)
+        qos_route_pub.history = QoSHistoryPolicy.KEEP_LAST
+        qos_route_pub.reliability = QoSReliabilityPolicy.RELIABLE
+        qos_route_pub.durability = QoSDurabilityPolicy.TRANSIENT_LOCAL
+        self.route_pub = self.create_publisher(
+            MarkerArray,
+            '/planning/mission_planning/route_marker',
+            qos_route_pub
+        )
+
         # create a timer to update scenario
-        self.rnd = MPRenderer()
-        plt.ion()
-        self.timer = self.create_timer(timer_period_sec=0.1, callback=self.update_scenario)
+        self.rnd = None
+        self.timer = self.create_timer(timer_period_sec=0.1, callback=self.update_scenario, callback_group=self.callback_group)
 
     def convert_origin(self):
         """
@@ -210,10 +243,10 @@ class Cr2Auto(Node):
         :return:
         """
         map_filename = self.get_parameter('map_osm_file').get_parameter_value().string_value
-        left_driving = self.get_parameter('left_driving').get_parameter_value()
-        adjacencies = self.get_parameter('adjacencies').get_parameter_value()
+        left_driving = self.get_parameter('left_driving').get_parameter_value().bool_value
+        adjacencies = self.get_parameter('adjacencies').get_parameter_value().bool_value
         self.scenario = lanelet_to_commonroad(map_filename,
-                                              proj=self.proj_str, 
+                                              proj=self.proj_str,
                                               left_driving=left_driving,
                                               adjacencies=adjacencies)
         # save map
@@ -267,6 +300,7 @@ class Cr2Auto(Node):
         temp_pose = PoseStamped()
         temp_pose.header = msg.header
         for box in msg.objects:
+            # ToDo: COmmonRoad can also consider uncertain states of obstacles, which we could derive from the covariances
             temp_pose.pose.position.x = box.kinematics.pose_with_covariance.pose.position.x
             temp_pose.pose.position.y = box.kinematics.pose_with_covariance.pose.position.y
             temp_pose.pose.position.z = box.kinematics.pose_with_covariance.pose.position.z
@@ -277,7 +311,7 @@ class Cr2Auto(Node):
             pose_map = self._transform_pose_to_map(temp_pose)
             if pose_map is None:
                 continue
-            
+
             x = pose_map.pose.position.x + self.origin_x
             y = pose_map.pose.position.y + self.origin_y
             orientation = Cr2Auto.quaternion2orientation(pose_map.pose.orientation)
@@ -295,14 +329,15 @@ class Cr2Auto(Node):
         for object in msg.objects:
             width = object.shape.dimensions.y
             length = object.shape.dimensions.x
-
             position = self.map2utm(object.kinematics.initial_pose_with_covariance.pose.position)
-            orientation = Cr2Auto.quaternion2orientation(object.kinematics.initial_pose_with_covariance.pose.orientation)
+            orientation = Cr2Auto.quaternion2orientation(
+                object.kinematics.initial_pose_with_covariance.pose.orientation)
             dynamic_obstacle_initial_state = State(position=position,
                                                    orientation=orientation,
+                                                   velocity=object.kinematics.initial_twist_with_covariance.twist.linear.x,
+                                                   yaw_rate=object.kinematics.initial_twist_with_covariance.twist.angular.z,
                                                    time_step=0)
             traj = []
-            # ToDo: check why there are multiple predicted paths per obstacle
             highest_conf_val = 0
             highest_conf_idx = 0
             for i in range(len(object.kinematics.predicted_paths)):
@@ -310,45 +345,73 @@ class Cr2Auto(Node):
                 if conf_val > highest_conf_val:
                     highest_conf_val = conf_val
                     highest_conf_idx = i
-            # self.get_logger().info(f"confidence value: {object.kinematics.predicted_paths[highest_conf_idx].confidence}")
+
+            if object.kinematics.predicted_paths[highest_conf_idx].time_step.nanosec > self.scenario.dt * 1e9:
+                self.get_logger().error("Predicted object timeinterval is > self.scenario.dt")
+
             for point in object.kinematics.predicted_paths[highest_conf_idx].path:
                 traj.append(point)
 
             # ToDo: sync timesteps of autoware and commonroad
-            self.add_dynamic_obstacles(dynamic_obstacle_initial_state, traj, width, length)
+            self.add_dynamic_obstacle(dynamic_obstacle_initial_state, traj, width, length)
 
-    def add_dynamic_obstacles(self, dynamic_obstacle_initial_state, traj, width, length) -> None:
+    def add_dynamic_obstacle(self, initial_state, traj, width, length) -> None:
+        """
+        Add dynamic obstacles with their trajectory
+        :param initial_state: initial state of obstacle
+        :param traj: trajectory of obstacle
+        :param width: width of obstacle
+        :param length: length of obstacle
+        """
+        dynamic_obstacle_shape = Rectangle(width=width, length=length)
+        dynamic_obstacle_id = self.scenario.generate_object_id()
+        dynamic_obstacle_type = ObstacleType.CAR
+
+        if len(traj) > 2:
+            # create the trajectory of the obstacle, starting at time step 1
+            dynamic_obstacle_trajectory = self._awtrajectory_to_crtrajectory(2, 1, traj)
+
+            # create the prediction using the trajectory and the shape of the obstacle
+            dynamic_obstacle_prediction = TrajectoryPrediction(dynamic_obstacle_trajectory, dynamic_obstacle_shape)
+
+            dynamic_obstacle = DynamicObstacle(dynamic_obstacle_id,
+                                               dynamic_obstacle_type,
+                                               dynamic_obstacle_shape,
+                                               initial_state,
+                                               dynamic_obstacle_prediction)
+        else:
+            dynamic_obstacle = DynamicObstacle(dynamic_obstacle_id,
+                                               dynamic_obstacle_type,
+                                               dynamic_obstacle_shape,
+                                               initial_state)
+        # add dynamic obstacle to the scenario
+        self.dynamic_obstacles.append(dynamic_obstacle)
+
+    def _awtrajectory_to_crtrajectory(self, mode, timestep, traj):
         """
         Add dynamic obstacles with their trajectories
-        :param traj: trajectory of obstacles
+        :param mode: 1=TrajectoryPoint mode, 2=pose mode
+        :param timestep: timestep from which to start
+        :param traj: the trajectory in autoware format
+        :return CRTrajectory: the trajectory in commonroad format
         """
         state_list = []
-        for i in range(1, len(traj)):
+        work_traj = []
+        if mode == 1:
+            for TrajectoryPoint in traj:
+                work_traj.append(TrajectoryPoint.pose)
+        else:
+            work_traj = traj
+        for i in range(timestep, len(work_traj)):
             # compute new position
-            position = self.map2utm(traj[i].position)
-            orientation = Cr2Auto.quaternion2orientation(traj[i].orientation)
+            position = self.map2utm(work_traj[i].position)
+            orientation = Cr2Auto.quaternion2orientation(work_traj[i].orientation)
             # create new state
             new_state = State(position=position, orientation=orientation, time_step=i)
             # add new state to state_list
             state_list.append(new_state)
 
-        # create the trajectory of the obstacle, starting at time step 1
-        dynamic_obstacle_trajectory = CRTrajectory(1, state_list)
-
-        # create the prediction using the trajectory and the shape of the obstacle
-        dynamic_obstacle_shape = Rectangle(width=width, length=length)
-        dynamic_obstacle_prediction = TrajectoryPrediction(dynamic_obstacle_trajectory, dynamic_obstacle_shape)
-
-        # generate the dynamic obstacle according to the specification
-        dynamic_obstacle_id = self.scenario.generate_object_id()
-        dynamic_obstacle_type = ObstacleType.CAR
-        dynamic_obstacle = DynamicObstacle(dynamic_obstacle_id,
-                                           dynamic_obstacle_type,
-                                           dynamic_obstacle_shape,
-                                           dynamic_obstacle_initial_state,
-                                           dynamic_obstacle_prediction)
-        # add dynamic obstacle to the scenario
-        self.dynamic_obstacles.append(dynamic_obstacle)
+        return CRTrajectory(timestep, state_list)
 
     def goal_pose_callback(self, msg: PoseStamped) -> None:
         """
@@ -384,7 +447,6 @@ class Cr2Auto(Node):
         self.planning_problem = PlanningProblem(planning_problem_id=1,
                                                 initial_state=self.ego_vehicle_state,
                                                 goal_region=goal_region)
-        self.write_scenario()
         self._solve_planning_problem(msg)
 
     def state_callback(self, msg: AutowareState) -> None:
@@ -406,23 +468,40 @@ class Cr2Auto(Node):
 
         self.is_computing_trajectory = False
 
-    def prepare_traj_msg(self, states):
+    def prepare_traj_msg(self, states, contains_goal=False):
         traj = AWTrajectory()
         traj.header.frame_id = "map"
 
+        if states[0].velocity == 0.0:
+            states[0].velocity = 0.1
+
+        if contains_goal and len(states) > 10:
+            states[-1].velocity = 0.0
+            states[-2].velocity = states[-2].velocity/10
+            states[-3].velocity = states[-3].velocity/9
+            states[-4].velocity = states[-4].velocity/8
+            states[-5].velocity = states[-5].velocity/7
+            states[-6].velocity = states[-6].velocity/6
+            states[-7].velocity = states[-7].velocity/5
+            states[-8].velocity = states[-8].velocity/4
+            states[-9].velocity = states[-9].velocity/3
+            states[-10].velocity = states[-10].velocity/2
+
         for i in range(0, len(states)):
             new_point = TrajectoryPoint()
-            t = states[i].time_step * self.scenario.dt
-            nano_sec, sec = math.modf(t)
-            new_point.time_from_start = Duration(sec=int(sec), nanosec=int(nano_sec * 1e9))
+            # time_from_start not given by autoware planner
+            #t = states[i].time_step * self.scenario.dt
+            #nano_sec, sec = math.modf(t)
+            #new_point.time_from_start = Duration(sec=int(sec), nanosec=int(nano_sec * 1e9))
             new_point.pose.position = self.utm2map(states[i].position)
             new_point.pose.orientation = Cr2Auto.orientation2quaternion(states[i].orientation)
-            if states[0].velocity == 0.0:
-                states[0].velocity = 0.1
-            new_point.longitudinal_velocity_mps = states[i].velocity
-            new_point.front_wheel_angle_rad = states[i].steering_angle
+            new_point.longitudinal_velocity_mps = float(states[i].velocity)
+            #self.get_logger().info(str(states[i].velocity))
+
+            # front_wheel_angle_rad not given by autoware planner
+            #new_point.front_wheel_angle_rad = states[i].steering_angle
             if "acceleration" in states[i].attributes:
-                new_point.acceleration_mps2 = states[i].acceleration
+                new_point.acceleration_mps2 = float(states[i].acceleration)
             else:
                 if i < len(states) - 1:
                     cur_vel = states[i].velocity
@@ -436,6 +515,10 @@ class Cr2Auto(Node):
 
         self.traj_pub.publish(traj)
         self.get_logger().info('New trajectory published !!!')
+
+        engage_msg = Engage()
+        engage_msg.engage = True
+        self.engage_pub.publish(engage_msg)
         # visualize_solution(self.scenario, self.planning_problem, create_trajectory_from_list_states(path)) #ToDo: test
 
     def run_search_planner(self):
@@ -460,7 +543,7 @@ class Cr2Auto(Node):
                             continue
                     valid_states.append(state)
 
-            self.prepare_traj_msg(valid_states)
+            self.prepare_traj_msg(valid_states, contains_goal=True)
             # visualize_solution(self.scenario, self.planning_problem, create_trajectory_from_list_states(path)) #ToDo: check if working
         else:
             self.get_logger().error("Failed to solve the planning problem.")
@@ -469,20 +552,22 @@ class Cr2Auto(Node):
         problem_init_state = self.planning_problem.initial_state
         current_velocity = problem_init_state.velocity
         if not hasattr(problem_init_state, 'acceleration'):
-            problem_init_state.acceleration = 0.
+            problem_init_state.acceleration = 0.0
         x_0 = deepcopy(problem_init_state)
 
         # goal state configuration
         goal = self.planning_problem.goal
-        if hasattr(self.planning_problem.goal.state_list[0], 'velocity'):
+        if hasattr(goal.state_list[0], 'velocity'):
             if self.planning_problem.goal.state_list[0].velocity.start != 0:
-                desired_velocity = (self.planning_problem.goal.state_list[0].velocity.start +
-                                    self.planning_problem.goal.state_list[0].velocity.end) / 2
+                desired_velocity = (goal.state_list[0].velocity.start +
+                                    goal.state_list[0].velocity.end) / 2
             else:
-                desired_velocity = (self.planning_problem.goal.state_list[0].velocity.start
-                                    + self.planning_problem.goal.state_list[0].velocity.end) / 2
+                desired_velocity = (goal.state_list[0].velocity.start
+                                    + goal.state_list[0].velocity.end) / 2
         else:
             desired_velocity = x_0.velocity
+
+        #self.get_logger().info(str(self.utm2map(goal.state_list[0].position.center)))
 
         replanning_frequency = self.get_parameter('reactive_planner.planning.replanning_frequency').get_parameter_value().integer_value
 
@@ -493,6 +578,10 @@ class Cr2Auto(Node):
         planner.set_t_sampling_parameters(self.get_parameter('reactive_planner.sampling.t_min').get_parameter_value().double_value,
                                           self.get_parameter('reactive_planner.planning.dt').get_parameter_value().double_value,
                                           self.get_parameter('reactive_planner.planning.planning_horizon').get_parameter_value().double_value)
+        planner.vehicle_params.length = self.vehicle_length
+        planner.vehicle_params.width = self.vehicle_width
+        planner.vehicle_params.wheelbase = self.get_parameter("vehicle.cg_to_front_m").get_parameter_value().double_value \
+                                           + self.get_parameter("vehicle.cg_to_rear_m").get_parameter_value().double_value
 
         # set collision checker
         planner.set_collision_checker(self.scenario)
@@ -501,6 +590,7 @@ class Cr2Auto(Node):
         route_planner = RoutePlanner(self.scenario, self.planning_problem)
         ref_path = route_planner.plan_routes().retrieve_first_route().reference_path
         planner.set_reference_path(ref_path)
+        self.pub_route(ref_path)
 
         record_state_list = list()
         record_input_list = list()
@@ -525,82 +615,112 @@ class Cr2Auto(Node):
         #self.get_logger().info("Reactive Planner Running")
         valid_states = []
 
+
         # Run planner
         while not goal.is_reached(x_0):  # or self._aw_state == 6:  # 6 = arrived goal
+            x_0_new = deepcopy(self.ego_vehicle_state)
+            self.get_logger().info(str(x_0_new))
+            x_0_new.acceleration = x_0.acceleration
+            x_0 = deepcopy(x_0_new)
+            #self.get_logger().info("deepcopy")
             current_count = len(record_state_list) - 1
-            if current_count % replanning_frequency == 0:
-                # new planning cycle -> plan a new optimal trajectory
 
-                current_velocity = x_0.velocity
-                planner.set_desired_velocity(desired_velocity)
+            # new planning cycle -> plan a new optimal trajectory
 
-                # plan trajectory
-                optimal = planner.plan(x_0, x_cl)  # returns the planned (i.e., optimal) trajectory
+            #current_velocity = x_0.velocity
+            #distance_to_goal = ((x_0.position[0] - goal.state_list[0].position.center[0]) ** 2 + (
+            #            x_0.position[1] - goal.state_list[0].position.center[1]) ** 2) ** 0.5
+            #self.get_logger().info(str(distance_to_goal))
+            #if distance_to_goal > 10.0:
+            #        desired_velocity = self.get_parameter('vehicle.max_velocity').get_parameter_value().double_value
+            #else:
+            #    desired_velocity = self.get_parameter('vehicle.max_velocity').get_parameter_value().double_value / (10-distance_to_goal)
+            #self.get_logger().info("desired_velocity: "+ str(desired_velocity))
+            planner.set_desired_velocity(desired_velocity)
 
-                # if the planner fails to find an optimal trajectory -> terminate
-                if not optimal:
-                    self.get_logger().info("not optimal")
-                    return
+            # plan trajectory
+            optimal = planner.plan(x_0)#, x_cl)  # returns the planned (i.e., optimal) trajectory
 
+            # if the planner fails to find an optimal trajectory -> terminate
+            if not optimal:
+                self.get_logger().info("not optimal")
+                #return
+            else:
                 # correct orientation angle
                 new_state_list = planner.shift_orientation(optimal[0])
 
                 # add new state to recorded state list
-                new_state = new_state_list.state_list[1]
-                new_state.time_step = current_count + 1
-                record_state_list.append(new_state)
+                #new_state = new_state_list.state_list[1]
+                #new_state.time_step = current_count + 1
+                #record_state_list.append(new_state)
 
                 # update init state and curvilinear state
-                x_0 = deepcopy(record_state_list[-1])
-                x_cl = (optimal[2][1], optimal[3][1])
+                x_0 = deepcopy(new_state_list.state_list[1])
+                #x_cl = (optimal[2][1], optimal[3][1])
 
-            else:
-                # not a planning cycle -> no trajectories sampled -> set sampled_trajectory_bundle to None
+                valid_states = []
 
-                # continue on optimal trajectory
-                temp = current_count % replanning_frequency
+                for state in new_state_list.state_list:
+                    if len(valid_states) > 0:
+                        last_state = valid_states[-1]
+                        if last_state.time_step == state.time_step:
+                            continue
+                    valid_states.append(state)
 
-                # add new state to recorded state list
-                new_state = new_state_list.state_list[1 + temp]
-                new_state.time_step = current_count + 1
-                record_state_list.append(new_state)
+                self.prepare_traj_msg(valid_states)
+                planner.set_collision_checker(self.scenario)
 
-                # update init state and curvilinear state
-                x_0 = deepcopy(record_state_list[-1])
-                x_cl = (optimal[2][1 + temp], optimal[3][1 + temp])
+        self.prepare_traj_msg(valid_states, contains_goal=True)
+        self.get_logger().info("reactive planner ended")
 
+    def pub_route(self, path):
+        route = Marker()
+        route.header.frame_id = "map"
+        route.id = 1
+        route.ns = "route"
+        route.frame_locked = True
+        route.type = Marker.LINE_STRIP
+        route.action = Marker.ADD
+        route.scale.x = 0.1
+        route.scale.y = 0.1
+        route.scale.z = 0.1
+        route.color.r = 0.0
+        route.color.g = 0.0
+        route.color.b = 1.0
+        route.color.a = 1.0
+        for point in path:
+            p = Point()
+            p.x = point[0] - self.origin_x
+            p.y = point[1] - self.origin_y
+            p.z = 0.0
+            route.points.append(p)
+            route.colors.append(route.color)
 
-            # there are duplicated points, which will arise "same point" exception in AutowareAuto
-            for state in optimal[0].state_list:
-                if len(valid_states) > 0:
-                    last_state = valid_states[-1]
-                    if last_state.time_step == state.time_step:
-                        continue
-                valid_states.append(state)
-
-            self.prepare_traj_msg(valid_states)
-            engage_msg = Engage()
-            engage_msg.engage = True
-            self.engage_pub.publish(engage_msg)
-            planner.set_collision_checker(self.scenario)
+        route_msg = MarkerArray()
+        route_msg.markers.append(route)
+        self.route_pub.publish(route_msg)
 
     def plot_scenario(self):
+        if self.rnd is None:
+            self.rnd = MPRenderer()
+            plt.ion()
+
         self.rnd.clear()
         self.ego_vehicle = self._create_ego_with_cur_location()
         self.ego_vehicle.draw(self.rnd, draw_params={
-           "static_obstacle": {
-                   "occupancy": {
-                       "shape": {
-                           "rectangle": {
-                               "facecolor": "#ff0000",
-                               "edgecolor": '#000000',
-                               "zorder": 50,
-                               "opacity": 1
-                           }
-                       }
-                   }
+            "static_obstacle": {
+                "occupancy": {
+                    "shape": {
+                        "rectangle": {
+                            "facecolor": "#ff0000",
+                            "edgecolor": '#000000',
+                            "zorder": 50,
+                            "opacity": 1
+                        }
+                    }
+                }
 
-           }
+            }
         })
         self.scenario.draw(self.rnd, draw_params={'lanelet': {"show_label": False}})
         #self.planning_problem.draw(self.rnd) #ToDo: check if working
@@ -612,7 +732,14 @@ class Cr2Auto(Node):
         ego_vehicle_id = self.scenario.generate_object_id()
         ego_vehicle_type = ObstacleType.CAR
         ego_vehicle_shape = Rectangle(width=self.vehicle_width, length=self.vehicle_length)
-        return StaticObstacle(ego_vehicle_id, ego_vehicle_type, ego_vehicle_shape, self.ego_vehicle_state)
+        if self.last_trajectory is None:
+            return DynamicObstacle(ego_vehicle_id, ego_vehicle_type, ego_vehicle_shape, self.ego_vehicle_state)
+        else:
+
+            pred_traj = TrajectoryPrediction(self._awtrajectory_to_crtrajectory(1, 0, self.last_trajectory.points),
+                                             ego_vehicle_shape)
+            return DynamicObstacle(ego_vehicle_id, ego_vehicle_type, ego_vehicle_shape, self.ego_vehicle_state,
+                                   prediction=pred_traj)
 
     def update_scenario(self):
         if self.ego_vehicle_state is None:
@@ -628,26 +755,28 @@ class Cr2Auto(Node):
                 obs_id = self.scenario.generate_object_id()
                 obs_type = ObstacleType.UNKNOWN
                 obs_shape = Rectangle(width=static_obs.width, length=static_obs.length)
-                obs_state = State(position=np.array([static_obs.x, static_obs.y]), orientation=static_obs.orientation, time_step=0)
+                obs_state = State(position=np.array([static_obs.x, static_obs.y]), orientation=static_obs.orientation,
+                                  time_step=0)
                 self.scenario.add_objects(StaticObstacle(obs_id, obs_type, obs_shape, obs_state))
             for dynamic_obs in self.dynamic_obstacles:
                 self.scenario.add_objects(dynamic_obs)
-            self.write_scenario()
-            self.plot_scenario()
+            if self.get_parameter('plot_scenario').get_parameter_value().bool_value:
+                self.plot_scenario()
 
     def write_scenario(self, filename='ZAM_Lanelet-1_1-T1.xml'):
         # save map
         # store converted file as CommonRoad scenario
-        writer = CommonRoadFileWriter(
-            scenario=self.scenario,
-            planning_problem_set=PlanningProblemSet([]),
-            author="",
-            affiliation="Technical University of Munich",
-            source="",
-            tags={Tag.URBAN},
-        )
-        os.makedirs('output', exist_ok=True)
-        writer.write_to_file(os.path.join('output', filename), OverwriteExistingFile.ALWAYS)
+        if self.get_parameter('write_scenario').get_parameter_value().bool_value:
+            writer = CommonRoadFileWriter(
+                scenario=self.scenario,
+                planning_problem_set=self.planning_problem_set,
+                author="",
+                affiliation="Technical University of Munich",
+                source="",
+                tags={Tag.URBAN},
+            )
+            os.makedirs('output', exist_ok=True)
+            writer.write_to_file(os.path.join('output', filename), OverwriteExistingFile.ALWAYS)
 
     def _transform_pose_to_map(self, pose_in):
         """
@@ -657,16 +786,17 @@ class Cr2Auto(Node):
         """
         source_frame = pose_in.header.frame_id
         # lookup transform validity
-        succeed = self.tf_buffer.can_transform("map", 
+        succeed = self.tf_buffer.can_transform("map",
                                                source_frame,
                                                rclpy.time.Time(),
                                                )
         if not succeed:
             self.get_logger().error(f"Failed to transform from {source_frame} to map frame")
             return None
-        
+
         try:
-            tf_map = self.tf_buffer.lookup_transform("map", source_frame, rclpy.time.Time.from_msg(pose_in.header.stamp))
+            tf_map = self.tf_buffer.lookup_transform("map", source_frame,
+                                                     rclpy.time.Time.from_msg(pose_in.header.stamp))
         except tf2_ros.ExtrapolationException:
             tf_map = self.tf_buffer.lookup_transform("map", source_frame, rclpy.time.Time())
 
@@ -729,10 +859,12 @@ class Cr2Auto(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-
     cr2auto = Cr2Auto()
 
-    rclpy.spin(cr2auto)
+    # Create executor for multithreded execution
+    executor = MultiThreadedExecutor()
+    executor.add_node(cr2auto)
+    executor.spin()
 
     # Destroy the node explicitly
     # (optional - otherwise it will be done automatically

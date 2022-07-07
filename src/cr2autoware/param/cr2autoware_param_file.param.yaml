@@ -3,7 +3,6 @@
 /**:
   ros__parameters:
     map_osm_file: "/root/workspace/dfg-car/src/cr2autoware/data/sample-map-planning/lanelet2_map.osm"
-    #map_osm_file: "/root/workspace/dfg-car/src/cr2autoware/data/kashiwanoha_map.osm"
     latitude: 35.238094905136874
     longitude: 139.90095439549778
     proj_str: "+proj=utm +zone=54 +datum=WGS84 +ellps=WGS84"
@@ -11,7 +10,9 @@
     origin_offset_lat: -5.239983224214484e-06
     origin_offset_lon: 4.5845488187978845e-06
     left_driving: True
-    adjacencies: False
+    adjacencies: False 
+    write_scenario: False # write generated scenario as xml file after map is converted
+    plot_scenario: False
 
     vehicle:
       cg_to_front_m: 1.0
@@ -19,22 +20,23 @@
       width_m: 2.0
       front_overhang_m: 0.5
       rear_overhang_m: 0.5
-      max_velocity: 5.0
+      max_velocity: 10.0
       min_velocity: 0.0
 
-    # Planner type #1: Search based planner (default), #2: reactive planner
+      # Planner type #1: Search based planner (default), #2: reactive planner
     planner_type: 2
 
     # parameters for reactive planner
     reactive_planner:
+      default_yaml_folder: "/root/workspace/dfg-car/src/cr2autoware/param/"
       sampling:
         d_min: -3
         d_max: 3
-        t_min: 0.4
+        t_min: 0.1
 
       planning:
         dt: 0.1
-        planning_horizon: 0.4
-        replanning_frequency: 3
+        planning_horizon: 4.0
+        replanning_frequency: 1
 
 
