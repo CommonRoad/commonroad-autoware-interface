@@ -646,11 +646,11 @@ class Cr2Auto(Node):
         # Run planner
         while not goal.is_reached(x_0):  # or self._aw_state == 6:  # 6 = arrived goal
             x_0_new = deepcopy(self.ego_vehicle_state)
-            self.get_logger().info(str(x_0_new))
+            #self.get_logger().info(str(x_0_new))
             x_0_new.acceleration = x_0.acceleration
             x_0 = deepcopy(x_0_new)
             #self.get_logger().info("deepcopy")
-            current_count = len(record_state_list) - 1
+            #current_count = len(record_state_list) - 1
 
             # new planning cycle -> plan a new optimal trajectory
 
