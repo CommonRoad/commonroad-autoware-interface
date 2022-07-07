@@ -618,8 +618,6 @@ class Cr2Auto(Node):
             x_0_new = deepcopy(self.ego_vehicle_state)
             self.get_logger().info(str(x_0_new))
             x_0_new.acceleration = x_0.acceleration
-            #x_0_new.steering_angle = x_0.steering_angle
-            #x_0_new.velocity = x_0.velocity
             x_0 = deepcopy(x_0_new)
             #self.get_logger().info("deepcopy")
             current_count = len(record_state_list) - 1
