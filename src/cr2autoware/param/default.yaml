@@ -31,7 +31,7 @@ vehicle:
   width: !!null
   wheelbase: !!null
   # acceleration
-  a_max: 1.0
+  a_max: 5.0
   # switching velocity
   v_switch: !!null
   #steering angle

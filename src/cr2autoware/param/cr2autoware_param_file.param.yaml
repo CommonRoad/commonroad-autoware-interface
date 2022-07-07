@@ -12,7 +12,7 @@
     left_driving: True
     adjacencies: False 
     write_scenario: False # write generated scenario as xml file after map is converted
-    plot_scenario: False
+    plot_scenario: True
 
     vehicle:
       cg_to_front_m: 1.0
@@ -20,7 +20,7 @@
       width_m: 2.0
       front_overhang_m: 0.5
       rear_overhang_m: 0.5
-      max_velocity: 5.0
+      max_velocity: 10.0
       min_velocity: 0.0
 
       # Planner type #1: Search based planner (default), #2: reactive planner
@@ -36,7 +36,7 @@
 
       planning:
         dt: 0.1
-        planning_horizon: 5.0
+        planning_horizon: 4.0
         replanning_frequency: 1
 
 
