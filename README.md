@@ -1,7 +1,7 @@
 # Our DFG-Car: **EDGAR**
 
 ## Description
-This project builds an interface between commonroad and autoware.auto. 
+This project builds an interface between commonroad and autoware.universe/core. 
 
 ## Introduction of files
 cr2autoware
@@ -13,66 +13,81 @@ config
 * avp.rviz: configuration for rviz and it defines the name of topic for goal pose: goal_pose_cr.
 
 data:
-* autonomoustuff_parking_lot.osm: map for avp.
+* sample-map-planning/lanelet2_map.osm: map used by the simulation
+* sample-map-planning/mapconfig.yaml: config for the map used by the simulation
+* sample-map-planning/pointcloud_map.pcd: pointcloud data of the map used by the simulation
+
+launch:
+* test.launch.py: launchfile for this node 
 
 param:
-* cr2autoware_param_file.param.yaml: parameter for initialization of map and vehicle
+* cr2autoware_param_file.param.yaml: parameter for initialization of map and vehicle etc.
 
-## Build up environment
-### Required tools and versions:
-| Tools | Versions|
-|-|-|
-| commonroad-io | 2021.3 |
-| commonroad-drivability-checker | 2021.4 |
-| commonroad-vehicle-models | 2.0.0 |
-| commonroad-search | branch: master |
-| autoware.auto |commit: fd8b3e27000837b8e4bd9417ece4367823d468a5|
+## Environment setup
+Install **Docker**, **NVIDIA Container Toolkit** and **rocker**. See for that: https://autowarefoundation.github.io/autoware-documentation/latest/installation/autoware/docker-installation/
 
+In the following we use a folder `~/workspace` to collect all repositories and code. You are free to use any other path for that folder.
 
-## Installation of Autoware 
-See [Documentation](https://autowarefoundation.gitlab.io/autoware.auto/AutowareAuto/installation.html). The recommended method for installation is through the use of [ADE](https://ade-cli.readthedocs.io/en/latest/), a Docker-based tool to ensure that all developers in a project have a common, consistent development environment. An exemplar installation guidance in the lab PC can be found [here](https://gitlab.lrz.de/cps/dfg-car/-/wikis/Installation-of-Autoware.Auto-in-the-lab-PC),
+1. `mkdir ~/workspace && mkdir ~/workspace/workspace`
+2. `cd ~/workspace && git clone https://github.com/autowarefoundation/autoware.git`
+3. `cd ~/workspace/workspace && git clone https://gitlab.lrz.de/cps/dfg-car.git`
+4. Do the setup of the docker containers for [cr2autoware](#cr2autoware-setup) and [autoware.universe](#autowareuniverse-setup).
 
-## Initiallization/Editting the source code
-1. Open **pycharm** within ade:
-   - `ade enter` (make sure you have already started ade)
-   - navigate to `~/pycharm/pycharm-community-2021.3.1/bin`
-   - enter `./pycharm.sh`
-2. git pull and edit the source code
-   - \* for the first time: creat `workspace` folder
-3. compile **cr2autoware** package from source.
-   - `source /opt/AutowareAuto/setup.bash`
-   - navigate to `workspace/dfg-car` directory
-   - run `colcon build`
-4. git push
+## Docker 
+Here the docker setup is described:
+
+### cr2autoware setup
+First log in to the docker registry `docker login gitlab.lrz.de:5005`.
+Then to download the dockerimage just run the comand to start the container: `rocker --nvidia --x11 --volume $HOME/workspace/workspace:/root/workspace -- gitlab.lrz.de:5005/cps/dfg-car`. It will fetch the image from the container registry of this repository.
+
+### cr2autoware update
+To update the docker image in the container registry run the following commands in the main repository folder:
+1. Do the changes you want to do.
+2. `docker login gitlab.lrz.de:5005`
+3. `docker build -t gitlab.lrz.de:5005/cps/dfg-car .`
+4. `docker push gitlab.lrz.de:5005/cps/dfg-car`
+
+### autoware.universe setup
+First log in to the docker registry `docker login gitlab.lrz.de:5005`.
+Then to the dockerimage just run the comand to start the container: `rocker --nvidia --x11 --user --volume $HOME/workspace/autoware:$HOME/autoware --volume $HOME/workspace/workspace:$HOME/workspace -- gitlab.lrz.de:5005/cps/dfg-car:autoware-universe`. It will fetch the image from the container registry of this repository.
+
+Setup the autoware repository in the container (only if first time setup):
+   - `sudo apt update`
+   - `cd ~/autoware`
+   - `mkdir src`
+   - `vcs import src < autoware.repos`
+   - `vcs import src < simulator.repos`
+   - `source /opt/ros/galactic/setup.bash`
+   - `rosdep update`
+   - `rosdep install --from-paths src --ignore-src --rosdistro $ROS_DISTRO -y`
+   - `colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release`
+   - `source install/setup.bash`
+
+### autoware.universe update
+The docker image provided by autoware does not contain the simulator at the moment. Therefore, we modified the Dockerfile and build our own image of autoware with the simple simulator.
+
+To update the docker image in the container registry run the following commands in the main repository folder:
+1. **Optional**: pull latest changes from autoware
+2. Copy `DockerfileAutowareUniverse` to `autoware/docker/autoware-universe/Dockerfile`
+3. Run `autoware/docker/build.sh`
+4. Rename image `docker tag ghcr.io/autowarefoundation/autoware-universe:galactic-latest-prebuilt gitlab.lrz.de:5005/cps/dfg-car:autoware-universe`
+5. Upload image `docker push gitlab.lrz.de:5005/cps/dfg-car:autoware-universe`
+
+## Modifications to autoware.universe
+### Disable trajectory planning of autoware
+
+1. Comment out the planning part in the launch file: `~/workspace/autoware/src/launcher/autoware_launch/autoware_launch/launch/planning_simulator.launch.xml`
+2. Run `colcon build --packages-select autoware_launch && source ~/autoware/install/setup.bash` in the autoware container.
 
 ## How to use
+0. Create **2** terminals (maybe Terminator is usefull here)
 
-0. to run the docker image, open a terminal and enter under `~/adehome/Autoware`:
-   - `ade --rc .aderc-amd64-foxy-lgsvl start -f`
-then use [terminator](https://wiki.ubuntuusers.de/Terminator/) to open 4 terminals for the following steps, each run:
-   - `ade enter`
-   - navigate to `workspace/dfg-car` 
-(note: if you reboot the laptop or use `ade stop` to exist the ade environment, you have to use `ade --rc .aderc-amd64-foxy-lgsvl start -f` to enter the image. If you just log out, you don't have to start the ade image again.)
+1. Terminal **1**: open cr2autoware container 
+   - `rocker --nvidia --x11 --volume $HOME/workspace/workspace:/root/workspace -- gitlab.lrz.de:5005/cps/dfg-car`
+   - `ros2 launch cr2autoware test.launch.py`
 
-1. Terminal **1**: open rviz 
-   - `source ./install/setup.bash`
-   - `ros2 launch cr2autoware autoware_auto_visualization.launch.py`
+2. Terminal **2**: open autoware.universe container 
+   - `rocker --nvidia --x11 --user --volume $HOME/workspace/autoware:$HOME/autoware --volume $HOME/workspace/workspace:$HOME/workspace -- gitlab.lrz.de:5005/cps/dfg-car:autoware-universe`
+   - `source ~/autoware/install/setup.bash && ros2 launch autoware_launch planning_simulator.launch.xml map_path:=$HOME/workspace/dfg-car/src/cr2autoware/data/sample-map-planning vehicle_model:=sample_vehicle sensor_model:=sample_sensor_kit`
 
-2. Terminal **2**: launch avp 
-   - `source ./install/setup.bash`
-   - `ros2 launch cr2autoware avp_sim.launch.py`
-
-3. Terminal **3**: run SVL simulator:
-   - `/opt/lgsvl/simulator &`
-   - open browser, logging in with tuminfocps@gmail.com with password ilovecps, click on `run simulator`
-   - SVLSimulator is then loaded, click on the start button
-   - Initializing the localization, see [here](https://autowarefoundation.gitlab.io/autoware.auto/AutowareAuto/ndt-initialization.html)
-
-4. Terminal **4**: run cr2autoware planner node in another terminal:
-   - `sudo apt-get update`
-   - `sudo apt-get install python3-pykdl`
-   - `source ./install/setup.bash`
-   - `ros2 launch cr2autoware test.launch.py` 
-
-Video:  see documents/how_to_run.webm
-
+On this page is shown how to use the simple simulator to init state of the car and set a goal: https://autowarefoundation.github.io/autoware-documentation/latest/tutorials/ad-hoc-simulation/planning-simulation/
