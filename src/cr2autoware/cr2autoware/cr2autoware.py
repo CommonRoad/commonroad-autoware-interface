@@ -346,6 +346,9 @@ class Cr2Auto(Node):
                     highest_conf_val = conf_val
                     highest_conf_idx = i
 
+            if object.kinematics.predicted_paths[highest_conf_idx].time_step.nanosec > self.scenario.dt * 1e9:
+                self.get_logger().error("Predicted object timeinterval is > self.scenario.dt")
+
             for point in object.kinematics.predicted_paths[highest_conf_idx].path:
                 traj.append(point)
 
