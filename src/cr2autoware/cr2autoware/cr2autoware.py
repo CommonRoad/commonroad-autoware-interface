@@ -194,6 +194,12 @@ class Cr2Auto(Node):
             '/autoware/engage',
             1
         )
+        # subscribe current goal pose
+        self.current_goal_pub = self.create_publisher(
+            PoseStamped,
+            '/planning/mission_planning/echo_back_goal_pose',
+            1
+        )
         # publish route marker
         qos_route_pub = QoSProfile(depth=1)
         qos_route_pub.history = QoSHistoryPolicy.KEEP_LAST
@@ -563,6 +569,8 @@ class Cr2Auto(Node):
             self.planning_problem = PlanningProblem(planning_problem_id=1,
                                                     initial_state=self.ego_vehicle_state,
                                                     goal_region=goal_region)
+            # publish current used goal for RVIZ visualization
+            self.current_goal_pub.publish(current_msg)
             self.get_logger().info("Set new goal active!")
         else:
             self.planning_problem = None
@@ -664,7 +672,6 @@ class Cr2Auto(Node):
                                 goal.state_list[0].velocity.end) / 2
         else:
             desired_velocity = x_0.velocity
-
 
         # construct motion planner
         planner = self.planner(self.config)
