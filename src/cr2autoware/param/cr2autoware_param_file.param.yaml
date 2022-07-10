@@ -40,6 +40,3 @@
       planning:
         dt: 0.1
         planning_horizon: 4.0
-        replanning_frequency: 1
-
-

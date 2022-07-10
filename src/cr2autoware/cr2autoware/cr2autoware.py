@@ -95,7 +95,6 @@ class Cr2Auto(Node):
         self.declare_parameter('reactive_planner.sampling.t_min', 0.4)
         self.declare_parameter('reactive_planner.planning.dt', 0.1)
         self.declare_parameter('reactive_planner.planning.planning_horizon', 0.4)
-        self.declare_parameter('reactive_planner.planning.replanning_frequency', 3)
         self.declare_parameter("write_scenario", False)
         self.declare_parameter("plot_scenario", False)
         self.declare_parameter("filename", "output.xml")
@@ -644,18 +643,11 @@ class Cr2Auto(Node):
         # goal state configuration
         goal = self.planning_problem.goal
         if hasattr(goal.state_list[0], 'velocity'):
-            if self.planning_problem.goal.state_list[0].velocity.start != 0:
-                desired_velocity = (goal.state_list[0].velocity.start +
-                                    goal.state_list[0].velocity.end) / 2
-            else:
-                desired_velocity = (goal.state_list[0].velocity.start
-                                    + goal.state_list[0].velocity.end) / 2
+            desired_velocity = (goal.state_list[0].velocity.start +
+                                goal.state_list[0].velocity.end) / 2
         else:
             desired_velocity = x_0.velocity
 
-        #self.get_logger().info(str(self.utm2map(goal.state_list[0].position.center)))
-
-        replanning_frequency = self.get_parameter('reactive_planner.planning.replanning_frequency').get_parameter_value().integer_value
 
         # construct motion planner
         planner = self.planner(self.config)
@@ -668,6 +660,7 @@ class Cr2Auto(Node):
         planner.vehicle_params.width = self.vehicle_width
         planner.vehicle_params.wheelbase = self.get_parameter("vehicle.cg_to_front_m").get_parameter_value().double_value \
                                            + self.get_parameter("vehicle.cg_to_rear_m").get_parameter_value().double_value
+        planner.set_desired_velocity(desired_velocity)
 
         # set collision checker
         planner.set_collision_checker(self.scenario)
@@ -677,8 +670,6 @@ class Cr2Auto(Node):
         ref_path = route_planner.plan_routes().retrieve_first_route().reference_path
         planner.set_reference_path(ref_path)
         self._pub_route(ref_path)
-
-        planner.set_desired_velocity(desired_velocity)
 
         record_state_list = list()
         record_input_list = list()
