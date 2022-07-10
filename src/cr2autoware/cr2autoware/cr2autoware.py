@@ -630,16 +630,16 @@ class Cr2Auto(Node):
                     valid_states.append(state)
 
             self._prepare_traj_msg(valid_states, contains_goal=True)
+            self.planning_problem = None
             # visualize_solution(self.scenario, self.planning_problem, create_trajectory_from_list_states(path)) #ToDo: check if working
         else:
             self.get_logger().error("Failed to solve the planning problem.")
 
     def _run_reactive_planner(self):
-        problem_init_state = self.planning_problem.initial_state
-        current_velocity = problem_init_state.velocity
-        if not hasattr(problem_init_state, 'acceleration'):
-            problem_init_state.acceleration = 0.0
-        x_0 = deepcopy(problem_init_state)
+        init_state = self.ego_vehicle_state
+        if not hasattr(init_state, 'acceleration'):
+            init_state.acceleration = 0.0
+        x_0 = deepcopy(init_state)
 
         # goal state configuration
         goal = self.planning_problem.goal
@@ -678,6 +678,8 @@ class Cr2Auto(Node):
         planner.set_reference_path(ref_path)
         self._pub_route(ref_path)
 
+        planner.set_desired_velocity(desired_velocity)
+
         record_state_list = list()
         record_input_list = list()
 
@@ -692,42 +694,36 @@ class Cr2Auto(Node):
             steering_angle_speed=0.)
         record_input_list.append(record_input_state)
 
+        valid_states = []
+        #self.get_logger().info(str(x_0))
+
         # Run planner
-        while not goal.is_reached(x_0):  # or self._aw_state == 6:  # 6 = arrived goal
-            x_0_new = deepcopy(self.ego_vehicle_state)
-            #self.get_logger().info(str(x_0_new))
-            x_0_new.acceleration = x_0.acceleration
-            x_0 = deepcopy(x_0_new)
-        
-            planner.set_desired_velocity(desired_velocity)
+        # plan trajectory
+        optimal = planner.plan(x_0)  # returns the planned (i.e., optimal) trajectory
 
-            # plan trajectory
-            optimal = planner.plan(x_0)  # returns the planned (i.e., optimal) trajectory
+        # if the planner fails to find an optimal trajectory -> terminate
+        if not optimal:
+            self.get_logger().error("not optimal")
+        else:
+            # correct orientation angle
+            new_state_list = planner.shift_orientation(optimal[0])
 
-            # if the planner fails to find an optimal trajectory -> terminate
-            if not optimal:
-                self.get_logger().error("not optimal")
-            else:
-                # correct orientation angle
-                new_state_list = planner.shift_orientation(optimal[0])
+            # update init state and curvilinear state
+            x_0 = deepcopy(new_state_list.state_list[1])
 
-                # update init state and curvilinear state
-                x_0 = deepcopy(new_state_list.state_list[1])
+            for state in new_state_list.state_list:
+                if len(valid_states) > 0:
+                    last_state = valid_states[-1]
+                    if last_state.time_step == state.time_step:
+                        continue
+                valid_states.append(state)
 
-                valid_states = []
+            self._prepare_traj_msg(valid_states)
 
-                for state in new_state_list.state_list:
-                    if len(valid_states) > 0:
-                        last_state = valid_states[-1]
-                        if last_state.time_step == state.time_step:
-                            continue
-                    valid_states.append(state)
-
-                self._prepare_traj_msg(valid_states)
-                planner.set_collision_checker(self.scenario)
-
-        self._prepare_traj_msg(valid_states, contains_goal=True)
-        self.get_logger().info("reactive planner ended")
+        if goal.is_reached(x_0):
+            self._prepare_traj_msg(valid_states, contains_goal=True)
+            self.get_logger().info("Reactive planner found goal!")
+            self.planning_problem = None
 
     def _pub_route(self, path):
         route = Marker()
