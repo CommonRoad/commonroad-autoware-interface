@@ -33,6 +33,18 @@ In the following we use a folder `~/workspace` to collect all repositories and c
 3. `cd ~/workspace/workspace && git clone https://gitlab.lrz.de/cps/dfg-car.git`
 4. Do the setup of the docker containers for [cr2autoware](#cr2autoware-setup) and [autoware.universe](#autowareuniverse-setup).
 
+### Repositories used
+| Tools | Versions|
+|-|-|
+| commonroad-io | ??? |
+| commonroad-drivability-checker | ??? |
+| commonroad-vehicle-models | ??? |
+| commonroad-search | ??? |
+| commonroad-scenrio-designer | development:latest |
+| reactive-planner | development:e9a68dc3891ee6fd1d2500083c5204384ae94448 |
+| autoware.universe | master:latest |
+| autoware.code | master:latest |
+
 ## Docker 
 Here the docker setup is described:
 
