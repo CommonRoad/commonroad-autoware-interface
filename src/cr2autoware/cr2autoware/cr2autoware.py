@@ -211,6 +211,7 @@ class Cr2Auto(Node):
         self.last_msg_dynamic_obs = None
         # https://github.com/tier4/autoware_auto_msgs/blob/tier4/main/autoware_auto_system_msgs/msg/AutowareState.idl
         self.last_msg_aw_state = 1  # 1 = initializing
+        self.goal_msgs = []
 
         # create a timer to update scenario
         self.timer = self.create_timer(timer_period_sec=self.get_parameter("scenario_update_time").get_parameter_value().double_value,
@@ -520,35 +521,51 @@ class Cr2Auto(Node):
         Callback to goal pose. Create goal region with given goal pose and planning problem.
         :param msg: Goal Pose
         """
-        self.get_logger().info("Received Goal Pose ...")
-        position = self.map2utm(msg.pose.position)
-        orientation = Cr2Auto.quaternion2orientation(msg.pose.orientation)
-        if self.ego_vehicle_state is None:
-            self.get_logger().error("ego vehicle state is None")
-            return
+        self.get_logger().info("Received new goal pose!")
+        # save msg to list of goals
+        self.goal_msgs.append(msg)
 
-        max_vel = self.get_parameter('vehicle.max_velocity').get_parameter_value().double_value
-        min_vel = self.get_parameter('vehicle.min_velocity').get_parameter_value().double_value
-        velocity_interval = Interval(min_vel, max_vel)
+        # if currently no active goal, set a goal
+        if self.planning_problem is None:
+            self._set_new_goal()
 
-        pos_x = round(position[0])
-        pos_y = round(position[1])
-        goal_lanelet_id = self.scenario.lanelet_network.find_lanelet_by_position([np.array([pos_x, pos_y])])
-        if goal_lanelet_id:
-            goal_lanelet = self.scenario.lanelet_network.find_lanelet_by_id(goal_lanelet_id[0][0])
-            left_vertices = goal_lanelet.left_vertices
-            right_vertices = goal_lanelet.right_vertices
-            goal_lanelet_width = np.linalg.norm(left_vertices[0] - right_vertices[0])
+    def _set_new_goal(self) -> None:
+        # set new goal if we have one
+        if len(self.goal_msgs) > 0:
+            current_msg = self.goal_msgs.pop(0)
+
+            position = self.map2utm(current_msg.pose.position)
+            orientation = Cr2Auto.quaternion2orientation(current_msg.pose.orientation)
+            if self.ego_vehicle_state is None:
+                self.get_logger().error("ego vehicle state is None")
+                return
+
+            max_vel = self.get_parameter('vehicle.max_velocity').get_parameter_value().double_value
+            min_vel = self.get_parameter('vehicle.min_velocity').get_parameter_value().double_value
+            velocity_interval = Interval(min_vel, max_vel)
+
+            pos_x = round(position[0])
+            pos_y = round(position[1])
+            goal_lanelet_id = self.scenario.lanelet_network.find_lanelet_by_position([np.array([pos_x, pos_y])])
+            if goal_lanelet_id:
+                goal_lanelet = self.scenario.lanelet_network.find_lanelet_by_id(goal_lanelet_id[0][0])
+                left_vertices = goal_lanelet.left_vertices
+                right_vertices = goal_lanelet.right_vertices
+                goal_lanelet_width = np.linalg.norm(left_vertices[0] - right_vertices[0])
+            else:
+                goal_lanelet_width = 3.0
+
+            region = Rectangle(length=self.vehicle_length + 0.25 * self.vehicle_length, width=goal_lanelet_width,
+                               center=position, orientation=orientation)
+            goal_state = State(position=region, time_step=Interval(0, 1000), velocity=velocity_interval)
+
+            goal_region = GoalRegion([goal_state])
+            self.planning_problem = PlanningProblem(planning_problem_id=1,
+                                                    initial_state=self.ego_vehicle_state,
+                                                    goal_region=goal_region)
+            self.get_logger().info("Set new goal active!")
         else:
-            goal_lanelet_width = 3.0
-
-        region = Rectangle(length=self.vehicle_length + 0.25 * self.vehicle_length, width=goal_lanelet_width, center=position, orientation=orientation)
-        goal_state = State(position=region, time_step=Interval(0, 1000), velocity=velocity_interval)
-
-        goal_region = GoalRegion([goal_state])
-        self.planning_problem = PlanningProblem(planning_problem_id=1,
-                                                initial_state=self.ego_vehicle_state,
-                                                goal_region=goal_region)
+            self.planning_problem = None
 
     def state_callback(self, msg: AutowareState) -> None:
         self.last_msg_aw_state = msg.state
@@ -629,7 +646,7 @@ class Cr2Auto(Node):
                     valid_states.append(state)
 
             self._prepare_traj_msg(valid_states, contains_goal=True)
-            self.planning_problem = None
+            self._set_new_goal()
             # visualize_solution(self.scenario, self.planning_problem, create_trajectory_from_list_states(path)) #ToDo: check if working
         else:
             self.get_logger().error("Failed to solve the planning problem.")
@@ -714,7 +731,7 @@ class Cr2Auto(Node):
         if goal.is_reached(x_0):
             self._prepare_traj_msg(valid_states, contains_goal=True)
             self.get_logger().info("Reactive planner found goal!")
-            self.planning_problem = None
+            self._set_new_goal()
 
     def _pub_route(self, path):
         route = Marker()
