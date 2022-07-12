@@ -16,6 +16,7 @@
     filename: "ZAM_Lanelet-1_1-T1.xml" # name of the scenario for saving
     scenario_update_time: 0.25 # run each x.x seconds
     planner_update_time: 0.5 # run each x.x seconds
+    goal_is_reached_update_time: 0.1 # run each x.x seconds
 
     vehicle:
       cg_to_front_m: 1.0

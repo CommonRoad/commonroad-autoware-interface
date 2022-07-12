@@ -102,6 +102,7 @@ class Cr2Auto(Node):
         self.declare_parameter("filename", "output.xml")
         self.declare_parameter("scenario_update_time", 0.5)
         self.declare_parameter("planner_update_time", 0.5)
+        self.declare_parameter("goal_is_reached_update_time", 0.1)
 
         self.proj_str = self.get_parameter('proj_str').get_parameter_value().string_value
 
@@ -117,6 +118,9 @@ class Cr2Auto(Node):
         self.scenario = None
 
         self.planning_problem = None
+        self.goal_reached = None
+        self.traj = None
+        self.planner_state_list = None
         # load the xml with stores the motion primitives
         name_file_motion_primitives = 'V_0.0_20.0_Vstep_4.0_SA_-1.066_1.066_SAstep_0.18_T_0.5_Model_BMW_320i.xml'
         self.automaton = ManeuverAutomaton.generate_automaton(name_file_motion_primitives)
@@ -208,7 +212,7 @@ class Cr2Auto(Node):
             qos_route_pub
         )
 
-        # vars to safe last messages
+        # vars to save last messages
         self.last_msg_state = None
         self.last_msg_static_obs = None
         self.last_msg_dynamic_obs = None
@@ -226,6 +230,11 @@ class Cr2Auto(Node):
         self.timer = self.create_timer(
             timer_period_sec=self.get_parameter("planner_update_time").get_parameter_value().double_value,
             callback=self.solve_planning_problem, callback_group=self.callback_group)
+
+        # create a timer to check if goal is reached
+        self.timer = self.create_timer(
+            timer_period_sec=self.get_parameter("goal_is_reached_update_time").get_parameter_value().double_value,
+            callback=self._is_goal_reached, callback_group=self.callback_group)
 
     def update_scenario(self):
         # process last state message
@@ -255,9 +264,11 @@ class Cr2Auto(Node):
                 self.is_computing_trajectory = True
                 if self.planner_type == 1:  # Breadth First Search
                     self._run_search_planner()
+                    self.get_logger.info("Planning done!")
 
                 if self.planner_type == 2:  # Reactive Planner
                     self._run_reactive_planner()
+                    self.get_logger.info("Planning done!")
 
                 self.is_computing_trajectory = False
             else:
@@ -430,7 +441,9 @@ class Cr2Auto(Node):
                         highest_conf_idx = i
 
                 if object.kinematics.predicted_paths[highest_conf_idx].time_step.nanosec > self.scenario.dt * 1e9:
-                    self.get_logger().error("Predicted object timeinterval is > self.scenario.dt")
+                    self.get_logger().error(f"Predicted object timeinterval"
+                                            f"({object.kinematics.predicted_paths[highest_conf_idx].time_step.nanosec})"
+                                            f"is > self.scenario.dt {self.scenario.dt * 1e9}")
 
                 for point in object.kinematics.predicted_paths[highest_conf_idx].path:
                     traj.append(point)
@@ -555,6 +568,7 @@ class Cr2Auto(Node):
             min_vel = self.get_parameter('vehicle.min_velocity').get_parameter_value().double_value
             velocity_interval = Interval(min_vel, max_vel)
 
+            # get goal lanelet and its width
             pos_x = round(position[0])
             pos_y = round(position[1])
             goal_lanelet_id = self.scenario.lanelet_network.find_lanelet_by_position([np.array([pos_x, pos_y])])
@@ -579,12 +593,16 @@ class Cr2Auto(Node):
         else:
             self.planning_problem = None
 
+    def _is_goal_reached(self):
+        if self.traj and self.planning_problem:
+            self.goal_reached, _ = self.planning_problem.goal_reached(self.planner_state_list)
+
     def state_callback(self, msg: AutowareState) -> None:
         self.last_msg_aw_state = msg.state
 
     def _prepare_traj_msg(self, states, contains_goal=False):
-        traj = AWTrajectory()
-        traj.header.frame_id = "map"
+        self.traj = AWTrajectory()
+        self.traj.header.frame_id = "map"
 
         if states[0].velocity == 0.0:
             states[0].velocity = 0.1
@@ -625,9 +643,9 @@ class Cr2Auto(Node):
                 else:
                     new_point.acceleration_mps2 = 0.0  # acceleration is 0 for the last state
 
-            traj.points.append(new_point)
+            self.traj.points.append(new_point)
 
-        self.traj_pub.publish(traj)
+        self.traj_pub.publish(self.traj)
         self.get_logger().info('New trajectory published !!!')
 
         engage_msg = Engage()
@@ -722,31 +740,34 @@ class Cr2Auto(Node):
 
         # Run planner
         # plan trajectory
-        optimal = planner.plan(x_0)  # returns the planned (i.e., optimal) trajectory
 
-        # if the planner fails to find an optimal trajectory -> terminate
-        if not optimal:
-            self.get_logger().error("not optimal")
-        else:
-            # correct orientation angle
-            new_state_list = planner.shift_orientation(optimal[0])
+        while not self.goal_reached:
+            optimal = planner.plan(x_0)  # returns the planned (i.e., optimal) trajectory
 
-            # update init state and curvilinear state
-            x_0 = deepcopy(new_state_list.state_list[1])
+            # if the planner fails to find an optimal trajectory -> terminate
+            if not optimal:
+                self.get_logger().error("not optimal")
+            else:
+                # correct orientation angle
+                self.planner_state_list = planner.shift_orientation(optimal[0])
+                if self.planning_problem:
+                    self.goal_reached, _ = self.planning_problem.goal_reached(self.planner_state_list)
 
-            for state in new_state_list.state_list:
-                if len(valid_states) > 0:
-                    last_state = valid_states[-1]
-                    if last_state.time_step == state.time_step:
-                        continue
-                valid_states.append(state)
+                # update init state and curvilinear state
+                x_0 = deepcopy(self.planner_state_list.state_list[1])
 
-            self._prepare_traj_msg(valid_states)
+                for state in self.planner_state_list.state_list:
+                    if len(valid_states) > 0:
+                        last_state = valid_states[-1]
+                        if last_state.time_step == state.time_step:
+                            continue
+                    valid_states.append(state)
 
-        if goal.is_reached(x_0):
-            self._prepare_traj_msg(valid_states, contains_goal=True)
-            self.get_logger().info("Reactive planner found goal!")
-            self._set_new_goal()
+                self._prepare_traj_msg(valid_states, contains_goal=self.goal_reached)
+
+            if self.goal_reached:
+                self.get_logger().info("Reactive planner found goal!")
+                self._set_new_goal()
 
     def _pub_goals(self):
         route_msg = MarkerArray()
