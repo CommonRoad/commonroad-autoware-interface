@@ -593,9 +593,13 @@ class Cr2Auto(Node):
             self.planning_problem = None
             self.is_computing_trajectory = False
 
-    def _is_goal_reached(self):
-        if self.traj and self.planning_problem:
-            self.goal_reached, _ = self.planning_problem.goal_reached(self.planner_state_list)
+    def _is_goal_reached(self):  # ToDo Think better way
+        if self.planning_problem:
+            diff = np.linalg.norm(np.subtract(self.planning_problem.goal.state_list[0].position.center,
+                                              self.ego_vehicle_state.position))
+            if diff < 0.5:
+                self.goal_reached = True
+                self.get_logger().info("Car is in goal region!")
 
     def state_callback(self, msg: AutowareState) -> None:
         self.last_msg_aw_state = msg.state
