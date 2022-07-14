@@ -40,4 +40,4 @@
 
       planning:
         dt: 0.1
-        planning_horizon: 4.0
+        planning_horizon: 10.0
