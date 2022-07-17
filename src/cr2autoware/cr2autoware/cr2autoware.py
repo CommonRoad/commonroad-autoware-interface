@@ -42,7 +42,7 @@ from copy import deepcopy
 # from crdesigner.input_output.api import lanelet_to_commonroad
 from crdesigner.map_conversion.map_conversion_interface import lanelet_to_commonroad
 
-from geometry_msgs.msg import PoseStamped, Quaternion, Point, Vector3
+from geometry_msgs.msg import PoseStamped, Quaternion, Point, Vector3, Pose
 from visualization_msgs.msg import MarkerArray, Marker
 from autoware_auto_perception_msgs.msg import DetectedObjects, PredictedObjects
 from autoware_auto_planning_msgs.msg import TrajectoryPoint
@@ -119,7 +119,6 @@ class Cr2Auto(Node):
 
         self.planning_problem = None
         self.goal_reached = None
-        self.traj = None
         self.planner_state_list = None
         # load the xml with stores the motion primitives
         name_file_motion_primitives = 'V_0.0_20.0_Vstep_4.0_SA_-1.066_1.066_SAstep_0.18_T_0.5_Model_BMW_320i.xml'
@@ -439,13 +438,47 @@ class Cr2Auto(Node):
                         highest_conf_val = conf_val
                         highest_conf_idx = i
 
-                if object.kinematics.predicted_paths[highest_conf_idx].time_step.nanosec > self.scenario.dt * 1e9:
-                    self.get_logger().error(f"Predicted object timeinterval"
-                                            f"({object.kinematics.predicted_paths[highest_conf_idx].time_step.nanosec})"
-                                            f"is > self.scenario.dt {self.scenario.dt * 1e9}")
+                obj_traj_dt = object.kinematics.predicted_paths[highest_conf_idx].time_step.nanosec
 
-                for point in object.kinematics.predicted_paths[highest_conf_idx].path:
-                    traj.append(point)
+                # if obj_traj_dt > self.scenario.dt * 1e9:
+                #     self.get_logger().error(f"Predicted object timeinterval"
+                #                             f"({object.kinematics.predicted_paths[highest_conf_idx].time_step.nanosec})"
+                #                             f"is > self.scenario.dt {self.scenario.dt * 1e9}")
+
+                planning_dt = self.get_parameter('reactive_planner.planning.dt').get_parameter_value().double_value
+                if obj_traj_dt > planning_dt * 1e9:
+                    # interpolate predicted path of obstacles to match dt
+                    dt_ratio = math.ceil(obj_traj_dt / (planning_dt * 1e9))
+                    two_points = []
+                    for point in object.kinematics.predicted_paths[highest_conf_idx].path:
+                        two_points.append(point)
+                        if len(two_points) == 2:
+                            point_2 = two_points.pop()
+                            point_1 = two_points.pop()
+                            new_points_x = np.linspace(point_1.position.x, point_2.position.x, dt_ratio-1)
+                            new_points_y = np.linspace(point_1.position.y, point_2.position.y, dt_ratio-1)
+                            new_points_z = np.linspace(point_1.position.z, point_2.position.z, dt_ratio-1)
+                            new_points_ort_x = np.linspace(point_1.orientation.x, point_2.orientation.x, dt_ratio-1)
+                            new_points_ort_y = np.linspace(point_1.orientation.y, point_2.orientation.y, dt_ratio-1)
+                            new_points_ort_z = np.linspace(point_1.orientation.z, point_2.orientation.z, dt_ratio-1)
+                            new_points_ort_w = np.linspace(point_1.orientation.w, point_2.orientation.w, dt_ratio-1)
+                            for i in range(dt_ratio-1):
+                                new_point_pos = Point()
+                                new_point_pos.x = new_points_x[i]
+                                new_point_pos.y = new_points_y[i]
+                                new_point_pos.z = new_points_z[i]
+                                new_point_ort = Quaternion()
+                                new_point_ort.x = new_points_ort_x[i]
+                                new_point_ort.y = new_points_ort_y[i]
+                                new_point_ort.z = new_points_ort_z[i]
+                                new_point_ort.w = new_points_ort_w[i]
+                                new_point = Pose()
+                                new_point.position = new_point_pos
+                                new_point.orientation = new_point_ort
+                                traj.append(new_point)
+                else:
+                    for point in object.kinematics.predicted_paths[highest_conf_idx].path:
+                        traj.append(point)
 
                 object_id_aw = object.object_id.uuid
                 aw_id_list = [list(value) for value in self.dynamic_obstacles_ids.values()]
@@ -593,7 +626,7 @@ class Cr2Auto(Node):
             self.planning_problem = None
             self.is_computing_trajectory = False
 
-    def _is_goal_reached(self):  # ToDo Think better way
+    def _is_goal_reached(self):  # ToDo: think better way
         if self.planning_problem:
             diff = np.linalg.norm(np.subtract(self.planning_problem.goal.state_list[0].position.center,
                                               self.ego_vehicle_state.position))
@@ -745,36 +778,34 @@ class Cr2Auto(Node):
         # Run planner
         # plan trajectory
 
-        while not self.goal_reached:
-            optimal = planner.plan(x_0)  # returns the planned (i.e., optimal) trajectory
+        optimal = planner.plan(x_0)  # returns the planned (i.e., optimal) trajectory
 
-            # if the planner fails to find an optimal trajectory -> terminate
-            if not optimal:
-                self.get_logger().error("not optimal")
-            else:
-                # correct orientation angle
-                self.planner_state_list = planner.shift_orientation(optimal[0])
-                if self.planning_problem:
-                    self.goal_reached, _ = self.planning_problem.goal_reached(self.planner_state_list)
+        # if the planner fails to find an optimal trajectory -> terminate
+        if not optimal:
+            self.get_logger().error("not optimal")
+        else:
+            # correct orientation angle
+            self.planner_state_list = planner.shift_orientation(optimal[0])
+            goal_state_check = None
+            if self.planning_problem:
+                goal_state_check, _ = self.planning_problem.goal_reached(self.planner_state_list)
 
-                # update init state and curvilinear state
-                x_0 = deepcopy(self.planner_state_list.state_list[1])
+            # update init state and curvilinear state
+            x_0 = deepcopy(self.planner_state_list.state_list[1])
 
-                for state in self.planner_state_list.state_list:
-                    if len(valid_states) > 0:
-                        last_state = valid_states[-1]
-                        if last_state.time_step == state.time_step:
-                            continue
-                    valid_states.append(state)
-                    diff = np.linalg.norm(np.subtract(self.planning_problem.goal.state_list[0].position.center, state.position))
-                    if diff < 0.5:
-                        break
+            for state in self.planner_state_list.state_list:
+                if len(valid_states) > 0:
+                    last_state = valid_states[-1]
+                    if last_state.time_step == state.time_step:
+                        continue
+                valid_states.append(state)
 
-                self._prepare_traj_msg(valid_states, contains_goal=self.goal_reached)
+            self._prepare_traj_msg(valid_states, goal_state_check)
 
-            if self.goal_reached:
-                self.get_logger().info("Reactive planner found goal!")
-                self._set_new_goal()
+        if self.goal_reached:
+            self._prepare_traj_msg(valid_states, contains_goal=True)
+            self.get_logger().info("Reactive planner found goal!")
+            self._set_new_goal()
 
     def _pub_goals(self):
         route_msg = MarkerArray()
