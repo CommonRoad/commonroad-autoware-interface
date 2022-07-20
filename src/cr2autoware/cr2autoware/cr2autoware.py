@@ -263,12 +263,13 @@ class Cr2Auto(Node):
                 self.is_computing_trajectory = True
                 if self.planner_type == 1:  # Breadth First Search
                     self._run_search_planner()
-                    self.get_logger.info("Planning done!")
+                    self.get_logger().info("Planning done!")
 
                 if self.planner_type == 2:  # Reactive Planner
                     self._run_reactive_planner()
-                    self.get_logger.info("Planning done!")
+                    self.get_logger().info("Planning done!")
 
+                self.is_computing_trajectory = False
             else:
                 self.get_logger().info("already computing trajectory")
 
@@ -624,7 +625,6 @@ class Cr2Auto(Node):
             self._pub_goals()
         else:
             self.planning_problem = None
-            self.is_computing_trajectory = False
 
     def _is_goal_reached(self):  # ToDo: think better way
         if self.planning_problem:
