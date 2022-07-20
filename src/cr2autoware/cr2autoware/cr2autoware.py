@@ -1,6 +1,5 @@
 import os
 import sys
-from threading import Thread
 from dataclasses import dataclass
 import rclpy
 from rclpy.node import Node
@@ -8,7 +7,6 @@ from rclpy.executors import MultiThreadedExecutor
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.qos import QoSDurabilityPolicy, QoSHistoryPolicy, QoSReliabilityPolicy
 from rclpy.qos import QoSProfile
-from builtin_interfaces.msg import Duration
 import math
 import numpy as np
 from pyproj import Proj
@@ -36,7 +34,6 @@ from SMP.maneuver_automaton.maneuver_automaton import ManeuverAutomaton
 from commonroad_rp.reactive_planner import ReactivePlanner
 from commonroad_rp.configuration import build_configuration
 from commonroad_route_planner.route_planner import RoutePlanner
-from commonroad_rp.utility.evaluation import create_planning_problem_solution, reconstruct_inputs, reconstruct_states
 from copy import deepcopy
 
 # from crdesigner.input_output.api import lanelet_to_commonroad
@@ -56,7 +53,6 @@ from tf2_ros.buffer import Buffer
 from tf2_ros.transform_listener import TransformListener
 
 from cr2autoware.tf2_geometry_msgs import do_transform_pose
-from cr2autoware.utils import visualize_solution, display_steps
 
 
 @dataclass
@@ -103,6 +99,7 @@ class Cr2Auto(Node):
         self.declare_parameter("scenario_update_time", 0.5)
         self.declare_parameter("planner_update_time", 0.5)
         self.declare_parameter("goal_is_reached_update_time", 0.1)
+        self.declare_parameter("goal_is_reached_distance", 0.5)
 
         self.proj_str = self.get_parameter('proj_str').get_parameter_value().string_value
 
@@ -118,7 +115,6 @@ class Cr2Auto(Node):
         self.scenario = None
 
         self.planning_problem = None
-        self.goal_reached = None
         self.planner_state_list = None
         # load the xml with stores the motion primitives
         name_file_motion_primitives = 'V_0.0_20.0_Vstep_4.0_SA_-1.066_1.066_SAstep_0.18_T_0.5_Model_BMW_320i.xml'
@@ -219,19 +215,20 @@ class Cr2Auto(Node):
         self.last_msg_aw_state = 1  # 1 = initializing
         self.goal_msgs = []
         self.current_goal_msg = None
+        self.last_goal_reached = self.get_clock().now()
 
         # create a timer to update scenario
-        self.timer = self.create_timer(
+        self.timer_update_scenario = self.create_timer(
             timer_period_sec=self.get_parameter("scenario_update_time").get_parameter_value().double_value,
             callback=self.update_scenario, callback_group=self.callback_group)
 
         # create a timer to run planner
-        self.timer = self.create_timer(
+        self.timer_solve_planning_problem = self.create_timer(
             timer_period_sec=self.get_parameter("planner_update_time").get_parameter_value().double_value,
             callback=self.solve_planning_problem, callback_group=self.callback_group)
 
         # create a timer to check if goal is reached
-        self.timer = self.create_timer(
+        self.timer_is_goal_reached = self.create_timer(
             timer_period_sec=self.get_parameter("goal_is_reached_update_time").get_parameter_value().double_value,
             callback=self._is_goal_reached, callback_group=self.callback_group)
 
@@ -628,11 +625,13 @@ class Cr2Auto(Node):
 
     def _is_goal_reached(self):  # ToDo: think better way
         if self.planning_problem:
-            diff = np.linalg.norm(np.subtract(self.planning_problem.goal.state_list[0].position.center,
-                                              self.ego_vehicle_state.position))
-            if diff < 0.5:
-                self.goal_reached = True
+            distance = np.linalg.norm(np.subtract(self.planning_problem.goal.state_list[0].position.center,
+                                                  self.ego_vehicle_state.position))
+
+            if (distance < self.get_parameter("goal_is_reached_distance").get_parameter_value().double_value) and (self.get_clock().now() - self.last_goal_reached).nanoseconds > 5e8:
                 self.get_logger().info("Car is in goal region!")
+                self.last_goal_reached = self.get_clock().now()
+                self._set_new_goal()
 
     def state_callback(self, msg: AutowareState) -> None:
         self.last_msg_aw_state = msg.state
@@ -712,7 +711,7 @@ class Cr2Auto(Node):
                             continue
                     valid_states.append(state)
 
-            self._prepare_traj_msg(valid_states, contains_goal=True)
+            self._prepare_traj_msg(valid_states)
             self._set_new_goal()
             # visualize_solution(self.scenario, self.planning_problem, create_trajectory_from_list_states(path)) #ToDo: check if working
         else:
@@ -786,12 +785,6 @@ class Cr2Auto(Node):
         else:
             # correct orientation angle
             self.planner_state_list = planner.shift_orientation(optimal[0])
-            goal_state_check = None
-            if self.planning_problem:
-                goal_state_check, _ = self.planning_problem.goal_reached(self.planner_state_list)
-
-            # update init state and curvilinear state
-            x_0 = deepcopy(self.planner_state_list.state_list[1])
 
             for state in self.planner_state_list.state_list:
                 if len(valid_states) > 0:
@@ -800,12 +793,7 @@ class Cr2Auto(Node):
                         continue
                 valid_states.append(state)
 
-            self._prepare_traj_msg(valid_states, goal_state_check)
-
-        if self.goal_reached:
-            self._prepare_traj_msg(valid_states, contains_goal=True)
-            self.get_logger().info("Reactive planner found goal!")
-            self._set_new_goal()
+            self._prepare_traj_msg(valid_states)
 
     def _pub_goals(self):
         route_msg = MarkerArray()

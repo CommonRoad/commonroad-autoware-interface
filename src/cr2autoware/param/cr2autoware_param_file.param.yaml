@@ -17,6 +17,7 @@
     scenario_update_time: 0.25 # run each x.x seconds
     planner_update_time: 0.5 # run each x.x seconds
     goal_is_reached_update_time: 0.1 # run each x.x seconds
+    goal_is_reached_distance: 1.0 # meter
 
     vehicle:
       cg_to_front_m: 1.0
@@ -40,4 +41,4 @@
 
       planning:
         dt: 0.1
-        planning_horizon: 10.0
+        planning_horizon: 5.0
