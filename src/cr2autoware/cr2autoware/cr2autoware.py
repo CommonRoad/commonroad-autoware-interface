@@ -160,7 +160,7 @@ class Cr2Auto(Node):
             callback_group=self.callback_group
         )
         # subscribe dynamic obstacles
-        self.static_obs_sub = self.create_subscription(
+        self.dynamic_obs_sub = self.create_subscription(
             PredictedObjects,
             '/perception/object_recognition/objects',
             self.dynamic_obs_callback,
@@ -622,6 +622,7 @@ class Cr2Auto(Node):
             self._pub_goals()
         else:
             self.planning_problem = None
+            self.current_goal_msg = None
 
     def _is_goal_reached(self):  # ToDo: think better way
         if self.planning_problem:
