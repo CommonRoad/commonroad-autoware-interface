@@ -618,6 +618,7 @@ class Cr2Auto(Node):
             self.planning_problem = PlanningProblem(planning_problem_id=1,
                                                     initial_state=self.ego_vehicle_state,
                                                     goal_region=goal_region)
+            self.build_scenario()
             self.get_logger().info("Set new goal active!")
             self._pub_goals()
         else:
@@ -921,10 +922,13 @@ class Cr2Auto(Node):
     def _write_scenario(self, filename=""):
         # save map
         # store converted file as CommonRoad scenario
+        planning_problem = PlanningProblemSet()
+        if self.planning_problem:
+            planning_problem.add_planning_problem(self.planning_problem)
         if self.get_parameter('write_scenario').get_parameter_value().bool_value:
             writer = CommonRoadFileWriter(
                 scenario=self.scenario,
-                planning_problem_set=PlanningProblemSet(),
+                planning_problem_set=planning_problem,
                 author="",
                 affiliation="Technical University of Munich",
                 source="",
