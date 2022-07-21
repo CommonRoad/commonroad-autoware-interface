@@ -119,6 +119,7 @@ class Cr2Auto(Node):
         # load the xml with stores the motion primitives
         name_file_motion_primitives = 'V_0.0_20.0_Vstep_4.0_SA_-1.066_1.066_SAstep_0.18_T_0.5_Model_BMW_320i.xml'
         self.automaton = ManeuverAutomaton.generate_automaton(name_file_motion_primitives)
+        self.filename = self.get_parameter('filename').get_parameter_value().string_value
         self.is_computing_trajectory = False  # stop update scenario when trajectory is computing
 
         self.planner_type = self.get_parameter("planner_type").get_parameter_value().integer_value
@@ -250,6 +251,8 @@ class Cr2Auto(Node):
         if self.get_parameter('plot_scenario').get_parameter_value().bool_value:
             self._plot_scenario()
 
+        self._write_scenario(filename=self.filename)
+
     def solve_planning_problem(self) -> None:
         """
         Solve planning problem with algorithms offered by commonroad. Now BreadthFirstSearch is in use, but can
@@ -315,8 +318,7 @@ class Cr2Auto(Node):
                                               left_driving=left_driving,
                                               adjacencies=adjacencies)
         # save map
-        filename = self.get_parameter('filename').get_parameter_value().string_value
-        self._write_scenario(filename=filename)
+        self._write_scenario(filename=self.filename)
 
     def current_state_callback(self, msg: Odometry) -> None:
         """
@@ -919,7 +921,7 @@ class Cr2Auto(Node):
             return DynamicObstacle(ego_vehicle_id, ego_vehicle_type, ego_vehicle_shape, self.ego_vehicle_state,
                                    prediction=pred_traj)
 
-    def _write_scenario(self, filename=""):
+    def _write_scenario(self, filename="cr2autoware_output"):
         # save map
         # store converted file as CommonRoad scenario
         planning_problem = PlanningProblemSet()
