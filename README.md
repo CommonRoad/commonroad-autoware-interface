@@ -4,29 +4,30 @@
 This project builds an interface between commonroad and autoware.universe/core. 
 
 ## Introduction of files
-cr2autoware
-* cr2autoware.py: a ros node that subscribe information from autoware and process information and publish data to autoware
+_**cr2autoware:**_
+* cr2autoware.py: a ROS2 node that subscribe information from autoware and process information and publish data to autoware.
 * tf2_geometry_msgs.py: define help-functions for transformation between map frame and other frames.
-* utils.py: used for visualization of planning
+* utils.py: used for visualization of planning.
 
-config
+_**config:**_
 * avp.rviz: configuration for rviz and it defines the name of topic for goal pose: goal_pose_cr.
 
-data:
+_**data:**_
 * sample-map-planning/lanelet2_map.osm: map used by the simulation
 * sample-map-planning/mapconfig.yaml: config for the map used by the simulation
 * sample-map-planning/pointcloud_map.pcd: pointcloud data of the map used by the simulation
 
-launch:
+_**launch:**_
 * test.launch.py: launchfile for this node 
 
-param:
-* cr2autoware_param_file.param.yaml: parameter for initialization of map and vehicle etc.
+_**param:**_
+* cr2autoware_param_file.param.yaml: includes parameters for initialization of map, configuration of vehicle and planner.
+* default_yaml: includes default parameters for reactive planner.
 
 ## Environment setup
 Install **Docker**, **NVIDIA Container Toolkit** and **rocker**. See for that: https://autowarefoundation.github.io/autoware-documentation/latest/installation/autoware/docker-installation/
 
-In the following we use a folder `~/workspace` to collect all repositories and code. You are free to use any other path for that folder.
+In the following, we use a folder `~/workspace` to collect all repositories and code. You are free to use any other path for that folder.
 
 1. `mkdir ~/workspace && mkdir ~/workspace/workspace`
 2. `cd ~/workspace && git clone https://github.com/autowarefoundation/autoware.git`
@@ -36,11 +37,11 @@ In the following we use a folder `~/workspace` to collect all repositories and c
 ### Repositories used
 | Tools | Versions|
 |-|-|
-| commonroad-io | ??? |
-| commonroad-drivability-checker | ??? |
-| commonroad-vehicle-models | ??? |
-| commonroad-search | ??? |
-| commonroad-scenrio-designer | development:latest |
+| commonroad-io | 2022.1 |
+| commonroad-drivability-checker | 2021.4 |
+| commonroad-vehicle-models | 2.0.0 |
+| commonroad-search | master:latest |
+| commonroad-scenario-designer | development:latest |
 | reactive-planner | development:e9a68dc3891ee6fd1d2500083c5204384ae94448 |
 | autoware.universe | master:latest |
 | autoware.code | master:latest |
