@@ -10,10 +10,11 @@ from rclpy.qos import QoSProfile
 import math
 import numpy as np
 from pyproj import Proj
-import matplotlib
 
+import matplotlib
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
+
 # import necessary classes from different modules
 from commonroad.scenario.scenario import Tag
 from commonroad.common.file_writer import CommonRoadFileWriter, OverwriteExistingFile
@@ -30,6 +31,7 @@ from commonroad.visualization.mp_renderer import MPRenderer
 sys.path.append("/root/workspace/commonroad-search")
 from SMP.motion_planner.motion_planner import MotionPlanner
 from SMP.maneuver_automaton.maneuver_automaton import ManeuverAutomaton
+from SMP.motion_planner.utility import create_trajectory_from_list_states
 
 from commonroad_rp.reactive_planner import ReactivePlanner
 from commonroad_rp.configuration import build_configuration
@@ -53,6 +55,7 @@ from tf2_ros.buffer import Buffer
 from tf2_ros.transform_listener import TransformListener
 
 from cr2autoware.tf2_geometry_msgs import do_transform_pose
+from cr2autoware.utils import visualize_solution, display_steps
 
 
 @dataclass
@@ -693,6 +696,13 @@ class Cr2Auto(Node):
         self.engage_pub.publish(engage_msg)
         # visualize_solution(self.scenario, self.planning_problem, create_trajectory_from_list_states(path)) #ToDo: test
 
+    # initialize route planner and set reference path
+    def _init_route_planner(self, planner):
+        route_planner = RoutePlanner(self.scenario, self.planning_problem)
+        ref_path = route_planner.plan_routes().retrieve_first_route().reference_path
+        planner.set_reference_path(ref_path)
+        self._pub_route(ref_path)
+
     def _run_search_planner(self):
         # construct motion planner
         planner = self.planner(scenario=self.scenario,
@@ -755,11 +765,8 @@ class Cr2Auto(Node):
         # set collision checker
         planner.set_collision_checker(self.scenario)
 
-        # initialize route planner and set reference path
-        route_planner = RoutePlanner(self.scenario, self.planning_problem)
-        ref_path = route_planner.plan_routes().retrieve_first_route().reference_path
-        planner.set_reference_path(ref_path)
-        self._pub_route(ref_path)
+        # initialize root planner
+        self._init_route_planner(planner=planner)
 
         record_state_list = list()
         record_input_list = list()
