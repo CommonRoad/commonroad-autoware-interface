@@ -275,6 +275,14 @@ class Cr2Auto(Node):
             else:
                 self.get_logger().info("already computing trajectory")
 
+    def _is_goal_reached(self):
+        if self.planning_problem:
+            if self.planning_problem.goal.is_reached(self.ego_vehicle_state) and \
+                                                    (self.get_clock().now() - self.last_goal_reached).nanoseconds > 5e8:
+                self.get_logger().info("Car is in goal region!")
+                self.last_goal_reached = self.get_clock().now()
+                self._set_new_goal()
+
     def convert_origin(self):
         """
         compute coordinate of the origin in UTM (used in commonroad) frame
@@ -623,22 +631,11 @@ class Cr2Auto(Node):
             self.planning_problem = PlanningProblem(planning_problem_id=1,
                                                     initial_state=self.ego_vehicle_state,
                                                     goal_region=goal_region)
-            self.build_scenario()
             self.get_logger().info("Set new goal active!")
             self._pub_goals()
         else:
             self.planning_problem = None
             self.current_goal_msg = None
-
-    def _is_goal_reached(self):  # ToDo: think better way
-        if self.planning_problem:
-            distance = np.linalg.norm(np.subtract(self.planning_problem.goal.state_list[0].position.center,
-                                                  self.ego_vehicle_state.position))
-
-            if (distance < self.get_parameter("goal_is_reached_distance").get_parameter_value().double_value) and (self.get_clock().now() - self.last_goal_reached).nanoseconds > 5e8:
-                self.get_logger().info("Car is in goal region!")
-                self.last_goal_reached = self.get_clock().now()
-                self._set_new_goal()
 
     def state_callback(self, msg: AutowareState) -> None:
         self.last_msg_aw_state = msg.state
