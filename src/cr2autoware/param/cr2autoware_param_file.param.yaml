@@ -11,7 +11,7 @@
     origin_offset_lon: 4.5845488187978845e-06
     left_driving: True
     adjacencies: False
-    write_scenario: True # write generated scenario as xml file after map is converted
+    write_scenario: False # write generated scenario as xml file after map is converted
     plot_scenario: False
     filename: "cr2autoware_output.xml" # name of the scenario for saving
     scenario_update_time: 0.25 # run each x.x seconds
@@ -35,10 +35,14 @@
     reactive_planner:
       default_yaml_folder: "/root/workspace/dfg-car/src/cr2autoware/param/"
       sampling:
+        # lateral sampling interval
         d_min: -3
         d_max: 3
+        # minimum time sampling in s (t_max is given by planning horizon)
         t_min: 0.1
 
       planning:
+        # planner time step (in s)
         dt: 0.1
+        # planning time horizon (in s)
         planning_horizon: 5.0

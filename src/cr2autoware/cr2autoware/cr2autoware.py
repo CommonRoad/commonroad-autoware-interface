@@ -119,6 +119,7 @@ class Cr2Auto(Node):
         # load the xml with stores the motion primitives
         name_file_motion_primitives = 'V_0.0_20.0_Vstep_4.0_SA_-1.066_1.066_SAstep_0.18_T_0.5_Model_BMW_320i.xml'
         self.automaton = ManeuverAutomaton.generate_automaton(name_file_motion_primitives)
+        self.write_scenario = self.get_parameter('write_scenario').get_parameter_value().bool_value
         self.filename = self.get_parameter('filename').get_parameter_value().string_value
         self.is_computing_trajectory = False  # stop update scenario when trajectory is computing
 
@@ -251,7 +252,8 @@ class Cr2Auto(Node):
         if self.get_parameter('plot_scenario').get_parameter_value().bool_value:
             self._plot_scenario()
 
-        self._write_scenario(filename=self.filename)
+        if self.write_scenario:
+            self._write_scenario(self.filename)
 
     def solve_planning_problem(self) -> None:
         """
@@ -317,8 +319,9 @@ class Cr2Auto(Node):
                                               proj=self.proj_str,
                                               left_driving=left_driving,
                                               adjacencies=adjacencies)
-        # save map
-        self._write_scenario(filename=self.filename)
+        if self.write_scenario:
+            # save map
+            self._write_scenario(self.filename)
 
     def current_state_callback(self, msg: Odometry) -> None:
         """
@@ -927,17 +930,16 @@ class Cr2Auto(Node):
         planning_problem = PlanningProblemSet()
         if self.planning_problem:
             planning_problem.add_planning_problem(self.planning_problem)
-        if self.get_parameter('write_scenario').get_parameter_value().bool_value:
-            writer = CommonRoadFileWriter(
-                scenario=self.scenario,
-                planning_problem_set=planning_problem,
-                author="",
-                affiliation="Technical University of Munich",
-                source="",
-                tags={Tag.URBAN},
-            )
-            os.makedirs('output', exist_ok=True)
-            writer.write_to_file(os.path.join('output', filename), OverwriteExistingFile.ALWAYS)
+        writer = CommonRoadFileWriter(
+            scenario=self.scenario,
+            planning_problem_set=planning_problem,
+            author="",
+            affiliation="Technical University of Munich",
+            source="",
+            tags={Tag.URBAN},
+        )
+        os.makedirs('output', exist_ok=True)
+        writer.write_to_file(os.path.join('output', filename), OverwriteExistingFile.ALWAYS)
 
     def _transform_pose_to_map(self, pose_in):
         """
