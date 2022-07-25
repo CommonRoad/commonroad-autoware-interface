@@ -5,8 +5,8 @@ This project builds an interface between commonroad and autoware.universe/core.
 
 ## Introduction of files
 _**cr2autoware:**_
-* cr2autoware.py: a ROS2 node that subscribe information from autoware and process information and publish data to autoware.
-* tf2_geometry_msgs.py: define help-functions for transformation between map frame and other frames.
+* cr2autoware.py: a ROS2 node that subscribes information from autoware and processes information and publishes data to autoware.
+* tf2_geometry_msgs.py: defines help-functions for transformation between map frame and other frames.
 * utils.py: used for visualization of planning.
 
 _**config:**_
@@ -51,10 +51,18 @@ Here the docker setup is described:
 
 ### cr2autoware setup
 First log in to the docker registry `docker login gitlab.lrz.de:5005`.
-Then to download the dockerimage just run the comand to start the container: `rocker --nvidia --x11 --volume $HOME/workspace/workspace:/root/workspace -- gitlab.lrz.de:5005/cps/dfg-car`. It will fetch the image from the container registry of this repository.
+Then to download the dockerimage just run the command to start the container (We have two repositories for the project, run the command for the repository in which you are working):
+* _**Option 1:**_ 
+
+`rocker --nvidia --x11 --volume $HOME/workspace/workspace:/root/workspace -- gitlab.lrz.de:5005/cps/dfg-car` 
+* _**Option 2:**_ 
+
+`rocker --nvidia --x11 --volume $HOME/workspace/workspace:/root/workspace -- gitlab.lrz.de:5005/av2.0/commonroad/commonroad-autoware-interface:latest`
+
+It will fetch the image from the container registry of this repository.
 
 ### cr2autoware update
-To update the docker image in the container registry run the following commands in the main repository folder:
+To update the docker image in the container registry run the following commands in the main repository folder (change the gitlab address if you are working with AV2.0 repository):
 1. Do the changes you want to do.
 2. `docker login gitlab.lrz.de:5005`
 3. `docker build -t gitlab.lrz.de:5005/cps/dfg-car .`
@@ -95,9 +103,15 @@ To update the docker image in the container registry run the following commands 
 ## How to use
 0. Create **2** terminals (maybe Terminator is usefull here)
 
-1. Terminal **1**: open cr2autoware container 
-   - `rocker --nvidia --x11 --volume $HOME/workspace/workspace:/root/workspace -- gitlab.lrz.de:5005/cps/dfg-car`
-   - `ros2 launch cr2autoware test.launch.py`
+1. Terminal **1**: open cr2autoware container
+* _**Option 1:**_ 
+
+`rocker --nvidia --x11 --volume $HOME/workspace/workspace:/root/workspace -- gitlab.lrz.de:5005/cps/dfg-car` 
+* _**Option 2:**_ 
+
+`rocker --nvidia --x11 --volume $HOME/workspace/workspace:/root/workspace -- gitlab.lrz.de:5005/av2.0/commonroad/commonroad-autoware-interface:latest` 
+
+And then: `ros2 launch cr2autoware test.launch.py`
 
 2. Terminal **2**: open autoware.universe container 
    - `rocker --nvidia --x11 --user --volume $HOME/workspace/autoware:$HOME/autoware --volume $HOME/workspace/workspace:$HOME/workspace -- gitlab.lrz.de:5005/cps/dfg-car:autoware-universe`
