@@ -70,11 +70,11 @@ class Cr2Auto(Node):
         self.declare_parameter("elevation", 0.0)
         self.declare_parameter("origin_offset_lat", 0.0)
         self.declare_parameter("origin_offset_lon", 0.0)
-        self.declare_parameter('vehicle.cg_to_front_m', 1.0)
-        self.declare_parameter('vehicle.cg_to_rear_m', 1.0)
-        self.declare_parameter('vehicle.width_m', 2.0)
-        self.declare_parameter('vehicle.front_overhang_m', 0.5)
-        self.declare_parameter('vehicle.rear_overhang_m', 0.5)
+        self.declare_parameter('vehicle.cg_to_front', 1.0)
+        self.declare_parameter('vehicle.cg_to_rear', 1.0)
+        self.declare_parameter('vehicle.width', 2.0)
+        self.declare_parameter('vehicle.front_overhang', 0.5)
+        self.declare_parameter('vehicle.rear_overhang', 0.5)
         self.declare_parameter('map_osm_file', '')
         self.declare_parameter('left_driving', False)
         self.declare_parameter('adjacencies', False)
@@ -114,13 +114,12 @@ class Cr2Auto(Node):
         self.filename = self.get_parameter('filename').get_parameter_value().string_value
         self.is_computing_trajectory = False  # stop update scenario when trajectory is computing
 
+        self.create_ego_vehicle_info()  # compute ego vehicle width and height
         self.planner_type = self.get_parameter("planner_type").get_parameter_value().integer_value
         if self.planner_type == 1:
             self.planner = MotionPlanner.BreadthFirstSearch
         elif self.planner_type == 2:
-            self.planner = ReactivePlanner
-            self.config = build_configuration(dir_default_config=self.get_parameter(
-                "reactive_planner.default_yaml_folder").get_parameter_value().string_value)
+            self._init_reactive_planner()
         else:
             self.get_logger().warn("Planner type is not correctly specified ... Using Default Planner")
             self.planner_type = 1
@@ -130,7 +129,7 @@ class Cr2Auto(Node):
         self.tf_listener = TransformListener(self.tf_buffer, self)  # convert among frames
 
         self.convert_origin()
-        self.ego_vehicle_info()  # compute ego vehicle width and height
+
         self.build_scenario()  # build scenario from osm map
 
         # create callback group for async execution
@@ -257,11 +256,9 @@ class Cr2Auto(Node):
                 self.is_computing_trajectory = True
                 if self.planner_type == 1:  # Breadth First Search
                     self._run_search_planner()
-                    self.get_logger().info("Planning done!")
 
                 if self.planner_type == 2:  # Reactive Planner
                     self._run_reactive_planner()
-                    self.get_logger().info("Planning done!")
 
                 self.is_computing_trajectory = False
             else:
@@ -294,16 +291,16 @@ class Cr2Auto(Node):
         self.origin_x, self.origin_y = proj(origin_longitude, origin_latitude)
         self.get_logger().info("origin x: %s,   origin  y: %s" % (self.origin_x, self.origin_y))
 
-    def ego_vehicle_info(self):
+    def create_ego_vehicle_info(self):
         """
         compute size of ego vehicle: (length, width)
         :return:
         """
-        cg_to_front = self.get_parameter("vehicle.cg_to_front_m").get_parameter_value().double_value
-        cg_to_rear = self.get_parameter("vehicle.cg_to_rear_m").get_parameter_value().double_value
-        width = self.get_parameter("vehicle.width_m").get_parameter_value().double_value
-        front_overhang = self.get_parameter("vehicle.front_overhang_m").get_parameter_value().double_value
-        rear_overhang = self.get_parameter("vehicle.rear_overhang_m").get_parameter_value().double_value
+        cg_to_front = self.get_parameter("vehicle.cg_to_front").get_parameter_value().double_value
+        cg_to_rear = self.get_parameter("vehicle.cg_to_rear").get_parameter_value().double_value
+        width = self.get_parameter("vehicle.width").get_parameter_value().double_value
+        front_overhang = self.get_parameter("vehicle.front_overhang").get_parameter_value().double_value
+        rear_overhang = self.get_parameter("vehicle.rear_overhang").get_parameter_value().double_value
         self.vehicle_length = front_overhang + cg_to_front + cg_to_rear + rear_overhang
         self.vehicle_width = width
 
@@ -719,6 +716,25 @@ class Cr2Auto(Node):
         else:
             self.get_logger().error("Failed to solve the planning problem.")
 
+    def _init_reactive_planner(self):
+        # construct reactive planner
+        self.config = build_configuration(dir_default_config=self.get_parameter(
+            "reactive_planner.default_yaml_folder").get_parameter_value().string_value)
+        self.reactive_planner = ReactivePlanner(self.config)
+        self.reactive_planner.set_d_sampling_parameters(
+            self.get_parameter('reactive_planner.sampling.d_min').get_parameter_value().integer_value,
+            self.get_parameter('reactive_planner.sampling.d_max').get_parameter_value().integer_value)
+        self.reactive_planner.set_t_sampling_parameters(
+            self.get_parameter('reactive_planner.sampling.t_min').get_parameter_value().double_value,
+            self.get_parameter('reactive_planner.planning.dt').get_parameter_value().double_value,
+            self.get_parameter('reactive_planner.planning.planning_horizon').get_parameter_value().double_value)
+        self.reactive_planner.vehicle_params.length = self.vehicle_length
+        self.reactive_planner.vehicle_params.width = self.vehicle_width
+        self.reactive_planner.vehicle_params.wheelbase = self.get_parameter(
+            "vehicle.cg_to_front").get_parameter_value().double_value \
+                                                         + self.get_parameter(
+            "vehicle.cg_to_rear").get_parameter_value().double_value
+
     def _run_reactive_planner(self):
         init_state = self.ego_vehicle_state
         if not hasattr(init_state, 'acceleration'):
@@ -733,41 +749,27 @@ class Cr2Auto(Node):
         else:
             desired_velocity = x_0.velocity
 
-        # construct motion planner
-        planner = self.planner(self.config)
-        planner.set_d_sampling_parameters(
-            self.get_parameter('reactive_planner.sampling.d_min').get_parameter_value().integer_value,
-            self.get_parameter('reactive_planner.sampling.d_max').get_parameter_value().integer_value)
-        planner.set_t_sampling_parameters(
-            self.get_parameter('reactive_planner.sampling.t_min').get_parameter_value().double_value,
-            self.get_parameter('reactive_planner.planning.dt').get_parameter_value().double_value,
-            self.get_parameter('reactive_planner.planning.planning_horizon').get_parameter_value().double_value)
-        planner.vehicle_params.length = self.vehicle_length
-        planner.vehicle_params.width = self.vehicle_width
-        planner.vehicle_params.wheelbase = self.get_parameter(
-            "vehicle.cg_to_front_m").get_parameter_value().double_value \
-                                           + self.get_parameter(
-            "vehicle.cg_to_rear_m").get_parameter_value().double_value
-        planner.set_desired_velocity(desired_velocity)
-
-        # set route
-        planner.set_reference_path(self.reference_path)
+        # set desired velocity
+        self.reactive_planner.set_desired_velocity(desired_velocity)
 
         # set collision checker
-        planner.set_collision_checker(self.scenario)
+        self.reactive_planner.set_collision_checker(self.scenario)
+
+        # set route
+        self.reactive_planner.set_reference_path(self.reference_path)
 
         valid_states = []
         # self.get_logger().info(str(x_0))
 
         # run planner and plan trajectory once
-        optimal = planner.plan(x_0)  # returns the planned (i.e., optimal) trajectory
+        optimal = self.reactive_planner.plan(x_0)  # returns the planned (i.e., optimal) trajectory
 
         # if the planner fails to find an optimal trajectory -> terminate
         if not optimal:
             self.get_logger().error("not optimal")
         else:
             # correct orientation angle
-            self.planner_state_list = planner.shift_orientation(optimal[0])
+            self.planner_state_list = self.reactive_planner.shift_orientation(optimal[0])
 
             for state in self.planner_state_list.state_list:
                 if len(valid_states) > 0:
