@@ -103,7 +103,6 @@ class Cr2Auto(Node):
         self.declare_parameter("scenario_update_time", 0.5)
         self.declare_parameter("planner_update_time", 0.5)
         self.declare_parameter("goal_is_reached_update_time", 0.1)
-        self.declare_parameter("goal_is_reached_distance", 0.5)
 
         self.proj_str = self.get_parameter('proj_str').get_parameter_value().string_value
 
@@ -282,6 +281,8 @@ class Cr2Auto(Node):
         Check if vehicle is in goal region. If in goal region set new goal.
         """
         if self.planning_problem:
+            if self.last_msg_state is not None:
+                self._process_current_state()
             if self.planning_problem.goal.is_reached(self.ego_vehicle_state) and \
                                                     (self.get_clock().now() - self.last_goal_reached).nanoseconds > 5e8:
                 self.get_logger().info("Car is in goal region!")
