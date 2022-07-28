@@ -619,9 +619,8 @@ class Cr2Auto(Node):
                                                     initial_state=self.ego_vehicle_state,
                                                     goal_region=goal_region)
             self.get_logger().info("Set new goal active!")
-            self._pub_goals()
-
             self._plan_route()
+            self._pub_goals()
         else:
             self.planning_problem = None
             self.current_goal_msg = None
@@ -686,7 +685,6 @@ class Cr2Auto(Node):
     def _plan_route(self):
         route_planner = RoutePlanner(self.scenario, self.planning_problem)
         self.reference_path = route_planner.plan_routes().retrieve_first_route().reference_path
-        self._pub_route(self.reference_path)
 
     def _run_search_planner(self):
         # construct motion planner
@@ -781,7 +779,7 @@ class Cr2Auto(Node):
             self._prepare_traj_msg(valid_states)
 
     def _pub_goals(self):
-        route_msg = MarkerArray()
+        goals_msg = MarkerArray()
 
         # first delete all marker
         marker = Marker()
@@ -789,7 +787,7 @@ class Cr2Auto(Node):
         marker.id = 0
         marker.ns = "goals"
         marker.action = Marker.DELETEALL
-        route_msg.markers.append(marker)
+        goals_msg.markers.append(marker)
 
         if self.current_goal_msg is not None:
             marker = Marker()
@@ -809,7 +807,7 @@ class Cr2Auto(Node):
             marker.pose.position.x = self.current_goal_msg.pose.position.x
             marker.pose.position.y = self.current_goal_msg.pose.position.y
             marker.pose.position.z = self.current_goal_msg.pose.position.z
-            route_msg.markers.append(marker)
+            goals_msg.markers.append(marker)
 
         if len(self.goal_msgs) > 0:
             for i in range(len(self.goal_msgs)):
@@ -830,9 +828,11 @@ class Cr2Auto(Node):
                 marker.pose.position.x = self.goal_msgs[i].pose.position.x
                 marker.pose.position.y = self.goal_msgs[i].pose.position.y
                 marker.pose.position.z = self.goal_msgs[i].pose.position.z
-                route_msg.markers.append(marker)
+                goals_msg.markers.append(marker)
 
-        self.route_pub.publish(route_msg)
+        self.route_pub.publish(goals_msg)
+
+        self._pub_route(self.reference_path)
 
     def _pub_route(self, path):
         route = Marker()
