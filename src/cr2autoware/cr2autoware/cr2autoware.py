@@ -770,26 +770,10 @@ class Cr2Auto(Node):
         # set collision checker
         planner.set_collision_checker(self.scenario)
 
-        record_state_list = list()
-        record_input_list = list()
-
-        record_state_list.append(x_0)
-        delattr(record_state_list[0], "slip_angle")
-        record_state_list[0].steering_angle = np.arctan2(self.config.vehicle.wheelbase * record_state_list[0].yaw_rate,
-                                                         record_state_list[0].velocity)
-        record_input_state = State(
-            steering_angle=np.arctan2(self.config.vehicle.wheelbase * x_0.yaw_rate, x_0.velocity),
-            acceleration=x_0.acceleration,
-            time_step=x_0.time_step,
-            steering_angle_speed=0.)
-        record_input_list.append(record_input_state)
-
         valid_states = []
         # self.get_logger().info(str(x_0))
 
-        # Run planner
-        # plan trajectory
-
+        # run planner and plan trajectory once
         optimal = planner.plan(x_0)  # returns the planned (i.e., optimal) trajectory
 
         # if the planner fails to find an optimal trajectory -> terminate
