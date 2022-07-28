@@ -3,9 +3,9 @@ planning:
   # planner time step (in s)
   dt: 0.1
   # planning time horizon (in s)
-  planning_horizon: 2
+  planning_horizon: 3
   # replanning frequency (in time steps)
-  replanning_frequency: 3
+  replanning_frequency: !!null
   # planner mode TODO: modes not implemented yet
   mode: !!null
   # continuous collision checking
