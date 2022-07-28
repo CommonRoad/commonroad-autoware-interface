@@ -1,21 +1,40 @@
+# general imports
 import os
 import sys
 from dataclasses import dataclass
+import math
+import numpy as np
+from pyproj import Proj
+from copy import deepcopy
+import matplotlib
+matplotlib.use('TkAgg')
+import matplotlib.pyplot as plt
+
+# ROS imports
 import rclpy
 from rclpy.node import Node
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.qos import QoSDurabilityPolicy, QoSHistoryPolicy, QoSReliabilityPolicy
 from rclpy.qos import QoSProfile
-import math
-import numpy as np
-from pyproj import Proj
+import tf2_ros
+from tf2_ros.buffer import Buffer
+from tf2_ros.transform_listener import TransformListener
 
-import matplotlib
-matplotlib.use('TkAgg')
-import matplotlib.pyplot as plt
 
-# import necessary classes from different modules
+# ROS message imports
+from geometry_msgs.msg import PoseStamped, Quaternion, Point, Vector3, Pose
+from nav_msgs.msg import Odometry
+from visualization_msgs.msg import MarkerArray, Marker
+
+# Autoware message imports
+from autoware_auto_perception_msgs.msg import DetectedObjects, PredictedObjects
+from autoware_auto_planning_msgs.msg import TrajectoryPoint
+from autoware_auto_planning_msgs.msg import Trajectory as AWTrajectory
+from autoware_auto_system_msgs.msg import AutowareState
+from autoware_auto_vehicle_msgs.msg import Engage
+
+# commonroad imports
 from commonroad.scenario.scenario import Tag
 from commonroad.common.file_writer import CommonRoadFileWriter, OverwriteExistingFile
 from commonroad.planning.planning_problem import PlanningProblem, PlanningProblemSet
@@ -30,38 +49,31 @@ from commonroad.visualization.mp_renderer import MPRenderer
 
 sys.path.append("/root/workspace/commonroad-search")
 from SMP.motion_planner.motion_planner import MotionPlanner
-from SMP.maneuver_automaton.maneuver_automaton import ManeuverAutomaton
 from SMP.motion_planner.utility import create_trajectory_from_list_states
+from SMP.maneuver_automaton.maneuver_automaton import ManeuverAutomaton
+
+from crdesigner.map_conversion.map_conversion_interface import lanelet_to_commonroad
+
+from commonroad_route_planner.route_planner import RoutePlanner
 
 from commonroad_rp.reactive_planner import ReactivePlanner
 from commonroad_rp.configuration import build_configuration
-from commonroad_route_planner.route_planner import RoutePlanner
-from copy import deepcopy
 
-# from crdesigner.input_output.api import lanelet_to_commonroad
-from crdesigner.map_conversion.map_conversion_interface import lanelet_to_commonroad
-
-from geometry_msgs.msg import PoseStamped, Quaternion, Point, Vector3, Pose
-from visualization_msgs.msg import MarkerArray, Marker
-from autoware_auto_perception_msgs.msg import DetectedObjects, PredictedObjects
-from autoware_auto_planning_msgs.msg import TrajectoryPoint
-from autoware_auto_planning_msgs.msg import Trajectory as AWTrajectory
-from autoware_auto_system_msgs.msg import AutowareState
-from autoware_auto_vehicle_msgs.msg import Engage
-
-from nav_msgs.msg import Odometry
-import tf2_ros
-from tf2_ros.buffer import Buffer
-from tf2_ros.transform_listener import TransformListener
-
+# local imports
 from cr2autoware.tf2_geometry_msgs import do_transform_pose
 from cr2autoware.utils import visualize_solution, display_steps
 
 class Cr2Auto(Node):
+    """
+    Cr2Auto class that is an interface between Autoware and CommonRoad
+    """
     def __init__(self):
+        """
+        Constructor of Cr2Auto
+        """
         super().__init__('cr2autoware')
 
-        # declare ros parameter
+        # declare ros parameters
         self.declare_parameter('vehicle.max_velocity', 5.0)
         self.declare_parameter('vehicle.min_velocity', 1.0)
         self.declare_parameter("planner_type", 1)
@@ -107,7 +119,6 @@ class Cr2Auto(Node):
 
         self.planning_problem = None
         self.planner_state_list = None
-        # load the xml with stores the motion primitives
         name_file_motion_primitives = 'V_0.0_20.0_Vstep_4.0_SA_-1.066_1.066_SAstep_0.18_T_0.5_Model_BMW_320i.xml'
         self.automaton = ManeuverAutomaton.generate_automaton(name_file_motion_primitives)
         self.write_scenario = self.get_parameter('write_scenario').get_parameter_value().bool_value
@@ -226,6 +237,9 @@ class Cr2Auto(Node):
             callback=self._is_goal_reached, callback_group=self.callback_group)
 
     def update_scenario(self):
+        """
+        Update the commonroad scenario with the latest vehicle state and obstacle messages received.
+        """
         # process last state message
         if self.last_msg_state is not None:
             self._process_current_state()
@@ -248,8 +262,7 @@ class Cr2Auto(Node):
 
     def solve_planning_problem(self) -> None:
         """
-        Solve planning problem with algorithms offered by commonroad. Now BreadthFirstSearch is in use, but can
-        explore other algorithms in the future. The returned path is transformed to trajectory message of autoware.
+        Solve planning problem with algorithms offered by commonroad.
         """
         if self.planning_problem is not None:
             if not self.is_computing_trajectory:
@@ -265,6 +278,9 @@ class Cr2Auto(Node):
                 self.get_logger().info("already computing trajectory")
 
     def _is_goal_reached(self):
+        """
+        Check if vehicle is in goal region. If in goal region set new goal.
+        """
         if self.planning_problem:
             if self.planning_problem.goal.is_reached(self.ego_vehicle_state) and \
                                                     (self.get_clock().now() - self.last_goal_reached).nanoseconds > 5e8:
@@ -274,8 +290,7 @@ class Cr2Auto(Node):
 
     def convert_origin(self):
         """
-        compute coordinate of the origin in UTM (used in commonroad) frame
-        :return:
+        Compute coordinate of the origin in UTM (used in commonroad) frame.
         """
         origin_latitude = self.get_parameter("latitude").get_parameter_value().double_value
         origin_longitude = self.get_parameter("longitude").get_parameter_value().double_value
@@ -293,8 +308,7 @@ class Cr2Auto(Node):
 
     def create_ego_vehicle_info(self):
         """
-        compute size of ego vehicle: (length, width)
-        :return:
+        Compute the dimensions of the ego vehicle.
         """
         cg_to_front = self.get_parameter("vehicle.cg_to_front").get_parameter_value().double_value
         cg_to_rear = self.get_parameter("vehicle.cg_to_rear").get_parameter_value().double_value
@@ -306,8 +320,7 @@ class Cr2Auto(Node):
 
     def build_scenario(self):
         """
-        transform map from osm format to commonroad scenario
-        :return:
+        Transform map from osm/lanelet2 format to commonroad scenario format.
         """
         map_filename = self.get_parameter('map_osm_file').get_parameter_value().string_value
         left_driving = self.get_parameter('left_driving').get_parameter_value().bool_value
@@ -322,12 +335,15 @@ class Cr2Auto(Node):
 
     def current_state_callback(self, msg: Odometry) -> None:
         """
-        Callback to current kinematic state of the ego vehicle
-        :param msg:
+        Callback to current kinematic state of the ego vehicle. Safe the message for later processing.
+        :param msg: current kinematic state message
         """
         self.last_msg_state = msg
 
     def _process_current_state(self) -> None:
+        """
+        Calculate the current commonroad state from the autoware latest state message.
+        """
         if self.last_msg_state is not None:
             source_frame = self.last_msg_state.header.frame_id
             time_step = 0
@@ -360,14 +376,14 @@ class Cr2Auto(Node):
 
     def static_obs_callback(self, msg: DetectedObjects) -> None:
         """
-        Callback to static obstacles, which are transformed and add to scenario
-        :param msg:
+        Callback to static obstacles. Safe the message for later processing.
+        :param msg: static obstacles message
         """
         self.last_msg_static_obs = msg
 
     def _process_static_obs(self) -> None:
         """
-        ToDo
+        Convert static autoware obstacles to commonroad obstacles and add them to the scenario.
         """
         if self.last_msg_static_obs is not None:
             # ToDo: remove the dynamic obstacles from the static list
@@ -408,14 +424,14 @@ class Cr2Auto(Node):
 
     def dynamic_obs_callback(self, msg: PredictedObjects) -> None:
         """
-        Callback to dynamic obstacles, which are transformed and add to scenario
-        :param msg:
+        Callback to dynamic obstacles. Safe the message for later processing.
+        :param msg: dynamic obstacles message
         """
         self.last_msg_dynamic_obs = msg
 
     def _process_dynamic_obs(self) -> None:
         """
-        ToDo
+        Convert dynamic autoware obstacles to commonroad obstacles and add them to the scenario.
         """
         if self.last_msg_dynamic_obs is not None:
             for object in self.last_msg_dynamic_obs.objects:
@@ -543,7 +559,7 @@ class Cr2Auto(Node):
 
     def _awtrajectory_to_crtrajectory(self, mode, time_step, traj):
         """
-        Add dynamic obstacles with their trajectories
+        Generate a commonroad trajectory from autoware trajectory.
         :param mode: 1=TrajectoryPoint mode, 2=pose mode
         :param time_step: timestep from which to start
         :param traj: the trajectory in autoware format
@@ -569,8 +585,8 @@ class Cr2Auto(Node):
 
     def goal_pose_callback(self, msg: PoseStamped) -> None:
         """
-        Callback to goal pose. Create goal region with given goal pose and planning problem.
-        :param msg: Goal Pose
+        Callback to goal pose. Safe message to goal message list and set as active goal if no goal is active.
+        :param msg: Goal Pose message
         """
         self.get_logger().info("Received new goal pose!")
         # save msg to list of goals
@@ -583,6 +599,10 @@ class Cr2Auto(Node):
         self._pub_goals()
 
     def _set_new_goal(self) -> None:
+        """
+        Set the next goal of the goal message list active. Calculate route to new goal. 
+        Publish new goal markers and route for visualization in RVIZ.
+        """
         # set new goal if we have one
         if len(self.goal_msgs) > 0:
             current_msg = self.goal_msgs.pop(0)
@@ -626,9 +646,18 @@ class Cr2Auto(Node):
             self.current_goal_msg = None
 
     def state_callback(self, msg: AutowareState) -> None:
+        """
+        Callback to autoware state. Safe the message for later processing.
+        :param msg: autoware state message
+        """
         self.last_msg_aw_state = msg.state
 
     def _prepare_traj_msg(self, states, contains_goal=False):
+        """
+        Prepares trajectory to match autoware format. Publish the trajectory.
+        :param states: trajectory points
+        :param contains_goal: flag to reduce speed over the last 10 steps
+        """
         self.traj = AWTrajectory()
         self.traj.header.frame_id = "map"
 
@@ -683,10 +712,16 @@ class Cr2Auto(Node):
 
     # plan route
     def _plan_route(self):
+        """
+        Plan a route using commonroad route planner and the current scenario and planning problem.
+        """
         route_planner = RoutePlanner(self.scenario, self.planning_problem)
         self.reference_path = route_planner.plan_routes().retrieve_first_route().reference_path
 
     def _run_search_planner(self):
+        """
+        Run one cycle of search based planner.
+        """
         # construct motion planner
         planner = self.planner(scenario=self.scenario,
                                planning_problem=self.planning_problem,
@@ -734,6 +769,9 @@ class Cr2Auto(Node):
             "vehicle.cg_to_rear").get_parameter_value().double_value
 
     def _run_reactive_planner(self):
+        """
+        Run one cycle of reactive planner.
+        """
         init_state = self.ego_vehicle_state
         if not hasattr(init_state, 'acceleration'):
             init_state.acceleration = 0.0
@@ -779,6 +817,9 @@ class Cr2Auto(Node):
             self._prepare_traj_msg(valid_states)
 
     def _pub_goals(self):
+        """
+        Publish the goals as markers to visualize in RVIZ.
+        """
         goals_msg = MarkerArray()
 
         # first delete all marker
@@ -835,6 +876,9 @@ class Cr2Auto(Node):
         self._pub_route(self.reference_path)
 
     def _pub_route(self, path):
+        """
+        Publish planned route as marker to visualize in RVIZ.
+        """
         route = Marker()
         route.header.frame_id = "map"
         route.id = 1
@@ -862,6 +906,9 @@ class Cr2Auto(Node):
         self.route_pub.publish(route_msg)
 
     def _plot_scenario(self):
+        """
+        Plot the commonroad scenario.
+        """
         if self.rnd is None:
             self.rnd = MPRenderer()
             plt.ion()
@@ -889,7 +936,9 @@ class Cr2Auto(Node):
         plt.pause(0.1)
 
     def _create_ego_with_cur_location(self):
-        # create a new ego vehicle with current position
+        """
+        Create a new ego vehicle with current position for visualization.
+        """
         ego_vehicle_id = self.scenario.generate_object_id()
         ego_vehicle_type = ObstacleType.CAR
         ego_vehicle_shape = Rectangle(width=self.vehicle_width, length=self.vehicle_length)
@@ -903,8 +952,10 @@ class Cr2Auto(Node):
                                    prediction=pred_traj)
 
     def _write_scenario(self, filename="cr2autoware_output"):
-        # save map
-        # store converted file as CommonRoad scenario
+        """
+        Store converted map as CommonRoad scenario.
+        :param filename: optional filename
+        """
         planning_problem = PlanningProblemSet()
         if self.planning_problem:
             planning_problem.add_planning_problem(self.planning_problem)
@@ -921,9 +972,9 @@ class Cr2Auto(Node):
 
     def _transform_pose_to_map(self, pose_in):
         """
-        transform pose to pose in map frame.
-        :param pose_in:
-        :return:
+        Transform pose to pose in map frame.
+        :param pose_in: pose in other frame
+        :return: pose in map frame
         """
         source_frame = pose_in.header.frame_id
         # lookup transform validity
@@ -947,9 +998,9 @@ class Cr2Auto(Node):
     @staticmethod
     def orientation2quaternion(orientation: float) -> Quaternion:
         """
-        transform orientation (in commonroad) to quaternion (in autoware).
-        :param orientation:
-        :return:
+        Transform orientation (in commonroad) to quaternion (in autoware).
+        :param orientation: orientation angles
+        :return: orientation quaternion
         """
         quat = Quaternion()
         quat.w = math.cos(orientation * 0.5)
@@ -959,9 +1010,9 @@ class Cr2Auto(Node):
     @staticmethod
     def quaternion2orientation(quaternion: Quaternion) -> float:
         """
-        transform quaternion (in autoware) to orientation (in commonroad).
-        :param quaternion:
-        :return:
+        Transform quaternion (in autoware) to orientation (in commonroad).
+        :param quaternion: orientation quaternion
+        :return: orientation angles
         """
         z = quaternion.z
         w = quaternion.w
@@ -978,9 +1029,9 @@ class Cr2Auto(Node):
 
     def map2utm(self, p: Point) -> np.array:
         """
-        transform position (in autoware) to position (in commonroad).
-        :param p:
-        :return:
+        Transform position (in autoware) to position (in commonroad).
+        :param p: position autoware
+        :return: position commonroad
         """
         _x = self.origin_x + p.x
         _y = self.origin_y + p.y
@@ -988,9 +1039,9 @@ class Cr2Auto(Node):
 
     def utm2map(self, position: np.array) -> Point:
         """
-        transform position (in commonroad) to position (in autoware).
-        :param position:
-        :return:
+        Transform position (in commonroad) to position (in autoware).
+        :param position: position commonroad
+        :return: position autoware
         """
         p = Point()
         p.x = position[0] - self.origin_x
