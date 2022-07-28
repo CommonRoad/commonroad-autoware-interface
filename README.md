@@ -52,11 +52,11 @@ Here the docker setup is described:
 ### cr2autoware setup
 First log in to the docker registry `docker login gitlab.lrz.de:5005`.
 Then to download the dockerimage just run the command to start the container (We have two repositories for the project, run the command for the repository in which you are working):
+
 * _**Option 1:**_ 
+`rocker --nvidia --x11 --volume $HOME/workspace/workspace:/root/workspace -- gitlab.lrz.de:5005/cps/dfg-car:latest` 
 
-`rocker --nvidia --x11 --volume $HOME/workspace/workspace:/root/workspace -- gitlab.lrz.de:5005/cps/dfg-car` 
 * _**Option 2:**_ 
-
 `rocker --nvidia --x11 --volume $HOME/workspace/workspace:/root/workspace -- gitlab.lrz.de:5005/av2.0/commonroad/commonroad-autoware-interface:latest`
 
 It will fetch the image from the container registry of this repository.
@@ -70,7 +70,13 @@ To update the docker image in the container registry run the following commands 
 
 ### autoware.universe setup
 First log in to the docker registry `docker login gitlab.lrz.de:5005`.
-Then to the dockerimage just run the comand to start the container: `rocker --nvidia --x11 --user --volume $HOME/workspace/autoware:$HOME/autoware --volume $HOME/workspace/workspace:$HOME/workspace -- gitlab.lrz.de:5005/cps/dfg-car:autoware-universe`. It will fetch the image from the container registry of this repository.
+Then to download the dockerimage just run the command to start the container (We have two repositories for the project, run the command for the repository in which you are working):
+
+* _**Option 1:**_ 
+`rocker --nvidia --x11 --user --volume $HOME/workspace/autoware:$HOME/autoware --volume $HOME/workspace/workspace:$HOME/workspace -- gitlab.lrz.de:5005/cps/dfg-car:autoware-universe` 
+
+* _**Option 2:**_ 
+`rocker --nvidia --x11 --user --volume $HOME/workspace/autoware:$HOME/autoware --volume $HOME/workspace/workspace:$HOME/workspace -- gitlab.lrz.de:5005/av2.0/commonroad/commonroad-autoware-interface:autoware-universe`
 
 Setup the autoware repository in the container (only if first time setup):
    - `sudo apt update`
@@ -87,7 +93,7 @@ Setup the autoware repository in the container (only if first time setup):
 ### autoware.universe update
 The docker image provided by autoware does not contain the simulator at the moment. Therefore, we modified the Dockerfile and build our own image of autoware with the simple simulator.
 
-To update the docker image in the container registry run the following commands in the main repository folder:
+To update the docker image in the container registry run the following commands (change the gitlab address if you are working with AV2.0 repository):
 1. **Optional**: pull latest changes from autoware
 2. Copy `DockerfileAutowareUniverse` to `autoware/docker/autoware-universe/Dockerfile`
 3. Run `autoware/docker/build.sh`
@@ -103,18 +109,24 @@ To update the docker image in the container registry run the following commands 
 ## How to use
 0. Create **2** terminals (maybe Terminator is usefull here)
 
-1. Terminal **1**: open cr2autoware container
+1. Terminal **1**: open **cr2autoware** container
+
 * _**Option 1:**_ 
-
 `rocker --nvidia --x11 --volume $HOME/workspace/workspace:/root/workspace -- gitlab.lrz.de:5005/cps/dfg-car` 
-* _**Option 2:**_ 
 
+* _**Option 2:**_ 
 `rocker --nvidia --x11 --volume $HOME/workspace/workspace:/root/workspace -- gitlab.lrz.de:5005/av2.0/commonroad/commonroad-autoware-interface:latest` 
 
-And then: `ros2 launch cr2autoware test.launch.py`
+- To start the CommonRoad Interface: `ros2 launch cr2autoware test.launch.py`
 
-2. Terminal **2**: open autoware.universe container 
-   - `rocker --nvidia --x11 --user --volume $HOME/workspace/autoware:$HOME/autoware --volume $HOME/workspace/workspace:$HOME/workspace -- gitlab.lrz.de:5005/cps/dfg-car:autoware-universe`
-   - `source ~/autoware/install/setup.bash && ros2 launch autoware_launch planning_simulator.launch.xml map_path:=$HOME/workspace/dfg-car/src/cr2autoware/data/sample-map-planning vehicle_model:=sample_vehicle sensor_model:=sample_sensor_kit`
+2. Terminal **2**: open **autoware.universe** container 
+
+* _**Option 1:**_ 
+``rocker --nvidia --x11 --user --volume $HOME/workspace/autoware:$HOME/autoware --volume $HOME/workspace/workspace:$HOME/workspace -- gitlab.lrz.de:5005/cps/dfg-car:autoware-universe`` 
+
+* _**Option 2:**_ 
+``rocker --nvidia --x11 --user --volume $HOME/workspace/autoware:$HOME/autoware --volume $HOME/workspace/workspace:$HOME/workspace -- gitlab.lrz.de:5005/av2.0/commonroad/commonroad-autoware-interface:autoware-universe`` 
+
+- To start autoware simulation: `source ~/autoware/install/setup.bash && ros2 launch autoware_launch planning_simulator.launch.xml map_path:=$HOME/workspace/dfg-car/src/cr2autoware/data/sample-map-planning vehicle_model:=sample_vehicle sensor_model:=sample_sensor_kit`
 
 On this page is shown how to use the simple simulator to init state of the car and set a goal: https://autowarefoundation.github.io/autoware-documentation/latest/tutorials/ad-hoc-simulation/planning-simulation/
