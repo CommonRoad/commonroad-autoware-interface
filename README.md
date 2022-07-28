@@ -54,7 +54,7 @@ First log in to the docker registry `docker login gitlab.lrz.de:5005`.
 Then to download the dockerimage just run the command to start the container (We have two repositories for the project, run the command for the repository in which you are working):
 * _**Option 1:**_ 
 
-`rocker --nvidia --x11 --volume $HOME/workspace/workspace:/root/workspace -- gitlab.lrz.de:5005/cps/dfg-car` 
+`rocker --nvidia --x11 --volume $HOME/workspace/workspace:/root/workspace -- gitlab.lrz.de:5005/cps/dfg-car:latest` 
 * _**Option 2:**_ 
 
 `rocker --nvidia --x11 --volume $HOME/workspace/workspace:/root/workspace -- gitlab.lrz.de:5005/av2.0/commonroad/commonroad-autoware-interface:latest`
@@ -70,7 +70,13 @@ To update the docker image in the container registry run the following commands 
 
 ### autoware.universe setup
 First log in to the docker registry `docker login gitlab.lrz.de:5005`.
-Then to the dockerimage just run the comand to start the container: `rocker --nvidia --x11 --user --volume $HOME/workspace/autoware:$HOME/autoware --volume $HOME/workspace/workspace:$HOME/workspace -- gitlab.lrz.de:5005/cps/dfg-car:autoware-universe`. It will fetch the image from the container registry of this repository.
+Then to download the dockerimage just run the command to start the container (We have two repositories for the project, run the command for the repository in which you are working):
+* _**Option 1:**_ 
+
+`rocker --nvidia --x11 --user --volume $HOME/workspace/autoware:$HOME/autoware --volume $HOME/workspace/workspace:$HOME/workspace -- gitlab.lrz.de:5005/cps/dfg-car:autoware-universe` 
+* _**Option 2:**_ 
+
+`rocker --nvidia --x11 --user --volume $HOME/workspace/autoware:$HOME/autoware --volume $HOME/workspace/workspace:$HOME/workspace -- gitlab.lrz.de:5005/av2.0/commonroad/commonroad-autoware-interface:autoware-universe`
 
 Setup the autoware repository in the container (only if first time setup):
    - `sudo apt update`
@@ -87,7 +93,7 @@ Setup the autoware repository in the container (only if first time setup):
 ### autoware.universe update
 The docker image provided by autoware does not contain the simulator at the moment. Therefore, we modified the Dockerfile and build our own image of autoware with the simple simulator.
 
-To update the docker image in the container registry run the following commands in the main repository folder:
+To update the docker image in the container registry run the following commands (change the gitlab address if you are working with AV2.0 repository):
 1. **Optional**: pull latest changes from autoware
 2. Copy `DockerfileAutowareUniverse` to `autoware/docker/autoware-universe/Dockerfile`
 3. Run `autoware/docker/build.sh`
