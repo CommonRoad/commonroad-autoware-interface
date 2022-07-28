@@ -221,6 +221,7 @@ class Cr2Auto(Node):
         self.goal_msgs = []
         self.current_goal_msg = None
         self.last_goal_reached = self.get_clock().now()
+        self.reference_path = None
 
         # create a timer to update scenario
         self.timer_update_scenario = self.create_timer(
@@ -636,6 +637,8 @@ class Cr2Auto(Node):
                                                     goal_region=goal_region)
             self.get_logger().info("Set new goal active!")
             self._pub_goals()
+
+            self._plan_route()
         else:
             self.planning_problem = None
             self.current_goal_msg = None
@@ -697,11 +700,10 @@ class Cr2Auto(Node):
         # visualize_solution(self.scenario, self.planning_problem, create_trajectory_from_list_states(path)) #ToDo: test
 
     # initialize route planner and set reference path
-    def _init_route_planner(self, planner):
+    def _plan_route(self):
         route_planner = RoutePlanner(self.scenario, self.planning_problem)
-        ref_path = route_planner.plan_routes().retrieve_first_route().reference_path
-        planner.set_reference_path(ref_path)
-        self._pub_route(ref_path)
+        self.reference_path = route_planner.plan_routes().retrieve_first_route().reference_path
+        self._pub_route(self.reference_path)
 
     def _run_search_planner(self):
         # construct motion planner
@@ -762,11 +764,11 @@ class Cr2Auto(Node):
             "vehicle.cg_to_rear_m").get_parameter_value().double_value
         planner.set_desired_velocity(desired_velocity)
 
+        # set route
+        planner.set_reference_path(self.reference_path)
+
         # set collision checker
         planner.set_collision_checker(self.scenario)
-
-        # initialize root planner
-        self._init_route_planner(planner=planner)
 
         record_state_list = list()
         record_input_list = list()
