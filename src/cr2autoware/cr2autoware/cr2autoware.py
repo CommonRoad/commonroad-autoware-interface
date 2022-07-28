@@ -57,17 +57,6 @@ from tf2_ros.transform_listener import TransformListener
 from cr2autoware.tf2_geometry_msgs import do_transform_pose
 from cr2autoware.utils import visualize_solution, display_steps
 
-
-@dataclass
-class Box:
-    x: float
-    y: float
-    width: float
-    length: float
-    orientation: float
-    # ToDo: add object type and get it from autoware
-
-
 class Cr2Auto(Node):
     def __init__(self):
         super().__init__('cr2autoware')
@@ -110,7 +99,6 @@ class Cr2Auto(Node):
         self.ego_vehicle = None
         self.ego_vehicle_state: State = None
         # buffer for static obstacles
-        self.static_obstacles = []  # a list to save static obstacles from at the latest time
         self.dynamic_obstacles_ids = {}  # a list to save dynamic obstacles id. key: from cr, value: from autoware
         self.last_trajectory = None
         self.origin_x, self.origin_y = None, None
@@ -386,11 +374,11 @@ class Cr2Auto(Node):
         """
         if self.last_msg_static_obs is not None:
             # ToDo: remove the dynamic obstacles from the static list
-            # clear the obstacles from past
-            self.static_obstacles.clear()
 
             temp_pose = PoseStamped()
             temp_pose.header = self.last_msg_static_obs.header
+            self.scenario.remove_obstacle(self.scenario.static_obstacles)
+
             for box in self.last_msg_static_obs.objects:
                 # ToDo: CommonRoad can also consider uncertain states of obstacles, which we could derive from the covariances
                 temp_pose.pose.position.x = box.kinematics.pose_with_covariance.pose.position.x
@@ -410,17 +398,15 @@ class Cr2Auto(Node):
                 width = box.shape.dimensions.y
                 length = box.shape.dimensions.x
 
-                self.static_obstacles.append(Box(x, y, width, length, orientation))
+                obs_state = State(position=np.array([x, y]),
+                                  orientation=orientation,
+                                  time_step=0)
 
-            self.scenario.remove_obstacle(self.scenario.static_obstacles)
-
-            for static_obs in self.static_obstacles:
                 obs_id = self.scenario.generate_object_id()
                 # ToDo: get object type from autoware --> see https://gitlab.com/autowarefoundation/autoware.auto/autoware_auto_msgs/-/blob/master/autoware_auto_perception_msgs/msg/ObjectClassification.idl
                 obs_type = ObstacleType.UNKNOWN
-                obs_shape = Rectangle(width=static_obs.width, length=static_obs.length)
-                obs_state = State(position=np.array([static_obs.x, static_obs.y]), orientation=static_obs.orientation,
-                                  time_step=0)
+                obs_shape = Rectangle(width=width, length=length)
+
                 self.scenario.add_objects(StaticObstacle(obs_id, obs_type, obs_shape, obs_state))
 
     def dynamic_obs_callback(self, msg: PredictedObjects) -> None:
