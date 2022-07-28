@@ -699,7 +699,7 @@ class Cr2Auto(Node):
         self.engage_pub.publish(engage_msg)
         # visualize_solution(self.scenario, self.planning_problem, create_trajectory_from_list_states(path)) #ToDo: test
 
-    # initialize route planner and set reference path
+    # plan route
     def _plan_route(self):
         route_planner = RoutePlanner(self.scenario, self.planning_problem)
         self.reference_path = route_planner.plan_routes().retrieve_first_route().reference_path
