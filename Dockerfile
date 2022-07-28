@@ -10,7 +10,9 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get -y install --no-ins
   python3-pykdl \
   sqlite3 \
   python3-tk \
-  libxtst6
+  libxtst6 \
+  python3-pil \
+  python3-pil.imagetk
 
 RUN pip --no-input install 'python-dateutil>=2.8.2' \
   commonroad-drivability-checker \
