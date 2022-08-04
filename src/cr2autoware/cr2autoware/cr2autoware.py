@@ -524,8 +524,6 @@ class Cr2Auto(Node):
                                 traj.insert(-1, new_traj_point)  # upsampled trajectory list
 
                 elif obj_traj_dt < planning_dt * 1e9:
-                    self.get_logger().info("DOWNsample")
-                    self.get_logger().info(f"obj_traj_dt: {obj_traj_dt} < planning_dt: {planning_dt}")
                     # downsample predicted path of obstacles to match dt.
                     # if the time steps are divisible without reminder,
                     # get the trajectories at the steps according to ratio
