@@ -430,6 +430,31 @@ class Cr2Auto(Node):
         """
         self.last_msg_dynamic_obs = msg
 
+    def traj_linear_interpolate(self, point_1: Pose, point_2: Pose, smaller_dt: float, bigger_dt: float) -> Pose:
+        new_point = Pose()
+        new_point.position.x = point_1.position.x + \
+                               ((point_2.position.x - point_1.position.x) / smaller_dt) * \
+                               (bigger_dt - smaller_dt)
+        new_point.position.y = point_1.position.y + \
+                               ((point_2.position.y - point_1.position.y) / smaller_dt) * \
+                               (bigger_dt - smaller_dt)
+        new_point.position.z = point_1.position.z + \
+                               ((point_2.position.z - point_1.position.z) / smaller_dt) * \
+                               (bigger_dt - smaller_dt)
+        new_point.orientation.x = point_1.orientation.x + \
+                                  ((point_2.orientation.x - point_1.orientation.x) / smaller_dt) * \
+                                  (bigger_dt - smaller_dt)
+        new_point.orientation.y = point_1.orientation.y + \
+                                  ((point_2.orientation.y - point_1.orientation.y) / smaller_dt) * \
+                                  (bigger_dt - smaller_dt)
+        new_point.orientation.z = point_1.orientation.z + \
+                                  ((point_2.orientation.z - point_1.orientation.z) / smaller_dt) * \
+                                  (bigger_dt - smaller_dt)
+        new_point.orientation.w = point_1.orientation.w + \
+                                  ((point_2.orientation.w - point_1.orientation.w) / smaller_dt) * \
+                                  (bigger_dt - smaller_dt)
+        return new_point
+
     def _process_dynamic_obs(self) -> None:
         """
         Convert dynamic autoware obstacles to commonroad obstacles and add them to the scenario.
@@ -488,6 +513,25 @@ class Cr2Auto(Node):
                                 new_point = Pose()
                                 new_point.position = new_point_pos
                                 new_point.orientation = new_point_ort
+                                traj.append(new_point)
+
+                elif obj_traj_dt < planning_dt * 1e9:
+                    # downsample predicted path of obstacles to match dt.
+                    # if the time steps are divisible without reminder,
+                    # get the trajectories at the steps according to ratio
+                    if (planning_dt * 1e9) % obj_traj_dt == 0:
+                        dt_ratio = (planning_dt * 1e9) / obj_traj_dt
+                        for idx, point in enumerate(object.kinematics.predicted_paths[highest_conf_idx].path):
+                            if idx % dt_ratio == 0:
+                                traj.append(point)
+                    else:
+                        # make interpolation according to time steps
+                        dt_ratio = math.ceil((planning_dt * 1e9) / obj_traj_dt)
+                        for idx, point in enumerate(object.kinematics.predicted_paths[highest_conf_idx].path):
+                            if idx % dt_ratio == 0:
+                                point_1 = object.kinematics.predicted_paths[highest_conf_idx].path[idx - 1]
+                                point_2 = point
+                                new_point = self.traj_linear_interpolate(point_1, point_2, obj_traj_dt, planning_dt * 1e9)
                                 traj.append(new_point)
                 else:
                     for point in object.kinematics.predicted_paths[highest_conf_idx].path:
