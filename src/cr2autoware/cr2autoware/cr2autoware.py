@@ -431,6 +431,14 @@ class Cr2Auto(Node):
         self.last_msg_dynamic_obs = msg
 
     def traj_linear_interpolate(self, point_1: Pose, point_2: Pose, smaller_dt: float, bigger_dt: float) -> Pose:
+        """
+        interpolation for a point between two points
+        :param point_1: point which will be smaller than interpolated point (on left-side)
+        :param point_1: point which will be bigger than interpolated point (on right-side)
+        :param smaller_dt: time step for the point will be interpolated
+        :param bigger_dt: time step for the points which will be used for interpolation
+        :return: pose of the interpolated point
+        """
         new_point = Pose()
         new_point.position.x = point_1.position.x + \
                                ((point_2.position.x - point_1.position.x) / smaller_dt) * \
