@@ -487,12 +487,12 @@ class Cr2Auto(Node):
                         dt_ratio = int(obj_traj_dt / (planning_dt * 1e9)) + 1
                     else:
                         dt_ratio = math.ceil(obj_traj_dt / (planning_dt * 1e9))
-                    two_points = []
+
                     for point in object.kinematics.predicted_paths[highest_conf_idx].path:
-                        two_points.append(point)
-                        if len(two_points) == 2:
-                            point_2 = two_points.pop()
-                            point_1 = two_points.pop()
+                        traj.append(point)
+                        if len(traj) >= 2:
+                            point_2 = traj[-1]
+                            point_1 = traj[-2]
                             new_points_x = np.linspace(point_1.position.x, point_2.position.x, dt_ratio)
                             new_points_y = np.linspace(point_1.position.y, point_2.position.y, dt_ratio)
                             new_points_z = np.linspace(point_1.position.z, point_2.position.z, dt_ratio)
@@ -500,7 +500,7 @@ class Cr2Auto(Node):
                             new_points_ort_y = np.linspace(point_1.orientation.y, point_2.orientation.y, dt_ratio)
                             new_points_ort_z = np.linspace(point_1.orientation.z, point_2.orientation.z, dt_ratio)
                             new_points_ort_w = np.linspace(point_1.orientation.w, point_2.orientation.w, dt_ratio)
-                            for i in range(dt_ratio):
+                            for i in range(1, dt_ratio - 1):  # don't take first and last samples, they were already appended
                                 new_point_pos = Point()
                                 new_point_pos.x = new_points_x[i]
                                 new_point_pos.y = new_points_y[i]
@@ -510,32 +510,79 @@ class Cr2Auto(Node):
                                 new_point_ort.y = new_points_ort_y[i]
                                 new_point_ort.z = new_points_ort_z[i]
                                 new_point_ort.w = new_points_ort_w[i]
-                                new_point = Pose()
-                                new_point.position = new_point_pos
-                                new_point.orientation = new_point_ort
-                                traj.append(new_point)
+                                new_traj_point = Pose()
+                                new_traj_point.position = new_point_pos
+                                new_traj_point.orientation = new_point_ort
+                                traj.insert(-1, new_traj_point)  # upsampled trajectory list
+
+                    # interpolation for upsampled trajectories
+                    size = len(traj)
+                    obj_dt = np.arange(0, (size)*obj_traj_dt, obj_traj_dt)
+                    cr_dt = np.arange(0, (size)*planning_dt, planning_dt)
+                    traj_pose_x, traj_pose_y, traj_pose_z = [], [], []
+                    traj_orient_x, traj_orient_y, traj_orient_z, traj_orient_w = [], [], [], []
+                    for point in traj:  # separate the contents in the trajectory point
+                        traj_pose_x.append(point.position.x)
+                        traj_pose_y.append(point.position.y)
+                        traj_pose_z.append(point.position.z)
+                        traj_orient_x.append(point.orientation.x)
+                        traj_orient_y.append(point.orientation.y)
+                        traj_orient_z.append(point.orientation.z)
+                        traj_orient_w.append(point.orientation.w)
+
+                    # interpolate the contents for planning time steps
+                    new_pose_x = np.interp(cr_dt, obj_dt, traj_pose_x)
+                    new_pose_y = np.interp(cr_dt, obj_dt, traj_pose_y)
+                    new_pose_z = np.interp(cr_dt, obj_dt, traj_pose_z)
+                    new_orient_x = np.interp(cr_dt, obj_dt, traj_orient_x)
+                    new_orient_y = np.interp(cr_dt, obj_dt, traj_orient_y)
+                    new_orient_z = np.interp(cr_dt, obj_dt, traj_orient_z)
+                    new_orient_w = np.interp(cr_dt, obj_dt, traj_orient_w)
+
+                    traj.clear()
+                    for i in range(size):
+                        new_point = Point()
+                        new_point_ort = Quaternion()
+                        new_pose = Pose()
+                        new_point.x = new_pose_x[i]
+                        new_point.y = new_pose_y[i]
+                        new_point.z = new_pose_z[i]
+                        new_point_ort.x = new_orient_x[i]
+                        new_point_ort.y = new_orient_y[i]
+                        new_point_ort.z = new_orient_z[i]
+                        new_point_ort.w = new_orient_w[i]
+                        new_pose.position = new_point
+                        new_pose.orientation = new_point_ort
+                        traj.append(new_pose)
 
                 elif obj_traj_dt < planning_dt * 1e9:
+                    self.get_logger().info("DOWNsample")
+                    self.get_logger().info(f"obj_traj_dt: {obj_traj_dt} < planning_dt: {planning_dt}")
                     # downsample predicted path of obstacles to match dt.
                     # if the time steps are divisible without reminder,
                     # get the trajectories at the steps according to ratio
-                    if (planning_dt * 1e9) % obj_traj_dt == 0:
+                    if (planning_dt * 1e9) % obj_traj_dt == 0.0:
+                        self.get_logger().info(f"durch geteilt")
                         dt_ratio = (planning_dt * 1e9) / obj_traj_dt
                         for idx, point in enumerate(object.kinematics.predicted_paths[highest_conf_idx].path):
                             if idx % dt_ratio == 0:
                                 traj.append(point)
                     else:
                         # make interpolation according to time steps
+                        self.get_logger().info(f"nicht durch geteilt")
                         dt_ratio = math.ceil((planning_dt * 1e9) / obj_traj_dt)
                         for idx, point in enumerate(object.kinematics.predicted_paths[highest_conf_idx].path):
-                            if idx % dt_ratio == 0:
+                            if (idx + 1) % dt_ratio == 0:
                                 point_1 = object.kinematics.predicted_paths[highest_conf_idx].path[idx - 1]
                                 point_2 = point
                                 new_point = self.traj_linear_interpolate(point_1, point_2, obj_traj_dt, planning_dt * 1e9)
                                 traj.append(new_point)
                 else:
+                    self.get_logger().info("NOTHING")
                     for point in object.kinematics.predicted_paths[highest_conf_idx].path:
                         traj.append(point)
+
+                self.get_logger().info(str(len(traj)))
 
                 object_id_aw = object.object_id.uuid
                 aw_id_list = [list(value) for value in self.dynamic_obstacles_ids.values()]
