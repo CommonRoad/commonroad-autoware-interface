@@ -455,29 +455,27 @@ class Cr2Auto(Node):
 
                 obj_traj_dt = object.kinematics.predicted_paths[highest_conf_idx].time_step.nanosec
 
-                # if obj_traj_dt > self.scenario.dt * 1e9:
-                #     self.get_logger().error(f"Predicted object timeinterval"
-                #                             f"({object.kinematics.predicted_paths[highest_conf_idx].time_step.nanosec})"
-                #                             f"is > self.scenario.dt {self.scenario.dt * 1e9}")
-
                 planning_dt = self.get_parameter('reactive_planner.planning.dt').get_parameter_value().double_value
                 if obj_traj_dt > planning_dt * 1e9:
-                    # interpolate predicted path of obstacles to match dt
-                    dt_ratio = math.ceil(obj_traj_dt / (planning_dt * 1e9))
+                    # upsample predicted path of obstacles to match dt
+                    if obj_traj_dt % (planning_dt * 1e9) == 0.0:
+                        dt_ratio = int(obj_traj_dt / (planning_dt * 1e9)) + 1
+                    else:
+                        dt_ratio = math.ceil(obj_traj_dt / (planning_dt * 1e9))
                     two_points = []
                     for point in object.kinematics.predicted_paths[highest_conf_idx].path:
                         two_points.append(point)
                         if len(two_points) == 2:
                             point_2 = two_points.pop()
                             point_1 = two_points.pop()
-                            new_points_x = np.linspace(point_1.position.x, point_2.position.x, dt_ratio-1)
-                            new_points_y = np.linspace(point_1.position.y, point_2.position.y, dt_ratio-1)
-                            new_points_z = np.linspace(point_1.position.z, point_2.position.z, dt_ratio-1)
-                            new_points_ort_x = np.linspace(point_1.orientation.x, point_2.orientation.x, dt_ratio-1)
-                            new_points_ort_y = np.linspace(point_1.orientation.y, point_2.orientation.y, dt_ratio-1)
-                            new_points_ort_z = np.linspace(point_1.orientation.z, point_2.orientation.z, dt_ratio-1)
-                            new_points_ort_w = np.linspace(point_1.orientation.w, point_2.orientation.w, dt_ratio-1)
-                            for i in range(dt_ratio-1):
+                            new_points_x = np.linspace(point_1.position.x, point_2.position.x, dt_ratio)
+                            new_points_y = np.linspace(point_1.position.y, point_2.position.y, dt_ratio)
+                            new_points_z = np.linspace(point_1.position.z, point_2.position.z, dt_ratio)
+                            new_points_ort_x = np.linspace(point_1.orientation.x, point_2.orientation.x, dt_ratio)
+                            new_points_ort_y = np.linspace(point_1.orientation.y, point_2.orientation.y, dt_ratio)
+                            new_points_ort_z = np.linspace(point_1.orientation.z, point_2.orientation.z, dt_ratio)
+                            new_points_ort_w = np.linspace(point_1.orientation.w, point_2.orientation.w, dt_ratio)
+                            for i in range(dt_ratio):
                                 new_point_pos = Point()
                                 new_point_pos.x = new_points_x[i]
                                 new_point_pos.y = new_points_y[i]
