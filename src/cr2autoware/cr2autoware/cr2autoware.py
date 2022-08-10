@@ -430,6 +430,39 @@ class Cr2Auto(Node):
         """
         self.last_msg_dynamic_obs = msg
 
+    def traj_linear_interpolate(self, point_1: Pose, point_2: Pose, smaller_dt: float, bigger_dt: float) -> Pose:
+        """
+        interpolation for a point between two points
+        :param point_1: point which will be smaller than interpolated point (on left-side)
+        :param point_1: point which will be bigger than interpolated point (on right-side)
+        :param smaller_dt: time step for the point will be interpolated
+        :param bigger_dt: time step for the points which will be used for interpolation
+        :return: pose of the interpolated point
+        """
+        new_point = Pose()
+        new_point.position.x = point_1.position.x + \
+                               ((point_2.position.x - point_1.position.x) / smaller_dt) * \
+                               (bigger_dt - smaller_dt)
+        new_point.position.y = point_1.position.y + \
+                               ((point_2.position.y - point_1.position.y) / smaller_dt) * \
+                               (bigger_dt - smaller_dt)
+        new_point.position.z = point_1.position.z + \
+                               ((point_2.position.z - point_1.position.z) / smaller_dt) * \
+                               (bigger_dt - smaller_dt)
+        new_point.orientation.x = point_1.orientation.x + \
+                                  ((point_2.orientation.x - point_1.orientation.x) / smaller_dt) * \
+                                  (bigger_dt - smaller_dt)
+        new_point.orientation.y = point_1.orientation.y + \
+                                  ((point_2.orientation.y - point_1.orientation.y) / smaller_dt) * \
+                                  (bigger_dt - smaller_dt)
+        new_point.orientation.z = point_1.orientation.z + \
+                                  ((point_2.orientation.z - point_1.orientation.z) / smaller_dt) * \
+                                  (bigger_dt - smaller_dt)
+        new_point.orientation.w = point_1.orientation.w + \
+                                  ((point_2.orientation.w - point_1.orientation.w) / smaller_dt) * \
+                                  (bigger_dt - smaller_dt)
+        return new_point
+
     def _process_dynamic_obs(self) -> None:
         """
         Convert dynamic autoware obstacles to commonroad obstacles and add them to the scenario.
@@ -455,29 +488,27 @@ class Cr2Auto(Node):
 
                 obj_traj_dt = object.kinematics.predicted_paths[highest_conf_idx].time_step.nanosec
 
-                # if obj_traj_dt > self.scenario.dt * 1e9:
-                #     self.get_logger().error(f"Predicted object timeinterval"
-                #                             f"({object.kinematics.predicted_paths[highest_conf_idx].time_step.nanosec})"
-                #                             f"is > self.scenario.dt {self.scenario.dt * 1e9}")
-
                 planning_dt = self.get_parameter('reactive_planner.planning.dt').get_parameter_value().double_value
                 if obj_traj_dt > planning_dt * 1e9:
-                    # interpolate predicted path of obstacles to match dt
-                    dt_ratio = math.ceil(obj_traj_dt / (planning_dt * 1e9))
-                    two_points = []
+                    # upsample predicted path of obstacles to match dt
+                    if obj_traj_dt % (planning_dt * 1e9) == 0.0:
+                        dt_ratio = int(obj_traj_dt / (planning_dt * 1e9)) + 1
+                    else:
+                        dt_ratio = math.ceil(obj_traj_dt / (planning_dt * 1e9))
+
                     for point in object.kinematics.predicted_paths[highest_conf_idx].path:
-                        two_points.append(point)
-                        if len(two_points) == 2:
-                            point_2 = two_points.pop()
-                            point_1 = two_points.pop()
-                            new_points_x = np.linspace(point_1.position.x, point_2.position.x, dt_ratio-1)
-                            new_points_y = np.linspace(point_1.position.y, point_2.position.y, dt_ratio-1)
-                            new_points_z = np.linspace(point_1.position.z, point_2.position.z, dt_ratio-1)
-                            new_points_ort_x = np.linspace(point_1.orientation.x, point_2.orientation.x, dt_ratio-1)
-                            new_points_ort_y = np.linspace(point_1.orientation.y, point_2.orientation.y, dt_ratio-1)
-                            new_points_ort_z = np.linspace(point_1.orientation.z, point_2.orientation.z, dt_ratio-1)
-                            new_points_ort_w = np.linspace(point_1.orientation.w, point_2.orientation.w, dt_ratio-1)
-                            for i in range(dt_ratio-1):
+                        traj.append(point)
+                        if len(traj) >= 2:
+                            point_2 = traj[-1]
+                            point_1 = traj[-2]
+                            new_points_x = np.linspace(point_1.position.x, point_2.position.x, dt_ratio)
+                            new_points_y = np.linspace(point_1.position.y, point_2.position.y, dt_ratio)
+                            new_points_z = np.linspace(point_1.position.z, point_2.position.z, dt_ratio)
+                            new_points_ort_x = np.linspace(point_1.orientation.x, point_2.orientation.x, dt_ratio)
+                            new_points_ort_y = np.linspace(point_1.orientation.y, point_2.orientation.y, dt_ratio)
+                            new_points_ort_z = np.linspace(point_1.orientation.z, point_2.orientation.z, dt_ratio)
+                            new_points_ort_w = np.linspace(point_1.orientation.w, point_2.orientation.w, dt_ratio)
+                            for i in range(1, dt_ratio - 1):  # don't take first and last samples, they were already appended
                                 new_point_pos = Point()
                                 new_point_pos.x = new_points_x[i]
                                 new_point_pos.y = new_points_y[i]
@@ -487,9 +518,28 @@ class Cr2Auto(Node):
                                 new_point_ort.y = new_points_ort_y[i]
                                 new_point_ort.z = new_points_ort_z[i]
                                 new_point_ort.w = new_points_ort_w[i]
-                                new_point = Pose()
-                                new_point.position = new_point_pos
-                                new_point.orientation = new_point_ort
+                                new_traj_point = Pose()
+                                new_traj_point.position = new_point_pos
+                                new_traj_point.orientation = new_point_ort
+                                traj.insert(-1, new_traj_point)  # upsampled trajectory list
+
+                elif obj_traj_dt < planning_dt * 1e9:
+                    # downsample predicted path of obstacles to match dt.
+                    # if the time steps are divisible without reminder,
+                    # get the trajectories at the steps according to ratio
+                    if (planning_dt * 1e9) % obj_traj_dt == 0.0:
+                        dt_ratio = (planning_dt * 1e9) / obj_traj_dt
+                        for idx, point in enumerate(object.kinematics.predicted_paths[highest_conf_idx].path):
+                            if (idx + 1) % dt_ratio == 0:
+                                traj.append(point)
+                    else:
+                        # make interpolation according to time steps
+                        dt_ratio = math.ceil((planning_dt * 1e9) / obj_traj_dt)
+                        for idx, point in enumerate(object.kinematics.predicted_paths[highest_conf_idx].path):
+                            if (idx + 1) % dt_ratio == 0:
+                                point_1 = object.kinematics.predicted_paths[highest_conf_idx].path[idx - 1]
+                                point_2 = point
+                                new_point = self.traj_linear_interpolate(point_1, point_2, obj_traj_dt, planning_dt * 1e9)
                                 traj.append(new_point)
                 else:
                     for point in object.kinematics.predicted_paths[highest_conf_idx].path:
