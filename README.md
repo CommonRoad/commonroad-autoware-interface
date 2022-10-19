@@ -39,7 +39,7 @@ In the following, we use a folder `~/workspace` to collect all repositories and 
 ### Repositories used
 | Tools | Versions|
 |-|-|
-| commonroad-io | 2022.1 |
+| commonroad-io |>= 2021.4, < 2022.2 |
 | commonroad-drivability-checker | 2021.4 |
 | commonroad-vehicle-models | 2.0.0 |
 | commonroad-search | master:latest |
@@ -47,6 +47,10 @@ In the following, we use a folder `~/workspace` to collect all repositories and 
 | reactive-planner | development:e9a68dc3891ee6fd1d2500083c5204384ae94448 |
 | autoware.universe | master:latest |
 | autoware.core | master:latest |
+
+## Creating SSH key
+Go to the `User Settings` -> 'SSH keys'. First generate the ssh key in your local machine and then add it to your gitlab account. See the intruction [here](https://gitlab.lrz.de/help/user/ssh.md).
+
 
 ## Docker 
 Here the docker setup is described:
@@ -114,7 +118,7 @@ To update the docker image in the container registry run the following commands 
 1. Terminal **1**: open **cr2autoware** container
 
 * _**Option 1:**_ 
-`rocker --nvidia --x11 --volume $HOME/workspace/workspace:/root/workspace -- gitlab.lrz.de:5005/cps/dfg-car` 
+`rocker --nvidia --x11 --volume $HOME/workspace/workspace:/root/workspace -- gitlab.lrz.de:5005/cps/dfg-car:latest` 
 
 * _**Option 2:**_ 
 `rocker --nvidia --x11 --volume $HOME/workspace/workspace:/root/workspace -- gitlab.lrz.de:5005/av2.0/commonroad/commonroad-autoware-interface:latest` 
