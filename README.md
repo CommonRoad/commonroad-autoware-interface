@@ -50,9 +50,9 @@ In the following, we use a folder `~/workspace` to collect all repositories and 
 
 ## Table of Contents
 
-- [Docker](#Docker)
-- [How to use](#How-to-use)
-- [Code structure](#Code-structure)
+- [Docker](#docker)
+- [How to use](#how-to-use)
+- [Code structure](#code-structure)
 
 ## Docker 
 Here the docker setup is described:
