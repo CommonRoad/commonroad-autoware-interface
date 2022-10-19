@@ -3,26 +3,35 @@
 ## Description
 This project builds an interface between commonroad and autoware.universe/core. 
 
+## Table of Contents
+
+- [Introduction of the files](#introduction-of-files)
+- [Environment setup](#environment-setup)
+- [Docker setup and updates](#docker)
+- [Modification to Autoware.Universe](modifications-to-autowareuniverse)
+- [**How to use**](#how-to-use)
+- [Code structure](#code-structure)
+
 ## Introduction of files
 _**cr2autoware:**_
-* cr2autoware.py: a ROS2 node that subscribes information from autoware and processes information and publishes data to autoware.
-* tf2_geometry_msgs.py: defines help-functions for transformation between map frame and other frames.
-* utils.py: used for visualization of planning.
+* `cr2autoware.py`: a ROS2 node that subscribes information from autoware and processes information and publishes data to autoware.
+* `tf2_geometry_msgs.py`: defines help-functions for transformation between map frame and other frames.
+* `utils.py`: used for visualization of planning.
 
 _**config:**_
-* avp.rviz: configuration for rviz and it defines the name of topic for goal pose: goal_pose_cr.
+* `avp.rviz`: configuration for rviz and it defines the name of topic for goal pose: goal_pose_cr.
 
 _**data:**_
-* sample-map-planning/lanelet2_map.osm: map used by the simulation
-* sample-map-planning/mapconfig.yaml: config for the map used by the simulation
-* sample-map-planning/pointcloud_map.pcd: pointcloud data of the map used by the simulation
+* `sample-map-planning/lanelet2_map.osm`: map used by the simulation
+* `sample-map-planning/mapconfig.yaml`: config for the map used by the simulation
+* `sample-map-planning/pointcloud_map.pcd`: pointcloud data of the map used by the simulation
 
 _**launch:**_
-* test.launch.py: launchfile for this node 
+* `test.launch.py`: launchfile for this node 
 
 _**param:**_
-* cr2autoware_param_file.param.yaml: includes parameters for initialization of map, configuration of vehicle and planner.
-* default_yaml: includes default parameters for reactive planner.
+* `cr2autoware_param_file.param.yaml`: includes parameters for initialization of map, configuration of vehicle and planner.
+* `default_yaml`: includes default parameters for reactive planner.
 
 ## Environment setup
 Install **Docker**, **NVIDIA Container Toolkit** and **rocker**. See for that: https://autowarefoundation.github.io/autoware-documentation/latest/installation/autoware/docker-installation/
@@ -47,12 +56,6 @@ In the following, we use a folder `~/workspace` to collect all repositories and 
 | reactive-planner | development:e9a68dc3891ee6fd1d2500083c5204384ae94448 |
 | autoware.universe | master:latest |
 | autoware.core | master:latest |
-
-## Table of Contents
-
-- [Docker](#docker)
-- [How to use](#how-to-use)
-- [Code structure](#code-structure)
 
 ## Docker 
 Here the docker setup is described:
