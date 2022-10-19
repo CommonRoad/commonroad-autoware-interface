@@ -39,7 +39,7 @@ In the following, we use a folder `~/workspace` to collect all repositories and 
 ### Repositories used
 | Tools | Versions|
 |-|-|
-| commonroad-io |>= 2021.4, < 2022.2 |
+| commonroad-io | >= 2021.4, < 2022.2 |
 | commonroad-drivability-checker | 2021.4 |
 | commonroad-vehicle-models | 2.0.0 |
 | commonroad-search | master:latest |
@@ -48,12 +48,17 @@ In the following, we use a folder `~/workspace` to collect all repositories and 
 | autoware.universe | master:latest |
 | autoware.core | master:latest |
 
-## Creating SSH key
-Go to the `User Settings` -> 'SSH keys'. First generate the ssh key in your local machine and then add it to your gitlab account. See the intruction [here](https://gitlab.lrz.de/help/user/ssh.md).
+## Table of Contents
 
+- [Docker](#Docker)
+- [How to use](#How-to-use)
+- [Code structure](#Code-structure)
 
 ## Docker 
 Here the docker setup is described:
+
+### Creating SSH key
+For the first usage, you have to generate the ssh key. Go to the `User Settings` -> 'SSH keys'. First generate the ssh key in your local machine and then add it to your gitlab account. See the intruction [here](https://gitlab.lrz.de/help/user/ssh.md).
 
 ### cr2autoware setup
 First log in to the docker registry `docker login gitlab.lrz.de:5005`.
@@ -136,3 +141,18 @@ To update the docker image in the container registry run the following commands 
 - To start autoware simulation: `source ~/autoware/install/setup.bash && ros2 launch autoware_launch planning_simulator.launch.xml map_path:=$HOME/workspace/dfg-car/src/cr2autoware/data/sample-map-planning vehicle_model:=sample_vehicle sensor_model:=sample_sensor_kit`
 
 On this page is shown how to use the simple simulator to init state of the car and set a goal: https://autowarefoundation.github.io/autoware-documentation/latest/tutorials/ad-hoc-simulation/planning-simulation/
+
+## Code structure
+In your local machine, the structure should be like:
+```
+├── ~/workspace/workspace
+│   ├── commonroad-route-planner
+│   ├── commonroad-scenario-designer
+│   ├── commonroad-search
+│   ├── reactive-planner
+│   ├── pycharm
+│   └── dfg-car
+│      ├── src
+│      ├── Dockerfile
+│      └── docker-entrypoint.sh            
+```
