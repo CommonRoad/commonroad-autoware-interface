@@ -3,26 +3,35 @@
 ## Description
 This project builds an interface between commonroad and autoware.universe/core. 
 
+## Table of Contents
+
+- [Introduction of the files](#introduction-of-files)
+- [Environment setup](#environment-setup)
+- [Docker setup and updates](#docker)
+- [Modification to Autoware.Universe](modifications-to-autowareuniverse)
+- [**How to use**](#how-to-use)
+- [Code structure](#code-structure)
+
 ## Introduction of files
 _**cr2autoware:**_
-* cr2autoware.py: a ROS2 node that subscribes information from autoware and processes information and publishes data to autoware.
-* tf2_geometry_msgs.py: defines help-functions for transformation between map frame and other frames.
-* utils.py: used for visualization of planning.
+* `cr2autoware.py`: a ROS2 node that subscribes information from autoware and processes information and publishes data to autoware.
+* `tf2_geometry_msgs.py`: defines help-functions for transformation between map frame and other frames.
+* `utils.py`: used for visualization of planning.
 
 _**config:**_
-* avp.rviz: configuration for rviz and it defines the name of topic for goal pose: goal_pose_cr.
+* `avp.rviz`: configuration for rviz and it defines the name of topic for goal pose: goal_pose_cr.
 
 _**data:**_
-* sample-map-planning/lanelet2_map.osm: map used by the simulation
-* sample-map-planning/mapconfig.yaml: config for the map used by the simulation
-* sample-map-planning/pointcloud_map.pcd: pointcloud data of the map used by the simulation
+* `sample-map-planning/lanelet2_map.osm`: map used by the simulation
+* `sample-map-planning/mapconfig.yaml`: config for the map used by the simulation
+* `sample-map-planning/pointcloud_map.pcd`: pointcloud data of the map used by the simulation
 
 _**launch:**_
-* test.launch.py: launchfile for this node 
+* `test.launch.py`: launchfile for this node 
 
 _**param:**_
-* cr2autoware_param_file.param.yaml: includes parameters for initialization of map, configuration of vehicle and planner.
-* default_yaml: includes default parameters for reactive planner.
+* `cr2autoware_param_file.param.yaml`: includes parameters for initialization of map, configuration of vehicle and planner.
+* `default_yaml`: includes default parameters for reactive planner.
 
 ## Environment setup
 Install **Docker**, **NVIDIA Container Toolkit** and **rocker**. See for that: https://autowarefoundation.github.io/autoware-documentation/latest/installation/autoware/docker-installation/
@@ -39,7 +48,7 @@ In the following, we use a folder `~/workspace` to collect all repositories and 
 ### Repositories used
 | Tools | Versions|
 |-|-|
-| commonroad-io | 2022.1 |
+| commonroad-io | >= 2021.4, < 2022.2 |
 | commonroad-drivability-checker | 2021.4 |
 | commonroad-vehicle-models | 2.0.0 |
 | commonroad-search | master:latest |
@@ -50,6 +59,9 @@ In the following, we use a folder `~/workspace` to collect all repositories and 
 
 ## Docker 
 Here the docker setup is described:
+
+### Creating SSH key
+For the first usage, you have to generate the ssh key. Go to the `User Settings` -> 'SSH keys'. First generate the ssh key in your local machine and then add it to your gitlab account. See the intruction [here](https://gitlab.lrz.de/help/user/ssh.md).
 
 ### cr2autoware setup
 First log in to the docker registry `docker login gitlab.lrz.de:5005`.
@@ -114,7 +126,7 @@ To update the docker image in the container registry run the following commands 
 1. Terminal **1**: open **cr2autoware** container
 
 * _**Option 1:**_ 
-`rocker --nvidia --x11 --volume $HOME/workspace/workspace:/root/workspace -- gitlab.lrz.de:5005/cps/dfg-car` 
+`rocker --nvidia --x11 --volume $HOME/workspace/workspace:/root/workspace -- gitlab.lrz.de:5005/cps/dfg-car:latest` 
 
 * _**Option 2:**_ 
 `rocker --nvidia --x11 --volume $HOME/workspace/workspace:/root/workspace -- gitlab.lrz.de:5005/av2.0/commonroad/commonroad-autoware-interface:latest` 
@@ -132,3 +144,18 @@ To update the docker image in the container registry run the following commands 
 - To start autoware simulation: `source ~/autoware/install/setup.bash && ros2 launch autoware_launch planning_simulator.launch.xml map_path:=$HOME/workspace/dfg-car/src/cr2autoware/data/sample-map-planning vehicle_model:=sample_vehicle sensor_model:=sample_sensor_kit`
 
 On this page is shown how to use the simple simulator to init state of the car and set a goal: https://autowarefoundation.github.io/autoware-documentation/latest/tutorials/ad-hoc-simulation/planning-simulation/
+
+## Code structure
+In your local machine, the structure should be like:
+```
+├── ~/workspace/workspace
+│   ├── commonroad-route-planner
+│   ├── commonroad-scenario-designer
+│   ├── commonroad-search
+│   ├── reactive-planner
+│   ├── pycharm
+│   └── dfg-car
+│      ├── src
+│      ├── Dockerfile
+│      └── docker-entrypoint.sh            
+```
