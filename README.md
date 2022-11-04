@@ -114,10 +114,10 @@ Then to download the dockerimage just run the command to start the container (We
 
 To update the docker image in the container registry run the following commands (change the gitlab address if you are working with AV2.0 repository):
 1. **Optional**: pull latest changes from autoware
->if the renaming failed, you need to check the new image name using `docker images` and change the `galactic-latest-cuda` to a similar one
 2. Run `autoware/docker/build.sh`
 3. Rename image `docker tag ghcr.io/autowarefoundation/autoware-universe:galactic-latest-cuda gitlab.lrz.de:5005/cps/dfg-car:autoware-universe`
-4. Upload image `docker push gitlab.lrz.de:5005/cps/dfg-car:autoware-universe`
+>if the renaming failed, you need to check the new image name using `docker images` and change the `galactic-latest-cuda` to a similar one
+5. Upload image `docker push gitlab.lrz.de:5005/cps/dfg-car:autoware-universe`
 
 ## Modifications to autoware.universe
 ### Disable trajectory planning of autoware
