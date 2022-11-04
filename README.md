@@ -123,14 +123,17 @@ To update the docker image in the container registry run the following commands 
 1. **Optional**: pull latest changes from autoware
 2. Copy `DockerfileAutowareUniverse` to `autoware/docker/autoware-universe/Dockerfile`
 3. Run `autoware/docker/build.sh`
-4. Rename image `docker tag ghcr.io/autowarefoundation/autoware-universe:galactic-latest-prebuilt gitlab.lrz.de:5005/cps/dfg-car:autoware-universe`
+4. Rename image `docker tag ghcr.io/autowarefoundation/autoware-universe:galactic-latest-cuda gitlab.lrz.de:5005/cps/dfg-car:autoware-universe`
 5. Upload image `docker push gitlab.lrz.de:5005/cps/dfg-car:autoware-universe`
 
 ## Modifications to autoware.universe
 ### Disable trajectory planning of autoware
 
-1. Comment out the planning part in the launch file: `~/workspace/autoware/src/launcher/autoware_launch/autoware_launch/launch/planning_simulator.launch.xml`
-2. Run `colcon build --packages-select autoware_launch && source ~/autoware/install/setup.bash` in the autoware container.
+* Comment out the planning_simulation part in the launch file: `~/workspace/autoware/src/launcher/autoware_launch/autoware_launch/launch/planning_simulator.launch.xml`
+
+Within the autoware container:   
+* Run `cd ~/autoware`
+* Run `colcon build --packages-select autoware_launch && source ~/autoware/install/setup.bash` .
 
 ## How to use
 0. Create **2** terminals (maybe Terminator is usefull here)
