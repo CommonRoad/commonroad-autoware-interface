@@ -43,7 +43,16 @@ In the following, we use a folder `~/workspace` to collect all repositories and 
 3. _**Option 1:**_ `cd ~/workspace/workspace && git clone https://gitlab.lrz.de/cps/dfg-car.git`
 
    _**Option 2:**_ `cd ~/workspace/workspace && git clone https://gitlab.lrz.de/av2.0/commonroad/commonroad-autoware-interface.git`
-4. Do the setup of the docker containers for [cr2autoware](#cr2autoware-setup) and [autoware.universe](#autowareuniverse-setup).
+4. Clone the following necessary CommonRoad repositories into the `/workspace/workspace` directory (see also the directory structure in section [Code structure](#code-structure)):
+    - **commonroad-scenario-designer**: 
+        - `git clone https://gitlab.lrz.de/cps/commonroad-scenario-designer.git`
+        - `git checkout 13365aa714e61278b57ae6046fa9871ecbab527b`
+    - **commonroad-search**:
+        - `git clone https://gitlab.lrz.de/tum-cps/commonroad-search.git`
+    - **reactive-planner**
+        - `git clone -b development https://gitlab.lrz.de/cps/reactive-planner.git`
+        - `git checkout e9a68dc3891ee6fd1d2500083c5204384ae94448`
+5. Do the setup of the docker containers for [cr2autoware](#cr2autoware-setup) and [autoware.universe](#autowareuniverse-setup).
 
 ### Repositories used
 | Tools | Versions|
