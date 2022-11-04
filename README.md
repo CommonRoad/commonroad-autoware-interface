@@ -95,7 +95,7 @@ To update the docker image in the container registry run the following commands 
 4. `docker push gitlab.lrz.de:5005/cps/dfg-car`
 
 ### autoware.universe setup
-First log in to the docker registry `docker login gitlab.lrz.de:5005`.
+**First log in to the docker registry** `docker login gitlab.lrz.de:5005`.
 Then to download the dockerimage just run the command to start the container (We have two repositories for the project, run the command for the repository in which you are working):
 
 * _**Option 1:**_ 
@@ -104,40 +104,29 @@ Then to download the dockerimage just run the command to start the container (We
 * _**Option 2:**_ 
 `rocker --nvidia --x11 --user --volume $HOME/workspace/autoware:$HOME/autoware --volume $HOME/workspace/workspace:$HOME/workspace -- gitlab.lrz.de:5005/av2.0/commonroad/commonroad-autoware-interface:autoware-universe`
 
-> If this is failed with `Failed to build detector image`, 
-you have to go to run [autoware universe update](#autowareuniverse-update) without pulling the latest changes.
-
-Setup the autoware repository in the container (only if first time setup):
-   - `sudo apt update`
-   - `cd ~/autoware`
-   - `mkdir src`
-   - `vcs import src < autoware.repos`
-   - `vcs import src < simulator.repos`
-   - `source /opt/ros/galactic/setup.bash`
-   - `rosdep update`
-   - `rosdep install --from-paths src --ignore-src --rosdistro $ROS_DISTRO -y`
-   - `colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release`
-   - `source install/setup.bash`
+**Setup the autoware repository in the container** (only if first time setup):
+1. Follow the instructions in [set up a workspace](https://autowarefoundation.github.io/autoware-documentation/main/installation/autoware/docker-installation/): 
+    * first run `cd autoware`
+    * then go to step 3 of the instructions
+2. Follow the instructions in [set up the simulator](https://autowarefoundation.github.io/autoware-documentation/main/tutorials/scenario-simulation/planning-simulation/installation/)
 
 ### autoware.universe update
-The docker image provided by autoware does not contain the simulator at the moment. Therefore, we modified the Dockerfile and build our own image of autoware with the simple simulator.
 
 To update the docker image in the container registry run the following commands (change the gitlab address if you are working with AV2.0 repository):
 1. **Optional**: pull latest changes from autoware
-2. Copy `DockerfileAutowareUniverse` to `autoware/docker/autoware-universe/Dockerfile`
-3. Run `autoware/docker/build.sh`
-4. Rename image `docker tag ghcr.io/autowarefoundation/autoware-universe:galactic-latest-cuda gitlab.lrz.de:5005/cps/dfg-car:autoware-universe`
 >if the renaming failed, you need to check the new image name using `docker images` and change the `galactic-latest-cuda` to a similar one
-5. Upload image `docker push gitlab.lrz.de:5005/cps/dfg-car:autoware-universe`
+2. Run `autoware/docker/build.sh`
+3. Rename image `docker tag ghcr.io/autowarefoundation/autoware-universe:galactic-latest-cuda gitlab.lrz.de:5005/cps/dfg-car:autoware-universe`
+4. Upload image `docker push gitlab.lrz.de:5005/cps/dfg-car:autoware-universe`
 
 ## Modifications to autoware.universe
 ### Disable trajectory planning of autoware
+1. Within your local workspace:
+    * Comment out the planning_simulation part in the launch file: `~/workspace/autoware/src/launcher/autoware_launch/autoware_launch/launch/planning_simulator.launch.xml`
 
-* Comment out the planning_simulation part in the launch file: `~/workspace/autoware/src/launcher/autoware_launch/autoware_launch/launch/planning_simulator.launch.xml`
-
-Within the autoware container:   
-* Run `cd ~/autoware`
-* Run `colcon build --packages-select autoware_launch && source ~/autoware/install/setup.bash` .
+2. Within the autoware container:   
+    * Run `cd ~/autoware`
+    * Run `colcon build --packages-select autoware_launch && source ~/autoware/install/setup.bash` .
 
 ## How to use
 0. Create **2** terminals (maybe Terminator is usefull here)
