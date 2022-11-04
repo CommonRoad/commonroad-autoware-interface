@@ -127,7 +127,7 @@ To update the docker image in the container registry run the following commands 
 2. Copy `DockerfileAutowareUniverse` to `autoware/docker/autoware-universe/Dockerfile`
 3. Run `autoware/docker/build.sh`
 4. Rename image `docker tag ghcr.io/autowarefoundation/autoware-universe:galactic-latest-cuda gitlab.lrz.de:5005/cps/dfg-car:autoware-universe`
->if the renaming failed, you need to check the new image name using `docker images`
+>if the renaming failed, you need to check the new image name using `docker images` and change the `galactic-latest-cuda` to a similar one
 5. Upload image `docker push gitlab.lrz.de:5005/cps/dfg-car:autoware-universe`
 
 ## Modifications to autoware.universe
