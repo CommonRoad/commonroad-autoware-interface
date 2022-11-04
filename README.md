@@ -73,7 +73,10 @@ Here the docker setup is described:
 For the first usage, you have to generate the ssh key. Go to the `User Settings` -> 'SSH keys'. First generate the ssh key in your local machine and then add it to your gitlab account. See the intruction [here](https://gitlab.lrz.de/help/user/ssh.md).
 
 ### cr2autoware setup
-First log in to the docker registry `docker login gitlab.lrz.de:5005`.
+First log in to the **docker registry**: 
+* If you don't have an existing SSH key connection, you need to login using your LRZ username and password: `docker login -u "your_lrz_username" -p "your_lrz_pwd" gitlab.lrz.de:5005`
+* If you have an existing SSH connection, log in using: `docker login gitlab.lrz.de:5005`
+
 Then to download the dockerimage just run the command to start the container (We have two repositories for the project, run the command for the repository in which you are working):
 
 * _**Option 1:**_ 
