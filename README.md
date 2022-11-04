@@ -73,7 +73,10 @@ Here the docker setup is described:
 For the first usage, you have to generate the ssh key. Go to the `User Settings` -> 'SSH keys'. First generate the ssh key in your local machine and then add it to your gitlab account. See the intruction [here](https://gitlab.lrz.de/help/user/ssh.md).
 
 ### cr2autoware setup
-First log in to the docker registry `docker login gitlab.lrz.de:5005`.
+First log in to the **docker registry**: 
+* If you don't have an existing SSH key connection, you need to login using your LRZ username and password: `docker login -u "your_lrz_username" -p "your_lrz_pwd" gitlab.lrz.de:5005`
+* If you have an existing SSH connection, log in using: `docker login gitlab.lrz.de:5005`
+
 Then to download the dockerimage just run the command to start the container (We have two repositories for the project, run the command for the repository in which you are working):
 
 * _**Option 1:**_ 
@@ -120,14 +123,17 @@ To update the docker image in the container registry run the following commands 
 1. **Optional**: pull latest changes from autoware
 2. Copy `DockerfileAutowareUniverse` to `autoware/docker/autoware-universe/Dockerfile`
 3. Run `autoware/docker/build.sh`
-4. Rename image `docker tag ghcr.io/autowarefoundation/autoware-universe:galactic-latest-prebuilt gitlab.lrz.de:5005/cps/dfg-car:autoware-universe`
+4. Rename image `docker tag ghcr.io/autowarefoundation/autoware-universe:galactic-latest-cuda gitlab.lrz.de:5005/cps/dfg-car:autoware-universe`
 5. Upload image `docker push gitlab.lrz.de:5005/cps/dfg-car:autoware-universe`
 
 ## Modifications to autoware.universe
 ### Disable trajectory planning of autoware
 
-1. Comment out the planning part in the launch file: `~/workspace/autoware/src/launcher/autoware_launch/autoware_launch/launch/planning_simulator.launch.xml`
-2. Run `colcon build --packages-select autoware_launch && source ~/autoware/install/setup.bash` in the autoware container.
+* Comment out the planning_simulation part in the launch file: `~/workspace/autoware/src/launcher/autoware_launch/autoware_launch/launch/planning_simulator.launch.xml`
+
+Within the autoware container:   
+* Run `cd ~/autoware`
+* Run `colcon build --packages-select autoware_launch && source ~/autoware/install/setup.bash` .
 
 ## How to use
 0. Create **2** terminals (maybe Terminator is usefull here)
