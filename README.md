@@ -8,7 +8,7 @@ This project builds an interface between commonroad and autoware.universe/core.
 - [Introduction of the files](#introduction-of-files)
 - [Environment setup](#environment-setup)
 - [Docker setup and updates](#docker)
-- [Modification to Autoware.Universe](modifications-to-autowareuniverse)
+- [Modification to Autoware.Universe](#modifications-to-autowareuniverse)
 - [**How to use**](#how-to-use)
 - [Code structure](#code-structure)
 
@@ -104,6 +104,9 @@ Then to download the dockerimage just run the command to start the container (We
 * _**Option 2:**_ 
 `rocker --nvidia --x11 --user --volume $HOME/workspace/autoware:$HOME/autoware --volume $HOME/workspace/workspace:$HOME/workspace -- gitlab.lrz.de:5005/av2.0/commonroad/commonroad-autoware-interface:autoware-universe`
 
+> If this is failed with `Failed to build detector image`, 
+you have to go to run [autoware universe update](#autowareuniverse-update) without pulling the latest changes.
+
 Setup the autoware repository in the container (only if first time setup):
    - `sudo apt update`
    - `cd ~/autoware`
@@ -124,6 +127,7 @@ To update the docker image in the container registry run the following commands 
 2. Copy `DockerfileAutowareUniverse` to `autoware/docker/autoware-universe/Dockerfile`
 3. Run `autoware/docker/build.sh`
 4. Rename image `docker tag ghcr.io/autowarefoundation/autoware-universe:galactic-latest-cuda gitlab.lrz.de:5005/cps/dfg-car:autoware-universe`
+>if the renaming failed, you need to check the new image name using `docker images`
 5. Upload image `docker push gitlab.lrz.de:5005/cps/dfg-car:autoware-universe`
 
 ## Modifications to autoware.universe
@@ -164,7 +168,6 @@ On this page is shown how to use the simple simulator to init state of the car a
 In your local machine, the structure should be like:
 ```
 ├── ~/workspace/workspace
-│   ├── commonroad-route-planner
 │   ├── commonroad-scenario-designer
 │   ├── commonroad-search
 │   ├── reactive-planner
