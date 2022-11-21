@@ -51,6 +51,7 @@ In the following, we use a folder `~/workspace` to collect all repositories and 
         - `pip install -e .` or `python setup.py install`
     - **commonroad-search**:
         - `git clone https://gitlab.lrz.de/tum-cps/commonroad-search.git`
+        - `git checkout 87fb04fdfcc97d127166144536f2398099769ba9`
         - `cd commonroad-search && pip install -r requirements.txt`
     - **reactive-planner**
         - `git clone -b development https://gitlab.lrz.de/cps/reactive-planner.git`
