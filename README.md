@@ -46,16 +46,15 @@ In the following, we use a folder `~/workspace` to collect all repositories and 
 4. Clone the following necessary CommonRoad repositories into the `/workspace/workspace` directory (see also the directory structure in section [Code structure](#code-structure)):
     - **commonroad-scenario-designer**: 
         - `git clone https://gitlab.lrz.de/cps/commonroad-scenario-designer.git`
-        - `git checkout 13365aa714e61278b57ae6046fa9871ecbab527b`
-        - `cd commonroad-scenario-designer`
+        - `cd commonroad-scenario-designer && git checkout 13365aa714e61278b57ae6046fa9871ecbab527b`
         - `pip install -e .` or `python setup.py install`
     - **commonroad-search**:
         - `git clone https://gitlab.lrz.de/tum-cps/commonroad-search.git`
         - `cd commonroad-search && pip install -r requirements.txt`
     - **reactive-planner**
         - `git clone -b development https://gitlab.lrz.de/cps/reactive-planner.git`
-        - `git checkout e9a68dc3891ee6fd1d2500083c5204384ae94448`
-        - `cd reactive-planner && pip install .`
+        - `cd reactive-planner && git checkout e9a68dc3891ee6fd1d2500083c5204384ae94448`
+        - `pip install .`
 5. Do the setup of the docker containers for [cr2autoware](#cr2autoware-setup) and [autoware.universe](#autowareuniverse-setup).
 
 ### Repositories used
