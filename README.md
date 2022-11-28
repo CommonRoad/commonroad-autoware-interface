@@ -68,8 +68,9 @@ In the following, we use a folder `~/workspace` to collect all repositories and 
 | commonroad-io | >= 2021.4, < 2022.2 |
 | commonroad-drivability-checker | 2021.4 |
 | commonroad-vehicle-models | 2.0.0 |
-| commonroad-search | master:latest |
-| commonroad-scenario-designer | development:latest |
+| commonroad-search | master:87fb04fdfcc97d127166144536f2398099769ba9 |
+| commonroad-scenario-designer | develop:13365aa714e61278b57ae6046fa9871ecbab527b |
+| commonroad-route-planner | 2022.1
 | reactive-planner | development:e9a68dc3891ee6fd1d2500083c5204384ae94448 |
 | autoware.universe | master:latest |
 | autoware.core | master:latest |
