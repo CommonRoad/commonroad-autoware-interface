@@ -58,7 +58,6 @@ In the following, we use a folder `~/workspace` to collect all repositories and 
         - `git clone -b development https://gitlab.lrz.de/cps/reactive-planner.git`
         - `cd reactive-planner`
         - `git checkout e9a68dc3891ee6fd1d2500083c5204384ae94448`
-        - Open the setup.py file and change install requirement `commonroad-route-planner>=2022.1` to `commonroad-route-planner==2022.1`
         - `pip install .`
 5. Do the setup of the docker containers for [cr2autoware](#cr2autoware-setup) and [autoware.universe](#autowareuniverse-setup).
 
