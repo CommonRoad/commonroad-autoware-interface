@@ -50,14 +50,14 @@ In the following, we use a folder `~/workspace` to collect all repositories and 
         - `git checkout 13365aa714e61278b57ae6046fa9871ecbab527b`
         - `pip install -e .` or `python setup.py install`
     - **commonroad-search**:
-        - `git clone https://gitlab.lrz.de/tum-cps/commonroad-search.git`
+        - `git clone https://gitlab.lrz.de/cps/commonroad-search.git`
         - `cd commonroad-search`
-        - `git checkout 87fb04fdfcc97d127166144536f2398099769ba9`
+        - `git checkout c090937d2b11bf978d75623f7e7827101d252874`
         - `pip install -r requirements.txt`
     - **reactive-planner**
         - `git clone -b development https://gitlab.lrz.de/cps/reactive-planner.git`
         - `cd reactive-planner`
-        - `git checkout e9a68dc3891ee6fd1d2500083c5204384ae94448`
+        - `git checkout 2385c60d6203c110ac5ddf312bb72c7f561e195a`
         - `pip install .`
 5. Do the setup of the docker containers for [cr2autoware](#cr2autoware-setup) and [autoware.universe](#autowareuniverse-setup).
 
