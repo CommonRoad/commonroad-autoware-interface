@@ -52,7 +52,7 @@ In the following, we use a folder `~/workspace` to collect all repositories and 
     - **commonroad-search**:
         - `git clone https://gitlab.lrz.de/cps/commonroad-search.git`
         - `cd commonroad-search`
-        - `git checkout c090937d2b11bf978d75623f7e7827101d252874`
+        - `git checkout feature-cr2aw`
         - `pip install -r requirements.txt`
     - **reactive-planner**
         - `git clone -b development https://gitlab.lrz.de/cps/reactive-planner.git`
