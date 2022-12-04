@@ -9,6 +9,7 @@ from copy import deepcopy
 import matplotlib
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
+import traceback
 
 # ROS imports
 import rclpy
@@ -103,6 +104,7 @@ class Cr2Auto(Node):
         self.declare_parameter("scenario_update_time", 0.5)
         self.declare_parameter("planner_update_time", 0.5)
         self.declare_parameter("goal_is_reached_update_time", 0.1)
+        self.declare_parameter("detailed_log", True)
 
         self.proj_str = self.get_parameter('proj_str').get_parameter_value().string_value
 
@@ -235,6 +237,9 @@ class Cr2Auto(Node):
             timer_period_sec=self.get_parameter("goal_is_reached_update_time").get_parameter_value().double_value,
             callback=self._is_goal_reached, callback_group=self.callback_group)
 
+        if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+            self.get_logger().info("Cr2Autoware init complete!")
+
     def update_scenario(self):
         """
         Update the commonroad scenario with the latest vehicle state and obstacle messages received.
@@ -264,12 +269,18 @@ class Cr2Auto(Node):
         Solve planning problem with algorithms offered by commonroad.
         """
         if self.planning_problem is not None:
+            if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+                self.get_logger().info("Solving planning problem!")
             if not self.is_computing_trajectory:
                 self.is_computing_trajectory = True
                 if self.planner_type == 1:  # Breadth First Search
+                    if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+                        self.get_logger().info("Running breadth first search")
                     self._run_search_planner()
 
                 if self.planner_type == 2:  # Reactive Planner
+                    if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+                        self.get_logger().info("Running reactive planner")
                     self._run_reactive_planner()
 
                 self.is_computing_trajectory = False
@@ -645,7 +656,12 @@ class Cr2Auto(Node):
 
         # if currently no active goal, set a goal
         if self.planning_problem is None:
-            self._set_new_goal()
+            try:
+                # TODO print exceptions everywhere
+                self._set_new_goal()
+            except Exception:
+                self.get_logger().info("Exception!")
+                self.get_logger().info(traceback.format_exc())
 
         self._pub_goals()
 
@@ -656,6 +672,10 @@ class Cr2Auto(Node):
         """
         # set new goal if we have one
         if len(self.goal_msgs) > 0:
+
+            if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+                self.get_logger().info("Setting new goal")
+
             current_msg = self.goal_msgs.pop(0)
             self.current_goal_msg = deepcopy(current_msg)
 
@@ -672,7 +692,9 @@ class Cr2Auto(Node):
             # get goal lanelet and its width
             pos_x = round(position[0])
             pos_y = round(position[1])
+            self.get_logger().info("pos_x: " + str(pos_x) + ", pos_y: " + str(pos_y))
             goal_lanelet_id = self.scenario.lanelet_network.find_lanelet_by_position([np.array([pos_x, pos_y])])
+            self.get_logger().info("debug 1.5")
             if goal_lanelet_id:
                 goal_lanelet = self.scenario.lanelet_network.find_lanelet_by_id(goal_lanelet_id[0][0])
                 left_vertices = goal_lanelet.left_vertices
@@ -693,6 +715,10 @@ class Cr2Auto(Node):
             self._plan_route()
             self._pub_goals()
         else:
+
+            if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+                self.get_logger().info("No new goal could be set")
+
             self.planning_problem = None
             self.current_goal_msg = None
 
@@ -709,6 +735,9 @@ class Cr2Auto(Node):
         :param states: trajectory points
         :param contains_goal: flag to reduce speed over the last 10 steps
         """
+        if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+            self.get_logger().info("Preparing trajectory message!")
+
         self.traj = AWTrajectory()
         self.traj.header.frame_id = "map"
 
@@ -766,6 +795,10 @@ class Cr2Auto(Node):
         """
         Plan a route using commonroad route planner and the current scenario and planning problem.
         """
+
+        if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+            self.get_logger().info("Planning route")
+
         route_planner = RoutePlanner(self.scenario, self.planning_problem)
         self.reference_path = route_planner.plan_routes().retrieve_first_route().reference_path
 
