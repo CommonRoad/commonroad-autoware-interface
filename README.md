@@ -131,6 +131,7 @@ To update the docker image in the container registry run the following commands 
 ### Disable trajectory planning of autoware
 1. Within your local workspace:
     * Comment out the planning_simulation part in the launch file: `~/workspace/autoware/src/launcher/autoware_launch/autoware_launch/launch/planning_simulator.launch.xml`
+    * Open file '~/workspace/autoware/src/launcher/tum_launch/tum_launch/rviz/tum.rviz' and search for 'Name: Planning', then set 'Enabled: false'
 
 2. Within the autoware container:   
     * Run `cd ~/autoware`
