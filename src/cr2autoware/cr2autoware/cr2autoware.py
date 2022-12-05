@@ -104,7 +104,7 @@ class Cr2Auto(Node):
         self.declare_parameter("scenario_update_time", 0.5)
         self.declare_parameter("planner_update_time", 0.5)
         self.declare_parameter("goal_is_reached_update_time", 0.1)
-        self.declare_parameter("detailed_log", True)
+        self.declare_parameter("detailed_log", False)
 
         self.proj_str = self.get_parameter('proj_str').get_parameter_value().string_value
 
@@ -238,7 +238,8 @@ class Cr2Auto(Node):
             callback=self._is_goal_reached, callback_group=self.callback_group)
 
         if self.get_parameter("detailed_log").get_parameter_value().bool_value:
-            self.get_logger().info("Cr2Autoware init complete!")
+            self.get_logger().info("Detailed log is enabled")
+            self.get_logger().info("Init complete!")
 
     def update_scenario(self):
         """
@@ -248,7 +249,8 @@ class Cr2Auto(Node):
         if self.last_msg_state is not None:
             self._process_current_state()
         else:
-            self.get_logger().info("has not received a vehicle state yet!")
+            if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+                self.get_logger().info("has not received a vehicle state yet!")
             return
 
         # process last static obstacle message
@@ -268,24 +270,27 @@ class Cr2Auto(Node):
         """
         Solve planning problem with algorithms offered by commonroad.
         """
-        if self.planning_problem is not None:
-            if self.get_parameter("detailed_log").get_parameter_value().bool_value:
-                self.get_logger().info("Solving planning problem!")
-            if not self.is_computing_trajectory:
-                self.is_computing_trajectory = True
-                if self.planner_type == 1:  # Breadth First Search
-                    if self.get_parameter("detailed_log").get_parameter_value().bool_value:
-                        self.get_logger().info("Running breadth first search")
-                    self._run_search_planner()
+        try:
+            if self.planning_problem is not None:
+                if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+                    self.get_logger().info("Solving planning problem!")
+                if not self.is_computing_trajectory:
+                    self.is_computing_trajectory = True
+                    if self.planner_type == 1:  # Breadth First Search
+                        if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+                            self.get_logger().info("Running breadth first search")
+                        self._run_search_planner()
 
-                if self.planner_type == 2:  # Reactive Planner
-                    if self.get_parameter("detailed_log").get_parameter_value().bool_value:
-                        self.get_logger().info("Running reactive planner")
-                    self._run_reactive_planner()
+                    if self.planner_type == 2:  # Reactive Planner
+                        if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+                            self.get_logger().info("Running reactive planner")
+                        self._run_reactive_planner()
 
-                self.is_computing_trajectory = False
-            else:
-                self.get_logger().info("already computing trajectory")
+                    self.is_computing_trajectory = False
+                else:
+                    self.get_logger().info("already computing trajectory")
+        except Exception:
+            self.get_logger().error(traceback.format_exc())
 
     def _is_goal_reached(self):
         """
@@ -654,14 +659,15 @@ class Cr2Auto(Node):
         # save msg to list of goals
         self.goal_msgs.append(msg)
 
+        if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+            self.get_logger().info("goal msg: " + str(msg))
+
         # if currently no active goal, set a goal
         if self.planning_problem is None:
             try:
-                # TODO print exceptions everywhere
                 self._set_new_goal()
             except Exception:
-                self.get_logger().info("Exception!")
-                self.get_logger().info(traceback.format_exc())
+                self.get_logger().error(traceback.format_exc())
 
         self._pub_goals()
 
@@ -679,7 +685,10 @@ class Cr2Auto(Node):
             current_msg = self.goal_msgs.pop(0)
             self.current_goal_msg = deepcopy(current_msg)
 
+            self.get_logger().info("Pose position: " + str(current_msg.pose.position))
+
             position = self.map2utm(current_msg.pose.position)
+            self.get_logger().info("Pose position utm: " + str(position))
             orientation = Cr2Auto.quaternion2orientation(current_msg.pose.orientation)
             if self.ego_vehicle_state is None:
                 self.get_logger().error("ego vehicle state is None")
@@ -690,11 +699,27 @@ class Cr2Auto(Node):
             velocity_interval = Interval(min_vel, max_vel)
 
             # get goal lanelet and its width
-            pos_x = round(position[0])
-            pos_y = round(position[1])
-            self.get_logger().info("pos_x: " + str(pos_x) + ", pos_y: " + str(pos_y))
+            # subtract commonroad map origin
+            pos_x = position[0] - 403643.98
+            pos_y = position[1] - 3973610.77
             goal_lanelet_id = self.scenario.lanelet_network.find_lanelet_by_position([np.array([pos_x, pos_y])])
-            self.get_logger().info("debug 1.5")
+
+            test_lanelet = self.scenario.lanelet_network.find_lanelet_by_position([np.array([73.4, 60])])
+            self.get_logger().info("lanelet test: " + str(test_lanelet))
+
+            test_lanelets = self.scenario.lanelet_network
+            self.get_logger().info("lanelets: " + str(test_lanelets))
+
+            test_lanelet2 = self.scenario.lanelet_network.find_lanelet_by_id(1)
+            self.get_logger().info("lanelet test 2: " + repr(test_lanelet2))
+
+            if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+                self.get_logger().info("goal pos_x: " + str(pos_x) + ", pos_y: " + str(pos_y))
+
+            if goal_lanelet_id == [[]]:
+                self.get_logger().error("No lanelet found at goal position!")
+                return
+
             if goal_lanelet_id:
                 goal_lanelet = self.scenario.lanelet_network.find_lanelet_by_id(goal_lanelet_id[0][0])
                 left_vertices = goal_lanelet.left_vertices
