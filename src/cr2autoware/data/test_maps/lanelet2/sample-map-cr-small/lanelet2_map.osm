@@ -1,0 +1,125 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<osm version="0.6" upload="true" generator="commonroad-scenario-designer">
+  <node id="-1" lat="18.44844266149034" lon="-66.53742746253084">
+    <tag k="ele" v="0.0"/>
+  </node>
+  <node id="-2" lat="18.448453773765518" lon="-66.53742858639633">
+    <tag k="ele" v="0.0"/>
+  </node>
+  <node id="-3" lat="18.44847556195746" lon="-66.53742940368974">
+    <tag k="ele" v="0.0"/>
+  </node>
+  <node id="-4" lat="18.44849679326174" lon="-66.53742808456866">
+    <tag k="ele" v="0.0"/>
+  </node>
+  <node id="-5" lat="18.4485174928126" lon="-66.5374243578869">
+    <tag k="ele" v="0.0"/>
+  </node>
+  <node id="-6" lat="18.448537289846527" lon="-66.53741795578392">
+    <tag k="ele" v="0.0"/>
+  </node>
+  <node id="-7" lat="18.448555781439573" lon="-66.53740874421766">
+    <tag k="ele" v="0.0"/>
+  </node>
+  <node id="-8" lat="18.448572605223404" lon="-66.53739677341608">
+    <tag k="ele" v="0.0"/>
+  </node>
+  <node id="-9" lat="18.448587547547287" lon="-66.53738228561589">
+    <tag k="ele" v="0.0"/>
+  </node>
+  <node id="-10" lat="18.448600539878658" lon="-66.53736563809821">
+    <tag k="ele" v="0.0"/>
+  </node>
+  <node id="-11" lat="18.448611644329528" lon="-66.53734722755613">
+    <tag k="ele" v="0.0"/>
+  </node>
+  <node id="-12" lat="18.4486209734139" lon="-66.53732744299559">
+    <tag k="ele" v="0.0"/>
+  </node>
+  <node id="-13" lat="18.448632143193716" lon="-66.53729558292403">
+    <tag k="ele" v="0.0"/>
+  </node>
+  <node id="-14" lat="18.448640028972576" lon="-66.53726318459117">
+    <tag k="ele" v="0.0"/>
+  </node>
+  <node id="-15" lat="18.448446302944504" lon="-66.53739456452847">
+    <tag k="ele" v="0.0"/>
+  </node>
+  <node id="-16" lat="18.448454674672327" lon="-66.53739543372247">
+    <tag k="ele" v="0.0"/>
+  </node>
+  <node id="-17" lat="18.448472347848863" lon="-66.53739615489691">
+    <tag k="ele" v="0.0"/>
+  </node>
+  <node id="-18" lat="18.44848973445299" lon="-66.53739515135392">
+    <tag k="ele" v="0.0"/>
+  </node>
+  <node id="-19" lat="18.44850662944769" lon="-66.53739219148659">
+    <tag k="ele" v="0.0"/>
+  </node>
+  <node id="-20" lat="18.44852280297867" lon="-66.53738705319778">
+    <tag k="ele" v="0.0"/>
+  </node>
+  <node id="-21" lat="18.448537994612785" lon="-66.53737959328821">
+    <tag k="ele" v="0.0"/>
+  </node>
+  <node id="-22" lat="18.448551959601208" lon="-66.5373697652097">
+    <tag k="ele" v="0.0"/>
+  </node>
+  <node id="-23" lat="18.44856448797379" lon="-66.53735770811164">
+    <tag k="ele" v="0.0"/>
+  </node>
+  <node id="-24" lat="18.44857545282452" lon="-66.53734372845659">
+    <tag k="ele" v="0.0"/>
+  </node>
+  <node id="-25" lat="18.448584850587412" lon="-66.53732817576473">
+    <tag k="ele" v="0.0"/>
+  </node>
+  <node id="-26" lat="18.44859265794394" lon="-66.53731174092823">
+    <tag k="ele" v="0.0"/>
+  </node>
+  <node id="-27" lat="18.44860208180028" lon="-66.53728500142616">
+    <tag k="ele" v="0.0"/>
+  </node>
+  <node id="-28" lat="18.448609104430197" lon="-66.53725632928384">
+    <tag k="ele" v="0.0"/>
+  </node>
+  <way id="-29">
+    <nd ref="-1"/>
+    <nd ref="-2"/>
+    <nd ref="-3"/>
+    <nd ref="-4"/>
+    <nd ref="-5"/>
+    <nd ref="-6"/>
+    <nd ref="-7"/>
+    <nd ref="-8"/>
+    <nd ref="-9"/>
+    <nd ref="-10"/>
+    <nd ref="-11"/>
+    <nd ref="-12"/>
+    <nd ref="-13"/>
+    <nd ref="-14"/>
+  </way>
+  <way id="-30">
+    <nd ref="-15"/>
+    <nd ref="-16"/>
+    <nd ref="-17"/>
+    <nd ref="-18"/>
+    <nd ref="-19"/>
+    <nd ref="-20"/>
+    <nd ref="-21"/>
+    <nd ref="-22"/>
+    <nd ref="-23"/>
+    <nd ref="-24"/>
+    <nd ref="-25"/>
+    <nd ref="-26"/>
+    <nd ref="-27"/>
+    <nd ref="-28"/>
+  </way>
+  <relation id="-31">
+    <member type="way" ref="-30" role="right"/>
+    <member type="way" ref="-29" role="left"/>
+    <tag k="type" v="lanelet"/>
+    <tag k="subtype" v="road"/>
+  </relation>
+</osm>

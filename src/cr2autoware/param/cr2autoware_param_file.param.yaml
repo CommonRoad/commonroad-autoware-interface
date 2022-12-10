@@ -2,7 +2,7 @@
 
 /**:
   ros__parameters:
-    map_osm_file: "src/universe/autoware.universe/planning/tum_commonroad_planning/dfg-car/src/cr2autoware/data/sample-map-planning/lanelet2_map.osm"
+    map_osm_file: "src/universe/autoware.universe/planning/tum_commonroad_planning/cr2autoware/data/sample-map-planning/lanelet2_map.osm"
     latitude: 35.238094905136874
     longitude: 139.90095439549778
     proj_str: "+proj=utm +zone=54 +datum=WGS84 +ellps=WGS84"
@@ -32,7 +32,7 @@
 
     # parameters for reactive planner
     reactive_planner:
-      default_yaml_folder: "src/universe/autoware.universe/planning/tum_commonroad_planning/dfg-car/src/cr2autoware/param/"
+      default_yaml_folder: "src/universe/autoware.universe/planning/tum_commonroad_planning/cr2autoware/param/"
       sampling:
         # lateral sampling interval
         d_min: -3
