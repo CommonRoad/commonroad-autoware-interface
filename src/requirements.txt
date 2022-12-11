@@ -1,3 +1,5 @@
 commonroad-io>=2021.4,<2022.2
 commonroad-drivability-checker>=2021.4
 commonroad-vehicle-models>=2.0.0
+pyyaml
+utm
