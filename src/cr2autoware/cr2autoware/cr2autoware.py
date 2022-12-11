@@ -199,6 +199,13 @@ class Cr2Auto(Node):
             '/planning/scenario_planning/trajectory',
             1
         )
+        # publish autoware state
+        # list of states: https://gitlab.com/autowarefoundation/autoware.auto/autoware_auto_msgs/-/blob/master/autoware_auto_system_msgs/msg/AutowareState.idl
+        self.aw_state_pub = self.create_publisher(
+            AutowareState,
+            '/autoware/state',
+            1
+        )
         # publish autoware engage
         self.engage_pub = self.create_publisher(
             Engage,
@@ -241,6 +248,10 @@ class Cr2Auto(Node):
         self.timer_is_goal_reached = self.create_timer(
             timer_period_sec=self.get_parameter("goal_is_reached_update_time").get_parameter_value().double_value,
             callback=self._is_goal_reached, callback_group=self.callback_group)
+
+        aw_state = AutowareState()
+        aw_state.state = AutowareState.WAITING_FOR_ROUTE
+        self.aw_state_pub.publish(aw_state)
 
         if self.get_parameter("detailed_log").get_parameter_value().bool_value:
             self.get_logger().info("Detailed log is enabled")
@@ -467,13 +478,12 @@ class Cr2Auto(Node):
                 if pose_map is None:
                     continue
 
-                x = pose_map.pose.position.x + self.origin_transformation_x
-                y = pose_map.pose.position.y + self.origin_transformation_y
+                pos = self.map2utm(pose_map.pose.position)
                 orientation = Cr2Auto.quaternion2orientation(pose_map.pose.orientation)
                 width = box.shape.dimensions.y
                 length = box.shape.dimensions.x
 
-                obs_state = State(position=np.array([x, y]),
+                obs_state = State(position=pos,
                                   orientation=orientation,
                                   time_step=0)
 
@@ -849,6 +859,13 @@ class Cr2Auto(Node):
         engage_msg = Engage()
         engage_msg.engage = True
         self.engage_pub.publish(engage_msg)
+
+        aw_state = AutowareState()
+        aw_state.state = AutowareState.DRIVING
+        self.aw_state_pub.publish(aw_state)
+
+        if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+            self.get_logger().info("Engage and autoware state messages published!")
         # visualize_solution(self.scenario, self.planning_problem, create_trajectory_from_list_states(path)) #ToDo: test
 
     # plan route
@@ -921,6 +938,9 @@ class Cr2Auto(Node):
         if not hasattr(init_state, 'acceleration'):
             init_state.acceleration = 0.0
         x_0 = deepcopy(init_state)
+
+        if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+            self.get_logger().info("Reactive planner init state: " + str(x_0))
 
         # goal state configuration
         goal = self.planning_problem.goal
@@ -1039,9 +1059,7 @@ class Cr2Auto(Node):
         route.color.b = 1.0
         route.color.a = 1.0
         for point in path:
-            p = Point()
-            p.x = point[0] - self.origin_transformation_x
-            p.y = point[1] - self.origin_transformation_y
+            p = self.utm2map(point)
             p.z = 0.0
             route.points.append(p)
             route.colors.append(route.color)
