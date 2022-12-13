@@ -1,5 +1,7 @@
 from lxml import etree
 import os
+import utm
+import yaml
 
 from commonroad.scenario.scenario import Tag
 from commonroad.common.file_writer import CommonRoadFileWriter, OverwriteExistingFile
@@ -10,14 +12,34 @@ from crdesigner.map_conversion.lanelet_lanelet2.lanelet2_parser import Lanelet2P
 
 from crdesigner.map_conversion.map_conversion_interface import lanelet_to_commonroad
 
-input_path = "/home/drivingsim/autoware/src/universe/autoware.universe/planning/tum_commonroad_planning/dfg-car/src/cr2autoware/data/sample-map-cr/lanelet2_map.osm"  # replace empty string
-proj = "+proj=utm +zone=32 +datum=WGS84 +ellps=WGS84"   # replace empty string
+DEFAULT_PROJ_STRING = "+proj=utm +zone=32 +ellps=WGS84"
+basis_path = "/home/drivingsim/autoware/src/universe/autoware.universe/planning/tum_commonroad_planning/dfg-car/src/cr2autoware/data/test_maps/lanelet2/"
+map_name = "merging_lanelets_utm"
+simple_cr_scenario_path = basis_path + map_name + "_from_osm.xml"
+input_path = basis_path + map_name + "/"
+input_map_path = input_path + "lanelet2_map.osm"
+input_map_config_path = input_path + "map_config.yaml"
+
+try:
+    with open(input_map_config_path, 'r') as stream:
+        data_loaded = yaml.safe_load(stream)
+    print(data_loaded)
+    map_origin = data_loaded["/**"]["ros_parameters"]["map_origin"]
+    lat, lon = float(map_origin["latitude"]), float(map_origin["longitude"])
+    proj = "+proj=utm +zone=%d +datum=WGS84 +ellps=WGS84" % utm.from_latlon(lat, lon)[2]
+    print(utm.from_latlon(lat, lon)[2])
+except FileNotFoundError:
+    print("map config file not found:", input_map_config_path, "\nUsing default proj:", DEFAULT_PROJ_STRING)
+
+
+
 left_driving = False  # replace with favoured value
 adjacencies = False  # replace with favoured value
 
-# ----------------------------------------------- Option 1: General API ------------------------------------------------
-# load lanelet/lanelet2 file, parse it, and convert it to a CommonRoad scenario
-scenario = lanelet_to_commonroad(input_path, proj, left_driving, adjacencies)
+
+
+
+scenario = lanelet_to_commonroad(input_map_path, proj, left_driving, adjacencies)
 
 # store converted file as CommonRoad scenario
 writer = CommonRoadFileWriter(
@@ -28,26 +50,4 @@ writer = CommonRoadFileWriter(
     source="CommonRoad Scenario Designer",
     tags={Tag.URBAN},
 )
-writer.write_to_file(os.path.dirname(os.path.realpath(__file__)) + "/" + "sample-map-cr.xml",
-                     OverwriteExistingFile.ALWAYS)
-
-# ---------------------------------------- Option 2: Lanelet conversion APIs -------------------------------------------
-# read and parse lanelet/lanelet2 file
-# parser = Lanelet2Parser(etree.parse(input_path).getroot())
-# lanelet2_content = parser.parse()
-
-# # convert lanelet/lanelet2 map to CommonRoad
-# lanelet2_converter = Lanelet2CRConverter(proj_string=proj)
-# scenario = lanelet2_converter(lanelet2_content, detect_adjacencies=adjacencies, left_driving_system=left_driving)
-
-# # store converted file as CommonRoad scenario
-# writer = CommonRoadFileWriter(
-#     scenario=scenario,
-#     planning_problem_set=PlanningProblemSet(),
-#     author="Sebastian Maierhofer",
-#     affiliation="Technical University of Munich",
-#     source="CommonRoad Scenario Designer",
-#     tags={Tag.URBAN},
-# )
-# writer.write_to_file(os.path.dirname(os.path.realpath(__file__)) + "/" + "ZAM_Lanelet-1_1-T1.xml",
-#                      OverwriteExistingFile.ALWAYS)
+writer.write_to_file(simple_cr_scenario_path, OverwriteExistingFile.ALWAYS)

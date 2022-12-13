@@ -1,6 +1,7 @@
 # general imports
 import os
 import sys
+import utm
 from dataclasses import dataclass
 import math
 import numpy as np
@@ -9,6 +10,11 @@ from copy import deepcopy
 import matplotlib
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
+import traceback
+import glob
+import yaml
+from yaml.loader import SafeLoader
+from decimal import Decimal
 
 # ROS imports
 import rclpy
@@ -44,6 +50,7 @@ from commonroad.geometry.shape import Rectangle
 from commonroad.scenario.obstacle import StaticObstacle, ObstacleType, DynamicObstacle
 from commonroad.scenario.trajectory import State
 from commonroad.scenario.trajectory import Trajectory as CRTrajectory
+from commonroad.scenario.scenario import Location
 from commonroad.prediction.prediction import TrajectoryPrediction
 from commonroad.visualization.mp_renderer import MPRenderer
 
@@ -77,20 +84,19 @@ class Cr2Auto(Node):
         self.declare_parameter('vehicle.max_velocity', 5.0)
         self.declare_parameter('vehicle.min_velocity', 1.0)
         self.declare_parameter("planner_type", 1)
-        self.declare_parameter("latitude", 0.0)
-        self.declare_parameter("longitude", 0.0)
-        self.declare_parameter("elevation", 0.0)
-        self.declare_parameter("origin_offset_lat", 0.0)
-        self.declare_parameter("origin_offset_lon", 0.0)
+        #self.declare_parameter("latitude", 0.0)
+        #self.declare_parameter("longitude", 0.0)
+        #self.declare_parameter("elevation", 0.0)
+        #self.declare_parameter("origin_offset_lat", 0.0)
+        #self.declare_parameter("origin_offset_lon", 0.0)
         self.declare_parameter('vehicle.cg_to_front', 1.0)
         self.declare_parameter('vehicle.cg_to_rear', 1.0)
         self.declare_parameter('vehicle.width', 2.0)
         self.declare_parameter('vehicle.front_overhang', 0.5)
         self.declare_parameter('vehicle.rear_overhang', 0.5)
-        self.declare_parameter('map_osm_file', '')
+        self.declare_parameter('map_osm_path', '')
         self.declare_parameter('left_driving', False)
         self.declare_parameter('adjacencies', False)
-        self.declare_parameter('proj_str', '')
         self.declare_parameter('reactive_planner.default_yaml_folder', '')
         self.declare_parameter('reactive_planner.sampling.d_min', -3)
         self.declare_parameter('reactive_planner.sampling.d_max', 3)
@@ -103,8 +109,9 @@ class Cr2Auto(Node):
         self.declare_parameter("scenario_update_time", 0.5)
         self.declare_parameter("planner_update_time", 0.5)
         self.declare_parameter("goal_is_reached_update_time", 0.1)
+        self.declare_parameter("detailed_log", False)
 
-        self.proj_str = self.get_parameter('proj_str').get_parameter_value().string_value
+        self.init_proj_str()
 
         self.rnd = None
         self.ego_vehicle = None
@@ -112,7 +119,7 @@ class Cr2Auto(Node):
         # buffer for static obstacles
         self.dynamic_obstacles_ids = {}  # a list to save dynamic obstacles id. key: from cr, value: from autoware
         self.last_trajectory = None
-        self.origin_x, self.origin_y = None, None
+        self.origin_transformation_x, self.origin_transformation_y = None, None
         self.vehicle_length, self.vehicle_width = None, None
         self.scenario = None
 
@@ -138,9 +145,9 @@ class Cr2Auto(Node):
         self.tf_buffer = Buffer(cache_time=rclpy.duration.Duration(seconds=10.0))
         self.tf_listener = TransformListener(self.tf_buffer, self)  # convert among frames
 
-        self.convert_origin()
-
         self.build_scenario()  # build scenario from osm map
+
+        self.convert_origin()
 
         # create callback group for async execution
         self.callback_group = ReentrantCallbackGroup()
@@ -192,6 +199,13 @@ class Cr2Auto(Node):
             '/planning/scenario_planning/trajectory',
             1
         )
+        # publish autoware state
+        # list of states: https://gitlab.com/autowarefoundation/autoware.auto/autoware_auto_msgs/-/blob/master/autoware_auto_system_msgs/msg/AutowareState.idl
+        self.aw_state_pub = self.create_publisher(
+            AutowareState,
+            '/autoware/state',
+            1
+        )
         # publish autoware engage
         self.engage_pub = self.create_publisher(
             Engage,
@@ -235,6 +249,14 @@ class Cr2Auto(Node):
             timer_period_sec=self.get_parameter("goal_is_reached_update_time").get_parameter_value().double_value,
             callback=self._is_goal_reached, callback_group=self.callback_group)
 
+        aw_state = AutowareState()
+        aw_state.state = AutowareState.WAITING_FOR_ROUTE
+        self.aw_state_pub.publish(aw_state)
+
+        if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+            self.get_logger().info("Detailed log is enabled")
+            self.get_logger().info("Init complete!")
+
     def update_scenario(self):
         """
         Update the commonroad scenario with the latest vehicle state and obstacle messages received.
@@ -243,7 +265,8 @@ class Cr2Auto(Node):
         if self.last_msg_state is not None:
             self._process_current_state()
         else:
-            self.get_logger().info("has not received a vehicle state yet!")
+            if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+                self.get_logger().info("has not received a vehicle state yet!")
             return
 
         # process last static obstacle message
@@ -263,18 +286,27 @@ class Cr2Auto(Node):
         """
         Solve planning problem with algorithms offered by commonroad.
         """
-        if self.planning_problem is not None:
-            if not self.is_computing_trajectory:
-                self.is_computing_trajectory = True
-                if self.planner_type == 1:  # Breadth First Search
-                    self._run_search_planner()
+        try:
+            if self.planning_problem is not None:
+                if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+                    self.get_logger().info("Solving planning problem!")
+                if not self.is_computing_trajectory:
+                    self.is_computing_trajectory = True
+                    if self.planner_type == 1:  # Breadth First Search
+                        if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+                            self.get_logger().info("Running breadth first search")
+                        self._run_search_planner()
 
-                if self.planner_type == 2:  # Reactive Planner
-                    self._run_reactive_planner()
+                    if self.planner_type == 2:  # Reactive Planner
+                        if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+                            self.get_logger().info("Running reactive planner")
+                        self._run_reactive_planner()
 
-                self.is_computing_trajectory = False
-            else:
-                self.get_logger().info("already computing trajectory")
+                    self.is_computing_trajectory = False
+                else:
+                    self.get_logger().info("already computing trajectory")
+        except Exception:
+            self.get_logger().error(traceback.format_exc())
 
     def _is_goal_reached(self):
         """
@@ -289,23 +321,60 @@ class Cr2Auto(Node):
                 self.last_goal_reached = self.get_clock().now()
                 self._set_new_goal()
 
+    
+    def init_proj_str(self):
+
+        map_path = self.get_parameter('map_osm_path').get_parameter_value().string_value
+        if not os.path.exists(map_path):
+            raise ValueError("Can't find given map path: %s" % map_path)
+
+        map_config_tmp = list(glob.iglob(os.path.join(map_path, '*.[yY][aA][mM][lL]')))
+        if not map_config_tmp:
+            raise ValueError("Couldn't load map origin! No YAML file exists in: %s" % map_path)
+
+        with open(map_config_tmp[0]) as f:
+            data = yaml.load(f, Loader=SafeLoader)
+        self.aw_origin_latitude = Decimal(data["/**"]["ros__parameters"]["map_origin"]["latitude"])
+        self.aw_origin_longitude = Decimal(data["/**"]["ros__parameters"]["map_origin"]["longitude"])
+
+        utm_str = utm.from_latlon(float(self.aw_origin_latitude), float(self.aw_origin_longitude))
+        self.proj_str = "+proj=utm +zone=%d +datum=WGS84 +ellps=WGS84" % (utm_str[2])
+        if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+            self.get_logger().info("Proj string: %s" % self.proj_str)
+    
+
     def convert_origin(self):
         """
         Compute coordinate of the origin in UTM (used in commonroad) frame.
         """
-        origin_latitude = self.get_parameter("latitude").get_parameter_value().double_value
-        origin_longitude = self.get_parameter("longitude").get_parameter_value().double_value
-        origin_elevation = self.get_parameter("elevation").get_parameter_value().double_value
-        origin_offset_lat = self.get_parameter("origin_offset_lat").get_parameter_value().double_value
-        origin_offset_lon = self.get_parameter("origin_offset_lon").get_parameter_value().double_value
-
-        origin_latitude = origin_latitude + origin_offset_lat
-        origin_longitude = origin_longitude + origin_offset_lon
-        self.get_logger().info("origin lat: %s,   origin lon: %s" % (origin_latitude, origin_longitude))
-
         proj = Proj(self.proj_str)
-        self.origin_x, self.origin_y = proj(origin_longitude, origin_latitude)
-        self.get_logger().info("origin x: %s,   origin  y: %s" % (self.origin_x, self.origin_y))
+
+        # Get Autoware map origin from osm file
+        aw_origin_latitude = self.aw_origin_latitude
+        aw_origin_longitude = self.aw_origin_longitude
+
+        aw_origin_x, aw_origin_y = proj(aw_origin_longitude, aw_origin_latitude)
+
+        if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+            self.get_logger().info("Autoware origin lat: %s,   origin lon: %s" % (aw_origin_latitude, aw_origin_longitude))
+            self.get_logger().info("Autoware origin x: %s,   origin y: %s" % (aw_origin_x, aw_origin_y))
+
+        
+        # Get CommonRoad map origin
+        cr_origin_lat = Decimal(self.scenario.location.gps_latitude)
+        cr_origin_lon = Decimal(self.scenario.location.gps_longitude)
+
+        cr_origin_x, cr_origin_y = proj(cr_origin_lon, cr_origin_lat)
+
+        if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+            self.get_logger().info("CommonRoad origin lat: %s,   origin lon: %s" % (cr_origin_lat, cr_origin_lon))
+            self.get_logger().info("CommonRoad origin x: %s,   origin y: %s" % (cr_origin_x, cr_origin_y))
+        
+        
+        self.origin_transformation_x = aw_origin_x - cr_origin_x
+        self.origin_transformation_y = aw_origin_y - cr_origin_y
+        self.get_logger().info("origin transformation x: %s,   origin transformation y: %s" % (self.origin_transformation_x, self.origin_transformation_y))
+
 
     def create_ego_vehicle_info(self):
         """
@@ -323,7 +392,10 @@ class Cr2Auto(Node):
         """
         Transform map from osm/lanelet2 format to commonroad scenario format.
         """
-        map_filename = self.get_parameter('map_osm_file').get_parameter_value().string_value
+        map_path = self.get_parameter('map_osm_path').get_parameter_value().string_value
+        # get osm file in folder map_path
+        map_filename = list(glob.iglob(os.path.join(map_path, '*.[oO][sS][mM]')))[0]
+        
         left_driving = self.get_parameter('left_driving').get_parameter_value().bool_value
         adjacencies = self.get_parameter('adjacencies').get_parameter_value().bool_value
         self.scenario = lanelet_to_commonroad(map_filename,
@@ -406,13 +478,12 @@ class Cr2Auto(Node):
                 if pose_map is None:
                     continue
 
-                x = pose_map.pose.position.x + self.origin_x
-                y = pose_map.pose.position.y + self.origin_y
+                pos = self.map2utm(pose_map.pose.position)
                 orientation = Cr2Auto.quaternion2orientation(pose_map.pose.orientation)
                 width = box.shape.dimensions.y
                 length = box.shape.dimensions.x
 
-                obs_state = State(position=np.array([x, y]),
+                obs_state = State(position=pos,
                                   orientation=orientation,
                                   time_step=0)
 
@@ -643,9 +714,15 @@ class Cr2Auto(Node):
         # save msg to list of goals
         self.goal_msgs.append(msg)
 
+        if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+            self.get_logger().info("goal msg: " + str(msg))
+
         # if currently no active goal, set a goal
         if self.planning_problem is None:
-            self._set_new_goal()
+            try:
+                self._set_new_goal()
+            except Exception:
+                self.get_logger().error(traceback.format_exc())
 
         self._pub_goals()
 
@@ -656,10 +733,19 @@ class Cr2Auto(Node):
         """
         # set new goal if we have one
         if len(self.goal_msgs) > 0:
+
+            if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+                self.get_logger().info("Setting new goal")
+
             current_msg = self.goal_msgs.pop(0)
             self.current_goal_msg = deepcopy(current_msg)
 
+            self.get_logger().info("Pose position: " + str(current_msg.pose.position))
+
             position = self.map2utm(current_msg.pose.position)
+            pos_x = position[0]
+            pos_y = position[1]
+            self.get_logger().info("Pose position utm: " + str(position))
             orientation = Cr2Auto.quaternion2orientation(current_msg.pose.orientation)
             if self.ego_vehicle_state is None:
                 self.get_logger().error("ego vehicle state is None")
@@ -670,9 +756,16 @@ class Cr2Auto(Node):
             velocity_interval = Interval(min_vel, max_vel)
 
             # get goal lanelet and its width
-            pos_x = round(position[0])
-            pos_y = round(position[1])
+            # subtract commonroad map origin
             goal_lanelet_id = self.scenario.lanelet_network.find_lanelet_by_position([np.array([pos_x, pos_y])])
+
+            if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+                self.get_logger().info("goal pos_x: " + str(pos_x) + ", pos_y: " + str(pos_y))
+
+            if goal_lanelet_id == [[]]:
+                self.get_logger().error("No lanelet found at goal position!")
+                return
+
             if goal_lanelet_id:
                 goal_lanelet = self.scenario.lanelet_network.find_lanelet_by_id(goal_lanelet_id[0][0])
                 left_vertices = goal_lanelet.left_vertices
@@ -693,6 +786,10 @@ class Cr2Auto(Node):
             self._plan_route()
             self._pub_goals()
         else:
+
+            if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+                self.get_logger().info("No new goal could be set")
+
             self.planning_problem = None
             self.current_goal_msg = None
 
@@ -709,6 +806,9 @@ class Cr2Auto(Node):
         :param states: trajectory points
         :param contains_goal: flag to reduce speed over the last 10 steps
         """
+        if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+            self.get_logger().info("Preparing trajectory message!")
+
         self.traj = AWTrajectory()
         self.traj.header.frame_id = "map"
 
@@ -759,6 +859,13 @@ class Cr2Auto(Node):
         engage_msg = Engage()
         engage_msg.engage = True
         self.engage_pub.publish(engage_msg)
+
+        aw_state = AutowareState()
+        aw_state.state = AutowareState.DRIVING
+        self.aw_state_pub.publish(aw_state)
+
+        if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+            self.get_logger().info("Engage and autoware state messages published!")
         # visualize_solution(self.scenario, self.planning_problem, create_trajectory_from_list_states(path)) #ToDo: test
 
     # plan route
@@ -766,6 +873,10 @@ class Cr2Auto(Node):
         """
         Plan a route using commonroad route planner and the current scenario and planning problem.
         """
+
+        if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+            self.get_logger().info("Planning route")
+
         route_planner = RoutePlanner(self.scenario, self.planning_problem)
         self.reference_path = route_planner.plan_routes().retrieve_first_route().reference_path
 
@@ -827,6 +938,9 @@ class Cr2Auto(Node):
         if not hasattr(init_state, 'acceleration'):
             init_state.acceleration = 0.0
         x_0 = deepcopy(init_state)
+
+        if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+            self.get_logger().info("Reactive planner init state: " + str(x_0))
 
         # goal state configuration
         goal = self.planning_problem.goal
@@ -945,9 +1059,7 @@ class Cr2Auto(Node):
         route.color.b = 1.0
         route.color.a = 1.0
         for point in path:
-            p = Point()
-            p.x = point[0] - self.origin_x
-            p.y = point[1] - self.origin_y
+            p = self.utm2map(point)
             p.z = 0.0
             route.points.append(p)
             route.colors.append(route.color)
@@ -1084,8 +1196,8 @@ class Cr2Auto(Node):
         :param p: position autoware
         :return: position commonroad
         """
-        _x = self.origin_x + p.x
-        _y = self.origin_y + p.y
+        _x = self.origin_transformation_x + p.x
+        _y = self.origin_transformation_y + p.y
         return np.array([_x, _y])
 
     def utm2map(self, position: np.array) -> Point:
@@ -1095,8 +1207,8 @@ class Cr2Auto(Node):
         :return: position autoware
         """
         p = Point()
-        p.x = position[0] - self.origin_x
-        p.y = position[1] - self.origin_y
+        p.x = position[0] - self.origin_transformation_x
+        p.y = position[1] - self.origin_transformation_y
         return p
 
 

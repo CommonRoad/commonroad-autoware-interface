@@ -2,21 +2,17 @@
 
 /**:
   ros__parameters:
-    map_osm_file: "src/universe/autoware.universe/planning/tum_commonroad_planning/cr2autoware/data/sample-map-planning/lanelet2_map.osm"
-    latitude: 35.238094905136874
-    longitude: 139.90095439549778
+    map_osm_path: "sample-map-planning"
     proj_str: "+proj=utm +zone=54 +datum=WGS84 +ellps=WGS84"
-    elevation: 1.0
-    origin_offset_lat: -5.239983224214484e-06
-    origin_offset_lon: 4.5845488187978845e-06
     left_driving: True
     adjacencies: False
-    write_scenario: False # write generated scenario as xml file after map is converted
+    write_scenario: True # write generated scenario as xml file after map is converted
     plot_scenario: False
     filename: "cr2autoware_output.xml" # name of the scenario for saving
     scenario_update_time: 0.25 # run each x.x seconds
     planner_update_time: 0.5 # run each x.x seconds
     goal_is_reached_update_time: 0.1 # run each x.x seconds
+    detailed_log: True
 
     vehicle:
       cg_to_front: 1.0 # meter
