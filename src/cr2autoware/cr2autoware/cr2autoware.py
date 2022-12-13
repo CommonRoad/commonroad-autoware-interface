@@ -37,6 +37,7 @@ from autoware_auto_vehicle_msgs.msg import Engage
 # commonroad imports
 from commonroad.scenario.scenario import Tag
 from commonroad.common.file_writer import CommonRoadFileWriter, OverwriteExistingFile
+from commonroad.common.file_reader import CommonRoadFileReader
 from commonroad.planning.planning_problem import PlanningProblem, PlanningProblemSet
 from commonroad.planning.goal import GoalRegion
 from commonroad.common.util import Interval
@@ -52,16 +53,15 @@ from SMP.motion_planner.motion_planner import MotionPlanner
 from SMP.motion_planner.utility import create_trajectory_from_list_states
 from SMP.maneuver_automaton.maneuver_automaton import ManeuverAutomaton
 
-from crdesigner.map_conversion.map_conversion_interface import lanelet_to_commonroad
+#from crdesigner.map_conversion.map_conversion_interface import lanelet_to_commonroad
 
 from commonroad_route_planner.route_planner import RoutePlanner
-
-from commonroad_rp.reactive_planner import ReactivePlanner
-from commonroad_rp.configuration import build_configuration
 
 # local imports
 from cr2autoware.tf2_geometry_msgs import do_transform_pose
 from cr2autoware.utils import visualize_solution, display_steps
+
+from cr2autoware.rp_interface import RP2Interface
 
 class Cr2Auto(Node):
     """
@@ -91,15 +91,17 @@ class Cr2Auto(Node):
         self.declare_parameter('left_driving', False)
         self.declare_parameter('adjacencies', False)
         self.declare_parameter('proj_str', '')
+
         self.declare_parameter('reactive_planner.default_yaml_folder', '')
         self.declare_parameter('reactive_planner.sampling.d_min', -3)
         self.declare_parameter('reactive_planner.sampling.d_max', 3)
         self.declare_parameter('reactive_planner.sampling.t_min', 0.4)
         self.declare_parameter('reactive_planner.planning.dt', 0.1)
         self.declare_parameter('reactive_planner.planning.planning_horizon', 0.4)
+        
         self.declare_parameter("write_scenario", False)
         self.declare_parameter("plot_scenario", False)
-        self.declare_parameter("filename", "output.xml")
+        self.declare_parameter("map_filename", "output.xml")
         self.declare_parameter("scenario_update_time", 0.5)
         self.declare_parameter("planner_update_time", 0.5)
         self.declare_parameter("goal_is_reached_update_time", 0.1)
@@ -121,26 +123,37 @@ class Cr2Auto(Node):
         name_file_motion_primitives = 'V_0.0_20.0_Vstep_4.0_SA_-1.066_1.066_SAstep_0.18_T_0.5_Model_BMW_320i.xml'
         self.automaton = ManeuverAutomaton.generate_automaton(name_file_motion_primitives)
         self.write_scenario = self.get_parameter('write_scenario').get_parameter_value().bool_value
-        self.filename = self.get_parameter('filename').get_parameter_value().string_value
+        self.map_filename = self.get_parameter('map_filename').get_parameter_value().string_value
         self.is_computing_trajectory = False  # stop update scenario when trajectory is computing
-
         self.create_ego_vehicle_info()  # compute ego vehicle width and height
-        self.planner_type = self.get_parameter("planner_type").get_parameter_value().integer_value
-        if self.planner_type == 1:
-            self.planner = MotionPlanner.BreadthFirstSearch
-        elif self.planner_type == 2:
-            self._init_reactive_planner()
-        else:
-            self.get_logger().warn("Planner type is not correctly specified ... Using Default Planner")
-            self.planner_type = 1
-            self.planner = MotionPlanner.BreadthFirstSearch
-
+        
         self.tf_buffer = Buffer(cache_time=rclpy.duration.Duration(seconds=10.0))
         self.tf_listener = TransformListener(self.tf_buffer, self)  # convert among frames
 
         self.convert_origin()
 
-        self.build_scenario()  # build scenario from osm map
+        #self.build_scenario()  # build scenario from osm map
+        self.scenario, _ = CommonRoadFileReader(self.map_filename).open()
+        
+        # Define Planner 
+        self.planner_type = self.get_parameter("planner_type").get_parameter_value().integer_value
+        if self.planner_type == 1:
+            self.planner = MotionPlanner.BreadthFirstSearch
+        elif self.planner_type == 2:
+            self.planner=RP2Interface(self.scenario,
+                                      dir_config_default=self.get_parameter("reactive_planner.default_yaml_folder").get_parameter_value().string_value,
+                                      d_min = self.get_parameter('reactive_planner.sampling.d_min').get_parameter_value().integer_value,
+                                      d_max = self.get_parameter('reactive_planner.sampling.d_max').get_parameter_value().integer_value,
+                                      t_min = self.get_parameter('reactive_planner.sampling.t_min').get_parameter_value().double_value,            
+                                      dt = self.get_parameter('reactive_planner.planning.dt').get_parameter_value().double_value,
+                                      planning_horizon = self.get_parameter('reactive_planner.planning.planning_horizon').get_parameter_value().double_value,                                      
+                                      v_length = self.vehicle_length,
+                                      v_width = self.vehicle_width,
+                                      v_wheelbase = self.vehicle_wheelbase)
+        else:
+            self.get_logger().warn("Planner type is not correctly specified ... Using Default Planner")
+            self.planner_type = 1
+            self.planner = MotionPlanner.BreadthFirstSearch
 
         # create callback group for async execution
         self.callback_group = ReentrantCallbackGroup()
@@ -257,7 +270,7 @@ class Cr2Auto(Node):
             self._plot_scenario()
 
         if self.write_scenario:
-            self._write_scenario(self.filename)
+            self._write_scenario()
 
     def solve_planning_problem(self) -> None:
         """
@@ -270,8 +283,13 @@ class Cr2Auto(Node):
                     self._run_search_planner()
 
                 if self.planner_type == 2:  # Reactive Planner
-                    self._run_reactive_planner()
-
+                    self.planner._run_reactive_planner(init_state=self.ego_vehicle_state,
+                                                            goal=self.planning_problem.goal,
+                                                            reference_path=self.reference_path)
+                    if not self.planner.optimal:
+                        self.get_logger().error("not optimal")
+                    else:
+                        self._prepare_traj_msg(self.planner.valid_states)
                 self.is_computing_trajectory = False
             else:
                 self.get_logger().info("already computing trajectory")
@@ -318,21 +336,23 @@ class Cr2Auto(Node):
         rear_overhang = self.get_parameter("vehicle.rear_overhang").get_parameter_value().double_value
         self.vehicle_length = front_overhang + cg_to_front + cg_to_rear + rear_overhang
         self.vehicle_width = width
+        self.vehicle_wheelbase = cg_to_front + cg_to_rear
 
-    def build_scenario(self):
-        """
-        Transform map from osm/lanelet2 format to commonroad scenario format.
-        """
-        map_filename = self.get_parameter('map_osm_file').get_parameter_value().string_value
-        left_driving = self.get_parameter('left_driving').get_parameter_value().bool_value
-        adjacencies = self.get_parameter('adjacencies').get_parameter_value().bool_value
-        self.scenario = lanelet_to_commonroad(map_filename,
-                                              proj=self.proj_str,
-                                              left_driving=left_driving,
-                                              adjacencies=adjacencies)
-        if self.write_scenario:
-            # save map
-            self._write_scenario(self.filename)
+    # def build_scenario(self):
+    #     """
+    #     Transform map from osm/lanelet2 format to commonroad scenario format.
+    #     """
+    #     # "/root/workspace/dfg-car/src/cr2autoware/data/Autoware_Map-1_1.xml"
+    #     map_filename = self.get_parameter('map_osm_file').get_parameter_value().string_value
+    #     left_driving = self.get_parameter('left_driving').get_parameter_value().bool_value
+    #     adjacencies = self.get_parameter('adjacencies').get_parameter_value().bool_value
+    #     self.scenario = lanelet_to_commonroad(map_filename,
+    #                                           proj=self.proj_str,
+    #                                           left_driving=left_driving,
+    #                                           adjacencies=adjacencies)
+    #     if self.write_scenario:
+    #         # save map
+    #         self._write_scenario()
 
     def current_state_callback(self, msg: Odometry) -> None:
         """
@@ -367,13 +387,16 @@ class Cr2Auto(Node):
             else:
                 position = self.map2utm(self.last_msg_state.pose.pose.position)
                 orientation = Cr2Auto.quaternion2orientation(self.last_msg_state.pose.pose.orientation)
+            #steering_angle=  arctan2(wheelbase * yaw_rate, velocity)
+            steering_angle=np.arctan2(self.vehicle_wheelbase * self.last_msg_state.twist.twist.angular.z, self.last_msg_state.twist.twist.linear.x)
 
             self.ego_vehicle_state = State(position=position,
                                            orientation=orientation,
                                            velocity=self.last_msg_state.twist.twist.linear.x,
                                            yaw_rate=self.last_msg_state.twist.twist.angular.z,
                                            slip_angle=0.0,
-                                           time_step=time_step)
+                                           time_step=time_step,
+                                           steering_angle = steering_angle)
 
     def static_obs_callback(self, msg: DetectedObjects) -> None:
         """
@@ -800,73 +823,6 @@ class Cr2Auto(Node):
         else:
             self.get_logger().error("Failed to solve the planning problem.")
 
-    def _init_reactive_planner(self):
-        # construct reactive planner
-        self.config = build_configuration(dir_default_config=self.get_parameter(
-            "reactive_planner.default_yaml_folder").get_parameter_value().string_value)
-        self.reactive_planner = ReactivePlanner(self.config)
-        self.reactive_planner.set_d_sampling_parameters(
-            self.get_parameter('reactive_planner.sampling.d_min').get_parameter_value().integer_value,
-            self.get_parameter('reactive_planner.sampling.d_max').get_parameter_value().integer_value)
-        self.reactive_planner.set_t_sampling_parameters(
-            self.get_parameter('reactive_planner.sampling.t_min').get_parameter_value().double_value,
-            self.get_parameter('reactive_planner.planning.dt').get_parameter_value().double_value,
-            self.get_parameter('reactive_planner.planning.planning_horizon').get_parameter_value().double_value)
-        self.reactive_planner.vehicle_params.length = self.vehicle_length
-        self.reactive_planner.vehicle_params.width = self.vehicle_width
-        self.reactive_planner.vehicle_params.wheelbase = self.get_parameter(
-            "vehicle.cg_to_front").get_parameter_value().double_value \
-                                                         + self.get_parameter(
-            "vehicle.cg_to_rear").get_parameter_value().double_value
-
-    def _run_reactive_planner(self):
-        """
-        Run one cycle of reactive planner.
-        """
-        init_state = self.ego_vehicle_state
-        if not hasattr(init_state, 'acceleration'):
-            init_state.acceleration = 0.0
-        x_0 = deepcopy(init_state)
-
-        # goal state configuration
-        goal = self.planning_problem.goal
-        if hasattr(goal.state_list[0], 'velocity'):
-            desired_velocity = (goal.state_list[0].velocity.start +
-                                goal.state_list[0].velocity.end) / 2
-        else:
-            desired_velocity = x_0.velocity
-
-        # set desired velocity
-        self.reactive_planner.set_desired_velocity(desired_velocity)
-
-        # set collision checker
-        self.reactive_planner.set_collision_checker(self.scenario)
-
-        # set route
-        self.reactive_planner.set_reference_path(self.reference_path)
-
-        valid_states = []
-        # self.get_logger().info(str(x_0))
-
-        # run planner and plan trajectory once
-        optimal = self.reactive_planner.plan(x_0)  # returns the planned (i.e., optimal) trajectory
-
-        # if the planner fails to find an optimal trajectory -> terminate
-        if not optimal:
-            self.get_logger().error("not optimal")
-        else:
-            # correct orientation angle
-            self.planner_state_list = self.reactive_planner.shift_orientation(optimal[0])
-
-            for state in self.planner_state_list.state_list:
-                if len(valid_states) > 0:
-                    last_state = valid_states[-1]
-                    if last_state.time_step == state.time_step:
-                        continue
-                valid_states.append(state)
-
-            self._prepare_traj_msg(valid_states)
-
     def _pub_goals(self):
         """
         Publish the goals as markers to visualize in RVIZ.
@@ -1002,10 +958,9 @@ class Cr2Auto(Node):
             return DynamicObstacle(ego_vehicle_id, ego_vehicle_type, ego_vehicle_shape, self.ego_vehicle_state,
                                    prediction=pred_traj)
 
-    def _write_scenario(self, filename="cr2autoware_output"):
+    def _write_scenario(self):
         """
         Store converted map as CommonRoad scenario.
-        :param filename: optional filename
         """
         planning_problem = PlanningProblemSet()
         if self.planning_problem:
@@ -1019,7 +974,8 @@ class Cr2Auto(Node):
             tags={Tag.URBAN},
         )
         os.makedirs('output', exist_ok=True)
-        writer.write_to_file(os.path.join('output', filename), OverwriteExistingFile.ALWAYS)
+        self.get_logger().info(str(self.scenario.scenario_id))
+        writer.write_to_file(os.path.join('output', "".join([str(self.scenario.scenario_id),".xml"])), OverwriteExistingFile.ALWAYS)
 
     def _transform_pose_to_map(self, pose_in):
         """
