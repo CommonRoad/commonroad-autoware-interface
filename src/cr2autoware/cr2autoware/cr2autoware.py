@@ -108,7 +108,6 @@ class Cr2Auto(Node):
         
         self.declare_parameter("write_scenario", False)
         self.declare_parameter("plot_scenario", False)
-        self.declare_parameter("map_filename", "output.xml")
         self.declare_parameter("scenario_update_time", 0.5)
         self.declare_parameter("planner_update_time", 0.5)
         self.declare_parameter("goal_is_reached_update_time", 0.1)
@@ -131,7 +130,6 @@ class Cr2Auto(Node):
         name_file_motion_primitives = 'V_0.0_20.0_Vstep_4.0_SA_-1.066_1.066_SAstep_0.18_T_0.5_Model_BMW_320i.xml'
         self.automaton = ManeuverAutomaton.generate_automaton(name_file_motion_primitives)
         self.write_scenario = self.get_parameter('write_scenario').get_parameter_value().bool_value
-        self.map_filename = self.get_parameter('map_filename').get_parameter_value().string_value
         self.is_computing_trajectory = False  # stop update scenario when trajectory is computing
         self.create_ego_vehicle_info()  # compute ego vehicle width and height
         
@@ -139,7 +137,6 @@ class Cr2Auto(Node):
         self.tf_listener = TransformListener(self.tf_buffer, self)  # convert among frames
 
         self.build_scenario()  # build scenario from osm map
-        #self.scenario, _ = CommonRoadFileReader(self.map_filename).open()
 
         self.convert_origin()
         
@@ -410,7 +407,7 @@ class Cr2Auto(Node):
         self.vehicle_wheelbase = cg_to_front + cg_to_rear
 
 
-    def build_scenario(self): # NOT USED
+    def build_scenario(self):
         """
         Transform map from osm/lanelet2 format to commonroad scenario format.
         """
@@ -936,90 +933,6 @@ class Cr2Auto(Node):
             # visualize_solution(self.scenario, self.planning_problem, create_trajectory_from_list_states(path)) #ToDo: check if working
         else:
             self.get_logger().error("Failed to solve the planning problem.")
-
-    """
-    def _init_reactive_planner(self):
-        # construct reactive planner
-        #self.config = self.build_configuration(dir_default_config=self.get_parameter("reactive_planner.default_yaml_folder").get_parameter_value().string_value)
-        default_config_dir=self.get_parameter("reactive_planner.default_yaml_folder").get_parameter_value().string_value
-        if self.get_parameter("detailed_log").get_parameter_value().bool_value:
-            self.get_logger().info("Loading default config from directory: " + default_config_dir)
-
-        self.config = ConfigurationBuilder.build_configuration("default", dir_config=default_config_dir)
-        self.reactive_planner = ReactivePlanner(self.config)
-        self.reactive_planner.set_d_sampling_parameters(
-            self.get_parameter('reactive_planner.sampling.d_min').get_parameter_value().integer_value,
-            self.get_parameter('reactive_planner.sampling.d_max').get_parameter_value().integer_value)
-        self.reactive_planner.set_t_sampling_parameters(
-            self.get_parameter('reactive_planner.sampling.t_min').get_parameter_value().double_value,
-            self.get_parameter('reactive_planner.planning.dt').get_parameter_value().double_value,
-            self.get_parameter('reactive_planner.planning.planning_horizon').get_parameter_value().double_value)
-        self.reactive_planner.vehicle_params.length = self.vehicle_length
-        self.reactive_planner.vehicle_params.width = self.vehicle_width
-        self.reactive_planner.vehicle_params.wheelbase = self.get_parameter(
-            "vehicle.cg_to_front").get_parameter_value().double_value \
-                                                         + self.get_parameter(
-            "vehicle.cg_to_rear").get_parameter_value().double_value
-
-    # Modified https://gitlab.lrz.de/cps/reactive-planner/-/blob/e9a68dc3891ee6fd1d2500083c5204384ae94448/commonroad_rp/configuration.py
-    def build_configuration(dir_default_config) -> Configuration:
-        conf_default = OmegaConf.load(dir_default_config + "default.yaml")
-        conf_scenario = OmegaConf.create()
-        conf_cli = OmegaConf.from_cli()
-
-        config_merged = OmegaConf.merge(conf_default, conf_scenario, conf_cli)
-        return Configuration(config_merged)
-
-
-    def _run_reactive_planner(self):
-        # Run one cycle of reactive planner.
-        init_state = self.ego_vehicle_state
-        if not hasattr(init_state, 'acceleration'):
-            init_state.acceleration = 0.0
-        x_0 = deepcopy(init_state)
-
-        if self.get_parameter("detailed_log").get_parameter_value().bool_value:
-            self.get_logger().info("Reactive planner init state: " + str(x_0))
-
-        # goal state configuration
-        goal = self.planning_problem.goal
-        if hasattr(goal.state_list[0], 'velocity'):
-            desired_velocity = (goal.state_list[0].velocity.start +
-                                goal.state_list[0].velocity.end) / 2
-        else:
-            desired_velocity = x_0.velocity
-
-        # set desired velocity
-        self.reactive_planner.set_desired_velocity(desired_velocity)
-
-        # set collision checker
-        self.reactive_planner.set_collision_checker(self.scenario)
-
-        # set route
-        self.reactive_planner.set_reference_path(self.reference_path)
-
-        valid_states = []
-        # self.get_logger().info(str(x_0))
-
-        # run planner and plan trajectory once
-        optimal = self.reactive_planner.plan(x_0)  # returns the planned (i.e., optimal) trajectory
-
-        # if the planner fails to find an optimal trajectory -> terminate
-        if not optimal:
-            self.get_logger().error("not optimal")
-        else:
-            # correct orientation angle
-            self.planner_state_list = self.reactive_planner.shift_orientation(optimal[0])
-
-            for state in self.planner_state_list.state_list:
-                if len(valid_states) > 0:
-                    last_state = valid_states[-1]
-                    if last_state.time_step == state.time_step:
-                        continue
-                valid_states.append(state)
-
-            self._prepare_traj_msg(valid_states)
-    """
 
     def _pub_goals(self):
         """

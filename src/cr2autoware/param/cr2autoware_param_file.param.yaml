@@ -6,7 +6,6 @@
     adjacencies: False
     write_scenario: True # write generated scenario as xml file after map is converted
     plot_scenario: False
-    map_filename: "/root/workspace/dfg-car/src/cr2autoware/data/Autoware_Map-1_1.xml" # name of the offline-scenario
     scenario_update_time: 0.25 # run each x.x seconds
     planner_update_time: 0.5 # run each x.x seconds
     goal_is_reached_update_time: 0.1 # run each x.x seconds
