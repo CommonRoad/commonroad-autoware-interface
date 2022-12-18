@@ -15,6 +15,7 @@ import glob
 import yaml
 from yaml.loader import SafeLoader
 from decimal import Decimal
+from pathlib import Path
 
 # ROS imports
 import rclpy
@@ -48,7 +49,7 @@ from commonroad.planning.goal import GoalRegion
 from commonroad.common.util import Interval
 from commonroad.geometry.shape import Rectangle
 from commonroad.scenario.obstacle import StaticObstacle, ObstacleType, DynamicObstacle
-from commonroad.scenario.trajectory import State
+from commonroad.scenario.state import CustomState
 from commonroad.scenario.trajectory import Trajectory as CRTrajectory
 from commonroad.scenario.scenario import Location
 from commonroad.prediction.prediction import TrajectoryPrediction
@@ -64,7 +65,9 @@ from crdesigner.map_conversion.map_conversion_interface import lanelet_to_common
 from commonroad_route_planner.route_planner import RoutePlanner
 
 from commonroad_rp.reactive_planner import ReactivePlanner
-from commonroad_rp.configuration import build_configuration
+from commonroad_rp.configuration import Configuration
+from commonroad_rp.configuration_builder import ConfigurationBuilder
+from omegaconf import OmegaConf
 
 # local imports
 from cr2autoware.tf2_geometry_msgs import do_transform_pose
@@ -115,7 +118,7 @@ class Cr2Auto(Node):
 
         self.rnd = None
         self.ego_vehicle = None
-        self.ego_vehicle_state: State = None
+        self.ego_vehicle_state: CustomState = None
         # buffer for static obstacles
         self.dynamic_obstacles_ids = {}  # a list to save dynamic obstacles id. key: from cr, value: from autoware
         self.last_trajectory = None
@@ -440,7 +443,7 @@ class Cr2Auto(Node):
                 position = self.map2utm(self.last_msg_state.pose.pose.position)
                 orientation = Cr2Auto.quaternion2orientation(self.last_msg_state.pose.pose.orientation)
 
-            self.ego_vehicle_state = State(position=position,
+            self.ego_vehicle_state = CustomState(position=position,
                                            orientation=orientation,
                                            velocity=self.last_msg_state.twist.twist.linear.x,
                                            yaw_rate=self.last_msg_state.twist.twist.angular.z,
@@ -483,7 +486,7 @@ class Cr2Auto(Node):
                 width = box.shape.dimensions.y
                 length = box.shape.dimensions.x
 
-                obs_state = State(position=pos,
+                obs_state = CustomState(position=pos,
                                   orientation=orientation,
                                   time_step=0)
 
@@ -619,7 +622,7 @@ class Cr2Auto(Node):
                 object_id_aw = object.object_id.uuid
                 aw_id_list = [list(value) for value in self.dynamic_obstacles_ids.values()]
                 if list(object_id_aw) not in aw_id_list:
-                    dynamic_obstacle_initial_state = State(position=position,
+                    dynamic_obstacle_initial_state = CustomState(position=position,
                                                            orientation=orientation,
                                                            velocity=velocity,
                                                            yaw_rate=yaw_rate,
@@ -633,7 +636,7 @@ class Cr2Auto(Node):
                         if np.array_equal(object_id_aw, value):
                             dynamic_obs = self.scenario.obstacle_by_id(key)
                             if dynamic_obs:
-                                dynamic_obs.initial_state = State(position=position,
+                                dynamic_obs.initial_state = CustomState(position=position,
                                                                   orientation=orientation,
                                                                   velocity=velocity,
                                                                   yaw_rate=yaw_rate,
@@ -699,7 +702,7 @@ class Cr2Auto(Node):
             position = self.map2utm(work_traj[i].position)
             orientation = Cr2Auto.quaternion2orientation(work_traj[i].orientation)
             # create new state
-            new_state = State(position=position, orientation=orientation, time_step=i)
+            new_state = CustomState(position=position, orientation=orientation, time_step=i)
             # add new state to state_list
             state_list.append(new_state)
 
@@ -776,7 +779,7 @@ class Cr2Auto(Node):
 
             region = Rectangle(length=self.vehicle_length + 0.25 * self.vehicle_length, width=goal_lanelet_width,
                                center=position, orientation=orientation)
-            goal_state = State(position=region, time_step=Interval(0, 1000), velocity=velocity_interval)
+            goal_state = CustomState(position=region, time_step=Interval(0, 1000), velocity=velocity_interval)
 
             goal_region = GoalRegion([goal_state])
             self.planning_problem = PlanningProblem(planning_problem_id=1,
@@ -913,8 +916,12 @@ class Cr2Auto(Node):
 
     def _init_reactive_planner(self):
         # construct reactive planner
-        self.config = build_configuration(dir_default_config=self.get_parameter(
-            "reactive_planner.default_yaml_folder").get_parameter_value().string_value)
+        #self.config = self.build_configuration(dir_default_config=self.get_parameter("reactive_planner.default_yaml_folder").get_parameter_value().string_value)
+        default_config_dir=self.get_parameter("reactive_planner.default_yaml_folder").get_parameter_value().string_value
+        if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+            self.get_logger().info("Loading default config from directory: " + default_config_dir)
+
+        self.config = ConfigurationBuilder.build_configuration("default", dir_config=default_config_dir)
         self.reactive_planner = ReactivePlanner(self.config)
         self.reactive_planner.set_d_sampling_parameters(
             self.get_parameter('reactive_planner.sampling.d_min').get_parameter_value().integer_value,
@@ -929,6 +936,16 @@ class Cr2Auto(Node):
             "vehicle.cg_to_front").get_parameter_value().double_value \
                                                          + self.get_parameter(
             "vehicle.cg_to_rear").get_parameter_value().double_value
+
+    # Modified https://gitlab.lrz.de/cps/reactive-planner/-/blob/e9a68dc3891ee6fd1d2500083c5204384ae94448/commonroad_rp/configuration.py
+    def build_configuration(dir_default_config) -> Configuration:
+        conf_default = OmegaConf.load(dir_default_config + "default.yaml")
+        conf_scenario = OmegaConf.create()
+        conf_cli = OmegaConf.from_cli()
+
+        config_merged = OmegaConf.merge(conf_default, conf_scenario, conf_cli)
+        return Configuration(config_merged)
+
 
     def _run_reactive_planner(self):
         """
@@ -1078,7 +1095,11 @@ class Cr2Auto(Node):
 
         self.rnd.clear()
         self.ego_vehicle = self._create_ego_with_cur_location()
-        self.ego_vehicle.draw(self.rnd, draw_params={
+        self.rnd.draw_params.static_obstacle.occupancy.shape.rectangle.facecolor = "#ff0000"
+        self.rnd.draw_params.static_obstacle.occupancy.shape.rectangle.edgecolor = "#000000"
+        self.rnd.draw_params.static_obstacle.occupancy.shape.rectangle.zorder = 50
+        self.rnd.draw_params.static_obstacle.occupancy.shape.rectangle.opacity = 1
+        """self.ego_vehicle.draw(self.rnd, draw_params={ # outdate cr-io
             "static_obstacle": {
                 "occupancy": {
                     "shape": {
@@ -1092,8 +1113,12 @@ class Cr2Auto(Node):
                 }
 
             }
-        })
-        self.scenario.draw(self.rnd, draw_params={'lanelet': {"show_label": False}})
+        })"""
+        self.ego_vehicle.draw(self.rnd)
+
+        #self.scenario.draw(self.rnd, draw_params={'lanelet': {"show_label": False}}) # outdated cr-io version
+        self.rnd.draw_params.lanelet.show_label = False
+        self.scenario.draw(self.rnd)
         # self.planning_problem.draw(self.rnd) #ToDo: check if working
         self.rnd.render()
         plt.pause(0.1)

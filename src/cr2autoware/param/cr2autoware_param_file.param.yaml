@@ -28,7 +28,7 @@
 
     # parameters for reactive planner
     reactive_planner:
-      default_yaml_folder: "src/universe/autoware.universe/planning/tum_commonroad_planning/dfg-car/src/cr2autoware/param/"
+      default_yaml_folder: "/home/drivingsim/Documents/autoware/src/universe/autoware.universe/planning/tum_commonroad_planning/dfg-car/src/cr2autoware/param/"
       sampling:
         # lateral sampling interval
         d_min: -3
