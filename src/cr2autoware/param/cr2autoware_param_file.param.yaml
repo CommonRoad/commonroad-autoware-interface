@@ -1,5 +1,3 @@
----
-
 /**:
   ros__parameters:
     map_osm_path: "sample-map-planning"
@@ -8,7 +6,7 @@
     adjacencies: False
     write_scenario: True # write generated scenario as xml file after map is converted
     plot_scenario: False
-    filename: "cr2autoware_output.xml" # name of the scenario for saving
+    map_filename: "/root/workspace/dfg-car/src/cr2autoware/data/Autoware_Map-1_1.xml" # name of the offline-scenario
     scenario_update_time: 0.25 # run each x.x seconds
     planner_update_time: 0.5 # run each x.x seconds
     goal_is_reached_update_time: 0.1 # run each x.x seconds
@@ -28,7 +26,7 @@
 
     # parameters for reactive planner
     reactive_planner:
-      default_yaml_folder: "/home/drivingsim/Documents/autoware/src/universe/autoware.universe/planning/tum_commonroad_planning/dfg-car/src/cr2autoware/param/"
+      default_yaml_folder: "/home/drivingsim/Documents/autoware/src/universe/autoware.universe/planning/tum_commonroad_planning/reactive-planner/configurations/defaults/"
       sampling:
         # lateral sampling interval
         d_min: -3
