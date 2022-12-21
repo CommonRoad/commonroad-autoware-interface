@@ -1,12 +1,11 @@
 #! /bin/sh
 
 # This is an automatic setup of cr2autoware when used in the TUM Autoware launch
-# place this file in the autoware folder
 
 echo "Starting Cr2Autoware Setup"
 sudo apt-get update
 sudo apt install -y python3-pykdl
-cd src/universe/autoware.universe/planning/tum_commonroad_planning/commonroad-scenario-designer
+cd ../commonroad-scenario-designer
 pip install -r requirements.txt
 cd ../commonroad-search
 pip install -r requirements.txt
