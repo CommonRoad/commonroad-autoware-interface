@@ -18,4 +18,5 @@ pip install commonroad-io==2022.1
 pip install commonroad-drivability-checker==2021.4
 pip install commonroad-vehicle-models==2.0.0
 pip install commonroad-route-planner==2022.1
+pip install shapely==1.8.5
 echo "Cr2Autoware Setup completed!"
