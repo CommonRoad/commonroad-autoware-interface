@@ -1,10 +1,9 @@
 /**:
   ros__parameters:
     map_osm_path: "sample-map-planning"
-    proj_str: "+proj=utm +zone=54 +datum=WGS84 +ellps=WGS84"
     left_driving: True
     adjacencies: False
-    write_scenario: True # write generated scenario as xml file after map is converted
+    write_scenario: False # write generated scenario as xml file after map is converted
     plot_scenario: False
     scenario_update_time: 0.25 # run each x.x seconds
     planner_update_time: 0.5 # run each x.x seconds

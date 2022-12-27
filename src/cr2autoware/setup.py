@@ -17,11 +17,13 @@ setup(
     ],
     install_requires=[
     	'setuptools',
-    	'commonroad-io==2022.1',
-    	'commonroad-drivability-checker==2021.4',
-    	'commonroad-vehicle-models==2.0.0',
-    	'commonroad-route-planner==2022.1',
+    	'commonroad-io>=2022.1',
+    	'commonroad-drivability-checker>=2021.4',
+    	'commonroad-vehicle-models>=2.0.0',
+    	'commonroad-route-planner>=2022.1',
     	'pyproj',
+    	'pyyaml',
+    	'utm'
     	],
     zip_safe=True,
     maintainer='drivingsim',

@@ -1,5 +1,6 @@
 # general imports
 import os
+from re import A
 import sys
 import utm
 from dataclasses import dataclass
@@ -136,6 +137,9 @@ class Cr2Auto(Node):
         self.tf_buffer = Buffer(cache_time=rclpy.duration.Duration(seconds=10.0))
         self.tf_listener = TransformListener(self.tf_buffer, self)  # convert among frames
 
+        self.aw_state = AutowareState()
+        self.last_engage_msg = None
+
         self.build_scenario()  # build scenario from osm map
 
         self.convert_origin()
@@ -196,13 +200,13 @@ class Cr2Auto(Node):
             callback_group=self.callback_group
         )
         # subscribe autoware states
-        self.aw_state_sub = self.create_subscription(
+        """self.aw_state_sub = self.create_subscription(
             AutowareState,
             '/autoware/state',
             self.state_callback,
             1,
             callback_group=self.callback_group
-        )
+        )"""
 
         # publish trajectory
         self.traj_pub = self.create_publisher(
@@ -217,12 +221,22 @@ class Cr2Auto(Node):
             '/autoware/state',
             1
         )
+
+        # subscribe autoware engage
+        """self.engage_sub = self.create_subscription(
+            Engage,
+            '/api/autoware/get/engage',
+            self.engage_callback,
+            1,
+            callback_group=self.callback_group
+        )"""
         # publish autoware engage
         self.engage_pub = self.create_publisher(
             Engage,
             '/autoware/engage',
             1
         )
+
         # publish route marker
         qos_route_pub = QoSProfile(depth=1)
         qos_route_pub.history = QoSHistoryPolicy.KEEP_LAST
@@ -260,9 +274,7 @@ class Cr2Auto(Node):
             timer_period_sec=self.get_parameter("goal_is_reached_update_time").get_parameter_value().double_value,
             callback=self._is_goal_reached, callback_group=self.callback_group)
 
-        aw_state = AutowareState()
-        aw_state.state = AutowareState.WAITING_FOR_ROUTE
-        self.aw_state_pub.publish(aw_state)
+        self.set_state(AutowareState.WAITING_FOR_ROUTE)
 
         if self.get_parameter("detailed_log").get_parameter_value().bool_value:
             self.get_logger().info("Detailed log is enabled")
@@ -321,7 +333,8 @@ class Cr2Auto(Node):
 
                     self.is_computing_trajectory = False
                 else:
-                    self.get_logger().info("already computing trajectory")
+                    if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+                        self.get_logger().info("already computing trajectory")
         except Exception:
             self.get_logger().error(traceback.format_exc())
 
@@ -336,7 +349,13 @@ class Cr2Auto(Node):
                                                     (self.get_clock().now() - self.last_goal_reached).nanoseconds > 5e8:
                 self.get_logger().info("Car is in goal region!")
                 self.last_goal_reached = self.get_clock().now()
-                self._set_new_goal()
+                self.set_state(AutowareState.ARRIVED_GOAL)
+                # Send engage message
+                engage_msg = Engage()
+                engage_msg.engage = False
+                self.engage_pub.publish(engage_msg)
+                # self._set_new_goal()
+                self.planning_problem = None
 
     
     def init_proj_str(self):
@@ -749,6 +768,15 @@ class Cr2Auto(Node):
 
         self._pub_goals()
 
+    def set_state(self, new_aw_state: AutowareState):
+        self.aw_state.state = new_aw_state
+        if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+            self.get_logger().info("Setting new state to: " + str(new_aw_state))
+        self.aw_state_pub.publish(self.aw_state)
+
+    def get_state(self):
+        return self.aw_state.state
+
     def _set_new_goal(self) -> None:
         """
         Set the next goal of the goal message list active. Calculate route to new goal. 
@@ -759,6 +787,8 @@ class Cr2Auto(Node):
 
             if self.get_parameter("detailed_log").get_parameter_value().bool_value:
                 self.get_logger().info("Setting new goal")
+
+            self.set_state(AutowareState.PLANNING)
 
             current_msg = self.goal_msgs.pop(0)
             self.current_goal_msg = deepcopy(current_msg)
@@ -816,12 +846,38 @@ class Cr2Auto(Node):
             self.planning_problem = None
             self.current_goal_msg = None
 
+            self.set_state(AutowareState.WAITING_FOR_ROUTE)
+
     def state_callback(self, msg: AutowareState) -> None:
         """
         Callback to autoware state. Safe the message for later processing.
         :param msg: autoware state message
         """
         self.last_msg_aw_state = msg.state
+
+    """
+    def engage_callback(self, msg: Engage) -> None:
+
+        if msg.engage == self.last_engage_msg:
+            return
+
+        self.last_engage_msg = msg.engage
+
+        if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+            self.get_logger().info("Engage message received! Engage: " + str(self.last_engage_msg) + ", current state: " + str(self.get_state()))
+
+        # Autoware has been modified (see README) not to set the engage message so that this interface has to send it
+        # Send engage message
+        engage_msg = Engage()
+        engage_msg.engage = self.last_engage_msg
+        self.engage_pub.publish(engage_msg)
+
+        # Update state panel accordingly
+        if self.last_engage_msg and self.get_state() == AutowareState.WAITING_FOR_ENGAGE:
+            self.set_state(AutowareState.DRIVING)
+        if not self.last_engage_msg and self.get_state() == AutowareState.DRIVING:
+            self.set_state(AutowareState.WAITING_FOR_ENGAGE)
+    """
 
     def _prepare_traj_msg(self, states, contains_goal=False):
         """
@@ -879,16 +935,15 @@ class Cr2Auto(Node):
         self.traj_pub.publish(self.traj)
         self.get_logger().info('New trajectory published !!!')
 
+        # Send engage message
         engage_msg = Engage()
         engage_msg.engage = True
         self.engage_pub.publish(engage_msg)
 
-        aw_state = AutowareState()
-        aw_state.state = AutowareState.DRIVING
-        self.aw_state_pub.publish(aw_state)
+        self.set_state(AutowareState.DRIVING)
 
         if self.get_parameter("detailed_log").get_parameter_value().bool_value:
-            self.get_logger().info("Engage and autoware state messages published!")
+            self.get_logger().info("Autoware state and engage messages published!")
         # visualize_solution(self.scenario, self.planning_problem, create_trajectory_from_list_states(path)) #ToDo: test
 
     # plan route
@@ -1091,7 +1146,6 @@ class Cr2Auto(Node):
             tags={Tag.URBAN},
         )
         os.makedirs('output', exist_ok=True)
-        self.get_logger().info(str(self.scenario.scenario_id))
         writer.write_to_file(os.path.join('output', "".join([str(self.scenario.scenario_id),".xml"])), OverwriteExistingFile.ALWAYS)
 
     def _transform_pose_to_map(self, pose_in):
