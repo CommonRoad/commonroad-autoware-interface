@@ -47,7 +47,6 @@ In the following, we use a folder `~/workspace` to collect all repositories and 
     - **commonroad-scenario-designer**: 
         - `git clone https://gitlab.lrz.de/cps/commonroad-scenario-designer.git`
         - `cd commonroad-scenario-designer`
-        - `git checkout 13365aa714e61278b57ae6046fa9871ecbab527b`
         - `pip install -e .` or `python setup.py install`
     - **commonroad-search**:
         - `git clone https://gitlab.lrz.de/cps/commonroad-search.git`
@@ -57,21 +56,21 @@ In the following, we use a folder `~/workspace` to collect all repositories and 
     - **reactive-planner**
         - `git clone -b development https://gitlab.lrz.de/cps/reactive-planner.git`
         - `cd reactive-planner`
-        - `git checkout 2385c60d6203c110ac5ddf312bb72c7f561e195a`
+        - `git checkout feature_update_cr_io`
         - `pip install .`
 5. Do the setup of the docker containers for [cr2autoware](#cr2autoware-setup) and [autoware.universe](#autowareuniverse-setup).
 
 ### Repositories used
 | Tools | Versions|
 |-|-|
-| commonroad-io | >= 2021.4, < 2022.2 |
-| commonroad-drivability-checker | 2021.4 |
+| commonroad-io | 2022.3 |
+| commonroad-drivability-checker | 2022.2.1 |
 | commonroad-vehicle-models | 2.0.0 |
-| commonroad-search | master:87fb04fdfcc97d127166144536f2398099769ba9 |
-| commonroad-scenario-designer | develop:13365aa714e61278b57ae6046fa9871ecbab527b |
-| commonroad-route-planner | 2022.1
-| reactive-planner | development:e9a68dc3891ee6fd1d2500083c5204384ae94448 |
-| autoware.universe | master:latest |
+| commonroad-search | feature-cr2aw:latest |
+| commonroad-scenario-designer | develop:latest |
+| commonroad-route-planner | 2022.3
+| reactive-planner | feature_update_cr_io:latest |
+| autoware.universe | 50-integrate-cr2autoware-interface:latest |
 | autoware.core | master:latest |
 
 ## Docker 
