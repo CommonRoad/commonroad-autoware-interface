@@ -127,6 +127,7 @@ class Cr2Auto(Node):
         self.scenario = None
 
         self.planning_problem = None
+        self.route_planned = False
         self.planner_state_list = None
         name_file_motion_primitives = 'V_0.0_20.0_Vstep_4.0_SA_-1.066_1.066_SAstep_0.18_T_0.5_Model_BMW_320i.xml'
         self.automaton = ManeuverAutomaton.generate_automaton(name_file_motion_primitives)
@@ -236,6 +237,16 @@ class Cr2Auto(Node):
             '/autoware/engage',
             1
         )
+        self.vehicle_engage_pub = self.create_publisher(
+            Engage,
+            '/vehicle/engage',
+            1
+        )
+        self.ext_engage_pub = self.create_publisher(
+            Engage,
+            '/api/external/get/engage',
+            1
+        )
 
         # publish route marker
         qos_route_pub = QoSProfile(depth=1)
@@ -249,7 +260,7 @@ class Cr2Auto(Node):
         )
 
         # vars to save last messages
-        self.last_msg_state = None
+        self.current_vehicle_state = None
         self.last_msg_static_obs = None
         self.last_msg_dynamic_obs = None
         # https://github.com/tier4/autoware_auto_msgs/blob/tier4/main/autoware_auto_system_msgs/msg/AutowareState.idl
@@ -260,9 +271,9 @@ class Cr2Auto(Node):
         self.reference_path = None
 
         # create a timer to update scenario
-        self.timer_update_scenario = self.create_timer(
+        """self.timer_update_scenario = self.create_timer(
             timer_period_sec=self.get_parameter("scenario_update_time").get_parameter_value().double_value,
-            callback=self.update_scenario, callback_group=self.callback_group)
+            callback=self.update_scenario, callback_group=self.callback_group)"""
 
         # create a timer to run planner
         self.timer_solve_planning_problem = self.create_timer(
@@ -285,7 +296,7 @@ class Cr2Auto(Node):
         Update the commonroad scenario with the latest vehicle state and obstacle messages received.
         """
         # process last state message
-        if self.last_msg_state is not None:
+        if self.current_vehicle_state is not None:
             self._process_current_state()
         else:
             if self.get_parameter("detailed_log").get_parameter_value().bool_value:
@@ -309,29 +320,53 @@ class Cr2Auto(Node):
         """
         Solve planning problem with algorithms offered by commonroad.
         """
+
         try:
-            if self.planning_problem is not None:
+
+            # update scenario
+            self.update_scenario()
+
+            if not self.route_planned:
+                # if currently no active goal, set a new goal (if one exists)
+                try:
+                    self._set_new_goal()
+                except Exception:
+                    self.get_logger().error(traceback.format_exc())
+
+            if self.route_planned:
+
                 if self.get_parameter("detailed_log").get_parameter_value().bool_value:
                     self.get_logger().info("Solving planning problem!")
+
                 if not self.is_computing_trajectory:
+                    # Compute trajectory
                     self.is_computing_trajectory = True
+
                     if self.planner_type == 1:  # Breadth First Search
                         if self.get_parameter("detailed_log").get_parameter_value().bool_value:
                             self.get_logger().info("Running breadth first search")
                         self._run_search_planner()
 
                     if self.planner_type == 2:  # Reactive Planner
+
                         if self.get_parameter("detailed_log").get_parameter_value().bool_value:
                             self.get_logger().info("Running reactive planner")
+                            self.get_logger().info("Reactive planner init_state position: " + str(self.ego_vehicle_state.position))
+                            self.get_logger().info("Reactive planner init_state velocity: " + str(self.ego_vehicle_state.velocity))
+                            self.get_logger().info("Reactive planner reference path length: " + str(len(self.reference_path)))
+                            if len(self.reference_path > 1):
+                                self.get_logger().info("Reactive planner reference path: " + str(self.reference_path[0]) + "  --->  ["  \
+                                    + str(len(self.reference_path)-2) + " states skipped]  --->  " + str(self.reference_path[-1]))
                         self.planner._run_reactive_planner(init_state=self.ego_vehicle_state, goal=self.planning_problem.goal, reference_path=self.reference_path)
-                        if not self.planner.optimal:
-                            raise Exception("Computed trajectory is not optimal!")
-                        else:
-                            self._prepare_traj_msg(self.planner.valid_states)
 
-                            self.set_state(AutowareState.DRIVING)
-                            if self.get_parameter("detailed_log").get_parameter_value().bool_value:
-                                self.get_logger().info("Autoware state and engage messages published!")
+                        self._prepare_traj_msg(self.planner.valid_states)
+                        self.set_state(AutowareState.DRIVING)
+                        if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+                            self.get_logger().info("Autoware state and engage messages published!")
+
+                        if not self.planner.optimal:
+                            self.is_computing_trajectory = False
+                            raise Exception("Computed trajectory is not optimal!")
 
                     self.is_computing_trajectory = False
                 else:
@@ -340,6 +375,7 @@ class Cr2Auto(Node):
 
                 # check if goal is reached
                 self._is_goal_reached()
+
         except Exception:
             self.get_logger().error(traceback.format_exc())
 
@@ -348,22 +384,25 @@ class Cr2Auto(Node):
         Check if vehicle is in goal region. If in goal region set new goal.
         """
         if self.planning_problem:
-            if self.last_msg_state is not None:
-                self._process_current_state()
+            #if self.current_vehicle_state is not None: # REMOVED because this is already done in update_scenario
+            #    self._process_current_state()
             if self.planning_problem.goal.is_reached(self.ego_vehicle_state) and \
                                                     (self.get_clock().now() - self.last_goal_reached).nanoseconds > 5e8:
                 self.get_logger().info("Car is in goal region!")
                 self.last_goal_reached = self.get_clock().now()
 
-                self.planning_problem = None
+                if self.goal_msgs == []:
+                    self.route_planned = False
+                    self.planning_problem = None
 
-                self.set_state(AutowareState.ARRIVED_GOAL)
+                    self.set_state(AutowareState.ARRIVED_GOAL)
 
-                # publish empty trajectory
-                self.planner = None
-                self._prepare_traj_msg([])
-
-                # self._set_new_goal()
+                    # publish empty trajectory
+                    self._prepare_traj_msg([])
+                    self._pub_route([])
+                else:
+                    # set next goal
+                    self._set_new_goal()
 
     
     def init_proj_str(self):
@@ -458,14 +497,14 @@ class Cr2Auto(Node):
         Callback to current kinematic state of the ego vehicle. Safe the message for later processing.
         :param msg: current kinematic state message
         """
-        self.last_msg_state = msg
+        self.current_vehicle_state = msg
 
     def _process_current_state(self) -> None:
         """
         Calculate the current commonroad state from the autoware latest state message.
         """
-        if self.last_msg_state is not None:
-            source_frame = self.last_msg_state.header.frame_id
+        if self.current_vehicle_state is not None:
+            source_frame = self.current_vehicle_state.header.frame_id
             time_step = 0
             # lookup transform
             succeed = self.tf_buffer.can_transform("map",
@@ -478,21 +517,21 @@ class Cr2Auto(Node):
 
             if source_frame != "map":
                 temp_pose_stamped = PoseStamped()
-                temp_pose_stamped.header = self.last_msg_state.header
-                temp_pose_stamped.pose = self.last_msg_state.pose.pose
+                temp_pose_stamped.header = self.current_vehicle_state.header
+                temp_pose_stamped.pose = self.current_vehicle_state.pose.pose
                 pose_transformed = self._transform_pose_to_map(temp_pose_stamped)
                 position = self.map2utm(pose_transformed.pose.position)
                 orientation = Cr2Auto.quaternion2orientation(pose_transformed.pose.orientation)
             else:
-                position = self.map2utm(self.last_msg_state.pose.pose.position)
-                orientation = Cr2Auto.quaternion2orientation(self.last_msg_state.pose.pose.orientation)
+                position = self.map2utm(self.current_vehicle_state.pose.pose.position)
+                orientation = Cr2Auto.quaternion2orientation(self.current_vehicle_state.pose.pose.orientation)
             #steering_angle=  arctan2(wheelbase * yaw_rate, velocity)
-            steering_angle=np.arctan2(self.vehicle_wheelbase * self.last_msg_state.twist.twist.angular.z, self.last_msg_state.twist.twist.linear.x)
+            steering_angle=np.arctan2(self.vehicle_wheelbase * self.current_vehicle_state.twist.twist.angular.z, self.current_vehicle_state.twist.twist.linear.x)
 
             self.ego_vehicle_state = CustomState(position=position,
                                            orientation=orientation,
-                                           velocity=self.last_msg_state.twist.twist.linear.x,
-                                           yaw_rate=self.last_msg_state.twist.twist.angular.z,
+                                           velocity=self.current_vehicle_state.twist.twist.linear.x,
+                                           yaw_rate=self.current_vehicle_state.twist.twist.angular.z,
                                            slip_angle=0.0,
                                            time_step=time_step,
                                            steering_angle = steering_angle)
@@ -767,13 +806,6 @@ class Cr2Auto(Node):
         if self.get_parameter("detailed_log").get_parameter_value().bool_value:
             self.get_logger().info("goal msg: " + str(msg))
 
-        # if currently no active goal, set a goal
-        if self.planning_problem is None:
-            try:
-                self._set_new_goal()
-            except Exception:
-                self.get_logger().error(traceback.format_exc())
-
         self._pub_goals()
 
     def set_state(self, new_aw_state: AutowareState):
@@ -786,6 +818,8 @@ class Cr2Auto(Node):
         engage_msg = Engage()
         engage_msg.engage = new_aw_state == AutowareState.DRIVING
         self.engage_pub.publish(engage_msg)
+        self.vehicle_engage_pub.publish(engage_msg)
+        self.ext_engage_pub.publish(engage_msg)
 
     def get_state(self):
         return self.aw_state.state
@@ -851,15 +885,12 @@ class Cr2Auto(Node):
             self.get_logger().info("Set new goal active!")
             self._plan_route()
             self._pub_goals()
+
+            self.route_planned = True
         else:
 
             if self.get_parameter("detailed_log").get_parameter_value().bool_value:
                 self.get_logger().info("No new goal could be set")
-
-            self.planning_problem = None
-            self.current_goal_msg = None
-
-            self.set_state(AutowareState.WAITING_FOR_ROUTE)
 
     def state_callback(self, msg: AutowareState) -> None:
         """
@@ -903,6 +934,11 @@ class Cr2Auto(Node):
 
         self.traj = AWTrajectory()
         self.traj.header.frame_id = "map"
+
+        if states == []:
+            self.traj_pub.publish(self.traj)
+            self.get_logger().info('New empty trajectory published !!!')
+            return
 
         if states[0].velocity == 0.0:
             states[0].velocity = 0.1
@@ -948,6 +984,9 @@ class Cr2Auto(Node):
         self.traj_pub.publish(self.traj)
         self.get_logger().info('New trajectory published !!!')
 
+        if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+            self.get_logger().info("Published trajectory message: " + str(self.traj))
+
         # visualize_solution(self.scenario, self.planning_problem, create_trajectory_from_list_states(path)) #ToDo: test
 
     # plan route
@@ -988,7 +1027,7 @@ class Cr2Auto(Node):
                     valid_states.append(state)
 
             self._prepare_traj_msg(valid_states)
-            self._set_new_goal()
+            # self._set_new_goal()
             # visualize_solution(self.scenario, self.planning_problem, create_trajectory_from_list_states(path)) #ToDo: check if working
         else:
             self.get_logger().error("Failed to solve the planning problem.")
@@ -1090,10 +1129,10 @@ class Cr2Auto(Node):
 
         self.rnd.clear()
         self.ego_vehicle = self._create_ego_with_cur_location()
-        self.rnd.draw_params.static_obstacle.occupancy.shape.rectangle.facecolor = "#ff0000"
-        self.rnd.draw_params.static_obstacle.occupancy.shape.rectangle.edgecolor = "#000000"
-        self.rnd.draw_params.static_obstacle.occupancy.shape.rectangle.zorder = 50
-        self.rnd.draw_params.static_obstacle.occupancy.shape.rectangle.opacity = 1
+        #self.rnd.draw_params.static_obstacle.occupancy.shape.rectangle.facecolor = "#ff0000"
+        #self.rnd.draw_params.static_obstacle.occupancy.shape.rectangle.edgecolor = "#000000"
+        #self.rnd.draw_params.static_obstacle.occupancy.shape.rectangle.zorder = 50
+        #self.rnd.draw_params.static_obstacle.occupancy.shape.rectangle.opacity = 1
         """self.ego_vehicle.draw(self.rnd, draw_params={ # outdate cr-io
             "static_obstacle": {
                 "occupancy": {
@@ -1109,10 +1148,11 @@ class Cr2Auto(Node):
 
             }
         })"""
+        #self.rnd.draw_params["static_obstacle"]["occupancy"]["shape"]["rectangle"]["facecolor"] = "#ff0000"
         self.ego_vehicle.draw(self.rnd)
 
         #self.scenario.draw(self.rnd, draw_params={'lanelet': {"show_label": False}}) # outdated cr-io version
-        self.rnd.draw_params.lanelet.show_label = False
+        #self.rnd.draw_params.lanelet.show_label = False
         self.scenario.draw(self.rnd)
         # self.planning_problem.draw(self.rnd) #ToDo: check if working
         self.rnd.render()
