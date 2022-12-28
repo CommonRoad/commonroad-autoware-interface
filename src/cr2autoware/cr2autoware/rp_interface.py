@@ -26,7 +26,7 @@ class RP2Interface:
         if not hasattr(init_state, 'acceleration'):
             init_state.acceleration = 0.0
 
-        x_0 = deepcopy(init_state)      
+        x_0 = deepcopy(init_state)
                 
         # goal state configuration
         """if hasattr(goal.state_list[0], 'velocity'):

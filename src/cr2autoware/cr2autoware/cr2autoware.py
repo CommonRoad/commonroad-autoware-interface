@@ -2,6 +2,7 @@
 import os
 from re import A
 import sys
+from turtle import position
 import utm
 from dataclasses import dataclass
 import math
@@ -31,7 +32,7 @@ from tf2_ros.transform_listener import TransformListener
 
 
 # ROS message imports
-from geometry_msgs.msg import PoseStamped, Quaternion, Point, Vector3, Pose
+from geometry_msgs.msg import PoseStamped, Quaternion, Point, Vector3, Pose, PoseWithCovarianceStamped
 from nav_msgs.msg import Odometry
 from visualization_msgs.msg import MarkerArray, Marker
 
@@ -141,6 +142,9 @@ class Cr2Auto(Node):
         self.aw_state = AutowareState()
         self.last_engage_msg = None
 
+        self.new_initial_pose = False
+        self.new_pose_received = False
+
         self.build_scenario()  # build scenario from osm map
 
         self.convert_origin()
@@ -210,6 +214,15 @@ class Cr2Auto(Node):
             callback_group=self.callback_group
         )"""
 
+        # subscribe initial pose
+        self.initialpose_sub = self.create_subscription(
+            PoseWithCovarianceStamped,
+            '/initialpose',
+            self.initial_pose_callback,
+            1,
+            callback_group=self.callback_group
+        )
+
         # publish trajectory
         self.traj_pub = self.create_publisher(
             AWTrajectory,
@@ -246,6 +259,11 @@ class Cr2Auto(Node):
         self.ext_engage_pub = self.create_publisher(
             Engage,
             '/api/external/get/engage',
+            1
+        )
+        self.api_engage_pub = self.create_publisher(
+            Engage,
+            '/api/autoware/get/engage',
             1
         )
 
@@ -324,8 +342,27 @@ class Cr2Auto(Node):
 
         try:
 
-            # update scenario
-            self.update_scenario()
+            # check if initial pose was changed (if true: recalculate reference path)
+            if self.new_initial_pose:
+
+                # update scenario
+                self.update_scenario()
+
+                # check if the current_vehicle_state was already updated (=pose received by current state callback), otherwise wait one planning cycle
+                if not self.new_pose_received:
+                    return
+                
+                self.new_initial_pose = False
+                self.new_pose_received = False
+
+                self.get_logger().info("Replanning route to goal")
+
+                # insert current goal into list of goal messages and set route_planned to false to trigger route planning
+                if self.current_goal_msg:
+                    self.goal_msgs.insert(0, self.current_goal_msg)
+                self.route_planned = False
+            else:
+                self.update_scenario()
 
             if not self.route_planned:
                 # if currently no active goal, set a new goal (if one exists)
@@ -389,8 +426,7 @@ class Cr2Auto(Node):
         Check if vehicle is in goal region. If in goal region set new goal.
         """
         if self.planning_problem:
-            #if self.current_vehicle_state is not None: # REMOVED because this is already done in update_scenario
-            #    self._process_current_state()
+            
             if self.planning_problem.goal.is_reached(self.ego_vehicle_state) and \
                                                     (self.get_clock().now() - self.last_goal_reached).nanoseconds > 5e8:
                 self.get_logger().info("Car arrived at goal!")
@@ -503,6 +539,7 @@ class Cr2Auto(Node):
         :param msg: current kinematic state message
         """
         self.current_vehicle_state = msg
+        self.new_pose_received = True
 
     def _process_current_state(self) -> None:
         """
@@ -799,6 +836,17 @@ class Cr2Auto(Node):
 
         return CRTrajectory(time_step, state_list)
 
+    def initial_pose_callback(self, msg: PoseWithCovarianceStamped) -> None:
+        """
+        Callback to initial pose changes. Safe message for later processing
+        :param msg: Initial Pose message
+        """
+
+        self.get_logger().info("Received new initial pose!")
+        self.initial_pose = msg
+        self.new_initial_pose = True
+        self.new_pose_received = False
+
     def goal_pose_callback(self, msg: PoseStamped) -> None:
         """
         Callback to goal pose. Safe message to goal message list and set as active goal if no goal is active.
@@ -825,6 +873,7 @@ class Cr2Auto(Node):
         self.engage_pub.publish(engage_msg)
         self.vehicle_engage_pub.publish(engage_msg)
         self.ext_engage_pub.publish(engage_msg)
+        self.api_engage_pub.publish(engage_msg)
 
     def get_state(self):
         return self.aw_state.state
@@ -969,6 +1018,8 @@ class Cr2Auto(Node):
             self.get_logger().info('New empty trajectory published !!!')
             return
 
+        position_list = []
+
         for i in range(0, len(states)):
             new_point = TrajectoryPoint()
             # time_from_start not given by autoware planner
@@ -976,6 +1027,7 @@ class Cr2Auto(Node):
             # nano_sec, sec = math.modf(t)
             # new_point.time_from_start = Duration(sec=int(sec), nanosec=int(nano_sec * 1e9))
             new_point.pose.position = self.utm2map(states[i].position)
+            position_list.append([states[i].position[0], states[i].position[1]])
             new_point.pose.orientation = Cr2Auto.orientation2quaternion(states[i].orientation)
             new_point.longitudinal_velocity_mps = float(states[i].velocity)
             # self.get_logger().info(str(states[i].velocity))
@@ -990,7 +1042,7 @@ class Cr2Auto(Node):
         self.get_logger().info('New trajectory published !!!')
 
         if self.get_parameter("detailed_log").get_parameter_value().bool_value:
-            self.get_logger().info("Published trajectory message: " + str(self.traj))
+            self.get_logger().info("Published trajectory positions: " + str(position_list))
 
         # visualize_solution(self.scenario, self.planning_problem, create_trajectory_from_list_states(path)) #ToDo: test
 
