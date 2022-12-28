@@ -159,7 +159,8 @@ class Cr2Auto(Node):
                                       planning_horizon = self.get_parameter('reactive_planner.planning.planning_horizon').get_parameter_value().double_value,                                      
                                       v_length = self.vehicle_length,
                                       v_width = self.vehicle_width,
-                                      v_wheelbase = self.vehicle_wheelbase)
+                                      v_wheelbase = self.vehicle_wheelbase,
+                                      desired_velocity = 5) # TODO make this a parameter
         else:
             self.get_logger().warn("Planner type is not correctly specified ... Using Default Planner")
             self.planner_type = 1
@@ -359,6 +360,10 @@ class Cr2Auto(Node):
                                     + str(len(self.reference_path)-2) + " states skipped]  --->  " + str(self.reference_path[-1]))
                         self.planner._run_reactive_planner(init_state=self.ego_vehicle_state, goal=self.planning_problem.goal, reference_path=self.reference_path)
 
+                        # calculate velocities and accelerations of planner states
+                        self._calculate_velocities(self.planner.valid_states, self.ego_vehicle_state.velocity)
+
+                        # publish trajectory
                         self._prepare_traj_msg(self.planner.valid_states)
                         self.set_state(AutowareState.DRIVING)
                         if self.get_parameter("detailed_log").get_parameter_value().bool_value:
@@ -388,7 +393,7 @@ class Cr2Auto(Node):
             #    self._process_current_state()
             if self.planning_problem.goal.is_reached(self.ego_vehicle_state) and \
                                                     (self.get_clock().now() - self.last_goal_reached).nanoseconds > 5e8:
-                self.get_logger().info("Car is in goal region!")
+                self.get_logger().info("Car arrived at goal!")
                 self.last_goal_reached = self.get_clock().now()
 
                 if self.goal_msgs == []:
@@ -923,7 +928,31 @@ class Cr2Auto(Node):
             self.set_state(AutowareState.WAITING_FOR_ENGAGE)
     """
 
-    def _prepare_traj_msg(self, states, contains_goal=False):
+    def _calculate_velocities(self, states, init_velocity):
+
+        if states == []:
+            return
+
+        cur_vel = max(0.1, init_velocity)
+        target_vel = 6
+
+        max_acceleration = 5
+        # time interval of planning
+        dt = self.scenario.dt
+
+        for i in range(0, len(states)):
+            states[i].velocity = cur_vel
+            old_vel = cur_vel
+            if cur_vel < target_vel:
+                cur_vel = min(cur_vel + max_acceleration * dt, target_vel)
+
+            if i < len(states) - 1:
+                states[i].acceleration = (cur_vel - old_vel) / self.scenario.dt
+            else:
+                states[i].acceleration = 0.0
+
+
+    def _prepare_traj_msg(self, states):
         """
         Prepares trajectory to match autoware format. Publish the trajectory.
         :param states: trajectory points
@@ -940,21 +969,6 @@ class Cr2Auto(Node):
             self.get_logger().info('New empty trajectory published !!!')
             return
 
-        if states[0].velocity == 0.0:
-            states[0].velocity = 0.1
-
-        if contains_goal and len(states) > 10:
-            states[-1].velocity = 0.0
-            states[-2].velocity = states[-2].velocity / 10
-            states[-3].velocity = states[-3].velocity / 9
-            states[-4].velocity = states[-4].velocity / 8
-            states[-5].velocity = states[-5].velocity / 7
-            states[-6].velocity = states[-6].velocity / 6
-            states[-7].velocity = states[-7].velocity / 5
-            states[-8].velocity = states[-8].velocity / 4
-            states[-9].velocity = states[-9].velocity / 3
-            states[-10].velocity = states[-10].velocity / 2
-
         for i in range(0, len(states)):
             new_point = TrajectoryPoint()
             # time_from_start not given by autoware planner
@@ -968,16 +982,7 @@ class Cr2Auto(Node):
 
             # front_wheel_angle_rad not given by autoware planner
             # new_point.front_wheel_angle_rad = states[i].steering_angle
-            if "acceleration" in states[i].attributes:
-                new_point.acceleration_mps2 = float(states[i].acceleration)
-            else:
-                if i < len(states) - 1:
-                    cur_vel = states[i].velocity
-                    next_vel = states[i + 1].velocity
-                    acc = (next_vel - cur_vel) / self.scenario.dt
-                    new_point.acceleration_mps2 = acc
-                else:
-                    new_point.acceleration_mps2 = 0.0  # acceleration is 0 for the last state
+            new_point.acceleration_mps2 = float(states[i].acceleration)
 
             self.traj.points.append(new_point)
 

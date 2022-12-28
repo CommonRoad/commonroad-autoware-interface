@@ -7,7 +7,7 @@ from copy import deepcopy
 
 class RP2Interface:
     
-    def __init__(self, scenario, dir_config_default, d_min, d_max, t_min, dt, planning_horizon, v_length, v_width, v_wheelbase):
+    def __init__(self, scenario, dir_config_default, d_min, d_max, t_min, dt, planning_horizon, v_length, v_width, v_wheelbase, desired_velocity):
         # construct reactive planner
         self.scenario=scenario
         self.config = ConfigurationBuilder.build_configuration(name_scenario=str(self.scenario.scenario_id), dir_config_default=dir_config_default)
@@ -17,6 +17,7 @@ class RP2Interface:
         self.reactive_planner.vehicle_params.length = v_length
         self.reactive_planner.vehicle_params.width = v_width
         self.reactive_planner.vehicle_params.wheelbase = v_wheelbase
+        self.reactive_planner.set_desired_velocity(desired_velocity)
 
     def _run_reactive_planner(self, init_state, goal, reference_path):
         """
@@ -28,13 +29,15 @@ class RP2Interface:
         x_0 = deepcopy(init_state)      
                 
         # goal state configuration
-        if hasattr(goal.state_list[0], 'velocity'):
+        """if hasattr(goal.state_list[0], 'velocity'):
             desired_velocity = (goal.state_list[0].velocity.start +
                                 goal.state_list[0].velocity.end) / 2
         else:
             desired_velocity = x_0.velocity
         # set desired velocity
-        self.reactive_planner.set_desired_velocity(desired_velocity)
+        self.reactive_planner.set_desired_velocity(desired_velocity)"""
+
+
         # set collision checker
         self.reactive_planner.set_collision_checker(self.scenario)
         # set route
