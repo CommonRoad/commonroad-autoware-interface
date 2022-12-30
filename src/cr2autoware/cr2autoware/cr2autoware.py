@@ -17,7 +17,6 @@ import glob
 import yaml
 from yaml.loader import SafeLoader
 from decimal import Decimal
-from pathlib import Path
 
 # ROS imports
 import rclpy
@@ -38,7 +37,7 @@ from visualization_msgs.msg import MarkerArray, Marker
 
 # Autoware message imports
 from autoware_auto_perception_msgs.msg import DetectedObjects, PredictedObjects
-from autoware_auto_planning_msgs.msg import TrajectoryPoint
+from autoware_auto_planning_msgs.msg import TrajectoryPoint, PathWithLaneId, Path
 from autoware_auto_planning_msgs.msg import Trajectory as AWTrajectory
 from autoware_auto_system_msgs.msg import AutowareState
 from autoware_auto_vehicle_msgs.msg import Engage
@@ -71,6 +70,7 @@ from commonroad_route_planner.route_planner import RoutePlanner
 # local imports
 from cr2autoware.tf2_geometry_msgs import do_transform_pose
 from cr2autoware.utils import visualize_solution, display_steps
+from cr2autoware.velocity_planner import VelocityPlanner
 
 from cr2autoware.rp_interface import RP2Interface
 
@@ -170,6 +170,9 @@ class Cr2Auto(Node):
             self.planner_type = 1
             self.planner = MotionPlanner.BreadthFirstSearch
 
+        # Initialize Velocity Planner
+        self.velocity_planner = VelocityPlanner(self.get_parameter("detailed_log").get_parameter_value().bool_value, self.get_logger())
+
         # create callback group for async execution
         self.callback_group = ReentrantCallbackGroup()
 
@@ -223,18 +226,23 @@ class Cr2Auto(Node):
             callback_group=self.callback_group
         )
 
-        # publish trajectory
-        self.traj_pub = self.create_publisher(
-            AWTrajectory,
-            '/planning/scenario_planning/trajectory',
-            1
+        # subscribe velocity planner
+        self.velocity_sub = self.create_subscription(
+            Path,
+            '/planning/scenario_planning/lane_driving/behavior_planning/path',
+            self.velocity_planner.path_with_velocity_callback,
+            1,
+            callback_group=self.callback_group
         )
-        # publish autoware state
-        # list of states: https://gitlab.com/autowarefoundation/autoware.auto/autoware_auto_msgs/-/blob/master/autoware_auto_system_msgs/msg/AutowareState.idl
-        self.aw_state_pub = self.create_publisher(
-            AutowareState,
-            '/autoware/state',
-            1
+
+        # TODO delete this
+        # test subscription
+        self.velocity_sub_test = self.create_subscription(
+            PathWithLaneId,
+            '/planning/scenario_planning/lane_driving/behavior_planning/path_with_lane_id',
+            self.velocity_planner.test_callback,
+            1,
+            callback_group=self.callback_group
         )
 
         # subscribe autoware engage
@@ -245,6 +253,30 @@ class Cr2Auto(Node):
             1,
             callback_group=self.callback_group
         )"""
+
+        # publish path to velocity planner
+        self.velocity_pub = self.create_publisher(
+            PathWithLaneId,
+            '/planning/scenario_planning/lane_driving/behavior_planning/path_with_lane_id',
+            1
+        )
+        self.velocity_planner.set_publisher(self.velocity_pub)
+
+        # publish trajectory
+        self.traj_pub = self.create_publisher(
+            AWTrajectory,
+            '/planning/scenario_planning/trajectory',
+            1
+        )
+
+        # publish autoware state
+        # list of states: https://gitlab.com/autowarefoundation/autoware.auto/autoware_auto_msgs/-/blob/master/autoware_auto_system_msgs/msg/AutowareState.idl
+        self.aw_state_pub = self.create_publisher(
+            AutowareState,
+            '/autoware/state',
+            1
+        )
+
         # publish autoware engage
         self.engage_pub = self.create_publisher(
             Engage,
@@ -372,6 +404,10 @@ class Cr2Auto(Node):
                     self.get_logger().error(traceback.format_exc())
 
             if self.route_planned:
+
+                if not self.velocity_planner.get_is_velocity_planning_completed():
+                    self.get_logger().info("Can't run route planner because interface is still waiting for velocity planner")
+                    return
 
                 if self.get_parameter("detailed_log").get_parameter_value().bool_value:
                     self.get_logger().info("Solving planning problem!")
@@ -1057,6 +1093,10 @@ class Cr2Auto(Node):
 
         route_planner = RoutePlanner(self.scenario, self.planning_problem)
         self.reference_path = route_planner.plan_routes().retrieve_first_route().reference_path
+        self.velocity_planner.send_reference_path([self.utm2map(point) for point in self.reference_path])
+
+        if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+            self.get_logger().info("Route planning completed!")
 
     def _run_search_planner(self):
         """
