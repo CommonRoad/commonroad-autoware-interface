@@ -4,6 +4,9 @@ import numpy as np
 
 from copy import deepcopy
 
+import pickle
+import os
+
 
 class RP2Interface:
     
@@ -19,6 +22,8 @@ class RP2Interface:
         self.reactive_planner.vehicle_params.wheelbase = v_wheelbase
         self.reactive_planner.set_desired_velocity(desired_velocity)
 
+        self.save_to_pickle("rp_interface", scenario, dir_config_default, d_min, d_max, t_min, dt, planning_horizon, v_length, v_width, v_wheelbase, desired_velocity)
+
     def _run_reactive_planner(self, init_state, goal, reference_path):
         """
         Run one cycle of reactive planner.
@@ -27,6 +32,8 @@ class RP2Interface:
             init_state.acceleration = 0.0
 
         x_0 = deepcopy(init_state)
+
+        self.save_to_pickle("rp_params", init_state, goal, reference_path)
                 
         # goal state configuration
         """if hasattr(goal.state_list[0], 'velocity'):
@@ -55,3 +62,12 @@ class RP2Interface:
                     if last_state.time_step == state.time_step:
                         continue
                 self.valid_states.append(state)
+
+
+    # This function can be used to generate test cases for test_rp.py
+    def save_to_pickle(self, filename, *args):
+        # save file to test/pickle_files
+        test_path = "/home/drivingsim/Documents/autoware/src/universe/autoware.universe/planning/tum_commonroad_planning/dfg-car/src/cr2autoware/test/pickle_files"
+        file = os.path.join(test_path, filename + ".pkl")
+        with open(file, 'wb') as output:
+            pickle.dump(args, output, pickle.HIGHEST_PROTOCOL)

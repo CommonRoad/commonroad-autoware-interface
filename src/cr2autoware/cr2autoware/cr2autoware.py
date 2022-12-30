@@ -395,7 +395,11 @@ class Cr2Auto(Node):
                             if len(self.reference_path > 1):
                                 self.get_logger().info("Reactive planner reference path: " + str(self.reference_path[0]) + "  --->  ["  \
                                     + str(len(self.reference_path)-2) + " states skipped]  --->  " + str(self.reference_path[-1]))
+
                         self.planner._run_reactive_planner(init_state=self.ego_vehicle_state, goal=self.planning_problem.goal, reference_path=self.reference_path)
+
+                        assert(self.planner.optimal)
+                        assert(self.planner.valid_states != [])
 
                         # calculate velocities and accelerations of planner states
                         self._calculate_velocities(self.planner.valid_states, self.ego_vehicle_state.velocity)
@@ -405,10 +409,6 @@ class Cr2Auto(Node):
                         self.set_state(AutowareState.DRIVING)
                         if self.get_parameter("detailed_log").get_parameter_value().bool_value:
                             self.get_logger().info("Autoware state and engage messages published!")
-
-                        if not self.planner.optimal:
-                            self.is_computing_trajectory = False
-                            raise Exception("Computed trajectory is not optimal!")
 
                     self.is_computing_trajectory = False
                 else:
