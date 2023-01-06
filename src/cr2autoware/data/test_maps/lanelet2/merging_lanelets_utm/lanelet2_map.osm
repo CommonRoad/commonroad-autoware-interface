@@ -995,77 +995,90 @@
     <member type="way" ref="-29" role="left"/>
     <tag k="type" v="lanelet"/>
     <tag k="subtype" v="road"/>
+    <tag k="turn_direction" v=""/>
   </relation>
   <relation id="-47">
     <member type="way" ref="-29" role="right"/>
     <member type="way" ref="-46" role="left"/>
     <tag k="type" v="lanelet"/>
     <tag k="subtype" v="road"/>
+    <tag k="turn_direction" v=""/>
   </relation>
   <relation id="-70">
     <member type="way" ref="-69" role="right"/>
     <member type="way" ref="-68" role="left"/>
     <tag k="type" v="lanelet"/>
     <tag k="subtype" v="road"/>
+    <tag k="turn_direction" v=""/>
   </relation>
   <relation id="-82">
     <member type="way" ref="-68" role="right"/>
     <member type="way" ref="-81" role="left"/>
     <tag k="type" v="lanelet"/>
     <tag k="subtype" v="road"/>
+    <tag k="turn_direction" v=""/>
   </relation>
   <relation id="-107">
     <member type="way" ref="-106" role="right"/>
     <member type="way" ref="-105" role="left"/>
     <tag k="type" v="lanelet"/>
     <tag k="subtype" v="road"/>
+    <tag k="turn_direction" v=""/>
   </relation>
   <relation id="-120">
     <member type="way" ref="-119" role="right"/>
     <member type="way" ref="-118" role="left"/>
     <tag k="type" v="lanelet"/>
     <tag k="subtype" v="road"/>
+    <tag k="turn_direction" v=""/>
   </relation>
   <relation id="-127">
     <member type="way" ref="-118" role="right"/>
     <member type="way" ref="-126" role="left"/>
     <tag k="type" v="lanelet"/>
     <tag k="subtype" v="road"/>
+    <tag k="turn_direction" v=""/>
   </relation>
   <relation id="-134">
     <member type="way" ref="-126" role="right"/>
     <member type="way" ref="-133" role="left"/>
     <tag k="type" v="lanelet"/>
     <tag k="subtype" v="road"/>
+    <tag k="turn_direction" v=""/>
   </relation>
   <relation id="-147">
     <member type="way" ref="-146" role="right"/>
     <member type="way" ref="-145" role="left"/>
     <tag k="type" v="lanelet"/>
     <tag k="subtype" v="road"/>
+    <tag k="turn_direction" v=""/>
   </relation>
   <relation id="-194">
     <member type="way" ref="-193" role="right"/>
     <member type="way" ref="-192" role="left"/>
     <tag k="type" v="lanelet"/>
     <tag k="subtype" v="road"/>
+    <tag k="turn_direction" v=""/>
   </relation>
   <relation id="-218">
     <member type="way" ref="-192" role="right"/>
     <member type="way" ref="-217" role="left"/>
     <tag k="type" v="lanelet"/>
     <tag k="subtype" v="road"/>
+    <tag k="turn_direction" v=""/>
   </relation>
   <relation id="-242">
     <member type="way" ref="-217" role="right"/>
     <member type="way" ref="-241" role="left"/>
     <tag k="type" v="lanelet"/>
     <tag k="subtype" v="road"/>
+    <tag k="turn_direction" v=""/>
   </relation>
   <relation id="-266">
     <member type="way" ref="-241" role="right"/>
     <member type="way" ref="-265" role="left"/>
     <tag k="type" v="lanelet"/>
     <tag k="subtype" v="road"/>
+    <tag k="turn_direction" v=""/>
   </relation>
 </osm>

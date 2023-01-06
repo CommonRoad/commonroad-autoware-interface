@@ -39,15 +39,12 @@ if False:
 else:
     # simple_cr_scenario_path = "../../../DEU_Backnang-7_4_T-1.xml"
     # output_name = "../../../testJan.osm"
-    # simple_cr_scenario_path = "/home/drivingsim/autoware/src/universe/autoware.universe/planning/tum_commonroad_planning/dfg-car/src/cr2autoware/data/test_maps/lanelet2/merging_lanelets_utm.xml"
-    # simple_cr_scenario_path = "/home/drivingsim/autoware/src/universe/autoware.universe/planning/tum_commonroad_planning/dfg-car/src/cr2autoware/data/sample-map-cr/PRI_Barceloneta-2_2_T-1.xml"
     basis_path = "/home/drivingsim/autoware/src/universe/autoware.universe/planning/tum_commonroad_planning/dfg-car/src/cr2autoware/data/test_maps/lanelet2/"
     map_name = "sample-map-cr"
-    simple_cr_scenario_path = basis_path + map_name + ".xml"
+    simple_cr_scenario_path = basis_path + map_name + "/" + map_name + ".xml"
     output_path = basis_path + map_name + "/"
     output_map_path = output_path + "lanelet2_map.osm"
     output_map_config_path = output_path + "map_config.yaml"
-
 
     try:
         commonroad_reader = CommonRoadFileReader(simple_cr_scenario_path)
