@@ -1,7 +1,6 @@
 # general imports
 import os
 from re import A
-import sys
 from turtle import position
 import utm
 from dataclasses import dataclass
@@ -31,7 +30,7 @@ from tf2_ros.transform_listener import TransformListener
 
 
 # ROS message imports
-from geometry_msgs.msg import PoseStamped, Quaternion, Point, Vector3, Pose, PoseWithCovarianceStamped
+from geometry_msgs.msg import PoseStamped, Quaternion, Point, Pose, PoseWithCovarianceStamped
 from nav_msgs.msg import Odometry
 from visualization_msgs.msg import MarkerArray, Marker
 
@@ -45,7 +44,6 @@ from autoware_auto_vehicle_msgs.msg import Engage
 # commonroad imports
 from commonroad.scenario.scenario import Tag
 from commonroad.common.file_writer import CommonRoadFileWriter, OverwriteExistingFile
-from commonroad.common.file_reader import CommonRoadFileReader
 from commonroad.planning.planning_problem import PlanningProblem, PlanningProblemSet
 from commonroad.planning.goal import GoalRegion
 from commonroad.common.util import Interval
@@ -53,7 +51,6 @@ from commonroad.geometry.shape import Rectangle
 from commonroad.scenario.obstacle import StaticObstacle, ObstacleType, DynamicObstacle
 from commonroad.scenario.state import CustomState
 from commonroad.scenario.trajectory import Trajectory as CRTrajectory
-from commonroad.scenario.scenario import Location
 from commonroad.prediction.prediction import TrajectoryPrediction
 from commonroad.visualization.mp_renderer import MPRenderer
 
@@ -226,6 +223,7 @@ class Cr2Auto(Node):
             callback_group=self.callback_group
         )
 
+        """
         # subscribe velocity planner
         self.velocity_sub = self.create_subscription(
             Path,
@@ -235,12 +233,20 @@ class Cr2Auto(Node):
             callback_group=self.callback_group
         )
 
-        # TODO delete this
         # test subscription
         self.velocity_sub_test = self.create_subscription(
             PathWithLaneId,
             '/planning/scenario_planning/lane_driving/behavior_planning/path_with_lane_id',
             self.velocity_planner.test_callback,
+            1,
+            callback_group=self.callback_group
+        )
+        """
+
+        self.traj_sub_smoothed = self.create_subscription(
+            AWTrajectory,
+            '/planning/scenario_planning/trajectory_smoothed',
+            self.velocity_planner.smoothed_trajectory_callback,
             1,
             callback_group=self.callback_group
         )
@@ -254,10 +260,20 @@ class Cr2Auto(Node):
             callback_group=self.callback_group
         )"""
 
+        """
         # publish path to velocity planner
         self.velocity_pub = self.create_publisher(
             PathWithLaneId,
             '/planning/scenario_planning/lane_driving/behavior_planning/path_with_lane_id',
+            1
+        )
+        self.velocity_planner.set_publisher(self.velocity_pub)
+        """
+
+        # publish trajectory to motion velocity smoother
+        self.velocity_pub = self.create_publisher(
+            AWTrajectory,
+            '/planning/scenario_planning/scenario_selector/trajectory',
             1
         )
         self.velocity_planner.set_publisher(self.velocity_pub)
