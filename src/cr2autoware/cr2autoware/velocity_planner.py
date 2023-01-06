@@ -16,7 +16,7 @@ class VelocityPlanner():
 
         # variable indicates if velocity planning for latest published route is completed
         self.velocity_planning_completed = False
-        self.reference_path_velocities = None
+        self.velocities = None
 
     def set_publisher(self, pub):
         self.pub = pub
@@ -35,7 +35,7 @@ class VelocityPlanner():
             new_point = TrajectoryPoint()
             # TODO add orientation
             new_point.pose.position = point_list[i]
-            new_point.longitudinal_velocity_mps = 200
+            new_point.longitudinal_velocity_mps = 200.0
             new_point.acceleration_mps2 = 0.0
             traj.points.append(new_point)
 
@@ -52,13 +52,15 @@ class VelocityPlanner():
         velocity_list = []
         # get velocities for each point of the reference path
         for point in msg.points:
+            self.logger.info("Velocity point: " + str(point.pose.position))
             velocity_list.append(point.longitudinal_velocity_mps)
 
-        self.reference_path_velocities = velocity_list
+        self.velocities = velocity_list
         self.velocity_planning_completed = True
 
-    def get_velocity_list(self):
-        return self.reference_path_velocities
+    # get the velocities belonging to the current reference path
+    def get_reference_velocities(self):
+        return self.velocities
 
     """ Connection to Autoware Velocity Planner Module
     # send Autoware message /planning/scenario_planning/lane_driving/behavior_planning/path_with_lane_id of type PathWithLaneId

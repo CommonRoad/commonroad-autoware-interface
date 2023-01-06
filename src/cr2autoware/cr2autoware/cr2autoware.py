@@ -33,6 +33,7 @@ from tf2_ros.transform_listener import TransformListener
 from geometry_msgs.msg import PoseStamped, Quaternion, Point, Pose, PoseWithCovarianceStamped
 from nav_msgs.msg import Odometry
 from visualization_msgs.msg import MarkerArray, Marker
+from std_msgs.msg import ColorRGBA
 
 # Autoware message imports
 from autoware_auto_perception_msgs.msg import DetectedObjects, PredictedObjects
@@ -138,6 +139,7 @@ class Cr2Auto(Node):
 
         self.aw_state = AutowareState()
         self.last_engage_msg = None
+        self.reference_path_published = False
 
         self.new_initial_pose = False
         self.new_pose_received = False
@@ -425,6 +427,10 @@ class Cr2Auto(Node):
                     self.get_logger().info("Can't run route planner because interface is still waiting for velocity planner")
                     return
 
+                if not self.reference_path_published:
+                    # publish current reference path
+                    self._pub_route(self.reference_path, self.velocity_planner.get_reference_velocities())
+
                 if self.get_parameter("detailed_log").get_parameter_value().bool_value:
                     self.get_logger().info("Solving planning problem!")
 
@@ -492,7 +498,7 @@ class Cr2Auto(Node):
 
                     # publish empty trajectory
                     self._prepare_traj_msg([])
-                    self._pub_route([])
+                    self._pub_route([], [])
                 else:
                     # set next goal
                     self._set_new_goal()
@@ -1104,6 +1110,8 @@ class Cr2Auto(Node):
         Plan a route using commonroad route planner and the current scenario and planning problem.
         """
 
+        self.reference_path_published = False
+
         if self.get_parameter("detailed_log").get_parameter_value().bool_value:
             self.get_logger().info("Planning route")
 
@@ -1202,12 +1210,13 @@ class Cr2Auto(Node):
 
         self.route_pub.publish(goals_msg)
 
-        self._pub_route(self.reference_path)
-
-    def _pub_route(self, path):
+    def _pub_route(self, path, velocities):
         """
         Publish planned route as marker to visualize in RVIZ.
         """
+
+        self.reference_path_published = True
+
         route = Marker()
         route.header.frame_id = "map"
         route.id = 1
@@ -1221,16 +1230,45 @@ class Cr2Auto(Node):
         route.color.r = 0.0
         route.color.g = 0.0
         route.color.b = 1.0
-        route.color.a = 1.0
-        for point in path:
+        route.color.a = 0.3
+
+        max_velocity = max(velocities)
+        if max_velocity < 0.1:
+            max_velocity = 0.1
+
+        for i in range(0, len(path)):
+
+            point = path[i]
+            if i < len(velocities):
+                vel = velocities[i]
+            else:
+                # change config parameters of velocity smoother if whole path not calculated
+                vel = 0
+
             p = self.utm2map(point)
             p.z = 0.0
             route.points.append(p)
-            route.colors.append(route.color)
+
+            c = ColorRGBA()
+            c.r = 0.7 * vel / max_velocity
+            c.g = 0.7 * vel / max_velocity
+            c.b = 1.0
+            c.a = 1.0
+            route.colors.append(c)
 
         route_msg = MarkerArray()
         route_msg.markers.append(route)
         self.route_pub.publish(route_msg)
+
+        for p in path:
+            self.get_logger().info("Path point: " + str(self.utm2map(p)))
+
+        if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+            self.get_logger().info("Reference path published!")
+            self.get_logger().info("Path: " + str(path))
+            self.get_logger().info("Velocities: " + str(velocities))
+            self.get_logger().info("Path length: " + str(len(path)))
+            self.get_logger().info("Velocities length: " + str(len(velocities)))
 
     def _plot_scenario(self):
         """
