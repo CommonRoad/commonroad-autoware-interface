@@ -1,6 +1,7 @@
 # general imports
 import os
 from re import A
+from ssl import HAS_SNI
 from turtle import position
 import utm
 from dataclasses import dataclass
@@ -27,13 +28,14 @@ from rclpy.qos import QoSProfile
 import tf2_ros
 from tf2_ros.buffer import Buffer
 from tf2_ros.transform_listener import TransformListener
+from tf.transformations import quaternion_from_euler
 
 
 # ROS message imports
 from geometry_msgs.msg import PoseStamped, Quaternion, Point, Pose, PoseWithCovarianceStamped
 from nav_msgs.msg import Odometry
 from visualization_msgs.msg import MarkerArray, Marker
-from std_msgs.msg import ColorRGBA
+from std_msgs.msg import ColorRGBA, Header
 
 # Autoware message imports
 from autoware_auto_perception_msgs.msg import DetectedObjects, PredictedObjects
@@ -44,7 +46,7 @@ from autoware_auto_vehicle_msgs.msg import Engage
 
 # commonroad imports
 from commonroad.scenario.scenario import Tag
-from commonroad.common.file_writer import CommonRoadFileWriter, OverwriteExistingFile
+from commonroad.common.file_writer import CommonRoadFileReader, CommonRoadFileWriter, OverwriteExistingFile
 from commonroad.planning.planning_problem import PlanningProblem, PlanningProblemSet
 from commonroad.planning.goal import GoalRegion
 from commonroad.common.util import Interval
@@ -207,6 +209,12 @@ class Cr2Auto(Node):
             1,
             callback_group=self.callback_group
         )
+        # publish goal pose
+        self.goal_pose_pub = self.create_publisher(
+            PoseStamped,
+            '/planning/mission_planning/goal',
+            1,
+        )
         # subscribe autoware states
         """self.aw_state_sub = self.create_subscription(
             AutowareState,
@@ -315,6 +323,13 @@ class Cr2Auto(Node):
             Engage,
             '/api/autoware/get/engage',
             1
+        )
+
+        # publish initial state of the scenario
+        self.intial_pose_pub = self.create_publisher(
+            PoseWithCovarianceStamped,
+            '/initialpose',
+            1,
         )
 
         # publish route marker
@@ -518,6 +533,10 @@ class Cr2Auto(Node):
             data = yaml.load(f, Loader=SafeLoader)
         self.aw_origin_latitude = Decimal(data["/**"]["ros__parameters"]["map_origin"]["latitude"])
         self.aw_origin_longitude = Decimal(data["/**"]["ros__parameters"]["map_origin"]["longitude"])
+        self.aw_origin_roll = Decimal(data["/**"]["ros__parameters"]["map_origin"]["roll"])
+        self.aw_origin_pitch = Decimal(data["/**"]["ros__parameters"]["map_origin"]["pitch"])
+        self.aw_origin_yaw = Decimal(data["/**"]["ros__parameters"]["map_origin"]["yaw"])
+
 
         utm_str = utm.from_latlon(float(self.aw_origin_latitude), float(self.aw_origin_longitude))
         self.proj_str = "+proj=utm +zone=%d +datum=WGS84 +ellps=WGS84" % (utm_str[2])
@@ -574,18 +593,79 @@ class Cr2Auto(Node):
 
     def build_scenario(self):
         """
-        Transform map from osm/lanelet2 format to commonroad scenario format.
+        Open commonroad scenario in parallel if it is in the same folder as the autoware map or transform map from osm/lanelet2 format to commonroad scenario format.
         """
         map_path = self.get_parameter('map_osm_path').get_parameter_value().string_value
         # get osm file in folder map_path
         map_filename = list(glob.iglob(os.path.join(map_path, '*.[oO][sS][mM]')))[0]
+        map_filename_cr = list(glob.iglob(os.path.join(map_path, '*.[xX][mM][lL]')))[0]
+        # if no commonroad file is present in the directory then create it
+        if map_filename_cr != "":
+                    commonroad_reader = CommonRoadFileReader(map_filename_cr)
+                    self.scenario, planning_problem_set = commonroad_reader.open()
+                    self.scenario.planning_problem = list(planning_problem_set.planning_problem_dict.values())[0]
+        else:
+            self.get_logger().info(f"Could not find a commonroad scenario inside the directory. Creating it from the autoware map instead")
+            left_driving = self.get_parameter('left_driving').get_parameter_value().bool_value
+            adjacencies = self.get_parameter('adjacencies').get_parameter_value().bool_value
+            self.scenario = lanelet_to_commonroad(map_filename,
+                                                proj=self.proj_str,
+                                                left_driving=left_driving,
+                                                adjacencies=adjacencies)
+        proj = Proj(self.proj_str)
+
+        # Get Autoware map origin from osm file
+        aw_origin_latitude = self.aw_origin_latitude
+        aw_origin_longitude = self.aw_origin_longitude
+
+        aw_origin_x, aw_origin_y = proj(aw_origin_longitude, aw_origin_latitude)
+        # publish the iniatial pose to the autoware PoseWithCovarianceStamped
+        initial_pose_msg = PoseWithCovarianceStamped()
+        initial_pose_msg.header = Header()
+        initial_pose_msg.header.stamp = rclpy.time.Time()
+        pose = Pose()
+        pose.position.x = aw_origin_x
+        pose.position.y = aw_origin_y
+        pose.position.z = 0 # TODO: clarify
+        pose.orientation = quaternion_from_euler(self.aw_origin_roll, self.aw_origin_pitch, self.aw_origin_yaw)
+        pose.pose.pose = pose
+        pose.pose.covariance = np.zeros(dtype=np.float64, shape=36) # TODO: clarify
+        self.intial_pose_pub.publish(initial_pose_msg)
+
+        # publish the goal if present
+        if self.scenario.planning_problem != None and len(self.scenario.planning_problem.goal.state_list) > 0:
+            goal_state = self.scenario.planning_problem.goal.state_list[0]
+            if hasattr(goal_state, 'position') and hasattr(goal_state, 'orientation'):
+                goal_state_x, goal_state_y = goal_state.position.center
+                # TODO: convert commonroad coordinates to autoware coordinates
+
+                # # Get CommonRoad map origin
+                # cr_origin_lat = Decimal(self.scenario.location.gps_latitude)
+                # cr_origin_lon = Decimal(self.scenario.location.gps_longitude)
+
+                # cr_origin_x, cr_origin_y = proj(cr_origin_lon, cr_origin_lat)
+
+                # if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+                #     self.get_logger().info("CommonRoad origin lat: %s,   origin lon: %s" % (cr_origin_lat, cr_origin_lon))
+                #     self.get_logger().info("CommonRoad origin x: %s,   origin y: %s" % (cr_origin_x, cr_origin_y))
         
-        left_driving = self.get_parameter('left_driving').get_parameter_value().bool_value
-        adjacencies = self.get_parameter('adjacencies').get_parameter_value().bool_value
-        self.scenario = lanelet_to_commonroad(map_filename,
-                                              proj=self.proj_str,
-                                              left_driving=left_driving,
-                                              adjacencies=adjacencies)
+        
+                # self.origin_transformation_x = aw_origin_x - cr_origin_x
+                # self.origin_transformation_y = aw_origin_y - cr_origin_y
+                # self.get_logger().info("origin transformation x: %s,   origin transformation y: %s" % (self.origin_transformation_x, self.origin_transformation_y))
+
+
+                goal_msg = PoseStamped()
+                goal_msg.header = Header()
+                goal_msg.header.stamp = rclpy.time.Time()
+                pose = Pose()
+                pose.position.x = goal_state_x
+                pose.position.y = goal_state_y
+                pose.position.z = 0 # TODO: clarify
+                pose.orientation = Cr2Auto.orientation2quaternion(goal_state.orientation.start) # w,z
+                goal_msg.pose.pose = pose
+                self.intial_pose_pub.publish(goal_msg)
+
         if self.write_scenario:
             # save map
             self._write_scenario()
