@@ -1,7 +1,8 @@
+from email.policy import default
 from ament_index_python import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, TextSubstitution
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node
 
@@ -25,7 +26,8 @@ def generate_launch_description():
         package='cr2autoware',
         executable='cr2autoware_node',
         name='cr2autoware_node',
-        parameters=[LaunchConfiguration('cr2autoware_param_file'),]
+        parameters=[LaunchConfiguration('cr2autoware_param_file'),],
+        remappings=[('map_osm_path', 'map_path')]
     )
 
     return LaunchDescription([

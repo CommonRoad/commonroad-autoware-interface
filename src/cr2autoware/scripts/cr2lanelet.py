@@ -71,7 +71,7 @@ else:
 
     data = {
         "/**" : {
-            "ros_parameters": {
+            "ros__parameters": {
                 "map_origin": {
                     "latitude": lat,
                     "longitude": lon,
