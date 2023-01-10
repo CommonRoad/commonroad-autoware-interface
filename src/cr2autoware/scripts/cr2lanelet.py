@@ -60,7 +60,7 @@ else:
         )
         scenario = None
 
-    l2osm = CR2LaneletConverter(proj)
+    l2osm = CR2LaneletConverter(proj, use_local_coordinates=True)
     osm = l2osm(scenario)
     with open(f"{output_map_path}", "wb") as file_out:
         file_out.write(

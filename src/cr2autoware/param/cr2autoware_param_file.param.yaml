@@ -1,6 +1,6 @@
 /**:
   ros__parameters:
-    map_osm_path: "/home/drivingsim/autoware/src/universe/autoware.universe/planning/tum_commonroad_planning/dfg-car/src/cr2autoware/data/sample-map-cr"
+    map_osm_path: "/home/drivingsim/autoware/src/universe/autoware.universe/planning/tum_commonroad_planning/dfg-car/src/cr2autoware/data/test_maps/lanelet2/sample-map-cr"
     left_driving: True
     adjacencies: False
     write_scenario: False # write generated scenario as xml file after map is converted

@@ -42,6 +42,8 @@ from autoware_auto_planning_msgs.msg import TrajectoryPoint, PathWithLaneId, Pat
 from autoware_auto_planning_msgs.msg import Trajectory as AWTrajectory
 from autoware_auto_system_msgs.msg import AutowareState
 from autoware_auto_vehicle_msgs.msg import Engage
+from autoware_adapi_v1_msgs.msg import LocalizationInitializationState
+
 
 # commonroad imports
 from commonroad.scenario.scenario import Tag
@@ -146,13 +148,6 @@ class Cr2Auto(Node):
 
         self.new_initial_pose = False
         self.new_pose_received = False
-
-        # publish initial state of the scenario
-        self.intial_pose_pub = self.create_publisher(
-            PoseWithCovarianceStamped,
-            '/initialpose',
-            1
-        )
 
         self.build_scenario()  # build scenario from osm map
         self.convert_origin()
@@ -342,6 +337,18 @@ class Cr2Auto(Node):
             MarkerArray,
             '/planning/mission_planning/route_marker',
             qos_route_pub
+        )
+
+        # publish initial state of the scenario
+        self.intial_pose_pub = self.create_publisher(
+            PoseWithCovarianceStamped,
+            '/initialpose',
+            1
+        )
+        self.localization_initialization_state_pub = self.create_publisher(
+            LocalizationInitializationState,
+            '/localization/initialization_state',
+            1
         )
 
         # vars to save last messages
@@ -539,9 +546,6 @@ class Cr2Auto(Node):
             data = yaml.load(f, Loader=SafeLoader)
         self.aw_origin_latitude = Decimal(data["/**"]["ros__parameters"]["map_origin"]["latitude"])
         self.aw_origin_longitude = Decimal(data["/**"]["ros__parameters"]["map_origin"]["longitude"])
-        self.aw_origin_roll = float(data["/**"]["ros__parameters"]["map_origin"]["roll"])
-        self.aw_origin_pitch = float(data["/**"]["ros__parameters"]["map_origin"]["pitch"])
-        self.aw_origin_yaw = float(data["/**"]["ros__parameters"]["map_origin"]["yaw"])
 
 
         utm_str = utm.from_latlon(float(self.aw_origin_latitude), float(self.aw_origin_longitude))
@@ -604,11 +608,11 @@ class Cr2Auto(Node):
         map_path = self.get_parameter('map_osm_path').get_parameter_value().string_value
         # get osm file in folder map_path
         map_filename = list(glob.iglob(os.path.join(map_path, '*.[oO][sS][mM]')))[0]
-        map_filename_cr = list(glob.iglob(os.path.join(map_path, '*.[xX][mM][lL]')))[0]
+        map_filename_cr = list(glob.iglob(os.path.join(map_path, '*.[xX][mM][lL]')))
         # if no commonroad file is present in the directory then create it
         # if False:
-        if map_filename_cr != "":
-            commonroad_reader = CommonRoadFileReader(map_filename_cr)
+        if not map_filename_cr is None and len(map_filename_cr) > 0:
+            commonroad_reader = CommonRoadFileReader(map_filename_cr[0])
             self.scenario, self.planning_problem_set = commonroad_reader.open()
 
         else:
@@ -643,41 +647,43 @@ class Cr2Auto(Node):
         initial_pose_msg.header = Header()
         initial_pose_msg.header.stamp = self.get_clock().now().to_msg()
         pose = Pose()
-        aw_point = self.utm2map(initial_state.position) # TODO: wrong convertion
-        # pose.position.x = aw_point.x
-        # pose.position.y = aw_point.y
-        pose.position.x = 59805.25390625
-        pose.position.y = 41903.83203125
+        # aw_point = self.utm2map(initial_state.position)
+        pose.position.x = initial_state.position[0]
+        pose.position.y = initial_state.position[1]
+        # pose.position.x = 59805.25390625
+        # pose.position.y = 41903.83203125
         pose.position.z = 0.0
-        pose.orientation = Cr2Auto.orientation2quaternion(initial_state.orientation)
+        # pose.orientation = Cr2Auto.orientation2quaternion(initial_state.orientation)
         initial_pose_msg.pose.pose = pose
         initial_pose_msg.pose.covariance = np.zeros(dtype=np.float64, shape=36) # TODO: clarify
 
-        self.intial_pose_pub.publish(initial_pose_msg)
-        self.get_logger().info("initial pose x before: %f" % initial_state.position[0])
-        self.get_logger().info("initial pose x after: %f" % aw_point.x)
-        self.get_logger().info("initial pose y before: %f" % initial_state.position[1])
-        self.get_logger().info("initial pose y after: %f" % aw_point.y)
+        # self.intial_pose_pub.publish(initial_pose_msg)
+        localization_initialization_state_msg = LocalizationInitializationState()
+        localization_initialization_state_msg.stamp = self.get_clock().now().to_msg()
+        localization_initialization_state_msg.state = 3
+        self.localization_initialization_state_pub.publish(localization_initialization_state_msg)
+
+        self.get_logger().info("initial pose x: %f" % initial_state.position[0])
+        self.get_logger().info("initial pose y: %f" % initial_state.position[1])
 
         # publish the goal if present
-        if self.scenario.planning_problem != None and len(self.scenario.planning_problem.goal.state_list) > 0:
+        if len(self.scenario.planning_problem.goal.state_list) > 0:
             goal_state = self.scenario.planning_problem.goal.state_list[0]
             if hasattr(goal_state, 'position') and hasattr(goal_state, 'orientation'):
-                # TODO: convert commonroad coordinates to autoware coordinates
 
                 goal_msg = PoseStamped()
                 goal_msg.header = Header()
                 goal_msg.header.stamp = self.get_clock().now().to_msg()
                 pose = Pose()
-                aw_point = self.utm2map(initial_state.position)
-                pose.position.x = aw_point.x
-                pose.position.y = aw_point.y
+                # aw_point = self.utm2map(initial_state.position)
+                pose.position.x = goal_state.position.center[0]
+                pose.position.y = goal_state.position.center[1]
                 pose.position.z = 0.0
                 pose.orientation = Cr2Auto.orientation2quaternion(goal_state.orientation.start) # w,z
                 goal_msg.pose.pose = pose
                 self.goal_pose_pub.publish(goal_msg)
-                self.get_logger().info("goal pose x: %f" % aw_point.x)
-                self.get_logger().info("goal pose y: %f" % aw_point.y)
+                self.get_logger().info("goal pose x: %f" % goal_state.position.center[0])
+                self.get_logger().info("goal pose y: %f" % goal_state.position.center[1])
 
 
     def current_state_callback(self, msg: Odometry) -> None:
@@ -1498,7 +1504,8 @@ class Cr2Auto(Node):
         """
         _x = self.origin_transformation_x + p.x
         _y = self.origin_transformation_y + p.y
-        return np.array([_x, _y])
+        # return np.array([_x, _y])
+        return np.array([p.x, p.y])
 
     def utm2map(self, position: np.array) -> Point:
         """
@@ -1507,8 +1514,10 @@ class Cr2Auto(Node):
         :return: position autoware
         """
         p = Point()
-        p.x = position[0] - self.origin_transformation_x
-        p.y = position[1] - self.origin_transformation_y
+        # p.x = position[0] - self.origin_transformation_x
+        # p.y = position[1] - self.origin_transformation_y
+        p.x = position[0]
+        p.y = position[1]
         return p
 
 
