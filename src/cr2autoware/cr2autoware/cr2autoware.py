@@ -138,7 +138,7 @@ class Cr2Auto(Node):
         self.tf_listener = TransformListener(self.tf_buffer, self)  # convert among frames
 
         self.aw_state = AutowareState()
-        self.last_engage_msg = None
+        self.engage_status = False
         self.reference_path_published = False
 
         self.new_initial_pose = False
@@ -254,13 +254,13 @@ class Cr2Auto(Node):
         )
 
         # subscribe autoware engage
-        """self.engage_sub = self.create_subscription(
+        self.engage_sub = self.create_subscription(
             Engage,
-            '/api/autoware/get/engage',
+            '/api/external/cr2autoware/engage',
             self.engage_callback,
             1,
             callback_group=self.callback_group
-        )"""
+        )
 
         """
         # publish path to velocity planner
@@ -464,7 +464,6 @@ class Cr2Auto(Node):
 
                         # publish trajectory
                         self._prepare_traj_msg(self.planner.valid_states)
-                        self.set_state(AutowareState.DRIVING)
                         if self.get_parameter("detailed_log").get_parameter_value().bool_value:
                             self.get_logger().info("Autoware state and engage messages published!")
 
@@ -925,9 +924,12 @@ class Cr2Auto(Node):
             self.get_logger().info("Setting new state to: " + str(new_aw_state))
         self.aw_state_pub.publish(self.aw_state)
 
+        if new_aw_state != AutowareState.DRIVING:
+            self.engage_status = False
+
         # Send engage signal
         engage_msg = Engage()
-        engage_msg.engage = new_aw_state == AutowareState.DRIVING
+        engage_msg.engage = self.engage_status
         self.engage_pub.publish(engage_msg)
         self.vehicle_engage_pub.publish(engage_msg)
         self.ext_engage_pub.publish(engage_msg)
@@ -998,6 +1000,8 @@ class Cr2Auto(Node):
             self._plan_route()
             self._pub_goals()
 
+            self.set_state(AutowareState.WAITING_FOR_ENGAGE)
+
             self.route_planned = True
         else:
 
@@ -1011,29 +1015,20 @@ class Cr2Auto(Node):
         """
         self.last_msg_aw_state = msg.state
 
-    """
+    # The engage signal is sent by the tum_state_rviz_plugin
+    # msg.engage sent by tum_state_rviz_plugin will always be true
     def engage_callback(self, msg: Engage) -> None:
 
-        if msg.engage == self.last_engage_msg:
-            return
-
-        self.last_engage_msg = msg.engage
+        self.engage_status = not self.engage_status
 
         if self.get_parameter("detailed_log").get_parameter_value().bool_value:
-            self.get_logger().info("Engage message received! Engage: " + str(self.last_engage_msg) + ", current state: " + str(self.get_state()))
+            self.get_logger().info("Engage message received! Engage: " + str(self.engage_status) + ", current state: " + str(self.get_state()))
 
-        # Autoware has been modified (see README) not to set the engage message so that this interface has to send it
-        # Send engage message
-        engage_msg = Engage()
-        engage_msg.engage = self.last_engage_msg
-        self.engage_pub.publish(engage_msg)
-
-        # Update state panel accordingly
-        if self.last_engage_msg and self.get_state() == AutowareState.WAITING_FOR_ENGAGE:
+        # Update Autoware state panel
+        if self.engage_status and self.get_state() == AutowareState.WAITING_FOR_ENGAGE:
             self.set_state(AutowareState.DRIVING)
-        if not self.last_engage_msg and self.get_state() == AutowareState.DRIVING:
+        if not self.engage_status and self.get_state() == AutowareState.DRIVING:
             self.set_state(AutowareState.WAITING_FOR_ENGAGE)
-    """
 
     def _calculate_velocities(self, states, init_velocity):
 
