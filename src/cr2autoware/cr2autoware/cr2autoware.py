@@ -67,7 +67,7 @@ from commonroad_route_planner.route_planner import RoutePlanner
 
 # local imports
 from cr2autoware.tf2_geometry_msgs import do_transform_pose
-from cr2autoware.utils import visualize_solution, display_steps
+from cr2autoware.utils import visualize_solution, display_steps, orientation2quaternion, quaternion2orientation
 from cr2autoware.velocity_planner import VelocityPlanner
 
 from cr2autoware.rp_interface import RP2Interface
@@ -429,7 +429,7 @@ class Cr2Auto(Node):
 
                 if not self.reference_path_published:
                     # publish current reference path
-                    self._pub_route(self.reference_path, self.velocity_planner.get_reference_velocities())
+                    self._pub_route(*self.velocity_planner.get_reference_velocities())
 
                 if self.get_parameter("detailed_log").get_parameter_value().bool_value:
                     self.get_logger().info("Solving planning problem!")
@@ -620,10 +620,10 @@ class Cr2Auto(Node):
                 temp_pose_stamped.pose = self.current_vehicle_state.pose.pose
                 pose_transformed = self._transform_pose_to_map(temp_pose_stamped)
                 position = self.map2utm(pose_transformed.pose.position)
-                orientation = Cr2Auto.quaternion2orientation(pose_transformed.pose.orientation)
+                orientation = quaternion2orientation(pose_transformed.pose.orientation)
             else:
                 position = self.map2utm(self.current_vehicle_state.pose.pose.position)
-                orientation = Cr2Auto.quaternion2orientation(self.current_vehicle_state.pose.pose.orientation)
+                orientation = quaternion2orientation(self.current_vehicle_state.pose.pose.orientation)
             #steering_angle=  arctan2(wheelbase * yaw_rate, velocity)
             steering_angle=np.arctan2(self.vehicle_wheelbase * self.current_vehicle_state.twist.twist.angular.z, self.current_vehicle_state.twist.twist.linear.x)
 
@@ -667,7 +667,7 @@ class Cr2Auto(Node):
                     continue
 
                 pos = self.map2utm(pose_map.pose.position)
-                orientation = Cr2Auto.quaternion2orientation(pose_map.pose.orientation)
+                orientation = quaternion2orientation(pose_map.pose.orientation)
                 width = box.shape.dimensions.y
                 length = box.shape.dimensions.x
 
@@ -729,7 +729,7 @@ class Cr2Auto(Node):
         if self.last_msg_dynamic_obs is not None:
             for object in self.last_msg_dynamic_obs.objects:
                 position = self.map2utm(object.kinematics.initial_pose_with_covariance.pose.position)
-                orientation = Cr2Auto.quaternion2orientation(
+                orientation = quaternion2orientation(
                     object.kinematics.initial_pose_with_covariance.pose.orientation)
                 velocity = object.kinematics.initial_twist_with_covariance.twist.linear.x
                 yaw_rate = object.kinematics.initial_twist_with_covariance.twist.angular.z
@@ -885,7 +885,7 @@ class Cr2Auto(Node):
         for i in range(len(work_traj)):
             # compute new position
             position = self.map2utm(work_traj[i].position)
-            orientation = Cr2Auto.quaternion2orientation(work_traj[i].orientation)
+            orientation = quaternion2orientation(work_traj[i].orientation)
             # create new state
             new_state = CustomState(position=position, orientation=orientation, time_step=i)
             # add new state to state_list
@@ -960,7 +960,7 @@ class Cr2Auto(Node):
             pos_x = position[0]
             pos_y = position[1]
             self.get_logger().info("Pose position utm: " + str(position))
-            orientation = Cr2Auto.quaternion2orientation(current_msg.pose.orientation)
+            orientation = quaternion2orientation(current_msg.pose.orientation)
             if self.ego_vehicle_state is None:
                 self.get_logger().error("ego vehicle state is None")
                 return
@@ -1081,7 +1081,7 @@ class Cr2Auto(Node):
             # new_point.time_from_start = Duration(sec=int(sec), nanosec=int(nano_sec * 1e9))
             new_point.pose.position = self.utm2map(states[i].position)
             position_list.append([states[i].position[0], states[i].position[1]])
-            new_point.pose.orientation = Cr2Auto.orientation2quaternion(states[i].orientation)
+            new_point.pose.orientation = orientation2quaternion(states[i].orientation)
             new_point.longitudinal_velocity_mps = float(states[i].velocity)
             # self.get_logger().info(str(states[i].velocity))
 
@@ -1093,9 +1093,6 @@ class Cr2Auto(Node):
 
         self.traj_pub.publish(self.traj)
         self.get_logger().info('New trajectory published !!!')
-
-        if self.get_parameter("detailed_log").get_parameter_value().bool_value:
-            self.get_logger().info("Published trajectory positions: " + str(position_list))
 
         # visualize_solution(self.scenario, self.planning_problem, create_trajectory_from_list_states(path)) #ToDo: test
 
@@ -1240,23 +1237,21 @@ class Cr2Auto(Node):
                 # change config parameters of velocity smoother if whole path not calculated
                 vel = 0
 
-            p = self.utm2map(point)
-            p.z = 0.0
+            #p = self.utm2map(point)
+            #p.z = 0
+            p = point
             route.points.append(p)
 
             c = ColorRGBA()
-            c.r = 0.7 * vel / max_velocity
-            c.g = 0.7 * vel / max_velocity
-            c.b = 1.0
+            c.r = 1.0 * vel / max_velocity
+            c.g = 0.0
+            c.b = 1.0 - 1.0 * vel/ max_velocity
             c.a = 1.0
             route.colors.append(c)
 
         route_msg = MarkerArray()
         route_msg.markers.append(route)
         self.route_pub.publish(route_msg)
-
-        for p in path:
-            self.get_logger().info("Path point: " + str(self.utm2map(p)))
 
         if self.get_parameter("detailed_log").get_parameter_value().bool_value:
             self.get_logger().info("Reference path published!")
@@ -1362,38 +1357,6 @@ class Cr2Auto(Node):
 
         pose_out = do_transform_pose(pose_in, tf_map)
         return pose_out
-
-    @staticmethod
-    def orientation2quaternion(orientation: float) -> Quaternion:
-        """
-        Transform orientation (in commonroad) to quaternion (in autoware).
-        :param orientation: orientation angles
-        :return: orientation quaternion
-        """
-        quat = Quaternion()
-        quat.w = math.cos(orientation * 0.5)
-        quat.z = math.sin(orientation * 0.5)
-        return quat
-
-    @staticmethod
-    def quaternion2orientation(quaternion: Quaternion) -> float:
-        """
-        Transform quaternion (in autoware) to orientation (in commonroad).
-        :param quaternion: orientation quaternion
-        :return: orientation angles
-        """
-        z = quaternion.z
-        w = quaternion.w
-        mag2 = (z * z) + (w * w)
-        epsilon = 1e-6
-        if abs(mag2 - 1.0) > epsilon:
-            mag = 1.0 / math.sqrt(mag2)
-            z *= mag
-            w *= mag
-
-        y = 2.0 * w * z
-        x = 1.0 - 2.0 * z * z
-        return math.atan2(y, x)
 
     def map2utm(self, p: Point) -> np.array:
         """
