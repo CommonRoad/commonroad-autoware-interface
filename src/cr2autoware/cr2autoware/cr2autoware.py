@@ -345,11 +345,6 @@ class Cr2Auto(Node):
             '/initialpose',
             1
         )
-        self.localization_initialization_state_pub = self.create_publisher(
-            LocalizationInitializationState,
-            '/localization/initialization_state',
-            1
-        )
 
         # vars to save last messages
         self.current_vehicle_state = None
@@ -646,22 +641,17 @@ class Cr2Auto(Node):
         initial_pose_msg = PoseWithCovarianceStamped()
         initial_pose_msg.header = Header()
         initial_pose_msg.header.stamp = self.get_clock().now().to_msg()
+        initial_pose_msg.header.frame_id = 'map'
         pose = Pose()
         # aw_point = self.utm2map(initial_state.position)
         pose.position.x = initial_state.position[0]
         pose.position.y = initial_state.position[1]
-        # pose.position.x = 59805.25390625
-        # pose.position.y = 41903.83203125
         pose.position.z = 0.0
-        # pose.orientation = Cr2Auto.orientation2quaternion(initial_state.orientation)
+        pose.orientation = Cr2Auto.orientation2quaternion(initial_state.orientation)
         initial_pose_msg.pose.pose = pose
         initial_pose_msg.pose.covariance = np.zeros(dtype=np.float64, shape=36) # TODO: clarify
 
-        # self.intial_pose_pub.publish(initial_pose_msg)
-        localization_initialization_state_msg = LocalizationInitializationState()
-        localization_initialization_state_msg.stamp = self.get_clock().now().to_msg()
-        localization_initialization_state_msg.state = 3
-        self.localization_initialization_state_pub.publish(localization_initialization_state_msg)
+        self.intial_pose_pub.publish(initial_pose_msg)
 
         self.get_logger().info("initial pose x: %f" % initial_state.position[0])
         self.get_logger().info("initial pose y: %f" % initial_state.position[1])
@@ -674,13 +664,14 @@ class Cr2Auto(Node):
                 goal_msg = PoseStamped()
                 goal_msg.header = Header()
                 goal_msg.header.stamp = self.get_clock().now().to_msg()
+                goal_msg.header.frame_id = 'map'
                 pose = Pose()
                 # aw_point = self.utm2map(initial_state.position)
                 pose.position.x = goal_state.position.center[0]
                 pose.position.y = goal_state.position.center[1]
                 pose.position.z = 0.0
                 pose.orientation = Cr2Auto.orientation2quaternion(goal_state.orientation.start) # w,z
-                goal_msg.pose.pose = pose
+                goal_msg.pose = pose
                 self.goal_pose_pub.publish(goal_msg)
                 self.get_logger().info("goal pose x: %f" % goal_state.position.center[0])
                 self.get_logger().info("goal pose y: %f" % goal_state.position.center[1])
