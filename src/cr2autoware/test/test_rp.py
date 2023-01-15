@@ -2,6 +2,7 @@ from asyncore import read
 from difflib import unified_diff
 from lib2to3.refactor import RefactoringTool
 from matplotlib import pyplot as plt
+from pprint import pprint
 import unittest
 import pickle
 import os
@@ -48,10 +49,12 @@ class CurveTest(unittest.TestCase):
         print("reactive planner reference vel: " + str(reference_vel))
         reference_path = self.load_pickle("rp_params_curve")[2]
         print("reactive planner reference path: " + str(reference_path))
-        sc = self.load_xml("curve_ZAM_OpenDrive-123")
+        #sc = self.load_xml("curve_ZAM_OpenDrive-123")
         initial_pose = self.load_pickle("rp_params_curve")[0]
         # goal_pos = self.load_pickle("rp_params_curve")[1]
 
+        print("initial_pose: ", end="")
+        pprint(vars(initial_pose))
         plt.plot(initial_pose.position[0], initial_pose.position[1], marker='x', label="initial position")
         plt.plot(*zip(*path), label="planned trajectory")
         plt.plot(*zip(*reference_path), label="reference path")
@@ -80,10 +83,11 @@ class CurveTest(unittest.TestCase):
         return planner
 
     def reactive_planner_from_pickle_with_default_config(self, params_filename, scenario_name):
-        params = self.load_pickle(params_filename)
+        init_state, goal, reference_path, reference_velocity = self.load_pickle(params_filename)
+        reference_velocity = 2 # modify reference velocity for testing
 
         planner = self.mockConfig(scenario_name)
-        planner._run_reactive_planner(*params)
+        planner._run_reactive_planner(init_state, goal, reference_path, reference_velocity)
 
         return planner
 
