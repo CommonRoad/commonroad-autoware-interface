@@ -1,5 +1,6 @@
 import os
 import numpy as np
+import math
 
 from cr2autoware.utils import orientation2quaternion
 
@@ -27,13 +28,17 @@ class VelocityPlanner():
     def set_publisher(self, pub):
         self.pub = pub
 
-    def send_reference_path(self, point_list):
+    # convert reference path to a trajectory and publish it to the motion velocity smoother module
+    def send_reference_path(self, point_list, goal_pos):
 
         if self.detailed_log:
             self.logger.info("Preparing velocity planner message...")
 
         self.velocity_planning_completed = False
 
+        # TODO Shorten reference path so that it ends at goal position
+
+        # compute orientations
         polyline = np.array([(p.x, p.y) for p in point_list])
         orientations = compute_orientation_from_polyline(polyline)
 
@@ -72,6 +77,22 @@ class VelocityPlanner():
     # get the velocities belonging to the current reference path
     def get_reference_velocities(self):
         return self.point_list, self.velocities
+
+    # find the closest reference path point for a given position and return it's velocity
+    def get_velocity_at_aw_position(self, position):
+        v = self.velocities[self.get_pathpoint_near_aw_position(position)]
+        return v
+
+    # get closest pathpoint to a given position (in Autoware coordinate system)
+    def get_pathpoint_near_aw_position(self, position):
+        min_dist = None
+        min_i = 0
+        for i, point in enumerate(self.point_list):
+            dist = math.sqrt((point.x - position.x)**2 + (point.y - position.y)**2)
+            if min_dist == None or dist <= min_dist:
+                min_dist = dist
+                min_i = i
+        return min_i
 
     """ Connection to Autoware Velocity Planner Module
     # send Autoware message /planning/scenario_planning/lane_driving/behavior_planning/path_with_lane_id of type PathWithLaneId

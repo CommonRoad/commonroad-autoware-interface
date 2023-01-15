@@ -10,7 +10,7 @@ import os
 
 class RP2Interface:
     
-    def __init__(self, scenario, dir_config_default, d_min, d_max, t_min, dt, planning_horizon, v_length, v_width, v_wheelbase, desired_velocity):
+    def __init__(self, scenario, dir_config_default, d_min, d_max, t_min, dt, planning_horizon, v_length, v_width, v_wheelbase):
         # construct reactive planner
         self.scenario=scenario
         self.config = ConfigurationBuilder.build_configuration(name_scenario=str(self.scenario.scenario_id), dir_config_default=dir_config_default)
@@ -20,11 +20,10 @@ class RP2Interface:
         self.reactive_planner.vehicle_params.length = v_length
         self.reactive_planner.vehicle_params.width = v_width
         self.reactive_planner.vehicle_params.wheelbase = v_wheelbase
-        self.reactive_planner.set_desired_velocity(desired_velocity)
 
-        self.save_to_pickle("rp_interface", scenario, dir_config_default, d_min, d_max, t_min, dt, planning_horizon, v_length, v_width, v_wheelbase, desired_velocity)
+        self.save_to_pickle("rp_interface", scenario, dir_config_default, d_min, d_max, t_min, dt, planning_horizon, v_length, v_width, v_wheelbase)
 
-    def _run_reactive_planner(self, init_state, goal, reference_path):
+    def _run_reactive_planner(self, init_state, goal, reference_path, reference_velocity):
         """
         Run one cycle of reactive planner.
         """
@@ -33,7 +32,7 @@ class RP2Interface:
 
         x_0 = deepcopy(init_state)
 
-        self.save_to_pickle("rp_params", init_state, goal, reference_path)
+        self.save_to_pickle("rp_params", init_state, goal, reference_path, reference_velocity)
                 
         # goal state configuration
         """if hasattr(goal.state_list[0], 'velocity'):
@@ -43,6 +42,7 @@ class RP2Interface:
             desired_velocity = x_0.velocity
         # set desired velocity
         self.reactive_planner.set_desired_velocity(desired_velocity)"""
+        self.reactive_planner.set_desired_velocity(max(1, reference_velocity))
 
 
         # set collision checker
