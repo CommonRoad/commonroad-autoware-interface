@@ -1,8 +1,13 @@
 import os
+import numpy as np
 
+from cr2autoware.utils import orientation2quaternion
+
+from builtin_interfaces.msg import Duration
 from geometry_msgs.msg import Pose, Twist, Quaternion
 from autoware_auto_planning_msgs.msg import PathWithLaneId, Path, PathPoint, PathPointWithLaneId, TrajectoryPoint
 from autoware_auto_planning_msgs.msg import Trajectory as AWTrajectory
+from commonroad_dc.geometry.util import compute_orientation_from_polyline
 
 class VelocityPlanner():
     """
@@ -16,6 +21,7 @@ class VelocityPlanner():
 
         # variable indicates if velocity planning for latest published route is completed
         self.velocity_planning_completed = False
+        self.point_list = None
         self.velocities = None
 
     def set_publisher(self, pub):
@@ -28,14 +34,18 @@ class VelocityPlanner():
 
         self.velocity_planning_completed = False
 
+        polyline = np.array([(p.x, p.y) for p in point_list])
+        orientations = compute_orientation_from_polyline(polyline)
+
         traj = AWTrajectory()
         traj.header.frame_id = "map"
 
         for i in range(0, len(point_list)):
             new_point = TrajectoryPoint()
-            # TODO add orientation
+            new_point.time_from_start = Duration(sec=0, nanosec=i)
+            new_point.pose.orientation = orientation2quaternion(orientations[i])
             new_point.pose.position = point_list[i]
-            new_point.longitudinal_velocity_mps = 200.0
+            new_point.longitudinal_velocity_mps = 20.0
             new_point.acceleration_mps2 = 0.0
             traj.points.append(new_point)
 
@@ -47,20 +57,21 @@ class VelocityPlanner():
     def smoothed_trajectory_callback(self, msg: AWTrajectory):
         if self.detailed_log:
             self.logger.info("Smoothed AW Trajectory received!")
-            self.logger.info("MSG: " + str(msg))
 
+        point_list = []
         velocity_list = []
         # get velocities for each point of the reference path
         for point in msg.points:
-            self.logger.info("Velocity point: " + str(point.pose.position))
+            point_list.append(point.pose.position)
             velocity_list.append(point.longitudinal_velocity_mps)
 
+        self.point_list = point_list
         self.velocities = velocity_list
         self.velocity_planning_completed = True
 
     # get the velocities belonging to the current reference path
     def get_reference_velocities(self):
-        return self.velocities
+        return self.point_list, self.velocities
 
     """ Connection to Autoware Velocity Planner Module
     # send Autoware message /planning/scenario_planning/lane_driving/behavior_planning/path_with_lane_id of type PathWithLaneId

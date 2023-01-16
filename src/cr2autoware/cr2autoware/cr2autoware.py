@@ -71,7 +71,7 @@ from commonroad_route_planner.route_planner import RoutePlanner
 
 # local imports
 from cr2autoware.tf2_geometry_msgs import do_transform_pose
-from cr2autoware.utils import visualize_solution, display_steps
+from cr2autoware.utils import visualize_solution, display_steps, orientation2quaternion, quaternion2orientation
 from cr2autoware.velocity_planner import VelocityPlanner
 
 from cr2autoware.rp_interface import RP2Interface
@@ -143,7 +143,7 @@ class Cr2Auto(Node):
         self.tf_listener = TransformListener(self.tf_buffer, self)  # convert among frames
 
         self.aw_state = AutowareState()
-        self.last_engage_msg = None
+        self.engage_status = False
         self.reference_path_published = False
 
         self.new_initial_pose = False
@@ -265,13 +265,13 @@ class Cr2Auto(Node):
         )
 
         # subscribe autoware engage
-        """self.engage_sub = self.create_subscription(
+        self.engage_sub = self.create_subscription(
             Engage,
-            '/api/autoware/get/engage',
+            '/api/external/cr2autoware/engage',
             self.engage_callback,
             1,
             callback_group=self.callback_group
-        )"""
+        )
 
         """
         # publish path to velocity planner
@@ -452,7 +452,7 @@ class Cr2Auto(Node):
 
                 if not self.reference_path_published:
                     # publish current reference path
-                    self._pub_route(self.reference_path, self.velocity_planner.get_reference_velocities())
+                    self._pub_route(*self.velocity_planner.get_reference_velocities())
 
                 if self.get_parameter("detailed_log").get_parameter_value().bool_value:
                     self.get_logger().info("Solving planning problem!")
@@ -487,7 +487,6 @@ class Cr2Auto(Node):
 
                         # publish trajectory
                         self._prepare_traj_msg(self.planner.valid_states)
-                        self.set_state(AutowareState.DRIVING)
                         if self.get_parameter("detailed_log").get_parameter_value().bool_value:
                             self.get_logger().info("Autoware state and engage messages published!")
 
@@ -707,10 +706,10 @@ class Cr2Auto(Node):
                 temp_pose_stamped.pose = self.current_vehicle_state.pose.pose
                 pose_transformed = self._transform_pose_to_map(temp_pose_stamped)
                 position = self.map2utm(pose_transformed.pose.position)
-                orientation = Cr2Auto.quaternion2orientation(pose_transformed.pose.orientation)
+                orientation = quaternion2orientation(pose_transformed.pose.orientation)
             else:
                 position = self.map2utm(self.current_vehicle_state.pose.pose.position)
-                orientation = Cr2Auto.quaternion2orientation(self.current_vehicle_state.pose.pose.orientation)
+                orientation = quaternion2orientation(self.current_vehicle_state.pose.pose.orientation)
             #steering_angle=  arctan2(wheelbase * yaw_rate, velocity)
             steering_angle=np.arctan2(self.vehicle_wheelbase * self.current_vehicle_state.twist.twist.angular.z, self.current_vehicle_state.twist.twist.linear.x)
 
@@ -754,7 +753,7 @@ class Cr2Auto(Node):
                     continue
 
                 pos = self.map2utm(pose_map.pose.position)
-                orientation = Cr2Auto.quaternion2orientation(pose_map.pose.orientation)
+                orientation = quaternion2orientation(pose_map.pose.orientation)
                 width = box.shape.dimensions.y
                 length = box.shape.dimensions.x
 
@@ -816,7 +815,7 @@ class Cr2Auto(Node):
         if self.last_msg_dynamic_obs is not None:
             for object in self.last_msg_dynamic_obs.objects:
                 position = self.map2utm(object.kinematics.initial_pose_with_covariance.pose.position)
-                orientation = Cr2Auto.quaternion2orientation(
+                orientation = quaternion2orientation(
                     object.kinematics.initial_pose_with_covariance.pose.orientation)
                 velocity = object.kinematics.initial_twist_with_covariance.twist.linear.x
                 yaw_rate = object.kinematics.initial_twist_with_covariance.twist.angular.z
@@ -972,7 +971,7 @@ class Cr2Auto(Node):
         for i in range(len(work_traj)):
             # compute new position
             position = self.map2utm(work_traj[i].position)
-            orientation = Cr2Auto.quaternion2orientation(work_traj[i].orientation)
+            orientation = quaternion2orientation(work_traj[i].orientation)
             # create new state
             new_state = CustomState(position=position, orientation=orientation, time_step=i)
             # add new state to state_list
@@ -1011,9 +1010,12 @@ class Cr2Auto(Node):
             self.get_logger().info("Setting new state to: " + str(new_aw_state))
         self.aw_state_pub.publish(self.aw_state)
 
+        if new_aw_state != AutowareState.DRIVING:
+            self.engage_status = False
+
         # Send engage signal
         engage_msg = Engage()
-        engage_msg.engage = new_aw_state == AutowareState.DRIVING
+        engage_msg.engage = self.engage_status
         self.engage_pub.publish(engage_msg)
         self.vehicle_engage_pub.publish(engage_msg)
         self.ext_engage_pub.publish(engage_msg)
@@ -1044,7 +1046,7 @@ class Cr2Auto(Node):
             pos_x = position[0]
             pos_y = position[1]
             self.get_logger().info("Pose position utm: " + str(position))
-            orientation = Cr2Auto.quaternion2orientation(current_msg.pose.orientation)
+            orientation = quaternion2orientation(current_msg.pose.orientation)
             if self.ego_vehicle_state is None:
                 self.get_logger().error("ego vehicle state is None")
                 return
@@ -1084,6 +1086,8 @@ class Cr2Auto(Node):
             self._plan_route()
             self._pub_goals()
 
+            self.set_state(AutowareState.WAITING_FOR_ENGAGE)
+
             self.route_planned = True
         else:
 
@@ -1097,29 +1101,20 @@ class Cr2Auto(Node):
         """
         self.last_msg_aw_state = msg.state
 
-    """
+    # The engage signal is sent by the tum_state_rviz_plugin
+    # msg.engage sent by tum_state_rviz_plugin will always be true
     def engage_callback(self, msg: Engage) -> None:
 
-        if msg.engage == self.last_engage_msg:
-            return
-
-        self.last_engage_msg = msg.engage
+        self.engage_status = not self.engage_status
 
         if self.get_parameter("detailed_log").get_parameter_value().bool_value:
-            self.get_logger().info("Engage message received! Engage: " + str(self.last_engage_msg) + ", current state: " + str(self.get_state()))
+            self.get_logger().info("Engage message received! Engage: " + str(self.engage_status) + ", current state: " + str(self.get_state()))
 
-        # Autoware has been modified (see README) not to set the engage message so that this interface has to send it
-        # Send engage message
-        engage_msg = Engage()
-        engage_msg.engage = self.last_engage_msg
-        self.engage_pub.publish(engage_msg)
-
-        # Update state panel accordingly
-        if self.last_engage_msg and self.get_state() == AutowareState.WAITING_FOR_ENGAGE:
+        # Update Autoware state panel
+        if self.engage_status and self.get_state() == AutowareState.WAITING_FOR_ENGAGE:
             self.set_state(AutowareState.DRIVING)
-        if not self.last_engage_msg and self.get_state() == AutowareState.DRIVING:
+        if not self.engage_status and self.get_state() == AutowareState.DRIVING:
             self.set_state(AutowareState.WAITING_FOR_ENGAGE)
-    """
 
     def _calculate_velocities(self, states, init_velocity):
 
@@ -1172,7 +1167,7 @@ class Cr2Auto(Node):
             # new_point.time_from_start = Duration(sec=int(sec), nanosec=int(nano_sec * 1e9))
             new_point.pose.position = self.utm2map(states[i].position)
             position_list.append([states[i].position[0], states[i].position[1]])
-            new_point.pose.orientation = Cr2Auto.orientation2quaternion(states[i].orientation)
+            new_point.pose.orientation = orientation2quaternion(states[i].orientation)
             new_point.longitudinal_velocity_mps = float(states[i].velocity)
             # self.get_logger().info(str(states[i].velocity))
 
@@ -1184,9 +1179,6 @@ class Cr2Auto(Node):
 
         self.traj_pub.publish(self.traj)
         self.get_logger().info('New trajectory published !!!')
-
-        if self.get_parameter("detailed_log").get_parameter_value().bool_value:
-            self.get_logger().info("Published trajectory positions: " + str(position_list))
 
         # visualize_solution(self.scenario, self.planning_problem, create_trajectory_from_list_states(path)) #ToDo: test
 
@@ -1331,23 +1323,21 @@ class Cr2Auto(Node):
                 # change config parameters of velocity smoother if whole path not calculated
                 vel = 0
 
-            p = self.utm2map(point)
-            p.z = 0.0
+            #p = self.utm2map(point)
+            #p.z = 0
+            p = point
             route.points.append(p)
 
             c = ColorRGBA()
-            c.r = 0.7 * vel / max_velocity
-            c.g = 0.7 * vel / max_velocity
-            c.b = 1.0
+            c.r = 1.0 * vel / max_velocity
+            c.g = 0.0
+            c.b = 1.0 - 1.0 * vel/ max_velocity
             c.a = 1.0
             route.colors.append(c)
 
         route_msg = MarkerArray()
         route_msg.markers.append(route)
         self.route_pub.publish(route_msg)
-
-        for p in path:
-            self.get_logger().info("Path point: " + str(self.utm2map(p)))
 
         if self.get_parameter("detailed_log").get_parameter_value().bool_value:
             self.get_logger().info("Reference path published!")

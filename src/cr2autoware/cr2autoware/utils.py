@@ -1,5 +1,6 @@
 import enum
 from typing import List
+import math
 
 import matplotlib.pyplot as plt
 from commonroad.geometry.shape import Rectangle
@@ -10,6 +11,8 @@ from commonroad.scenario.scenario import Scenario
 from commonroad.scenario.trajectory import State, Trajectory
 # import CommonRoad-io modules
 from commonroad.visualization.mp_renderer import MPRenderer
+
+from geometry_msgs.msg import Quaternion
 
 
 @enum.unique
@@ -103,3 +106,33 @@ def visualize_solution(scenario: Scenario,
         plt.gca().set_aspect('equal')
         renderer.render()
         plt.pause(0.1)
+
+def orientation2quaternion(orientation: float) -> Quaternion:
+    """
+    Transform orientation (in commonroad) to quaternion (in autoware).
+    :param orientation: orientation angles
+    :return: orientation quaternion
+    """
+    quat = Quaternion()
+    quat.w = math.cos(orientation * 0.5)
+    quat.z = math.sin(orientation * 0.5)
+    return quat
+
+def quaternion2orientation(quaternion: Quaternion) -> float:
+    """
+    Transform quaternion (in autoware) to orientation (in commonroad).
+    :param quaternion: orientation quaternion
+    :return: orientation angles
+    """
+    z = quaternion.z
+    w = quaternion.w
+    mag2 = (z * z) + (w * w)
+    epsilon = 1e-6
+    if abs(mag2 - 1.0) > epsilon:
+        mag = 1.0 / math.sqrt(mag2)
+        z *= mag
+        w *= mag
+
+    y = 2.0 * w * z
+    x = 1.0 - 2.0 * z * z
+    return math.atan2(y, x)
