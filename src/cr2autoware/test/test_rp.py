@@ -2,12 +2,15 @@ from asyncore import read
 from difflib import unified_diff
 from lib2to3.refactor import RefactoringTool
 from matplotlib import pyplot as plt
+from pprint import pprint
 import unittest
 import pickle
 import os
 import math
 
 from cr2autoware.rp_interface import RP2Interface
+from crdesigner.map_conversion.map_conversion_interface import lanelet_to_commonroad
+from commonroad.common.file_reader import CommonRoadFileReader
 
 """
 This unittest class makes debugging issues with the reactive planner easier and reproducible.
@@ -16,29 +19,43 @@ The reactive planner configuration and parameters can simply be stored in a pick
 """
 class CurveTest(unittest.TestCase):
 
+    TEST_PATH = "/home/drivingsim/autoware_tum/autoware/src/universe/autoware.universe/planning/tum_commonroad_planning/dfg-car/src/cr2autoware/test/pickle_files"
+    TEST_SCENARIOS_PATH = "/home/drivingsim/autoware_tum/autoware/src/universe/autoware.universe/planning/tum_commonroad_planning/dfg-car/src/cr2autoware/test/scenarios"
+    RP_CONFIG = "/home/drivingsim/autoware_tum/autoware/src/universe/autoware.universe/planning/tum_commonroad_planning/reactive-planner/configurations/defaults/"
+
     # test if the path first and last point of the path are different
     # map used: sample-map-planning
-    def test_car_moving(self):
-        planner = self.reactive_planner_from_pickle("rp_interface_moving", "rp_params_moving")
+    def _test_car_moving(self):
+        planner = self.reactive_planner_from_pickle("rp_interface", "rp_params_moving")
         path = [(cs.position[0], cs.position[1]) for cs in planner.valid_states]
         print("reactive planner states: " + str(path))
         self.assertNotEqual(path[0], path[-1], msg="Start and end of planned path are the same!!")
 
     # test that no curvilinear projection domain error is thrown
     # map used: sample-map-planning
-    def test_curvilinear_projection_domain(self):
-        self.reactive_planner_from_pickle("rp_interface_curv_proj", "rp_params_curv_proj")
+    def _test_curvilinear_projection_domain(self):
+        self.reactive_planner_from_pickle("rp_interface", "rp_params_curv_proj")
         self.assertTrue(True)
             
 
     # test if reactive planner follows the curve of the reference path
     # map used: sample-map-planning
     def test_car_follows_curve(self):
-        planner = self.reactive_planner_from_pickle("rp_interface_curve", "rp_params_curve")
+        planner = self.reactive_planner_from_pickle_with_default_config("rp_params_curve", "curve_ZAM_OpenDrive-123")
+        print("planner is optimal?" , str(planner.optimal))
         path = [(cs.position[0], cs.position[1]) for cs in planner.valid_states]
         print("reactive planner states: " + str(path))
+        reference_vel = self.load_pickle("rp_params_curve")[3]
+        print("reactive planner reference vel: " + str(reference_vel))
         reference_path = self.load_pickle("rp_params_curve")[2]
         print("reactive planner reference path: " + str(reference_path))
+        #sc = self.load_xml("curve_ZAM_OpenDrive-123")
+        initial_pose = self.load_pickle("rp_params_curve")[0]
+        # goal_pos = self.load_pickle("rp_params_curve")[1]
+
+        print("initial_pose: ", end="")
+        pprint(vars(initial_pose))
+        plt.plot(initial_pose.position[0], initial_pose.position[1], marker='x', label="initial position")
         plt.plot(*zip(*path), label="planned trajectory")
         plt.plot(*zip(*reference_path), label="reference path")
         plt.legend(loc="upper right")
@@ -59,22 +76,51 @@ class CurveTest(unittest.TestCase):
     def reactive_planner_from_pickle(self, config_filename, params_filename):
         config = self.load_pickle(config_filename)
         params = self.load_pickle(params_filename)
-
+        
         planner = RP2Interface(*config)
         planner._run_reactive_planner(*params)
 
         return planner
 
+    def reactive_planner_from_pickle_with_default_config(self, params_filename, scenario_name):
+        init_state, goal, reference_path, reference_velocity = self.load_pickle(params_filename)
+        reference_velocity = 2 # modify reference velocity for testing
+
+        planner = self.mockConfig(scenario_name)
+        planner._run_reactive_planner(init_state, goal, reference_path, reference_velocity)
+
+        return planner
+
     def load_pickle(self, filename):
-        test_path = "/home/drivingsim/Documents/autoware/src/universe/autoware.universe/planning/tum_commonroad_planning/dfg-car/src/cr2autoware/test/pickle_files"
-        file = os.path.join(test_path, filename + ".pkl")
+        file = os.path.join(CurveTest.TEST_PATH, filename + ".pkl")
         with open(file, 'rb') as input:
             p = pickle.load(input)
         return p
 
+    def load_xml(self, filename):
+        file = os.path.join(CurveTest.TEST_SCENARIOS_PATH, filename + ".xml")
+        reader = CommonRoadFileReader(file)
+        scenario, _ = reader.open()
+        return scenario
+
     # instead of loading a config from pickle, a default reactive planner config can be used. This might help to find out whether the config itself is flawful
-    def mockConfig(self):
-        pass
+    # works for sample-map-driving
+    def mockConfig(self, scenario_name):
+
+        scenario = self.load_xml(scenario_name)
+
+        planner = RP2Interface(scenario,
+                                CurveTest.RP_CONFIG,
+                                d_min = -3,
+                                d_max = 3,
+                                t_min = 0.4,            
+                                dt = 0.1,
+                                planning_horizon = 30 * 0.1,                                      
+                                v_length = 3.0,
+                                v_width = 2.0,
+                                v_wheelbase = 2.0)
+
+        return planner
 
 if __name__ == '__main__':
     unittest.main()

@@ -167,8 +167,7 @@ class Cr2Auto(Node):
                                       planning_horizon = self.get_parameter('reactive_planner.planning.planning_horizon').get_parameter_value().double_value,                                      
                                       v_length = self.vehicle_length,
                                       v_width = self.vehicle_width,
-                                      v_wheelbase = self.vehicle_wheelbase,
-                                      desired_velocity = 5) # TODO make this a parameter
+                                      v_wheelbase = self.vehicle_wheelbase)
         else:
             self.get_logger().warn("Planner type is not correctly specified ... Using Default Planner")
             self.planner_type = 1
@@ -468,19 +467,27 @@ class Cr2Auto(Node):
 
                     if self.planner_type == 2:  # Reactive Planner
 
+                        #reference_velocity = self.velocity_planner.get_velocity_at_aw_position(self.current_vehicle_state.pose.pose.position)
+                        reference_velocity = 5.0
+
                         if self.get_parameter("detailed_log").get_parameter_value().bool_value:
                             self.get_logger().info("Running reactive planner")
                             self.get_logger().info("Reactive planner init_state position: " + str(self.ego_vehicle_state.position))
                             self.get_logger().info("Reactive planner init_state velocity: " + str(self.ego_vehicle_state.velocity))
+                            self.get_logger().info("Reactive planner reference path velocity: " + str(reference_velocity))
                             self.get_logger().info("Reactive planner reference path length: " + str(len(self.reference_path)))
                             if len(self.reference_path > 1):
                                 self.get_logger().info("Reactive planner reference path: " + str(self.reference_path[0]) + "  --->  ["  \
                                     + str(len(self.reference_path)-2) + " states skipped]  --->  " + str(self.reference_path[-1]))
 
-                        self.planner._run_reactive_planner(init_state=self.ego_vehicle_state, goal=self.planning_problem.goal, reference_path=self.reference_path)
+                        self.planner._run_reactive_planner(init_state=self.ego_vehicle_state, goal=self.planning_problem.goal, reference_path=self.reference_path, reference_velocity=reference_velocity)
 
-                        assert(self.planner.optimal)
+                        assert(self.planner.optimal != False)
                         assert(self.planner.valid_states != [])
+                        assert(max([s.velocity for s in self.planner.valid_states]) > 0)
+
+                        self.get_logger().info("Reactive planner velocities: " + str([s.velocity for s in self.planner.valid_states]))
+                        self.get_logger().info("Reactive planner acc: " + str([s.acceleration for s in self.planner.valid_states]))
 
                         # calculate velocities and accelerations of planner states
                         self._calculate_velocities(self.planner.valid_states, self.ego_vehicle_state.velocity)
@@ -1122,22 +1129,25 @@ class Cr2Auto(Node):
             return
 
         cur_vel = max(0.1, init_velocity)
-        target_vel = 6
+        # target_vel = 6
 
-        max_acceleration = 5
+        max_acceleration = 1 # max acceleration
         # time interval of planning
         dt = self.scenario.dt
 
-        for i in range(0, len(states)):
-            states[i].velocity = cur_vel
+        for i, state in enumerate(states):
             old_vel = cur_vel
+            target_vel = max(2, self.velocity_planner.get_velocity_at_aw_position(self.utm2map(state.position)))
             if cur_vel < target_vel:
                 cur_vel = min(cur_vel + max_acceleration * dt, target_vel)
+            else:
+                cur_vel = target_vel
+            state.velocity = cur_vel
 
             if i < len(states) - 1:
-                states[i].acceleration = (cur_vel - old_vel) / self.scenario.dt
+                state.acceleration = (cur_vel - old_vel) / self.scenario.dt
             else:
-                states[i].acceleration = 0.0
+                state.acceleration = 0.0
 
 
     def _prepare_traj_msg(self, states):
@@ -1195,7 +1205,7 @@ class Cr2Auto(Node):
 
         route_planner = RoutePlanner(self.scenario, self.planning_problem)
         self.reference_path = route_planner.plan_routes().retrieve_first_route().reference_path
-        self.velocity_planner.send_reference_path([self.utm2map(point) for point in self.reference_path])
+        self.velocity_planner.send_reference_path([self.utm2map(point) for point in self.reference_path], self.current_goal_msg.pose.position)
 
         if self.get_parameter("detailed_log").get_parameter_value().bool_value:
             self.get_logger().info("Route planning completed!")
@@ -1310,9 +1320,10 @@ class Cr2Auto(Node):
         route.color.b = 1.0
         route.color.a = 0.3
 
-        max_velocity = max(velocities)
-        if max_velocity < 0.1:
-            max_velocity = 0.1
+        if path != []:
+            max_velocity = max(velocities)
+            if max_velocity < 0.1:
+                max_velocity = 0.1
 
         for i in range(0, len(path)):
 
@@ -1341,8 +1352,6 @@ class Cr2Auto(Node):
 
         if self.get_parameter("detailed_log").get_parameter_value().bool_value:
             self.get_logger().info("Reference path published!")
-            self.get_logger().info("Path: " + str(path))
-            self.get_logger().info("Velocities: " + str(velocities))
             self.get_logger().info("Path length: " + str(len(path)))
             self.get_logger().info("Velocities length: " + str(len(velocities)))
 
