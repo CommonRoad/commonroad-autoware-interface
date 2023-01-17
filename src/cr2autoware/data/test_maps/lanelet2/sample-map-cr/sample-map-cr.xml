@@ -18581,6 +18581,21 @@
       </slipAngle>
     </initialState>
     <goalState>
+      <position>
+        <rectangle>
+          <length>4.0</length>
+          <width>2.5</width>
+          <orientation>-1.4291129649049596</orientation>
+          <center>
+            <x>2.390690803527832</x>
+            <y>-148.08712768554688</y>
+          </center>
+        </rectangle>
+      </position>
+      <orientation>
+        <intervalStart>-1.4291129649049596</intervalStart>
+        <intervalEnd>-0.62694</intervalEnd>
+      </orientation>
       <time>
         <intervalStart>33</intervalStart>
         <intervalEnd>33</intervalEnd>

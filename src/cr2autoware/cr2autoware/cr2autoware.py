@@ -42,7 +42,7 @@ from autoware_auto_planning_msgs.msg import TrajectoryPoint, PathWithLaneId, Pat
 from autoware_auto_planning_msgs.msg import Trajectory as AWTrajectory
 from autoware_auto_system_msgs.msg import AutowareState
 from autoware_auto_vehicle_msgs.msg import Engage
-from autoware_adapi_v1_msgs.msg import LocalizationInitializationState
+from dummy_perception_publisher.msg import Object
 
 
 # commonroad imports
@@ -75,6 +75,8 @@ from cr2autoware.utils import visualize_solution, display_steps, orientation2qua
 from cr2autoware.velocity_planner import VelocityPlanner
 
 from cr2autoware.rp_interface import RP2Interface
+
+DEFAULT_PROJ_STRING = "+proj=utm +zone=32 +ellps=WGS84"
 
 class Cr2Auto(Node):
     """
@@ -339,10 +341,17 @@ class Cr2Auto(Node):
         )
 
         # publish initial state of the scenario
-        self.intial_pose_pub = self.create_publisher(
+        self.initial_pose_pub = self.create_publisher(
             PoseWithCovarianceStamped,
             '/initialpose',
             1
+        )
+
+        # publish static obstacles
+        self.static_obs_pub = self.create_publisher(
+            Object,
+            '/simulation/dummy_perception_publisher/object_info',
+            1,
         )
 
         # vars to save last messages
@@ -373,6 +382,7 @@ class Cr2Auto(Node):
 
         if self.planning_problem_set is not None:
             self.publish_initial_states()
+            self.publish_initial_obstacles()
         else:
             raise ValueError("problem_set: %s" % self.planning_problem_set)
 
@@ -547,8 +557,12 @@ class Cr2Auto(Node):
             data = yaml.load(f, Loader=SafeLoader)
         self.aw_origin_latitude = Decimal(data["/**"]["ros__parameters"]["map_origin"]["latitude"])
         self.aw_origin_longitude = Decimal(data["/**"]["ros__parameters"]["map_origin"]["longitude"])
+        if abs(self.aw_origin_longitude) > 180 or abs(self.aw_origin_latitude) > 90:
+            # set origin point (TUM MI building) in default UTM 32 zone
+            self.aw_origin_latitude = 0
+            self.aw_origin_longitude = 0
 
-
+        
         utm_str = utm.from_latlon(float(self.aw_origin_latitude), float(self.aw_origin_longitude))
         self.proj_str = "+proj=utm +zone=%d +datum=WGS84 +ellps=WGS84" % (utm_str[2])
         if self.get_parameter("detailed_log").get_parameter_value().bool_value:
@@ -656,8 +670,7 @@ class Cr2Auto(Node):
         pose.orientation = Cr2Auto.orientation2quaternion(initial_state.orientation)
         initial_pose_msg.pose.pose = pose
         initial_pose_msg.pose.covariance = np.zeros(dtype=np.float64, shape=36) # TODO: clarify
-
-        self.intial_pose_pub.publish(initial_pose_msg)
+        self.initial_pose_pub.publish(initial_pose_msg)
 
         self.get_logger().info("initial pose x: %f" % initial_state.position[0])
         self.get_logger().info("initial pose y: %f" % initial_state.position[1])
@@ -681,6 +694,64 @@ class Cr2Auto(Node):
                 self.goal_pose_pub.publish(goal_msg)
                 self.get_logger().info("goal pose x: %f" % goal_state.position.center[0])
                 self.get_logger().info("goal pose y: %f" % goal_state.position.center[1])
+
+    def publish_initial_obstacles(self):
+        header = Header()
+        header.stamp = self.get_clock().now().to_msg()
+        header.frame_id = 'map'
+        for obstacle in self.scenario.static_obstacles:
+            object_msg = Object()
+            object_msg.header = header
+            pose = Pose()
+            pose.position.x = obstacle.initial_state.position[0]
+            pose.position.y = obstacle.initial_state.position[1]
+            pose.orientation = Cr2Auto.orientation2quaternion(obstacle.initial_state.orientation)
+            object_msg.initial_state.pose_covariance.pose = pose
+            object_msg.initial_state.twist_covariance.twist.linear.x = 3.0
+            object_msg.classification.label = 1
+            object_msg.classification.probability = 1.0
+            object_msg.shape.dimensions.x = obstacle.obstacle_shape.length
+            object_msg.shape.dimensions.y = obstacle.obstacle_shape.width
+            object_msg.shape.dimensions.z = 1.5
+            object_msg.max_velocity = 0.0
+            object_msg.min_velocity = 0.0
+
+            self.static_obs_pub.publish(object_msg)
+            self.get_logger().info(
+                "published a static obstacle at: (%f %f). Dim: (%f, %f)" % (
+                    pose.position.x, pose.position.y,
+                    object_msg.shape.dimensions.x, object_msg.shape.dimensions.y
+                    )
+                )
+
+        for obstacle in self.scenario.dynamic_obstacles:
+            object_msg = Object()
+            object_msg.header = header
+            pose = Pose()
+            pose.position.x = obstacle.initial_state.position[0]
+            pose.position.y = obstacle.initial_state.position[1]
+            pose.orientation = Cr2Auto.orientation2quaternion(obstacle.initial_state.orientation)
+            object_msg.initial_state.pose_covariance.pose = pose
+            object_msg.initial_state.twist_covariance.twist.linear.x = 3.0
+            object_msg.classification.label = 1
+            object_msg.classification.probability = 1.0
+            object_msg.shape.dimensions.x = obstacle.obstacle_shape.length
+            object_msg.shape.dimensions.y = obstacle.obstacle_shape.width
+            object_msg.shape.dimensions.z = 2.0
+            # object_msg.max_velocity = 33.3
+            # object_msg.min_velocity = -33.3
+
+            self.static_obs_pub.publish(object_msg)
+            self.get_logger().info(
+                "published a dynamic obstacle at: (%f %f). Dim: (%f, %f)" % (
+                    pose.position.x, pose.position.y,
+                    object_msg.shape.dimensions.x, object_msg.shape.dimensions.y
+                    )
+                )
+
+    
+
+
 
 
     def current_state_callback(self, msg: Odometry) -> None:
