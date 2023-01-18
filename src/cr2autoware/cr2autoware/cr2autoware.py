@@ -153,6 +153,7 @@ class Cr2Auto(Node):
 
         self.build_scenario()  # build scenario from osm map
         self.convert_origin()
+        self.flag = False
 
         
         # Define Planner 
@@ -380,17 +381,19 @@ class Cr2Auto(Node):
         #    timer_period_sec=self.get_parameter("goal_is_reached_update_time").get_parameter_value().double_value,
         #    callback=self._is_goal_reached, callback_group=self.callback_group)
 
+
         if self.planning_problem_set is not None:
             self.publish_initial_states()
             self.publish_initial_obstacles()
+            self.update_scenario()
         else:
-            raise ValueError("problem_set: %s" % self.planning_problem_set)
+            self.get_logger().info("planning_problem not set")
 
-        self.set_state(AutowareState.WAITING_FOR_ROUTE)
 
         if self.get_parameter("detailed_log").get_parameter_value().bool_value:
             self.get_logger().info("Detailed log is enabled")
             self.get_logger().info("Init complete!")
+            
 
     def update_scenario(self):
         """
@@ -457,6 +460,10 @@ class Cr2Auto(Node):
 
                 if not self.velocity_planner.get_is_velocity_planning_completed():
                     self.get_logger().info("Can't run route planner because interface is still waiting for velocity planner")
+                    if not self.flag: # quick fix. TODO: make better
+                        self.publish_initial_states()
+                        self.update_scenario()
+                        self.flag = True
                     return
 
                 if not self.reference_path_published:
@@ -743,8 +750,8 @@ class Cr2Auto(Node):
             # object_msg.initial_state.twist_covariance.twist.linear.y = obstacle.initial_state.acceleration
             # object_msg.initial_state.accel_covariance.accel.linear.x = np.cos(obstacle.initial_state.orientation) * obstacle.initial_state.acceleration
             # object_msg.initial_state.accel_covariance.accel.linear.y = np.sin(obstacle.initial_state.orientation) * obstacle.initial_state.acceleration
-            object_msg.max_velocity = 33.3
-            object_msg.min_velocity = -33.3
+            object_msg.max_velocity = 20.0
+            object_msg.min_velocity = -10.0
 
             self.static_obs_pub.publish(object_msg)
             self.get_logger().info(

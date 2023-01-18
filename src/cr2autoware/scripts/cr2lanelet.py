@@ -54,8 +54,8 @@ else:
             proj = "+proj=utm +zone=%d +datum=WGS84 +ellps=WGS84" % utm.from_latlon(lat, lon)[2]
             print(utm.from_latlon(lat, lon)[2])
         else:
-            proj = "+proj=utm +zone=%d +datum=WGS84 +ellps=WGS84" % utm.from_latlon(11.66821, 48.26301)[2]
-            print(utm.from_latlon(11.66821, 48.26301))
+            proj = "+proj=utm +zone=32 +ellps=WGS84"
+            # print(utm.from_latlon(11.66821, 48.26301))
             
     except etree.XMLSyntaxError as xml_error:
         print(f"SyntaxError: {xml_error}")
