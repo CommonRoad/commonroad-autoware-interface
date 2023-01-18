@@ -96,7 +96,8 @@ class Cr2Auto(Node):
         self.declare_parameter('vehicle.width', 2.0)
         self.declare_parameter('vehicle.front_overhang', 0.5)
         self.declare_parameter('vehicle.rear_overhang', 0.5)
-        self.declare_parameter('map_osm_path', '')
+        self.declare_parameter('map_path', '')
+        #self.declare_parameter('map_osm_path', '')
         self.declare_parameter('left_driving', False)
         self.declare_parameter('adjacencies', False)
         self.declare_parameter('reactive_planner.default_yaml_folder', '')
@@ -112,6 +113,8 @@ class Cr2Auto(Node):
         self.declare_parameter("planner_update_time", 0.5)
         self.declare_parameter("goal_is_reached_update_time", 0.1)
         self.declare_parameter("detailed_log", False)
+
+        self.get_logger().info("Map path is: " + self.get_parameter("map_path").get_parameter_value().string_value)
 
         self.init_proj_str()
 
@@ -357,6 +360,7 @@ class Cr2Auto(Node):
 
         if self.get_parameter("detailed_log").get_parameter_value().bool_value:
             self.get_logger().info("Detailed log is enabled")
+            self.get_logger().info("Map path is: " + self.get_parameter("map_path").get_parameter_value().string_value)
             self.get_logger().info("Init complete!")
 
     def update_scenario(self):
@@ -512,7 +516,7 @@ class Cr2Auto(Node):
     
     def init_proj_str(self):
 
-        map_path = self.get_parameter('map_osm_path').get_parameter_value().string_value
+        map_path = self.get_parameter('map_path').get_parameter_value().string_value
         if not os.path.exists(map_path):
             raise ValueError("Can't find given map path: %s" % map_path)
 
@@ -582,7 +586,7 @@ class Cr2Auto(Node):
         """
         Transform map from osm/lanelet2 format to commonroad scenario format.
         """
-        map_path = self.get_parameter('map_osm_path').get_parameter_value().string_value
+        map_path = self.get_parameter('map_path').get_parameter_value().string_value
         # get osm file in folder map_path
         map_filename = list(glob.iglob(os.path.join(map_path, '*.[oO][sS][mM]')))[0]
         

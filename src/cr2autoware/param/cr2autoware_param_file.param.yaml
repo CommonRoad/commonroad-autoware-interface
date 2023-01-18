@@ -1,9 +1,8 @@
 /**:
   ros__parameters:
-    map_osm_path: "sample-map-planning"
     left_driving: True
     adjacencies: False
-    write_scenario: False # write generated scenario as xml file after map is converted
+    write_scenario: True # write generated scenario as xml file after map is converted
     plot_scenario: False
     scenario_update_time: 0.25 # run each x.x seconds
     planner_update_time: 0.5 # run each x.x seconds
@@ -24,7 +23,7 @@
 
     # parameters for reactive planner
     reactive_planner:
-      default_yaml_folder: "/home/drivingsim/Documents/autoware/src/universe/autoware.universe/planning/tum_commonroad_planning/reactive-planner/configurations/defaults/"
+      default_yaml_folder: "/home/drivingsim/autoware_tum/autoware/src/universe/autoware.universe/planning/tum_commonroad_planning/reactive-planner/configurations/defaults/"
       sampling:
         # lateral sampling interval
         d_min: -3
