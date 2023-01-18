@@ -29,7 +29,7 @@
         d_min: -3
         d_max: 3
         # minimum time sampling in s (t_max is given by planning horizon)
-        t_min: 0.1
+        t_min: 0.4
 
       planning:
         # planner time step (in s)

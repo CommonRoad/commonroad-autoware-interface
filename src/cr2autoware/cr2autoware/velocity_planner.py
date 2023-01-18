@@ -24,19 +24,23 @@ class VelocityPlanner():
         self.velocity_planning_completed = False
         self.point_list = None
         self.velocities = None
+        self.tail = None
 
     def set_publisher(self, pub):
         self.pub = pub
 
     # convert reference path to a trajectory and publish it to the motion velocity smoother module
-    def send_reference_path(self, point_list, goal_pos):
+    def send_reference_path(self, input_point_list, goal_pos):
 
         if self.detailed_log:
             self.logger.info("Preparing velocity planner message...")
 
         self.velocity_planning_completed = False
 
-        # TODO Shorten reference path so that it ends at goal position
+        # Shorten reference path so that it ends at the goal position
+        goal_id = self._get_pathpoint_near_aw_position(input_point_list, goal_pos)
+        self.tail = input_point_list[goal_id+1:]
+        point_list = input_point_list[:goal_id+1]
 
         # compute orientations
         polyline = np.array([(p.x, p.y) for p in point_list])
@@ -60,6 +64,7 @@ class VelocityPlanner():
             self.logger.info("Velocity planner message published!")
 
     def smoothed_trajectory_callback(self, msg: AWTrajectory):
+
         if self.detailed_log:
             self.logger.info("Smoothed AW Trajectory received!")
 
@@ -70,8 +75,11 @@ class VelocityPlanner():
             point_list.append(point.pose.position)
             velocity_list.append(point.longitudinal_velocity_mps)
 
-        self.point_list = point_list
-        self.velocities = velocity_list
+        # append tail of reference trajectory
+        zeros = [0] * len(self.tail)
+
+        self.point_list = point_list + self.tail
+        self.velocities = velocity_list + zeros
         self.velocity_planning_completed = True
 
     # get the velocities belonging to the current reference path
@@ -80,14 +88,14 @@ class VelocityPlanner():
 
     # find the closest reference path point for a given position and return it's velocity
     def get_velocity_at_aw_position(self, position):
-        v = self.velocities[self.get_pathpoint_near_aw_position(position)]
+        v = self.velocities[self._get_pathpoint_near_aw_position(self.point_list, position)]
         return v
 
     # get closest pathpoint to a given position (in Autoware coordinate system)
-    def get_pathpoint_near_aw_position(self, position):
+    def _get_pathpoint_near_aw_position(self, list, position):
         min_dist = None
         min_i = 0
-        for i, point in enumerate(self.point_list):
+        for i, point in enumerate(list):
             dist = math.sqrt((point.x - position.x)**2 + (point.y - position.y)**2)
             if min_dist == None or dist <= min_dist:
                 min_dist = dist

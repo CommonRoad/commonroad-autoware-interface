@@ -16,6 +16,7 @@ import glob
 import yaml
 from yaml.loader import SafeLoader
 from decimal import Decimal
+from scipy.interpolate import splprep, splev
 
 # ROS imports
 import rclpy
@@ -54,6 +55,8 @@ from commonroad.scenario.state import CustomState
 from commonroad.scenario.trajectory import Trajectory as CRTrajectory
 from commonroad.prediction.prediction import TrajectoryPrediction
 from commonroad.visualization.mp_renderer import MPRenderer
+
+from commonroad_dc.geometry.util import resample_polyline
 
 from crdesigner.map_conversion.map_conversion_interface import lanelet_to_commonroad
 
@@ -448,30 +451,36 @@ class Cr2Auto(Node):
 
                     if self.planner_type == 2:  # Reactive Planner
 
-                        #reference_velocity = self.velocity_planner.get_velocity_at_aw_position(self.current_vehicle_state.pose.pose.position)
-                        reference_velocity = 5.0
+                        reference_velocity = max(1, self.velocity_planner.get_velocity_at_aw_position(self.current_vehicle_state.pose.pose.position))
 
                         if self.get_parameter("detailed_log").get_parameter_value().bool_value:
                             self.get_logger().info("Running reactive planner")
                             self.get_logger().info("Reactive planner init_state position: " + str(self.ego_vehicle_state.position))
-                            self.get_logger().info("Reactive planner init_state velocity: " + str(self.ego_vehicle_state.velocity))
+                            self.get_logger().info("Reactive planner init_state velocity: " + str(max(0.1, self.ego_vehicle_state.velocity)))
                             self.get_logger().info("Reactive planner reference path velocity: " + str(reference_velocity))
                             self.get_logger().info("Reactive planner reference path length: " + str(len(self.reference_path)))
                             if len(self.reference_path > 1):
                                 self.get_logger().info("Reactive planner reference path: " + str(self.reference_path[0]) + "  --->  ["  \
                                     + str(len(self.reference_path)-2) + " states skipped]  --->  " + str(self.reference_path[-1]))
 
-                        self.planner._run_reactive_planner(init_state=self.ego_vehicle_state, goal=self.planning_problem.goal, reference_path=self.reference_path, reference_velocity=reference_velocity)
+                        # when starting the route and the initial velocity is 0, the reactive planner would return zero velocity for
+                        # it's first state and thus never start driving. As a result, we increase the velocity a little bit here
+                        init_state=deepcopy(self.ego_vehicle_state)
+                        if init_state.velocity == 0:
+                            init_state.velocity = 0.1
+
+                        self.planner._run_reactive_planner(init_state=init_state, goal=self.planning_problem.goal, reference_path=self.reference_path, reference_velocity=reference_velocity)
 
                         assert(self.planner.optimal != False)
                         assert(self.planner.valid_states != [])
                         assert(max([s.velocity for s in self.planner.valid_states]) > 0)
 
+                        self.get_logger().info("Reactive planner trajectory: " + str([self.planner.valid_states[0].position]) + " -> ... -> " + str([self.planner.valid_states[-1].position]))
                         self.get_logger().info("Reactive planner velocities: " + str([s.velocity for s in self.planner.valid_states]))
                         self.get_logger().info("Reactive planner acc: " + str([s.acceleration for s in self.planner.valid_states]))
 
                         # calculate velocities and accelerations of planner states
-                        self._calculate_velocities(self.planner.valid_states, self.ego_vehicle_state.velocity)
+                        # self._calculate_velocities(self.planner.valid_states, self.ego_vehicle_state.velocity)
 
                         # publish trajectory
                         self._prepare_traj_msg(self.planner.valid_states)
@@ -1122,7 +1131,19 @@ class Cr2Auto(Node):
             self.get_logger().info("Planning route")
 
         route_planner = RoutePlanner(self.scenario, self.planning_problem)
-        self.reference_path = route_planner.plan_routes().retrieve_first_route().reference_path
+        reference_path = route_planner.plan_routes().retrieve_first_route().reference_path
+
+        # smooth reference path
+        tck, u = splprep(reference_path.T, u=None, k=3, s=0.0)
+        u_new = np.linspace(u.min(), u.max(), 200)
+        x_new, y_new = splev(u_new, tck, der=0)
+        reference_path = np.array([x_new, y_new]).transpose()
+        reference_path = resample_polyline(reference_path, 1)
+        # remove duplicated vertices in reference path
+        _, idx = np.unique(reference_path, axis=0, return_index=True)
+        reference_path = reference_path[np.sort(idx)]
+        self.reference_path = reference_path
+
         self.velocity_planner.send_reference_path([self.utm2map(point) for point in self.reference_path], self.current_goal_msg.pose.position)
 
         if self.get_parameter("detailed_log").get_parameter_value().bool_value:

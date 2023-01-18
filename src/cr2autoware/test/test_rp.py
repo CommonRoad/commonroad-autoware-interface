@@ -16,6 +16,8 @@ from commonroad.common.file_reader import CommonRoadFileReader
 This unittest class makes debugging issues with the reactive planner easier and reproducible.
 The reactive planner configuration and parameters can simply be stored in a pickle file
 (corresponding method is provided in cr2autoware/rp_interface.py) and directly be loaded here
+
+Run unittests from the cr2autoware/test folder with the command: python3 -m unittest test_rp.py
 """
 class CurveTest(unittest.TestCase):
 
@@ -60,7 +62,7 @@ class CurveTest(unittest.TestCase):
         plt.plot(*zip(*reference_path), label="reference path")
         plt.legend(loc="upper right")
         plt.title("Reactive planner reference path vs. planned trajectory\n(test_car_follows_curve)")
-        plt.show()
+        #plt.show()
 
         # calculate distance between last point of trajectory and reference path
         te = path[-1]
@@ -69,7 +71,33 @@ class CurveTest(unittest.TestCase):
             dist = math.sqrt((te[0] - rpp[0])**2 + (te[1] - rpp[1])**2)
             if dist < min_dist:
                 min_dist = dist
-        self.assertLess(min_dist, 2, msg="The end of the planned trajectory differs too much from the reference path! The car isn't following the curve!! See displayed plot for details")
+        self.assertLess(min_dist, 1, msg="The end of the planned trajectory differs too much from the reference path! The car isn't following the curve!! See displayed plot for details")
+
+    # test if the reactive planner has spikes in velocities
+    def test_spike(self):
+        #init_state, goal, reference_path, reference_velocity = self.load_pickle("rp_params_spike")
+        #planner = self.mockConfig("spike_ZAM_OpenDrive-123")
+        #planner._run_reactive_planner(init_state, goal, reference_path, reference_velocity)
+        config = self.load_pickle("rp_interface_spike")
+        params = self.load_pickle("rp_params_spike")
+
+        scenario, dir_config_default, d_min, d_max, t_min, dt, planning_horizon, v_length, v_width, v_wheelbase = config
+        
+        scenario = self.load_xml("spike_ZAM_OpenDrive-123")
+
+        print("rp config: ", d_min, d_max, t_min, dt, planning_horizon, v_length, v_width, v_wheelbase)
+        t_min = 0.4 # 0.1
+        planning_horizon = 5.0
+
+        planner = RP2Interface(scenario, dir_config_default, d_min, d_max, t_min, dt, planning_horizon, v_length, v_width, v_wheelbase)
+        planner._run_reactive_planner(*params)
+        vels = [s.velocity for s in planner.valid_states]
+        accs = [s.acceleration for s in planner.valid_states]
+        print("Reactive planner velocities: " + str(vels))
+        print("Reactive planner acc: " + str(accs))
+
+        self.assertEqual(vels[0], 0)
+        self.assertLess(vels[1], 2)
 
     # load a reactive planner configuration from a pickle file and run the reactive planner with parameters from another pickle file
     # returns the planner object
@@ -84,7 +112,6 @@ class CurveTest(unittest.TestCase):
 
     def reactive_planner_from_pickle_with_default_config(self, params_filename, scenario_name):
         init_state, goal, reference_path, reference_velocity = self.load_pickle(params_filename)
-        reference_velocity = 2 # modify reference velocity for testing
 
         planner = self.mockConfig(scenario_name)
         planner._run_reactive_planner(init_state, goal, reference_path, reference_velocity)
