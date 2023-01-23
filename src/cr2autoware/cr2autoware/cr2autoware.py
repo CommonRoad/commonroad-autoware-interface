@@ -690,23 +690,37 @@ class Cr2Auto(Node):
         # publish the goal if present
         if len(self.scenario.planning_problem.goal.state_list) > 0:
             goal_state = self.scenario.planning_problem.goal.state_list[0]
-            if hasattr(goal_state, 'position') and hasattr(goal_state, 'orientation'):
+            position, orientation = None, None
+            if isinstance(goal_state.position, ShapeGroup): # goal is a lanelet => compute orientation from its shape
+                shape = goal_state.position.shapes[0]
+                position = (shape.vertices[0] + shape.vertices[1]) / 2 # starting middle point on the goal lanelet
+                possible_lanelets = self.scenario.lanelet_network.find_lanelet_by_shape(shape)
+                for pl in possible_lanelets: # find an appropriate lanelet
+                    try:
+                        orientation = Cr2Auto.orientation2quaternion(
+                            self.scenario.lanelet_network.find_lanelet_by_id(pl).orientation_by_position(position))
+                        break
+                    except AssertionError:
+                        continue
 
+            if hasattr(goal_state, 'position') and hasattr(goal_state, 'orientation') or (
+                position is not None and orientation is not None): # for the ShapeGrop case
+                if position is None and orientation is None:
+                    position = goal_state.position.center
+                    orientation = Cr2Auto.orientation2quaternion(goal_state.orientation.start) # w,z
                 goal_msg = PoseStamped()
                 goal_msg.header = Header()
                 goal_msg.header.stamp = self.get_clock().now().to_msg()
                 goal_msg.header.frame_id = 'map'
                 pose = Pose()
-                # aw_point = self.utm2map(initial_state.position)
-                pose.position.x = goal_state.position.center[0]
-                pose.position.y = goal_state.position.center[1]
+                pose.position.x = position[0]
+                pose.position.y = position[1]
                 pose.position.z = 0.0
-                pose.orientation = Cr2Auto.orientation2quaternion(goal_state.orientation.start) # w,z
+                pose.orientation = orientation
                 goal_msg.pose = pose
                 self.goal_pose_pub.publish(goal_msg)
-                self.get_logger().info("goal pose x: %f" % goal_state.position.center[0])
-                self.get_logger().info("goal pose y: %f" % goal_state.position.center[1])
-            # publish goal region(s)
+                self.get_logger().info("goal pose: (%f, %f)" % (pose.position.x, pose.position.y))
+            # publish visual goal region(s)
             id = 0xffff # just a value
             goal_region_msgs = MarkerArray()
             for goal_state in self.scenario.planning_problem.goal.state_list:
@@ -744,7 +758,7 @@ class Cr2Auto(Node):
                             marker.scale.x = shape.radius
                             marker.scale.y = shape.radius
                             marker.scale.z = 0.001
-                        elif isinstance(shape, Polygon): # polygon
+                        elif isinstance(shape, Polygon): # visualizes borders of a goal region
                             marker.type = Marker.LINE_STRIP
                             marker.scale.x = 0.15
                             points = []
@@ -807,20 +821,17 @@ class Cr2Auto(Node):
             object_msg.shape.dimensions.y = obstacle.obstacle_shape.width
             object_msg.shape.dimensions.z = 2.0
             object_msg.initial_state.twist_covariance.twist.linear.x = obstacle.initial_state.velocity
-            # object_msg.initial_state.twist_covariance.twist.linear.x = np.cos(obstacle.initial_state.velocity) * obstacle.initial_state.velocity
-            # object_msg.initial_state.twist_covariance.twist.linear.y = np.sin(obstacle.initial_state.velocity) * obstacle.initial_state.velocity
-            # object_msg.initial_state.twist_covariance.twist.linear.y = obstacle.initial_state.acceleration
-            # object_msg.initial_state.accel_covariance.accel.linear.x = np.cos(obstacle.initial_state.orientation) * obstacle.initial_state.acceleration
-            # object_msg.initial_state.accel_covariance.accel.linear.y = np.sin(obstacle.initial_state.orientation) * obstacle.initial_state.acceleration
+            object_msg.initial_state.accel_covariance.accel.linear.x = obstacle.initial_state.acceleration
             object_msg.max_velocity = 20.0
             object_msg.min_velocity = -10.0
 
             self.initial_obs_pub.publish(object_msg)
             self.get_logger().info(
-                "published a dynamic obstacle at: (%f %f); Dim: (%f, %f); velocity: %f" % (
+                "published a dynamic obstacle at: (%f %f); Dim: (%f, %f); velocity: %f; acceleration: %f" % (
                     pose.position.x, pose.position.y,
                     object_msg.shape.dimensions.x, object_msg.shape.dimensions.y,
-                    obstacle.initial_state.velocity
+                    obstacle.initial_state.velocity,
+                    obstacle.initial_state.acceleration
                     )
                 )
 
