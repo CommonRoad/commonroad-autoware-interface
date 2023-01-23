@@ -1,12 +1,10 @@
-import os
 import numpy as np
 import math
 
 from cr2autoware.utils import orientation2quaternion
 
 from builtin_interfaces.msg import Duration
-from geometry_msgs.msg import Pose, Twist, Quaternion
-from autoware_auto_planning_msgs.msg import PathWithLaneId, Path, PathPoint, PathPointWithLaneId, TrajectoryPoint
+from autoware_auto_planning_msgs.msg import TrajectoryPoint
 from autoware_auto_planning_msgs.msg import Trajectory as AWTrajectory
 from commonroad_dc.geometry.util import compute_orientation_from_polyline
 

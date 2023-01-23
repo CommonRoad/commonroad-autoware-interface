@@ -1,6 +1,5 @@
 # general imports
 import os
-import time
 from re import A
 from turtle import position
 import utm
@@ -18,7 +17,6 @@ import yaml
 from yaml.loader import SafeLoader
 from decimal import Decimal
 from scipy.interpolate import splprep, splev
-from threading import Thread
 
 # ROS imports
 import rclpy
@@ -40,7 +38,7 @@ from std_msgs.msg import ColorRGBA
 
 # Autoware message imports
 from autoware_auto_perception_msgs.msg import DetectedObjects, PredictedObjects
-from autoware_auto_planning_msgs.msg import TrajectoryPoint, PathWithLaneId, Path
+from autoware_auto_planning_msgs.msg import TrajectoryPoint
 from autoware_auto_planning_msgs.msg import Trajectory as AWTrajectory
 from autoware_auto_system_msgs.msg import AutowareState
 from autoware_auto_vehicle_msgs.msg import Engage
@@ -63,7 +61,6 @@ from commonroad_dc.geometry.util import resample_polyline
 from crdesigner.map_conversion.map_conversion_interface import lanelet_to_commonroad
 
 from SMP.motion_planner.motion_planner import MotionPlanner
-from SMP.motion_planner.utility import create_trajectory_from_list_states
 from SMP.maneuver_automaton.maneuver_automaton import ManeuverAutomaton
 
 #from crdesigner.map_conversion.map_conversion_interface import lanelet_to_commonroad
@@ -220,14 +217,6 @@ class Cr2Auto(Node):
             1,
             callback_group=self.callback_group
         )
-        # subscribe autoware states
-        """self.aw_state_sub = self.create_subscription(
-            AutowareState,
-            '/autoware/state',
-            self.state_callback,
-            1,
-            callback_group=self.callback_group
-        )"""
 
         # subscribe initial pose
         self.initialpose_sub = self.create_subscription(
@@ -361,11 +350,6 @@ class Cr2Auto(Node):
         self.timer_solve_planning_problem = self.create_timer(
             timer_period_sec=self.get_parameter("planner_update_time").get_parameter_value().double_value,
             callback=self.solve_planning_problem, callback_group=self.callback_group)
-
-        # create a timer to check if goal is reached
-        #self.timer_is_goal_reached = self.create_timer(
-        #    timer_period_sec=self.get_parameter("goal_is_reached_update_time").get_parameter_value().double_value,
-        #    callback=self._is_goal_reached, callback_group=self.callback_group)
 
         self.set_state(AutowareState.WAITING_FOR_ROUTE)
 
@@ -1065,34 +1049,6 @@ class Cr2Auto(Node):
         if not self.engage_status and self.get_state() == AutowareState.DRIVING:
             self.set_state(AutowareState.WAITING_FOR_ENGAGE)
 
-    """
-    def _calculate_velocities(self, states, init_velocity):
-
-        if states == []:
-            return
-
-        cur_vel = max(0.1, init_velocity)
-        # target_vel = 6
-
-        max_acceleration = 1 # max acceleration
-        # time interval of planning
-        dt = self.scenario.dt
-
-        for i, state in enumerate(states):
-            old_vel = cur_vel
-            target_vel = max(2, self.velocity_planner.get_velocity_at_aw_position(self.utm2map(state.position)))
-            if cur_vel < target_vel:
-                cur_vel = min(cur_vel + max_acceleration * dt, target_vel)
-            else:
-                cur_vel = target_vel
-            state.velocity = cur_vel
-
-            if i < len(states) - 1:
-                state.acceleration = (cur_vel - old_vel) / self.scenario.dt
-            else:
-                state.acceleration = 0.0
-    """
-
 
     def _prepare_traj_msg(self, states):
         """
@@ -1115,15 +1071,10 @@ class Cr2Auto(Node):
 
         for i in range(0, len(states)):
             new_point = TrajectoryPoint()
-            # time_from_start not given by autoware planner
-            # t = states[i].time_step * self.scenario.dt
-            # nano_sec, sec = math.modf(t)
-            # new_point.time_from_start = Duration(sec=int(sec), nanosec=int(nano_sec * 1e9))
             new_point.pose.position = self.utm2map(states[i].position)
             position_list.append([states[i].position[0], states[i].position[1]])
             new_point.pose.orientation = orientation2quaternion(states[i].orientation)
             new_point.longitudinal_velocity_mps = float(states[i].velocity)
-            # self.get_logger().info(str(states[i].velocity))
 
             # front_wheel_angle_rad not given by autoware planner
             # new_point.front_wheel_angle_rad = states[i].steering_angle
@@ -1166,6 +1117,7 @@ class Cr2Auto(Node):
         if self.get_parameter("detailed_log").get_parameter_value().bool_value:
             self.get_logger().info("Route planning completed!")
 
+    # TODO test if search planner is still working
     def _run_search_planner(self):
         """
         Run one cycle of search based planner.
@@ -1192,7 +1144,6 @@ class Cr2Auto(Node):
                     valid_states.append(state)
 
             self._prepare_traj_msg(valid_states)
-            # self._set_new_goal()
             # visualize_solution(self.scenario, self.planning_problem, create_trajectory_from_list_states(path)) #ToDo: check if working
         else:
             self.get_logger().error("Failed to solve the planning problem.")
