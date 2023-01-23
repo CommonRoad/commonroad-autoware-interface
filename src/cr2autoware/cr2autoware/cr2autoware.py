@@ -522,7 +522,7 @@ class Cr2Auto(Node):
                     self.set_state(AutowareState.ARRIVED_GOAL)
 
                     # publish empty trajectory
-                    self._prepare_traj_msg([])
+                    # self._prepare_traj_msg([])
                     self._pub_route([], [])
                 else:
                     # set next goal
