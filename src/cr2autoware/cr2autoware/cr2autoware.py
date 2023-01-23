@@ -111,6 +111,9 @@ class Cr2Auto(Node):
         self.declare_parameter('reactive_planner.sampling.t_min', 0.4)
         self.declare_parameter('reactive_planner.planning.dt', 0.1)
         self.declare_parameter('reactive_planner.planning.planning_horizon', 0.4)
+
+        self.declare_parameter('velocity_planner.lookahead_dist', 2.0)
+        self.declare_parameter('velocity_planner.lookahead_time', 0.8)
         
         self.declare_parameter("write_scenario", False)
         self.declare_parameter("plot_scenario", False)
@@ -177,7 +180,10 @@ class Cr2Auto(Node):
             self.planner = MotionPlanner.BreadthFirstSearch
 
         # Initialize Velocity Planner
-        self.velocity_planner = VelocityPlanner(self.get_parameter("detailed_log").get_parameter_value().bool_value, self.get_logger())
+        self.velocity_planner = VelocityPlanner(self.get_parameter("detailed_log").get_parameter_value().bool_value,
+                                                self.get_logger(), 
+                                                self.get_parameter('velocity_planner.lookahead_dist').get_parameter_value().double_value,
+                                                self.get_parameter('velocity_planner.lookahead_time').get_parameter_value().double_value)
 
         # create callback group for async execution
         self.callback_group = ReentrantCallbackGroup()
@@ -457,7 +463,7 @@ class Cr2Auto(Node):
 
                     if self.planner_type == 2:  # Reactive Planner
 
-                        reference_velocity = max(1, self.velocity_planner.get_velocity_at_aw_position(self.current_vehicle_state.pose.pose.position))
+                        reference_velocity = max(1, self.velocity_planner.get_velocity_at_aw_position_with_lookahead(self.current_vehicle_state.pose.pose.position, self.ego_vehicle_state.velocity))
 
                         if self.get_parameter("detailed_log").get_parameter_value().bool_value:
                             self.get_logger().info("Running reactive planner")
@@ -1059,6 +1065,7 @@ class Cr2Auto(Node):
         if not self.engage_status and self.get_state() == AutowareState.DRIVING:
             self.set_state(AutowareState.WAITING_FOR_ENGAGE)
 
+    """
     def _calculate_velocities(self, states, init_velocity):
 
         if states == []:
@@ -1084,6 +1091,7 @@ class Cr2Auto(Node):
                 state.acceleration = (cur_vel - old_vel) / self.scenario.dt
             else:
                 state.acceleration = 0.0
+    """
 
 
     def _prepare_traj_msg(self, states):

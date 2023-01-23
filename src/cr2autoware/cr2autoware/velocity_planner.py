@@ -16,15 +16,22 @@ class VelocityPlanner():
     The Autoware gets its path information from /planning/scenario_planning/lane_driving/behavior_planning/path_with_lane_id
     and publishes its results to /planning/scenario_planning/lane_driving/behavior_planning/path
     """
-    def __init__(self, detailed_log, logger):
+    def __init__(self, detailed_log, logger, lookahead_dist, lookahead_time):
+
         self.detailed_log = detailed_log
         self.logger = logger
+
+        if self.detailed_log:
+            self.logger.info("Initializing velocity planner with lookahead distance " + str(lookahead_dist) + " and lookahead time " + str(lookahead_time))
 
         # variable indicates if velocity planning for latest published route is completed
         self.velocity_planning_completed = False
         self.point_list = None
         self.velocities = None
         self.tail = None
+
+        self.lookahead_dist = lookahead_dist
+        self.lookahead_time = lookahead_time
 
     def set_publisher(self, pub):
         self.pub = pub
@@ -90,6 +97,26 @@ class VelocityPlanner():
     def get_velocity_at_aw_position(self, position):
         v = self.velocities[self._get_pathpoint_near_aw_position(self.point_list, position)]
         return v
+
+    # get velocity with lookahead: lookahead_dist + lookahead_time * current_speed
+    def get_velocity_at_aw_position_with_lookahead(self, position, vehicle_speed):
+        nearest_index = self._get_pathpoint_near_aw_position(self.point_list, position)
+        lookahead_dist = self.lookahead_dist + self.lookahead_time * vehicle_speed
+
+        vel_index = nearest_index
+        total_dist = 0
+        while vel_index < len(self.point_list)-1:
+            last_pos = self.point_list[vel_index]
+            vel_index += 1
+            new_pos = self.point_list[vel_index]
+            dist_to_last = math.sqrt((last_pos.x - new_pos.x)**2 + (last_pos.y - new_pos.y)**2)
+            total_dist += dist_to_last
+            if total_dist >= lookahead_dist:
+                break
+
+        self.logger.info("Nearest index: " + str(nearest_index) + ", lookahead index: " + str(vel_index))
+        
+        return self.velocities[vel_index]
 
     # get closest pathpoint to a given position (in Autoware coordinate system)
     def _get_pathpoint_near_aw_position(self, list, position):

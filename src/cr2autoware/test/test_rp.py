@@ -99,6 +99,43 @@ class CurveTest(unittest.TestCase):
         self.assertEqual(vels[0], 0)
         self.assertLess(vels[1], 2)
 
+    # bug: after the first goal is reached and a new goal is set, the car doesn't start driving
+    def test_stop(self):
+        print("============ TEST_STOP ==================")
+        init_state, goal, reference_path, reference_velocity = self.load_pickle("rp_params_stop")
+        init_state.velocity = 0
+        init_state.steering_angle = 0.0
+        init_state.yaw_rate = 0.0
+        planner = self.mockConfig("stop_ZAM_OpenDrive-123")
+        planner._run_reactive_planner(init_state, goal, reference_path, reference_velocity)
+
+        print("init_state: ", end="")
+        pprint(vars(init_state))
+
+        print("reference vel:", reference_velocity)
+        
+        print("Reactive planner trajectory: " + str([planner.valid_states[0].position]) + " -> ... -> " + str([planner.valid_states[-1].position]))
+        print("Reactive planner velocities: " + str([s.velocity for s in planner.valid_states]))
+        print("Reactive planner acc: " + str([s.acceleration for s in planner.valid_states]))
+
+        self.assertTrue(False)
+
+
+    def test_obstacle(self):
+        print("============ TEST OBSTACLE ==============")
+        init_state, goal, reference_path, reference_velocity = self.load_pickle("rp_params_obstacle")
+        
+        planner = self.mockConfig("obstacle_ZAM_OpenDrive-123")
+        planner._run_reactive_planner(init_state, goal, reference_path, reference_velocity)
+
+        print("init_state: ", end="")
+        pprint(vars(init_state))
+        print("reference vel:", reference_velocity)
+
+        print("Reactive planner trajectory: " + str([planner.valid_states[0].position]) + " -> ... -> " + str([planner.valid_states[-1].position]))
+        print("Reactive planner velocities: " + str([s.velocity for s in planner.valid_states]))
+        print("Reactive planner acc: " + str([s.acceleration for s in planner.valid_states]))
+
     # load a reactive planner configuration from a pickle file and run the reactive planner with parameters from another pickle file
     # returns the planner object
     def reactive_planner_from_pickle(self, config_filename, params_filename):
