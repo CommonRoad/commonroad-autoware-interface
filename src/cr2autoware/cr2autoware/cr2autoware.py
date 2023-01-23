@@ -52,7 +52,7 @@ from commonroad.common.file_reader import CommonRoadFileReader
 from commonroad.planning.planning_problem import PlanningProblem, PlanningProblemSet
 from commonroad.planning.goal import GoalRegion
 from commonroad.common.util import Interval
-from commonroad.geometry.shape import Rectangle
+from commonroad.geometry.shape import Rectangle, Circle, Polygon, ShapeGroup
 from commonroad.scenario.obstacle import StaticObstacle, ObstacleType, DynamicObstacle
 from commonroad.scenario.state import CustomState
 from commonroad.scenario.trajectory import Trajectory as CRTrajectory
@@ -347,9 +347,15 @@ class Cr2Auto(Node):
             '/initialpose',
             1
         )
+        # publish goal region(s) of the scenario
+        self.goal_region_pub = self.create_publisher(
+            MarkerArray,
+            '/goal_region_marker_array',
+            1
+        )
 
         # publish static obstacles
-        self.static_obs_pub = self.create_publisher(
+        self.initial_obs_pub = self.create_publisher(
             Object,
             '/simulation/dummy_perception_publisher/object_info',
             1,
@@ -678,7 +684,6 @@ class Cr2Auto(Node):
         initial_pose_msg.pose.pose = pose
         initial_pose_msg.pose.covariance = np.zeros(dtype=np.float64, shape=36) # TODO: clarify
         self.initial_pose_pub.publish(initial_pose_msg)
-
         self.get_logger().info("initial pose x: %f" % initial_state.position[0])
         self.get_logger().info("initial pose y: %f" % initial_state.position[1])
 
@@ -701,6 +706,63 @@ class Cr2Auto(Node):
                 self.goal_pose_pub.publish(goal_msg)
                 self.get_logger().info("goal pose x: %f" % goal_state.position.center[0])
                 self.get_logger().info("goal pose y: %f" % goal_state.position.center[1])
+            # publish goal region(s)
+            id = 0xffff # just a value
+            goal_region_msgs = MarkerArray()
+            for goal_state in self.scenario.planning_problem.goal.state_list:
+                if hasattr(goal_state, 'position'):
+                    shapes = []
+                    if isinstance(goal_state.position, ShapeGroup):
+                        for shape in goal_state.position.shapes:
+                            shapes.append(shape)
+                    else:
+                        shapes = [goal_state.position]    
+                    for shape in shapes:  
+                        marker = Marker()
+                        marker.header.frame_id = "map"
+                        marker.id = id
+                        marker.ns = "goal_region"
+                        marker.frame_locked = True
+                        marker.action = Marker.ADD
+                        marker.color.r = 1.0
+                        marker.color.g = 0.843
+                        marker.color.b = 0.0
+                        marker.color.a = 1.0
+                        marker.pose.position.z = 0.0
+                        if isinstance(shape, Rectangle):
+                            marker.type = Marker.CUBE
+                            marker.pose.position.x = shape.center[0]
+                            marker.pose.position.y = shape.center[1]
+                            marker.scale.x = shape.length
+                            marker.scale.y = shape.width
+                            marker.scale.z = 0.001
+                            marker.pose.orientation = Cr2Auto.orientation2quaternion(shape.orientation)
+                        elif isinstance(shape, Circle):
+                            marker.type = Marker.CYLINDER
+                            marker.pose.position.x = shape.center[0]
+                            marker.pose.position.y = shape.center[1]
+                            marker.scale.x = shape.radius
+                            marker.scale.y = shape.radius
+                            marker.scale.z = 0.001
+                        elif isinstance(shape, Polygon): # polygon
+                            marker.type = Marker.LINE_STRIP
+                            marker.scale.x = 0.15
+                            points = []
+                            for v in shape.vertices:
+                                self.get_logger().info("point (%f, %f)" % (v[0], v[1]))
+                                point = Point()
+                                point.x = v[0]
+                                point.y = v[1]
+                                points.append(point)
+                            marker.points = points
+
+                        goal_region_msgs.markers.append(marker)
+                        id += 1
+            self.goal_region_pub.publish(goal_region_msgs)
+            self.get_logger().info('published the goal region')
+
+
+
 
     def publish_initial_obstacles(self):
         header = Header()
@@ -722,7 +784,7 @@ class Cr2Auto(Node):
             object_msg.max_velocity = 0.0
             object_msg.min_velocity = 0.0
 
-            self.static_obs_pub.publish(object_msg)
+            self.initial_obs_pub.publish(object_msg)
             self.get_logger().info(
                 "published a static obstacle at: (%f %f). Dim: (%f, %f)" % (
                     pose.position.x, pose.position.y,
@@ -753,11 +815,12 @@ class Cr2Auto(Node):
             object_msg.max_velocity = 20.0
             object_msg.min_velocity = -10.0
 
-            self.static_obs_pub.publish(object_msg)
+            self.initial_obs_pub.publish(object_msg)
             self.get_logger().info(
-                "published a dynamic obstacle at: (%f %f). Dim: (%f, %f)" % (
+                "published a dynamic obstacle at: (%f %f); Dim: (%f, %f); velocity: %f" % (
                     pose.position.x, pose.position.y,
-                    object_msg.shape.dimensions.x, object_msg.shape.dimensions.y
+                    object_msg.shape.dimensions.x, object_msg.shape.dimensions.y,
+                    obstacle.initial_state.velocity
                     )
                 )
 
