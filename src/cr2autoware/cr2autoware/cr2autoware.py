@@ -776,8 +776,6 @@ class Cr2Auto(Node):
             self.get_logger().info('published the goal region')
 
 
-
-
     def publish_initial_obstacles(self):
         header = Header()
         header.stamp = self.get_clock().now().to_msg()
@@ -834,10 +832,6 @@ class Cr2Auto(Node):
                     obstacle.initial_state.acceleration
                     )
                 )
-
-    
-
-
 
 
     def current_state_callback(self, msg: Odometry) -> None:
