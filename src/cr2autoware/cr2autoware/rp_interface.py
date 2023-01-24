@@ -33,16 +33,7 @@ class RP2Interface:
         x_0 = deepcopy(init_state)
 
         self.save_to_pickle("rp_params", init_state, goal, reference_path, reference_velocity)
-                
-        # goal state configuration
-        """if hasattr(goal.state_list[0], 'velocity'):
-            desired_velocity = (goal.state_list[0].velocity.start +
-                                goal.state_list[0].velocity.end) / 2
-        else:
-            desired_velocity = x_0.velocity
-        # set desired velocity
-        self.reactive_planner.set_desired_velocity(desired_velocity)"""
-        self.reactive_planner.set_desired_velocity(max(1, reference_velocity))
+        self.reactive_planner.set_desired_velocity(reference_velocity)
 
 
         # set collision checker

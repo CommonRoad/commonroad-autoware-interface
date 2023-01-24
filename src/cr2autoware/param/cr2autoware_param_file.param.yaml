@@ -1,10 +1,10 @@
 /**:
   ros__parameters:
-    # map_osm_path: "/home/andrii/autoware/src/universe/autoware.universe/planning/tum_commonroad_planning/dfg-car/src/cr2autoware/data/test_maps/lanelet2/sample-map-cr"
-    map_osm_path: /home/andrii/autoware/src/universe/autoware.universe/planning/tum_commonroad_planning/dfg-car/src/cr2autoware/data/test_maps/lanelet2/sample-map-cr
+    # map_osm_path: "/home/drivingsim/autoware/src/universe/autoware.universe/planning/tum_commonroad_planning/dfg-car/src/cr2autoware/data/test_maps/lanelet2/sample-map-cr"
+    map_osm_path: /home/drivingsim/autoware/src/universe/autoware.universe/planning/tum_commonroad_planning/dfg-car/src/cr2autoware/data/test_maps/lanelet2/sample-map-cr
     left_driving: True
     adjacencies: False
-    write_scenario: False # write generated scenario as xml file after map is converted
+    write_scenario: True # write generated scenario as xml file after map is converted
     plot_scenario: False
     scenario_update_time: 0.25 # run each x.x seconds
     planner_update_time: 0.5 # run each x.x seconds
@@ -25,16 +25,20 @@
 
     # parameters for reactive planner
     reactive_planner:
-      default_yaml_folder: "/home/andrii/autoware/src/universe/autoware.universe/planning/tum_commonroad_planning/reactive-planner/configurations/defaults/"
+      default_yaml_folder: "/home/drivingsim/autoware_tum/autoware/src/universe/autoware.universe/planning/tum_commonroad_planning/reactive-planner/configurations/defaults/"
       sampling:
         # lateral sampling interval
         d_min: -3
         d_max: 3
         # minimum time sampling in s (t_max is given by planning horizon)
-        t_min: 0.1
+        t_min: 0.4
 
       planning:
         # planner time step (in s)
         dt: 0.1
         # planning time horizon (in s)
         planning_horizon: 5.0
+        
+    velocity_planner:
+      lookahead_dist: 3.0
+      lookahead_time: 0.8

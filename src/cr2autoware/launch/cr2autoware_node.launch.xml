@@ -1,0 +1,7 @@
+<launch>
+	<arg name="map_path" description="path to lanelet2 map"/>
+	<node pkg="cr2autoware" exec="cr2autoware_node" name="cr2autoware_node">
+		<param from="$(find-pkg-share cr2autoware)/param/cr2autoware_param_file.param.yaml"/>
+		<param name="map_path" value="$(var map_path)"/>
+	</node>
+</launch>

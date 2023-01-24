@@ -17,6 +17,7 @@ import glob
 import yaml
 from yaml.loader import SafeLoader
 from decimal import Decimal
+from scipy.interpolate import splprep, splev
 
 # ROS imports
 import rclpy
@@ -38,7 +39,7 @@ from std_msgs.msg import ColorRGBA, Header
 
 # Autoware message imports
 from autoware_auto_perception_msgs.msg import DetectedObjects, PredictedObjects
-from autoware_auto_planning_msgs.msg import TrajectoryPoint, PathWithLaneId, Path
+from autoware_auto_planning_msgs.msg import TrajectoryPoint
 from autoware_auto_planning_msgs.msg import Trajectory as AWTrajectory
 from autoware_auto_system_msgs.msg import AutowareState
 from autoware_auto_vehicle_msgs.msg import Engage
@@ -59,10 +60,11 @@ from commonroad.scenario.trajectory import Trajectory as CRTrajectory
 from commonroad.prediction.prediction import TrajectoryPrediction
 from commonroad.visualization.mp_renderer import MPRenderer
 
+from commonroad_dc.geometry.util import resample_polyline
+
 from crdesigner.map_conversion.map_conversion_interface import lanelet_to_commonroad
 
 from SMP.motion_planner.motion_planner import MotionPlanner
-from SMP.motion_planner.utility import create_trajectory_from_list_states
 from SMP.maneuver_automaton.maneuver_automaton import ManeuverAutomaton
 
 #from crdesigner.map_conversion.map_conversion_interface import lanelet_to_commonroad
@@ -102,7 +104,8 @@ class Cr2Auto(Node):
         self.declare_parameter('vehicle.width', 2.0)
         self.declare_parameter('vehicle.front_overhang', 0.5)
         self.declare_parameter('vehicle.rear_overhang', 0.5)
-        self.declare_parameter('map_osm_path', '')
+        self.declare_parameter('map_path', '')
+        #self.declare_parameter('map_osm_path', '')
         self.declare_parameter('left_driving', False)
         self.declare_parameter('adjacencies', False)
         self.declare_parameter('reactive_planner.default_yaml_folder', '')
@@ -111,6 +114,9 @@ class Cr2Auto(Node):
         self.declare_parameter('reactive_planner.sampling.t_min', 0.4)
         self.declare_parameter('reactive_planner.planning.dt', 0.1)
         self.declare_parameter('reactive_planner.planning.planning_horizon', 0.4)
+
+        self.declare_parameter('velocity_planner.lookahead_dist', 2.0)
+        self.declare_parameter('velocity_planner.lookahead_time', 0.8)
         
         self.declare_parameter("write_scenario", False)
         self.declare_parameter("plot_scenario", False)
@@ -118,6 +124,8 @@ class Cr2Auto(Node):
         self.declare_parameter("planner_update_time", 0.5)
         self.declare_parameter("goal_is_reached_update_time", 0.1)
         self.declare_parameter("detailed_log", False)
+
+        self.get_logger().info("Map path is: " + self.get_parameter("map_path").get_parameter_value().string_value)
 
         self.init_proj_str()
 
@@ -177,7 +185,10 @@ class Cr2Auto(Node):
             self.planner = MotionPlanner.BreadthFirstSearch
 
         # Initialize Velocity Planner
-        self.velocity_planner = VelocityPlanner(self.get_parameter("detailed_log").get_parameter_value().bool_value, self.get_logger())
+        self.velocity_planner = VelocityPlanner(self.get_parameter("detailed_log").get_parameter_value().bool_value,
+                                                self.get_logger(), 
+                                                self.get_parameter('velocity_planner.lookahead_dist').get_parameter_value().double_value,
+                                                self.get_parameter('velocity_planner.lookahead_time').get_parameter_value().double_value)
 
         # create callback group for async execution
         self.callback_group = ReentrantCallbackGroup()
@@ -382,12 +393,8 @@ class Cr2Auto(Node):
             timer_period_sec=self.get_parameter("planner_update_time").get_parameter_value().double_value,
             callback=self.solve_planning_problem, callback_group=self.callback_group)
 
-        # create a timer to check if goal is reached
-        #self.timer_is_goal_reached = self.create_timer(
-        #    timer_period_sec=self.get_parameter("goal_is_reached_update_time").get_parameter_value().double_value,
-        #    callback=self._is_goal_reached, callback_group=self.callback_group)
-
-
+        self.set_state(AutowareState.WAITING_FOR_ROUTE)
+        
         if self.planning_problem_set is not None:
             self.publish_initial_states()
             self.publish_initial_obstacles()
@@ -395,11 +402,14 @@ class Cr2Auto(Node):
         else:
             self.get_logger().info("planning_problem not set")
 
-
         if self.get_parameter("detailed_log").get_parameter_value().bool_value:
             self.get_logger().info("Detailed log is enabled")
+            self.get_logger().info("Map path is: " + self.get_parameter("map_path").get_parameter_value().string_value)
             self.get_logger().info("Init complete!")
             
+
+        if self.write_scenario:
+            self.get_logger().warn("Write_scenario is set to true. Set this value to false to improve runtime")
 
     def update_scenario(self):
         """
@@ -433,55 +443,52 @@ class Cr2Auto(Node):
 
         try:
 
-            # check if initial pose was changed (if true: recalculate reference path)
-            if self.new_initial_pose:
+            # avoid parallel processing issues by checking if a planning problem is already being solved
+            if not self.is_computing_trajectory:
+                # Compute trajectory
+                self.is_computing_trajectory = True
 
                 # update scenario
                 self.update_scenario()
 
-                # check if the current_vehicle_state was already updated (=pose received by current state callback), otherwise wait one planning cycle
-                if not self.new_pose_received:
-                    return
-                
-                self.new_initial_pose = False
-                self.new_pose_received = False
+                # check if initial pose was changed (if true: recalculate reference path)
+                if self.new_initial_pose:
 
-                self.get_logger().info("Replanning route to goal")
+                    # check if the current_vehicle_state was already updated (=pose received by current state callback), otherwise wait one planning cycle
+                    if not self.new_pose_received:
+                        self.is_computing_trajectory = False
+                        return
+                    
+                    self.new_initial_pose = False
+                    self.new_pose_received = False
 
-                # insert current goal into list of goal messages and set route_planned to false to trigger route planning
-                if self.current_goal_msg:
-                    self.goal_msgs.insert(0, self.current_goal_msg)
-                self.route_planned = False
-            else:
-                self.update_scenario()
+                    self.get_logger().info("Replanning route to goal")
 
-            if not self.route_planned:
-                # if currently no active goal, set a new goal (if one exists)
-                try:
-                    self._set_new_goal()
-                except Exception:
-                    self.get_logger().error(traceback.format_exc())
+                    # insert current goal into list of goal messages and set route_planned to false to trigger route planning
+                    if self.current_goal_msg:
+                        self.goal_msgs.insert(0, self.current_goal_msg)
+                    self.route_planned = False
 
-            if self.route_planned:
+                if not self.route_planned:
+                    # if currently no active goal, set a new goal (if one exists)
+                    try:
+                        self._set_new_goal()
+                    except Exception:
+                        self.get_logger().error(traceback.format_exc())
 
-                if not self.velocity_planner.get_is_velocity_planning_completed():
-                    self.get_logger().info("Can't run route planner because interface is still waiting for velocity planner")
-                    if not self.flag: # quick fix. TODO: make better
-                        self.publish_initial_states()
-                        self.update_scenario()
-                        self.flag = True
-                    return
+                if self.route_planned:
 
-                if not self.reference_path_published:
-                    # publish current reference path
-                    self._pub_route(*self.velocity_planner.get_reference_velocities())
+                    if not self.velocity_planner.get_is_velocity_planning_completed():
+                        self.get_logger().info("Can't run route planner because interface is still waiting for velocity planner")
+                        self.is_computing_trajectory = False
+                        return
 
-                if self.get_parameter("detailed_log").get_parameter_value().bool_value:
-                    self.get_logger().info("Solving planning problem!")
+                    if not self.reference_path_published:
+                        # publish current reference path
+                        self._pub_route(*self.velocity_planner.get_reference_velocities())
 
-                if not self.is_computing_trajectory:
-                    # Compute trajectory
-                    self.is_computing_trajectory = True
+                    if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+                        self.get_logger().info("Solving planning problem!")
 
                     if self.planner_type == 1:  # Breadth First Search
                         if self.get_parameter("detailed_log").get_parameter_value().bool_value:
@@ -490,43 +497,49 @@ class Cr2Auto(Node):
 
                     if self.planner_type == 2:  # Reactive Planner
 
-                        #reference_velocity = self.velocity_planner.get_velocity_at_aw_position(self.current_vehicle_state.pose.pose.position)
-                        reference_velocity = 5.0
+                        reference_velocity = max(1, self.velocity_planner.get_velocity_at_aw_position_with_lookahead(self.current_vehicle_state.pose.pose.position, self.ego_vehicle_state.velocity))
 
                         if self.get_parameter("detailed_log").get_parameter_value().bool_value:
                             self.get_logger().info("Running reactive planner")
                             self.get_logger().info("Reactive planner init_state position: " + str(self.ego_vehicle_state.position))
-                            self.get_logger().info("Reactive planner init_state velocity: " + str(self.ego_vehicle_state.velocity))
+                            self.get_logger().info("Reactive planner init_state velocity: " + str(max(self.ego_vehicle_state.velocity, 0.1)))
                             self.get_logger().info("Reactive planner reference path velocity: " + str(reference_velocity))
                             self.get_logger().info("Reactive planner reference path length: " + str(len(self.reference_path)))
                             if len(self.reference_path > 1):
                                 self.get_logger().info("Reactive planner reference path: " + str(self.reference_path[0]) + "  --->  ["  \
                                     + str(len(self.reference_path)-2) + " states skipped]  --->  " + str(self.reference_path[-1]))
 
-                        self.planner._run_reactive_planner(init_state=self.ego_vehicle_state, goal=self.planning_problem.goal, reference_path=self.reference_path, reference_velocity=reference_velocity)
+                        # when starting the route and the initial velocity is 0, the reactive planner would return zero velocity for
+                        # it's first state and thus never start driving. As a result, we increase the velocity a little bit here
+                        init_state=deepcopy(self.ego_vehicle_state)
+                        if init_state.velocity < 0.1:
+                            init_state.velocity = 0.1
+                            
+                        self.planner._run_reactive_planner(init_state=init_state, goal=self.planning_problem.goal, reference_path=self.reference_path, reference_velocity=reference_velocity)
 
                         assert(self.planner.optimal != False)
                         assert(self.planner.valid_states != [])
                         assert(max([s.velocity for s in self.planner.valid_states]) > 0)
 
+                        self.get_logger().info("Reactive planner trajectory: " + str([self.planner.valid_states[0].position]) + " -> ... -> " + str([self.planner.valid_states[-1].position]))
                         self.get_logger().info("Reactive planner velocities: " + str([s.velocity for s in self.planner.valid_states]))
                         self.get_logger().info("Reactive planner acc: " + str([s.acceleration for s in self.planner.valid_states]))
 
                         # calculate velocities and accelerations of planner states
-                        self._calculate_velocities(self.planner.valid_states, self.ego_vehicle_state.velocity)
+                        # self._calculate_velocities(self.planner.valid_states, self.ego_vehicle_state.velocity)
 
                         # publish trajectory
                         self._prepare_traj_msg(self.planner.valid_states)
                         if self.get_parameter("detailed_log").get_parameter_value().bool_value:
                             self.get_logger().info("Autoware state and engage messages published!")
+                    
+                    # check if goal is reached
+                    self._is_goal_reached()
 
-                    self.is_computing_trajectory = False
-                else:
-                    if self.get_parameter("detailed_log").get_parameter_value().bool_value:
-                        self.get_logger().info("already computing trajectory")
-
-                # check if goal is reached
-                self._is_goal_reached()
+                self.is_computing_trajectory = False
+            else:
+                if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+                    self.get_logger().info("already solving planning problem")
 
         except Exception:
             self.get_logger().error(traceback.format_exc())
@@ -549,7 +562,7 @@ class Cr2Auto(Node):
                     self.set_state(AutowareState.ARRIVED_GOAL)
 
                     # publish empty trajectory
-                    self._prepare_traj_msg([])
+                    # self._prepare_traj_msg([])
                     self._pub_route([], [])
                 else:
                     # set next goal
@@ -558,7 +571,7 @@ class Cr2Auto(Node):
     
     def init_proj_str(self):
 
-        map_path = self.get_parameter('map_osm_path').get_parameter_value().string_value
+        map_path = self.get_parameter('map_path').get_parameter_value().string_value
         if not os.path.exists(map_path):
             raise ValueError("Can't find given map path: %s" % map_path)
 
@@ -633,7 +646,7 @@ class Cr2Auto(Node):
         """
         Open commonroad scenario in parallel if it is in the same folder as the autoware map or transform map from osm/lanelet2 format to commonroad scenario format.
         """
-        map_path = self.get_parameter('map_osm_path').get_parameter_value().string_value
+        map_path = self.get_parameter('map_path').get_parameter_value().string_value
         # get osm file in folder map_path
         map_filename = list(glob.iglob(os.path.join(map_path, '*.[oO][sS][mM]')))[0]
         map_filename_cr = list(glob.iglob(os.path.join(map_path, '*.[xX][mM][lL]')))
@@ -1161,6 +1174,9 @@ class Cr2Auto(Node):
             self.get_logger().info("goal msg: " + str(msg))
 
         self._pub_goals()
+        # autoware requires that the reference path has to be published again when new goals are published
+        if self.velocity_planner.get_is_velocity_planning_completed():
+            self._pub_route(*self.velocity_planner.get_reference_velocities())
 
     def set_state(self, new_aw_state: AutowareState):
         self.aw_state.state = new_aw_state
@@ -1274,32 +1290,6 @@ class Cr2Auto(Node):
         if not self.engage_status and self.get_state() == AutowareState.DRIVING:
             self.set_state(AutowareState.WAITING_FOR_ENGAGE)
 
-    def _calculate_velocities(self, states, init_velocity):
-
-        if states == []:
-            return
-
-        cur_vel = max(0.1, init_velocity)
-        # target_vel = 6
-
-        max_acceleration = 1 # max acceleration
-        # time interval of planning
-        dt = self.scenario.dt
-
-        for i, state in enumerate(states):
-            old_vel = cur_vel
-            target_vel = max(2, self.velocity_planner.get_velocity_at_aw_position(self.utm2map(state.position)))
-            if cur_vel < target_vel:
-                cur_vel = min(cur_vel + max_acceleration * dt, target_vel)
-            else:
-                cur_vel = target_vel
-            state.velocity = cur_vel
-
-            if i < len(states) - 1:
-                state.acceleration = (cur_vel - old_vel) / self.scenario.dt
-            else:
-                state.acceleration = 0.0
-
 
     def _prepare_traj_msg(self, states):
         """
@@ -1322,15 +1312,10 @@ class Cr2Auto(Node):
 
         for i in range(0, len(states)):
             new_point = TrajectoryPoint()
-            # time_from_start not given by autoware planner
-            # t = states[i].time_step * self.scenario.dt
-            # nano_sec, sec = math.modf(t)
-            # new_point.time_from_start = Duration(sec=int(sec), nanosec=int(nano_sec * 1e9))
             new_point.pose.position = self.utm2map(states[i].position)
             position_list.append([states[i].position[0], states[i].position[1]])
             new_point.pose.orientation = orientation2quaternion(states[i].orientation)
             new_point.longitudinal_velocity_mps = float(states[i].velocity)
-            # self.get_logger().info(str(states[i].velocity))
 
             # front_wheel_angle_rad not given by autoware planner
             # new_point.front_wheel_angle_rad = states[i].steering_angle
@@ -1355,12 +1340,25 @@ class Cr2Auto(Node):
             self.get_logger().info("Planning route")
 
         route_planner = RoutePlanner(self.scenario, self.planning_problem)
-        self.reference_path = route_planner.plan_routes().retrieve_first_route().reference_path
+        reference_path = route_planner.plan_routes().retrieve_first_route().reference_path
+
+        # smooth reference path
+        tck, u = splprep(reference_path.T, u=None, k=3, s=0.0)
+        u_new = np.linspace(u.min(), u.max(), 200)
+        x_new, y_new = splev(u_new, tck, der=0)
+        reference_path = np.array([x_new, y_new]).transpose()
+        reference_path = resample_polyline(reference_path, 1)
+        # remove duplicated vertices in reference path
+        _, idx = np.unique(reference_path, axis=0, return_index=True)
+        reference_path = reference_path[np.sort(idx)]
+        self.reference_path = reference_path
+
         self.velocity_planner.send_reference_path([self.utm2map(point) for point in self.reference_path], self.current_goal_msg.pose.position)
 
         if self.get_parameter("detailed_log").get_parameter_value().bool_value:
             self.get_logger().info("Route planning completed!")
 
+    # TODO test if search planner is still working
     def _run_search_planner(self):
         """
         Run one cycle of search based planner.
@@ -1387,7 +1385,6 @@ class Cr2Auto(Node):
                     valid_states.append(state)
 
             self._prepare_traj_msg(valid_states)
-            # self._set_new_goal()
             # visualize_solution(self.scenario, self.planning_problem, create_trajectory_from_list_states(path)) #ToDo: check if working
         else:
             self.get_logger().error("Failed to solve the planning problem.")
