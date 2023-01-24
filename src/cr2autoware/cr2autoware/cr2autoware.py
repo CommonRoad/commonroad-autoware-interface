@@ -44,6 +44,8 @@ from autoware_auto_planning_msgs.msg import Trajectory as AWTrajectory
 from autoware_auto_system_msgs.msg import AutowareState
 from autoware_auto_vehicle_msgs.msg import Engage
 from dummy_perception_publisher.msg import Object
+from autoware_auto_control_msgs.msg import AckermannControlCommand
+from autoware_auto_vehicle_msgs.msg import GearCommand, GearReport
 
 
 # commonroad imports
@@ -187,8 +189,6 @@ class Cr2Auto(Node):
 
         # create callback group for async execution
         self.callback_group = ReentrantCallbackGroup()
-
-        # subscribe current position of vehicle
         self.current_state_sub = self.create_subscription(
             Odometry,
             '/localization/kinematic_state',
@@ -299,14 +299,6 @@ class Cr2Auto(Node):
         )
         self.velocity_planner.set_publisher(self.velocity_pub)
 
-        # publish trajectory
-        self.traj_pub = self.create_publisher(
-            AWTrajectory,
-            '/planning/scenario_planning/trajectory',
-            1
-        )
-
-        # publish autoware state
         # list of states: https://gitlab.com/autowarefoundation/autoware.auto/autoware_auto_msgs/-/blob/master/autoware_auto_system_msgs/msg/AutowareState.idl
         self.aw_state_pub = self.create_publisher(
             AutowareState,
@@ -351,6 +343,16 @@ class Cr2Auto(Node):
         self.initial_pose_pub = self.create_publisher(
             PoseWithCovarianceStamped,
             '/initialpose',
+            1
+        )
+        self.control_cmd_pub = self.create_publisher(
+            AckermannControlCommand,
+            '/external/selected/control_cmd',
+            1
+        )
+        self.gear_cmd_pub = self.create_publisher(
+            GearCommand,
+            '/external/selected/gear_cmd',
             1
         )
         # publish goal region(s) of the scenario
@@ -691,8 +693,22 @@ class Cr2Auto(Node):
         initial_pose_msg.pose.pose = pose
         initial_pose_msg.pose.covariance = np.zeros(dtype=np.float64, shape=36) # TODO: clarify
         self.initial_pose_pub.publish(initial_pose_msg)
-        self.get_logger().info("initial pose x: %f" % initial_state.position[0])
-        self.get_logger().info("initial pose y: %f" % initial_state.position[1])
+        self.get_logger().info("initial pose (%f, %f)" % (initial_state.position[0], initial_state.position[1]))
+
+        # self.set_state(AutowareState.DRIVING)
+
+        # ackermann = AckermannControlCommand()
+        # ackermann.stamp = self.get_clock().now().to_msg()
+        # ackermann.longitudinal.speed = self.scenario.planning_problem.initial_state.velocity
+        # ackermann.longitudinal.acceleration = self.scenario.planning_problem.initial_state.acceleration
+
+        # gear_cmd = GearCommand()
+        # gear_cmd.command = GearReport.DRIVE
+
+        # self.control_cmd_pub.publish(ackermann)
+        # self.get_logger().info("initial velocity and acceleration: (%f, %f)" % (ackermann.longitudinal.speed, ackermann.longitudinal.acceleration))
+        # self.gear_cmd_pub.publish(gear_cmd)
+
 
         # publish the goal if present
         if len(self.scenario.planning_problem.goal.state_list) > 0:
