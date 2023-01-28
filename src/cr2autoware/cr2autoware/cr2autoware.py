@@ -299,12 +299,21 @@ class Cr2Auto(Node):
         )
         self.velocity_planner.set_publisher(self.velocity_pub)
 
+        # publish trajectory
+        self.traj_pub = self.create_publisher(
+            AWTrajectory,
+            '/planning/scenario_planning/trajectory',
+            1
+        )
+
+        # publish autoware state
         # list of states: https://gitlab.com/autowarefoundation/autoware.auto/autoware_auto_msgs/-/blob/master/autoware_auto_system_msgs/msg/AutowareState.idl
         self.aw_state_pub = self.create_publisher(
             AutowareState,
             '/autoware/state',
             1
         )
+
 
         # publish autoware engage
         self.engage_pub = self.create_publisher(
@@ -395,8 +404,7 @@ class Cr2Auto(Node):
 
         if self.planning_problem_set is not None:
             self.publish_initial_states()
-            self.publish_initial_obstacles()
-            self.update_scenario()
+            # self.publish_initial_obstacles()
         else:
             self.get_logger().info("planning_problem not set")
 
@@ -515,10 +523,10 @@ class Cr2Auto(Node):
                         assert(self.planner.optimal != False)
                         assert(self.planner.valid_states != [])
                         assert(max([s.velocity for s in self.planner.valid_states]) > 0)
-
-                        self.get_logger().info("Reactive planner trajectory: " + str([self.planner.valid_states[0].position]) + " -> ... -> " + str([self.planner.valid_states[-1].position]))
-                        self.get_logger().info("Reactive planner velocities: " + str([s.velocity for s in self.planner.valid_states]))
-                        self.get_logger().info("Reactive planner acc: " + str([s.acceleration for s in self.planner.valid_states]))
+                        if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+                            self.get_logger().info("Reactive planner trajectory: " + str([self.planner.valid_states[0].position]) + " -> ... -> " + str([self.planner.valid_states[-1].position]))
+                            self.get_logger().info("Reactive planner velocities: " + str([s.velocity for s in self.planner.valid_states]))
+                            self.get_logger().info("Reactive planner acc: " + str([s.acceleration for s in self.planner.valid_states]))
 
                         # calculate velocities and accelerations of planner states
                         # self._calculate_velocities(self.planner.valid_states, self.ego_vehicle_state.velocity)
@@ -685,7 +693,6 @@ class Cr2Auto(Node):
         initial_pose_msg.header.stamp = self.get_clock().now().to_msg()
         initial_pose_msg.header.frame_id = 'map'
         pose = Pose()
-        # aw_point = self.utm2map(initial_state.position)
         pose.position.x = initial_state.position[0]
         pose.position.y = initial_state.position[1]
         pose.position.z = 0.0
@@ -694,21 +701,6 @@ class Cr2Auto(Node):
         initial_pose_msg.pose.covariance = np.zeros(dtype=np.float64, shape=36) # TODO: clarify
         self.initial_pose_pub.publish(initial_pose_msg)
         self.get_logger().info("initial pose (%f, %f)" % (initial_state.position[0], initial_state.position[1]))
-
-        # self.set_state(AutowareState.DRIVING)
-
-        # ackermann = AckermannControlCommand()
-        # ackermann.stamp = self.get_clock().now().to_msg()
-        # ackermann.longitudinal.speed = self.scenario.planning_problem.initial_state.velocity
-        # ackermann.longitudinal.acceleration = self.scenario.planning_problem.initial_state.acceleration
-
-        # gear_cmd = GearCommand()
-        # gear_cmd.command = GearReport.DRIVE
-
-        # self.control_cmd_pub.publish(ackermann)
-        # self.get_logger().info("initial velocity and acceleration: (%f, %f)" % (ackermann.longitudinal.speed, ackermann.longitudinal.acceleration))
-        # self.gear_cmd_pub.publish(gear_cmd)
-
 
         # publish the goal if present
         if len(self.scenario.planning_problem.goal.state_list) > 0:
@@ -798,6 +790,19 @@ class Cr2Auto(Node):
             self.goal_region_pub.publish(goal_region_msgs)
             self.get_logger().info('published the goal region')
 
+        self.set_state(AutowareState.DRIVING)
+        ackermann = AckermannControlCommand()
+        ackermann.stamp = self.get_clock().now().to_msg()
+        ackermann.longitudinal.speed = 5.0
+        ackermann.longitudinal.acceleration = self.scenario.planning_problem.initial_state.acceleration
+
+        gear_cmd = GearCommand()
+        gear_cmd.command = GearReport.DRIVE
+
+        self.control_cmd_pub.publish(ackermann)
+        self.get_logger().info("initial velocity and acceleration: (%f, %f)" % (ackermann.longitudinal.speed, ackermann.longitudinal.acceleration))
+        self.gear_cmd_pub.publish(gear_cmd)
+
 
 
 
@@ -857,11 +862,6 @@ class Cr2Auto(Node):
                     obstacle.initial_state.acceleration
                     )
                 )
-
-    
-
-
-
 
     def current_state_callback(self, msg: Odometry) -> None:
         """
@@ -1297,11 +1297,12 @@ class Cr2Auto(Node):
 
         self.engage_status = not self.engage_status
 
-        if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+        if self.get_parameter("detailed_log").get_parameter_value().bool_value or True:
             self.get_logger().info("Engage message received! Engage: " + str(self.engage_status) + ", current state: " + str(self.get_state()))
 
         # Update Autoware state panel
         if self.engage_status and self.get_state() == AutowareState.WAITING_FOR_ENGAGE:
+            self.publish_initial_obstacles()
             self.set_state(AutowareState.DRIVING)
         if not self.engage_status and self.get_state() == AutowareState.DRIVING:
             self.set_state(AutowareState.WAITING_FOR_ENGAGE)    
@@ -1653,8 +1654,8 @@ class Cr2Auto(Node):
         :param p: position autoware
         :return: position commonroad
         """
-        _x = self.origin_transformation_x + p.x
-        _y = self.origin_transformation_y + p.y
+        # _x = self.origin_transformation_x + p.x
+        # _y = self.origin_transformation_y + p.y
         # return np.array([_x, _y])
         return np.array([p.x, p.y])
 
