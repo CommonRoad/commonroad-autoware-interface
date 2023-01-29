@@ -46,6 +46,7 @@ from autoware_auto_vehicle_msgs.msg import Engage
 from dummy_perception_publisher.msg import Object
 from autoware_auto_control_msgs.msg import AckermannControlCommand
 from autoware_auto_vehicle_msgs.msg import GearCommand, GearReport
+from tier4_control_msgs.msg import GateMode
 
 
 # commonroad imports
@@ -158,7 +159,7 @@ class Cr2Auto(Node):
 
         self.build_scenario()  # build scenario from osm map
         self.convert_origin()
-        self.flag = False
+        self.flag = False # for initalial obstacles initialization after engaging
 
         
         # Define Planner 
@@ -354,14 +355,20 @@ class Cr2Auto(Node):
             '/initialpose',
             1
         )
-        self.control_cmd_pub = self.create_publisher(
-            AckermannControlCommand,
-            '/external/selected/control_cmd',
+        # switch between manual ang autonomous modes
+        self.gate_mode_pub = self.create_publisher(
+            GateMode,
+            '/control/gate_mode_cmd',
             1
         )
         self.gear_cmd_pub = self.create_publisher(
             GearCommand,
             '/external/selected/gear_cmd',
+            1
+        )
+        self.control_cmd_pub = self.create_publisher(
+            AckermannControlCommand,
+            '/external/selected/control_cmd',
             1
         )
         # publish goal region(s) of the scenario
@@ -404,7 +411,6 @@ class Cr2Auto(Node):
 
         if self.planning_problem_set is not None:
             self.publish_initial_states()
-            # self.publish_initial_obstacles()
         else:
             self.get_logger().info("planning_problem not set")
 
@@ -687,6 +693,9 @@ class Cr2Auto(Node):
         if initial_state is None:
             self.get_logger().info(f"no initial state given")
             return
+        # save inital obstacles because they are removed in _process_static_obs()
+        self.initial_static_obstacles = self.scenario.static_obstacles
+        self.initial_dynamic_obstacles = self.scenario.dynamic_obstacles
         # publish the iniatial pose to the autoware PoseWithCovarianceStamped
         initial_pose_msg = PoseWithCovarianceStamped()
         initial_pose_msg.header = Header()
@@ -790,27 +799,12 @@ class Cr2Auto(Node):
             self.goal_region_pub.publish(goal_region_msgs)
             self.get_logger().info('published the goal region')
 
-        self.set_state(AutowareState.DRIVING)
-        ackermann = AckermannControlCommand()
-        ackermann.stamp = self.get_clock().now().to_msg()
-        ackermann.longitudinal.speed = 5.0
-        ackermann.longitudinal.acceleration = self.scenario.planning_problem.initial_state.acceleration
-
-        gear_cmd = GearCommand()
-        gear_cmd.command = GearReport.DRIVE
-
-        self.control_cmd_pub.publish(ackermann)
-        self.get_logger().info("initial velocity and acceleration: (%f, %f)" % (ackermann.longitudinal.speed, ackermann.longitudinal.acceleration))
-        self.gear_cmd_pub.publish(gear_cmd)
-
-
-
 
     def publish_initial_obstacles(self):
         header = Header()
         header.stamp = self.get_clock().now().to_msg()
         header.frame_id = 'map'
-        for obstacle in self.scenario.static_obstacles:
+        for obstacle in self.initial_static_obstacles:
             object_msg = Object()
             object_msg.header = header
             pose = Pose()
@@ -834,7 +828,7 @@ class Cr2Auto(Node):
                     )
                 )
 
-        for obstacle in self.scenario.dynamic_obstacles:
+        for obstacle in self.initial_dynamic_obstacles:
             object_msg = Object()
             object_msg.header = header
             pose = Pose()
@@ -1302,8 +1296,42 @@ class Cr2Auto(Node):
 
         # Update Autoware state panel
         if self.engage_status and self.get_state() == AutowareState.WAITING_FOR_ENGAGE:
-            self.publish_initial_obstacles()
             self.set_state(AutowareState.DRIVING)
+            if not self.flag:
+                self.publish_initial_obstacles()
+                self.flag = True
+                
+                # gate_mode = GateMode()
+                # gate_mode.data = 1 # set control to manual
+
+                # ackermann = AckermannControlCommand()
+                # ackermann.stamp = self.get_clock().now().to_msg()
+                # ackermann.longitudinal.speed = 5.0
+                # ackermann.longitudinal.acceleration = self.scenario.planning_problem.initial_state.acceleration
+
+                # gear_cmd = GearCommand()
+                # if ackermann.longitudinal.speed > 0:
+                #     gear_cmd.command = GearCommand.DRIVE
+                # else:
+                #     gear_cmd.command = GearCommand.REVERSE
+
+                # self.gate_mode_pub.publish(gate_mode)
+                # self.control_cmd_pub.publish(ackermann)
+                # self.gear_cmd_pub.publish(gear_cmd)
+                # self.get_logger().info("initial velocity and acceleration: (%f, %f)" % (ackermann.longitudinal.speed, ackermann.longitudinal.acceleration))
+                initial_state = self.scenario.planning_problem.initial_state
+                new_point = TrajectoryPoint()
+                new_point.pose.position.x = initial_state.position[0]
+                new_point.pose.position.y = initial_state.position[1]
+                new_point.pose.orientation = Cr2Auto.orientation2quaternion(initial_state.orientation)
+                new_point.longitudinal_velocity_mps = initial_state.velocity
+                new_point.acceleration_mps2 = initial_state.acceleration
+                start = AWTrajectory()
+                start.points.append(new_point)
+                self.traj_pub.publish(start)
+                self.get_logger().info("initial velocity and acceleration: (%f, %f)" % (
+                    new_point.longitudinal_velocity_mps, new_point.acceleration_mps2))
+
         if not self.engage_status and self.get_state() == AutowareState.DRIVING:
             self.set_state(AutowareState.WAITING_FOR_ENGAGE)    
 
