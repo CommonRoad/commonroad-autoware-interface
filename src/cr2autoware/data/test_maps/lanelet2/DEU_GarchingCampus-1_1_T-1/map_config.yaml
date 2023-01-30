@@ -7,3 +7,4 @@
       pitch: 0.0
       roll: 0.0
       yaw: 0.0
+    use_local_coordinates: true

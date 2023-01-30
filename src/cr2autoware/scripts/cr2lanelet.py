@@ -39,8 +39,8 @@ if False:
 else:
     # simple_cr_scenario_path = "../../../DEU_Backnang-7_4_T-1.xml"
     # output_name = "../../../testJan.osm"
-    basis_path = "/home/drivingsim/autoware/src/universe/autoware.universe/planning/tum_commonroad_planning/dfg-car/src/cr2autoware/data/test_maps/lanelet2/"
-    map_name = "ZAM_Over-1_1"
+    basis_path = "/home/andrii/autoware/src/universe/autoware.universe/planning/tum_commonroad_planning/dfg-car/src/cr2autoware/data/test_maps/lanelet2/"
+    map_name = "merging_lanelets_utm"
     simple_cr_scenario_path = basis_path + map_name + "/" + map_name + ".xml"
     output_path = basis_path + map_name + "/"
     output_map_path = output_path + "lanelet2_map.osm"
@@ -64,7 +64,8 @@ else:
         )
         scenario = None
 
-    l2osm = CR2LaneletConverter(proj, use_local_coordinates=True)
+    use_local_coordinates = True
+    l2osm = CR2LaneletConverter(proj, use_local_coordinates)
     osm = l2osm(scenario)
     with open(f"{output_map_path}", "wb") as file_out:
         file_out.write(
@@ -83,7 +84,8 @@ else:
                     "roll": 0.0,
                     "pitch": 0.0,
                     "yaw": 0.0 
-                }
+                },
+                "use_local_coordinates": use_local_coordinates
             }
         }
     }

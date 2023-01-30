@@ -411,6 +411,7 @@ class Cr2Auto(Node):
 
         if self.planning_problem_set is not None:
             self.publish_initial_states()
+            # self.publish_initial_obstacles()
         else:
             self.get_logger().info("planning_problem not set")
 
@@ -593,6 +594,7 @@ class Cr2Auto(Node):
             data = yaml.load(f, Loader=SafeLoader)
         self.aw_origin_latitude = Decimal(data["/**"]["ros__parameters"]["map_origin"]["latitude"])
         self.aw_origin_longitude = Decimal(data["/**"]["ros__parameters"]["map_origin"]["longitude"])
+        self.use_local_coordinates = bool(data["/**"]["ros__parameters"]["use_local_coordinates"])
         if abs(self.aw_origin_longitude) > 180 or abs(self.aw_origin_latitude) > 90:
             # set origin point (TUM MI building) in default UTM 32 zone
             self.aw_origin_latitude = 0
@@ -632,9 +634,12 @@ class Cr2Auto(Node):
             self.get_logger().info("CommonRoad origin lat: %s,   origin lon: %s" % (cr_origin_lat, cr_origin_lon))
             self.get_logger().info("CommonRoad origin x: %s,   origin y: %s" % (cr_origin_x, cr_origin_y))
         
-        
-        self.origin_transformation_x = aw_origin_x - cr_origin_x
-        self.origin_transformation_y = aw_origin_y - cr_origin_y
+        if self.use_local_coordinates: # using local CR scenario coordinates => same origin
+            self.origin_transformation_x = 0
+            self.origin_transformation_y = 0
+        else:
+            self.origin_transformation_x = aw_origin_x - cr_origin_x
+            self.origin_transformation_y = aw_origin_y - cr_origin_y
         self.get_logger().info("origin transformation x: %s,   origin transformation y: %s" % (self.origin_transformation_x, self.origin_transformation_y))
 
 
@@ -702,9 +707,7 @@ class Cr2Auto(Node):
         initial_pose_msg.header.stamp = self.get_clock().now().to_msg()
         initial_pose_msg.header.frame_id = 'map'
         pose = Pose()
-        pose.position.x = initial_state.position[0]
-        pose.position.y = initial_state.position[1]
-        pose.position.z = 0.0
+        pose.position = self.utm2map(initial_state.position)
         pose.orientation = Cr2Auto.orientation2quaternion(initial_state.orientation)
         initial_pose_msg.pose.pose = pose
         initial_pose_msg.pose.covariance = np.zeros(dtype=np.float64, shape=36) # TODO: clarify
@@ -737,9 +740,7 @@ class Cr2Auto(Node):
                 goal_msg.header.stamp = self.get_clock().now().to_msg()
                 goal_msg.header.frame_id = 'map'
                 pose = Pose()
-                pose.position.x = position[0]
-                pose.position.y = position[1]
-                pose.position.z = 0.0
+                pose.position = self.utm2map(position)
                 pose.orientation = orientation
                 goal_msg.pose = pose
                 self.goal_pose_pub.publish(goal_msg)
@@ -769,16 +770,14 @@ class Cr2Auto(Node):
                         marker.pose.position.z = 0.0
                         if isinstance(shape, Rectangle):
                             marker.type = Marker.CUBE
-                            marker.pose.position.x = shape.center[0]
-                            marker.pose.position.y = shape.center[1]
+                            marker.pose.position = self.utm2map(shape.center)
                             marker.scale.x = shape.length
                             marker.scale.y = shape.width
                             marker.scale.z = 0.001
                             marker.pose.orientation = Cr2Auto.orientation2quaternion(shape.orientation)
                         elif isinstance(shape, Circle):
                             marker.type = Marker.CYLINDER
-                            marker.pose.position.x = shape.center[0]
-                            marker.pose.position.y = shape.center[1]
+                            marker.pose.position = self.utm2map(shape.center)
                             marker.scale.x = shape.radius
                             marker.scale.y = shape.radius
                             marker.scale.z = 0.001
@@ -787,7 +786,7 @@ class Cr2Auto(Node):
                             marker.scale.x = 0.15
                             points = []
                             for v in shape.vertices:
-                                self.get_logger().info("point (%f, %f)" % (v[0], v[1]))
+                                # self.get_logger().info("point (%f, %f)" % (v[0], v[1]))
                                 point = Point()
                                 point.x = v[0]
                                 point.y = v[1]
@@ -808,8 +807,7 @@ class Cr2Auto(Node):
             object_msg = Object()
             object_msg.header = header
             pose = Pose()
-            pose.position.x = obstacle.initial_state.position[0]
-            pose.position.y = obstacle.initial_state.position[1]
+            pose.position = self.utm2map(obstacle.initial_state.position)
             pose.orientation = Cr2Auto.orientation2quaternion(obstacle.initial_state.orientation)
             object_msg.initial_state.pose_covariance.pose = pose
             object_msg.classification.label = 1
@@ -832,8 +830,7 @@ class Cr2Auto(Node):
             object_msg = Object()
             object_msg.header = header
             pose = Pose()
-            pose.position.x = obstacle.initial_state.position[0]
-            pose.position.y = obstacle.initial_state.position[1]
+            pose.position = self.utm2map(obstacle.initial_state.position)
             pose.orientation = Cr2Auto.orientation2quaternion(obstacle.initial_state.orientation)
             object_msg.initial_state.pose_covariance.pose = pose
             object_msg.initial_state.twist_covariance.twist.linear.x = 3.0
@@ -1321,8 +1318,7 @@ class Cr2Auto(Node):
                 # self.get_logger().info("initial velocity and acceleration: (%f, %f)" % (ackermann.longitudinal.speed, ackermann.longitudinal.acceleration))
                 initial_state = self.scenario.planning_problem.initial_state
                 new_point = TrajectoryPoint()
-                new_point.pose.position.x = initial_state.position[0]
-                new_point.pose.position.y = initial_state.position[1]
+                new_point.pose.position = self.utm2map(initial_state.position[0])
                 new_point.pose.orientation = Cr2Auto.orientation2quaternion(initial_state.orientation)
                 new_point.longitudinal_velocity_mps = initial_state.velocity
                 new_point.acceleration_mps2 = initial_state.acceleration
@@ -1682,10 +1678,9 @@ class Cr2Auto(Node):
         :param p: position autoware
         :return: position commonroad
         """
-        # _x = self.origin_transformation_x + p.x
-        # _y = self.origin_transformation_y + p.y
-        # return np.array([_x, _y])
-        return np.array([p.x, p.y])
+        _x = self.origin_transformation_x + p.x
+        _y = self.origin_transformation_y + p.y
+        return np.array([_x, _y])
 
     def utm2map(self, position: np.array) -> Point:
         """
@@ -1694,10 +1689,8 @@ class Cr2Auto(Node):
         :return: position autoware
         """
         p = Point()
-        # p.x = position[0] - self.origin_transformation_x
-        # p.y = position[1] - self.origin_transformation_y
-        p.x = position[0]
-        p.y = position[1]
+        p.x = position[0] - self.origin_transformation_x
+        p.y = position[1] - self.origin_transformation_y
         return p
 
 
