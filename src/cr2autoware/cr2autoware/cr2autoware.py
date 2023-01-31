@@ -182,11 +182,6 @@ class Cr2Auto(Node):
             self.planner_type = 1
             self.planner = MotionPlanner.BreadthFirstSearch
 
-        # Initialize Velocity Planner
-        self.velocity_planner = VelocityPlanner(self.get_parameter("detailed_log").get_parameter_value().bool_value,
-                                                self.get_logger(),
-                                                self.get_parameter('velocity_planner.lookahead_dist').get_parameter_value().double_value,
-                                                self.get_parameter('velocity_planner.lookahead_time').get_parameter_value().double_value) 
 
         # create callback group for async execution
         self.callback_group = ReentrantCallbackGroup()
@@ -265,14 +260,6 @@ class Cr2Auto(Node):
         )
         """
 
-        self.traj_sub_smoothed = self.create_subscription(
-            AWTrajectory,
-            '/planning/scenario_planning/trajectory_smoothed',
-            self.velocity_planner.smoothed_trajectory_callback,
-            1,
-            callback_group=self.callback_group
-        )
-
         # subscribe autoware engage
         self.engage_sub = self.create_subscription(
             Engage,
@@ -291,14 +278,6 @@ class Cr2Auto(Node):
         )
         self.velocity_planner.set_publisher(self.velocity_pub)
         """
-
-        # publish trajectory to motion velocity smoother
-        self.velocity_pub = self.create_publisher(
-            AWTrajectory,
-            '/planning/scenario_planning/scenario_selector/trajectory',
-            1
-        )
-        self.velocity_planner.set_publisher(self.velocity_pub)
 
         # publish trajectory
         self.traj_pub = self.create_publisher(
@@ -410,6 +389,7 @@ class Cr2Auto(Node):
 
 
         if self.planning_problem_set is not None:
+            self.initialize_velocity_planner()
             self.publish_initial_states()
             # self.publish_initial_obstacles()
         else:
@@ -527,13 +507,14 @@ class Cr2Auto(Node):
                             
                         self.planner._run_reactive_planner(init_state=init_state, goal=self.planning_problem.goal, reference_path=self.reference_path, reference_velocity=reference_velocity)
 
-                        assert(self.planner.optimal != False)
-                        assert(self.planner.valid_states != [])
-                        assert(max([s.velocity for s in self.planner.valid_states]) > 0)
                         if self.get_parameter("detailed_log").get_parameter_value().bool_value:
                             self.get_logger().info("Reactive planner trajectory: " + str([self.planner.valid_states[0].position]) + " -> ... -> " + str([self.planner.valid_states[-1].position]))
                             self.get_logger().info("Reactive planner velocities: " + str([s.velocity for s in self.planner.valid_states]))
                             self.get_logger().info("Reactive planner acc: " + str([s.acceleration for s in self.planner.valid_states]))
+
+                        assert(self.planner.optimal != False)
+                        assert(self.planner.valid_states != [])
+                        assert(max([s.velocity for s in self.planner.valid_states]) > 0)
 
                         # calculate velocities and accelerations of planner states
                         # self._calculate_velocities(self.planner.valid_states, self.ego_vehicle_state.velocity)
@@ -594,7 +575,13 @@ class Cr2Auto(Node):
             data = yaml.load(f, Loader=SafeLoader)
         self.aw_origin_latitude = Decimal(data["/**"]["ros__parameters"]["map_origin"]["latitude"])
         self.aw_origin_longitude = Decimal(data["/**"]["ros__parameters"]["map_origin"]["longitude"])
-        self.use_local_coordinates = bool(data["/**"]["ros__parameters"]["use_local_coordinates"])
+        try:
+            self.use_local_coordinates = bool(data["/**"]["ros__parameters"]["use_local_coordinates"])
+            self.get_logger().info("self.use_local_coordinates = True, using same coordinates in CR and AW")
+        except KeyError: 
+            self.use_local_coordinates = False
+            self.get_logger().info("self.use_local_coordinates = False, converting CR coordinates to AW")
+
         if abs(self.aw_origin_longitude) > 180 or abs(self.aw_origin_latitude) > 90:
             # set origin point (TUM MI building) in default UTM 32 zone
             self.aw_origin_latitude = 0
@@ -798,6 +785,27 @@ class Cr2Auto(Node):
             self.goal_region_pub.publish(goal_region_msgs)
             self.get_logger().info('published the goal region')
 
+    def initialize_velocity_planner(self):
+        # Initialize Velocity Planner
+        self.velocity_planner = VelocityPlanner(self.get_parameter("detailed_log").get_parameter_value().bool_value,
+                                                self.get_logger(),
+                                                self.get_parameter('velocity_planner.lookahead_dist').get_parameter_value().double_value,
+                                                self.get_parameter('velocity_planner.lookahead_time').get_parameter_value().double_value)
+
+        self.traj_sub_smoothed = self.create_subscription(
+            AWTrajectory,
+            '/planning/scenario_planning/trajectory_smoothed',
+            self.velocity_planner.smoothed_trajectory_callback,
+            1,
+            callback_group=self.callback_group
+        )
+        # publish trajectory to motion velocity smoother
+        self.velocity_pub = self.create_publisher(
+            AWTrajectory,
+            '/planning/scenario_planning/scenario_selector/trajectory',
+            1
+        )
+        self.velocity_planner.set_publisher(self.velocity_pub)
 
     def publish_initial_obstacles(self):
         header = Header()
