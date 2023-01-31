@@ -160,6 +160,7 @@ class Cr2Auto(Node):
         self.build_scenario()  # build scenario from osm map
         self.convert_origin()
         self.flag = False # for initalial obstacles initialization after engaging
+        self.flag_velocity_planner = True
 
         
         # Define Planner 
@@ -208,6 +209,15 @@ class Cr2Auto(Node):
             1,
             callback_group=self.callback_group
         )
+        # subscribe initial pose
+        self.initialpose_sub = self.create_subscription(
+            PoseWithCovarianceStamped,
+            '/initialpose',
+            self.initial_pose_callback,
+            1,
+            callback_group=self.callback_group
+        )
+
         # subscribe goal pose
         self.goal_pose_sub = self.create_subscription(
             PoseStamped,
@@ -230,15 +240,6 @@ class Cr2Auto(Node):
             1,
             callback_group=self.callback_group
         )"""
-
-        # subscribe initial pose
-        self.initialpose_sub = self.create_subscription(
-            PoseWithCovarianceStamped,
-            '/initialpose',
-            self.initial_pose_callback,
-            1,
-            callback_group=self.callback_group
-        )
 
         """
         # subscribe velocity planner
@@ -387,10 +388,13 @@ class Cr2Auto(Node):
         #    timer_period_sec=self.get_parameter("goal_is_reached_update_time").get_parameter_value().double_value,
         #    callback=self._is_goal_reached, callback_group=self.callback_group)
 
-
+        # rate = self.create_rate(2)
         if self.planning_problem_set is not None:
             self.initialize_velocity_planner()
             self.publish_initial_states()
+            # rate.sleep(2)
+            # rclpy.timer.Rate.sleep(10)
+            # self.initialize_velocity_planner()
             # self.publish_initial_obstacles()
         else:
             self.get_logger().info("planning_problem not set")
@@ -697,8 +701,8 @@ class Cr2Auto(Node):
         pose.position = self.utm2map(initial_state.position)
         pose.orientation = Cr2Auto.orientation2quaternion(initial_state.orientation)
         initial_pose_msg.pose.pose = pose
-        initial_pose_msg.pose.covariance = np.zeros(dtype=np.float64, shape=36) # TODO: clarify
         self.initial_pose_pub.publish(initial_pose_msg)
+        self.initial_pose_msg = initial_pose_msg #save message
         self.get_logger().info("initial pose (%f, %f)" % (initial_state.position[0], initial_state.position[1]))
 
         # publish the goal if present
@@ -718,7 +722,7 @@ class Cr2Auto(Node):
                         continue
 
             if hasattr(goal_state, 'position') and hasattr(goal_state, 'orientation') or (
-                position is not None and orientation is not None): # for the ShapeGrop case
+                position is not None and orientation is not None): # for the ShapeGroup case
                 if position is None and orientation is None:
                     position = goal_state.position.center
                     orientation = Cr2Auto.orientation2quaternion(goal_state.orientation.start) # w,z
@@ -732,6 +736,8 @@ class Cr2Auto(Node):
                 goal_msg.pose = pose
                 self.goal_pose_pub.publish(goal_msg)
                 self.get_logger().info("goal pose: (%f, %f)" % (pose.position.x, pose.position.y))
+                
+
             # publish visual goal region(s)
             id = 0xffff # just a value
             goal_region_msgs = MarkerArray()
@@ -799,7 +805,7 @@ class Cr2Auto(Node):
             1,
             callback_group=self.callback_group
         )
-        # publish trajectory to motion velocity smoother
+                # publish trajectory to motion velocity smoother
         self.velocity_pub = self.create_publisher(
             AWTrajectory,
             '/planning/scenario_planning/scenario_selector/trajectory',
@@ -1182,6 +1188,12 @@ class Cr2Auto(Node):
         :param msg: Goal Pose message
         """
         self.get_logger().info("Received new goal pose!")
+        # if self.flag_velocity_planner:
+        #     # self.initialize_velocity_planner()
+        #     # self.get_logger().info("initialized velocity planner!")
+        #     self.initial_pose_msg.header.stamp.sec += 1
+        #     self.initial_pose_pub.publish(self.initial_pose_msg)
+        #     self.flag_velocity_planner = False
         # save msg to list of goals
         self.goal_msgs.append(msg)
 
