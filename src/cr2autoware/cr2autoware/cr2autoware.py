@@ -109,6 +109,7 @@ class Cr2Auto(Node):
         self.declare_parameter('reactive_planner.planning.dt', 0.1)
         self.declare_parameter('reactive_planner.planning.planning_horizon', 0.4)
 
+        self.declare_parameter('velocity_planner.init_velocity', 1.0)
         self.declare_parameter('velocity_planner.lookahead_dist', 2.0)
         self.declare_parameter('velocity_planner.lookahead_time', 0.8)
         

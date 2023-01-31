@@ -38,5 +38,6 @@
         planning_horizon: 5.0
         
     velocity_planner:
-      lookahead_dist: 3.0
-      lookahead_time: 0.8
+      init_velocity: 5.0 # m/s - not yet implemented; should only used for lanelet2 maps
+      lookahead_dist: 3.0 # m
+      lookahead_time: 0.8 # s
