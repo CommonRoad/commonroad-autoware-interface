@@ -58,7 +58,7 @@ class RP2Interface:
     # This function can be used to generate test cases for test_rp.py
     def save_to_pickle(self, filename, *args):
         # save file to test/pickle_files
-        test_path = "/home/drivingsim/autoware/src/universe/autoware.universe/planning/tum_commonroad_planning/dfg-car/src/cr2autoware/test/pickle_files"
+        test_path = "/home/drivingsim/autoware_tum/autoware/src/universe/autoware.universe/planning/tum_commonroad_planning/dfg-car/src/cr2autoware/test/pickle_files"
         file = os.path.join(test_path, filename + ".pkl")
         with open(file, 'wb') as output:
             pickle.dump(args, output, pickle.HIGHEST_PROTOCOL)
