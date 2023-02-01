@@ -160,8 +160,6 @@ class Cr2Auto(Node):
         self.build_scenario()  # build scenario from osm map
         self.convert_origin()
         self.flag = False # for initalial obstacles initialization after engaging
-        self.flag_velocity_planner = True
-
         
         # Define Planner 
         self.planner_type = self.get_parameter("planner_type").get_parameter_value().integer_value
@@ -383,19 +381,9 @@ class Cr2Auto(Node):
             timer_period_sec=self.get_parameter("planner_update_time").get_parameter_value().double_value,
             callback=self.solve_planning_problem, callback_group=self.callback_group)
 
-        # create a timer to check if goal is reached
-        #self.timer_is_goal_reached = self.create_timer(
-        #    timer_period_sec=self.get_parameter("goal_is_reached_update_time").get_parameter_value().double_value,
-        #    callback=self._is_goal_reached, callback_group=self.callback_group)
-
-        # rate = self.create_rate(2)
+        self.initialize_velocity_planner()
         if self.planning_problem_set is not None:
-            self.initialize_velocity_planner()
             self.publish_initial_states()
-            # rate.sleep(2)
-            # rclpy.timer.Rate.sleep(10)
-            # self.initialize_velocity_planner()
-            # self.publish_initial_obstacles()
         else:
             self.get_logger().info("planning_problem not set")
 
@@ -702,7 +690,6 @@ class Cr2Auto(Node):
         pose.orientation = Cr2Auto.orientation2quaternion(initial_state.orientation)
         initial_pose_msg.pose.pose = pose
         self.initial_pose_pub.publish(initial_pose_msg)
-        self.initial_pose_msg = initial_pose_msg #save message
         self.get_logger().info("initial pose (%f, %f)" % (initial_state.position[0], initial_state.position[1]))
 
         # publish the goal if present
@@ -1188,13 +1175,6 @@ class Cr2Auto(Node):
         :param msg: Goal Pose message
         """
         self.get_logger().info("Received new goal pose!")
-        # if self.flag_velocity_planner:
-        #     # self.initialize_velocity_planner()
-        #     # self.get_logger().info("initialized velocity planner!")
-        #     self.initial_pose_msg.header.stamp.sec += 1
-        #     self.initial_pose_pub.publish(self.initial_pose_msg)
-        #     self.flag_velocity_planner = False
-        # save msg to list of goals
         self.goal_msgs.append(msg)
 
         if self.get_parameter("detailed_log").get_parameter_value().bool_value:
