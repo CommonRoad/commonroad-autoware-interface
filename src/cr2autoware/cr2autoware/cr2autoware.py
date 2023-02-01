@@ -1,4 +1,5 @@
 # general imports
+from multiprocessing.sharedctypes import Value
 import os
 from re import A
 from ssl import HAS_SNI
@@ -53,6 +54,7 @@ from tier4_control_msgs.msg import GateMode
 from commonroad.scenario.scenario import Tag
 from commonroad.common.file_writer import CommonRoadFileWriter, OverwriteExistingFile
 from commonroad.common.file_reader import CommonRoadFileReader
+from commonroad.common.solution import CommonRoadSolutionReader
 from commonroad.planning.planning_problem import PlanningProblem, PlanningProblemSet
 from commonroad.planning.goal import GoalRegion
 from commonroad.common.util import Interval
@@ -70,8 +72,6 @@ from SMP.motion_planner.motion_planner import MotionPlanner
 from SMP.motion_planner.utility import create_trajectory_from_list_states
 from SMP.maneuver_automaton.maneuver_automaton import ManeuverAutomaton
 
-#from crdesigner.map_conversion.map_conversion_interface import lanelet_to_commonroad
-
 from commonroad_route_planner.route_planner import RoutePlanner
 
 # local imports
@@ -81,7 +81,7 @@ from cr2autoware.velocity_planner import VelocityPlanner
 
 from cr2autoware.rp_interface import RP2Interface
 
-DEFAULT_PROJ_STRING = "+proj=utm +zone=32 +ellps=WGS84"
+#DEFAULT_PROJ_STRING = "+proj=utm +zone=32 +ellps=WGS84"
 
 class Cr2Auto(Node):
     """
@@ -97,17 +97,13 @@ class Cr2Auto(Node):
         self.declare_parameter('vehicle.max_velocity', 5.0)
         self.declare_parameter('vehicle.min_velocity', 1.0)
         self.declare_parameter("planner_type", 1)
-        #self.declare_parameter("latitude", 0.0)
-        #self.declare_parameter("longitude", 0.0)
-        #self.declare_parameter("elevation", 0.0)
-        #self.declare_parameter("origin_offset_lat", 0.0)
-        #self.declare_parameter("origin_offset_lon", 0.0)
         self.declare_parameter('vehicle.cg_to_front', 1.0)
         self.declare_parameter('vehicle.cg_to_rear', 1.0)
         self.declare_parameter('vehicle.width', 2.0)
         self.declare_parameter('vehicle.front_overhang', 0.5)
         self.declare_parameter('vehicle.rear_overhang', 0.5)
         self.declare_parameter('map_path', '')
+        self.declare_parameter('solution_file', '')
         self.declare_parameter('left_driving', False)
         self.declare_parameter('adjacencies', False)
         self.declare_parameter('reactive_planner.default_yaml_folder', '')
@@ -116,16 +112,18 @@ class Cr2Auto(Node):
         self.declare_parameter('reactive_planner.sampling.t_min', 0.4)
         self.declare_parameter('reactive_planner.planning.dt', 0.1)
         self.declare_parameter('reactive_planner.planning.planning_horizon', 0.4)
+
+        self.declare_parameter('velocity_planner.init_velocity', 1.0)
         self.declare_parameter('velocity_planner.lookahead_dist', 2.0)
         self.declare_parameter('velocity_planner.lookahead_time', 0.8) 
+        
         self.declare_parameter("write_scenario", False)
         self.declare_parameter("plot_scenario", False)
-        self.declare_parameter("scenario_update_time", 0.5)
         self.declare_parameter("planner_update_time", 0.5)
-        self.declare_parameter("goal_is_reached_update_time", 0.1)
         self.declare_parameter("detailed_log", False)
 
         self.get_logger().info("Map path is: " + self.get_parameter("map_path").get_parameter_value().string_value) 
+        self.get_logger().info("Solution path is: " + self.get_parameter("solution_file").get_parameter_value().string_value) 
         self.init_proj_str()
 
         self.rnd = None
@@ -137,6 +135,8 @@ class Cr2Auto(Node):
         self.origin_transformation_x, self.origin_transformation_y = None, None
         self.vehicle_length, self.vehicle_width = None, None
         self.scenario = None
+
+        self.solution_path = self.get_parameter("solution_file").get_parameter_value().string_value
 
         self.planning_problem = None
         self.planning_problem_set = None
@@ -224,40 +224,15 @@ class Cr2Auto(Node):
             1,
             callback_group=self.callback_group
         )
-        # publish goal pose
-        self.goal_pose_pub = self.create_publisher(
-            PoseStamped,
-            '/planning/mission_planning/goal',
-            1,
-        )
-        # subscribe autoware states
-        """self.aw_state_sub = self.create_subscription(
-            AutowareState,
-            '/autoware/state',
-            self.state_callback,
-            1,
-            callback_group=self.callback_group
-        )"""
 
-        """
-        # subscribe velocity planner
-        self.velocity_sub = self.create_subscription(
-            Path,
-            '/planning/scenario_planning/lane_driving/behavior_planning/path',
-            self.velocity_planner.path_with_velocity_callback,
+        # subscribe initial pose
+        self.initialpose_sub = self.create_subscription(
+            PoseWithCovarianceStamped,
+            '/initialpose',
+            self.initial_pose_callback,
             1,
             callback_group=self.callback_group
         )
-
-        # test subscription
-        self.velocity_sub_test = self.create_subscription(
-            PathWithLaneId,
-            '/planning/scenario_planning/lane_driving/behavior_planning/path_with_lane_id',
-            self.velocity_planner.test_callback,
-            1,
-            callback_group=self.callback_group
-        )
-        """
 
         # subscribe autoware engage
         self.engage_sub = self.create_subscription(
@@ -268,15 +243,12 @@ class Cr2Auto(Node):
             callback_group=self.callback_group
         )
 
-        """
-        # publish path to velocity planner
-        self.velocity_pub = self.create_publisher(
-            PathWithLaneId,
-            '/planning/scenario_planning/lane_driving/behavior_planning/path_with_lane_id',
-            1
+        # publish goal pose
+        self.goal_pose_pub = self.create_publisher(
+            PoseStamped,
+            '/planning/mission_planning/goal',
+            1,
         )
-        self.velocity_planner.set_publisher(self.velocity_pub)
-        """
 
         # publish trajectory
         self.traj_pub = self.create_publisher(
@@ -333,7 +305,7 @@ class Cr2Auto(Node):
             '/initialpose',
             1
         )
-        # switch between manual ang autonomous modes
+        # switch between manual and autonomous modes
         self.gate_mode_pub = self.create_publisher(
             GateMode,
             '/control/gate_mode_cmd',
@@ -376,14 +348,12 @@ class Cr2Auto(Node):
 
         self.set_state(AutowareState.WAITING_FOR_ROUTE)
 
-        # create a timer to run planner
-        self.timer_solve_planning_problem = self.create_timer(
-            timer_period_sec=self.get_parameter("planner_update_time").get_parameter_value().double_value,
-            callback=self.solve_planning_problem, callback_group=self.callback_group)
-
         self.initialize_velocity_planner()
+
         if self.planning_problem_set is not None:
+
             self.publish_initial_states()
+            self.publish_initial_obstacles()
         else:
             self.get_logger().info("planning_problem not set")
 
@@ -391,6 +361,16 @@ class Cr2Auto(Node):
         if self.get_parameter("detailed_log").get_parameter_value().bool_value:
             self.get_logger().info("Detailed log is enabled")
             self.get_logger().info("Init complete!")
+
+        
+        if self.solution_path == "":
+            # create a timer to run planner
+            self.timer_solve_planning_problem = self.create_timer(
+                timer_period_sec=self.get_parameter("planner_update_time").get_parameter_value().double_value,
+                callback=self.solve_planning_problem, callback_group=self.callback_group)
+        else:
+            # follow solution trajectory
+            self.follow_solution_trajectory()
             
 
     def update_scenario(self):
@@ -422,7 +402,6 @@ class Cr2Auto(Node):
         """
         Solve planning problem with algorithms offered by commonroad.
         """
-
         try:
 
             # avoid parallel processing issues by checking if a planning problem is already being solved
@@ -462,6 +441,7 @@ class Cr2Auto(Node):
 
                     if not self.velocity_planner.get_is_velocity_planning_completed():
                         self.get_logger().info("Can't run route planner because interface is still waiting for velocity planner")
+                        self.velocity_planner.send_reference_path([self.utm2map(point) for point in self.reference_path], self.current_goal_msg.pose.position)
                         self.is_computing_trajectory = False
                         return
 
@@ -499,15 +479,15 @@ class Cr2Auto(Node):
                             
                         self.planner._run_reactive_planner(init_state=init_state, goal=self.planning_problem.goal, reference_path=self.reference_path, reference_velocity=reference_velocity)
 
-                        if self.get_parameter("detailed_log").get_parameter_value().bool_value:
-                            self.get_logger().info("Reactive planner trajectory: " + str([self.planner.valid_states[0].position]) + " -> ... -> " + str([self.planner.valid_states[-1].position]))
-                            self.get_logger().info("Reactive planner velocities: " + str([s.velocity for s in self.planner.valid_states]))
-                            self.get_logger().info("Reactive planner acc: " + str([s.acceleration for s in self.planner.valid_states]))
-
                         assert(self.planner.optimal != False)
                         assert(self.planner.valid_states != [])
                         assert(max([s.velocity for s in self.planner.valid_states]) > 0)
 
+                        if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+                            self.get_logger().info("Reactive planner trajectory: " + str([self.planner.valid_states[0].position]) + " -> ... -> " + str([self.planner.valid_states[-1].position]))
+                            self.get_logger().info("Reactive planner velocities: " + str([s.velocity for s in self.planner.valid_states]))
+                            self.get_logger().info("Reactive planner acc: " + str([s.acceleration for s in self.planner.valid_states]))
+                            
                         # calculate velocities and accelerations of planner states
                         # self._calculate_velocities(self.planner.valid_states, self.ego_vehicle_state.velocity)
 
@@ -546,7 +526,7 @@ class Cr2Auto(Node):
                     self.set_state(AutowareState.ARRIVED_GOAL)
 
                     # publish empty trajectory
-                    self._prepare_traj_msg([])
+                    #self._prepare_traj_msg([])
                     self._pub_route([], [])
                 else:
                     # set next goal
@@ -575,15 +555,27 @@ class Cr2Auto(Node):
             self.get_logger().info("self.use_local_coordinates = False, converting CR coordinates to AW")
 
         if abs(self.aw_origin_longitude) > 180 or abs(self.aw_origin_latitude) > 90:
-            # set origin point (TUM MI building) in default UTM 32 zone
+            # In some CR scenarios, the lat/long values are set to non-existing values. Use 0 values instead
             self.aw_origin_latitude = 0
             self.aw_origin_longitude = 0
+            self.get_logger().warn("Invalid lat/lon coordinates: lat %d, lon %d. Using lat 0 long 0 instead." % (self.aw_origin_latitude, self.aw_origin_longitude))
 
         
         utm_str = utm.from_latlon(float(self.aw_origin_latitude), float(self.aw_origin_longitude))
         self.proj_str = "+proj=utm +zone=%d +datum=WGS84 +ellps=WGS84" % (utm_str[2])
         if self.get_parameter("detailed_log").get_parameter_value().bool_value:
             self.get_logger().info("Proj string: %s" % self.proj_str)
+
+
+    def follow_solution_trajectory(self):
+        solution = CommonRoadSolutionReader.open(self.solution_path)
+        solution_traj = solution.planning_problem_solutions.trajectory
+        if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+            self.get_logger().info("Loading solution trajectory: ", solution_traj.valid_states)
+
+        self._prepare_traj_msg(solution_traj.valid_states)
+
+        self.set_state(AutowareState.WAITING_FOR_ENGAGE)
     
 
     def convert_origin(self):
@@ -1294,6 +1286,8 @@ class Cr2Auto(Node):
         # Update Autoware state panel
         if self.engage_status and self.get_state() == AutowareState.WAITING_FOR_ENGAGE:
             self.set_state(AutowareState.DRIVING)
+
+            """
             if not self.flag:
                 self.publish_initial_obstacles()
                 self.flag = True
@@ -1327,6 +1321,7 @@ class Cr2Auto(Node):
                 self.traj_pub.publish(start)
                 self.get_logger().info("initial velocity and acceleration: (%f, %f)" % (
                     new_point.longitudinal_velocity_mps, new_point.acceleration_mps2))
+            """
 
         if not self.engage_status and self.get_state() == AutowareState.DRIVING:
             self.set_state(AutowareState.WAITING_FOR_ENGAGE)    
