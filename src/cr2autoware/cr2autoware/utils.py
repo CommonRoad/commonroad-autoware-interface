@@ -1,7 +1,7 @@
 import enum
 from typing import List
 import math
-
+import numpy as np
 import matplotlib.pyplot as plt
 from commonroad.geometry.shape import Rectangle
 from commonroad.planning.planning_problem import PlanningProblemSet
@@ -12,7 +12,11 @@ from commonroad.scenario.trajectory import State, Trajectory
 # import CommonRoad-io modules
 from commonroad.visualization.mp_renderer import MPRenderer
 
-from geometry_msgs.msg import Quaternion
+# ROS message imports
+from geometry_msgs.msg import PoseStamped, Quaternion, Point, Pose, PoseWithCovarianceStamped
+from nav_msgs.msg import Odometry
+from visualization_msgs.msg import MarkerArray, Marker
+from std_msgs.msg import ColorRGBA, Header
 
 
 @enum.unique
@@ -136,3 +140,24 @@ def quaternion2orientation(quaternion: Quaternion) -> float:
     y = 2.0 * w * z
     x = 1.0 - 2.0 * z * z
     return math.atan2(y, x)
+
+def map2utm(self, p: Point) -> np.array:
+    """
+    Transform position (in autoware) to position (in commonroad).
+    :param p: position autoware
+    :return: position commonroad
+    """
+    _x = self.origin_transformation_x + p.x
+    _y = self.origin_transformation_y + p.y
+    return np.array([_x, _y])
+
+def utm2map(self, position: np.array) -> Point:
+    """
+    Transform position (in commonroad) to position (in autoware).
+    :param position: position commonroad
+    :return: position autoware
+    """
+    p = Point()
+    p.x = position[0] - self.origin_transformation_x
+    p.y = position[1] - self.origin_transformation_y
+    return p

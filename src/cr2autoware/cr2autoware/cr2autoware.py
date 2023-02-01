@@ -81,6 +81,9 @@ from cr2autoware.velocity_planner import VelocityPlanner
 
 from cr2autoware.rp_interface import RP2Interface
 
+from cr2autoware.utils import *
+
+
 #DEFAULT_PROJ_STRING = "+proj=utm +zone=32 +ellps=WGS84"
 
 class Cr2Auto(Node):
@@ -351,9 +354,8 @@ class Cr2Auto(Node):
         self.initialize_velocity_planner()
 
         if self.planning_problem_set is not None:
-
             self.publish_initial_states()
-            self.publish_initial_obstacles()
+            # self.publish_initial_obstacles()
         else:
             self.get_logger().info("planning_problem not set")
 
@@ -679,7 +681,7 @@ class Cr2Auto(Node):
         initial_pose_msg.header.frame_id = 'map'
         pose = Pose()
         pose.position = self.utm2map(initial_state.position)
-        pose.orientation = Cr2Auto.orientation2quaternion(initial_state.orientation)
+        pose.orientation = orientation2quaternion(initial_state.orientation)
         initial_pose_msg.pose.pose = pose
         self.initial_pose_pub.publish(initial_pose_msg)
         self.get_logger().info("initial pose (%f, %f)" % (initial_state.position[0], initial_state.position[1]))
@@ -694,7 +696,7 @@ class Cr2Auto(Node):
                 possible_lanelets = self.scenario.lanelet_network.find_lanelet_by_shape(shape)
                 for pl in possible_lanelets: # find an appropriate lanelet
                     try:
-                        orientation = Cr2Auto.orientation2quaternion(
+                        orientation = orientation2quaternion(
                             self.scenario.lanelet_network.find_lanelet_by_id(pl).orientation_by_position(position))
                         break
                     except AssertionError:
@@ -704,7 +706,7 @@ class Cr2Auto(Node):
                 position is not None and orientation is not None): # for the ShapeGroup case
                 if position is None and orientation is None:
                     position = goal_state.position.center
-                    orientation = Cr2Auto.orientation2quaternion(goal_state.orientation.start) # w,z
+                    orientation = orientation2quaternion(goal_state.orientation.start) # w,z
                 goal_msg = PoseStamped()
                 goal_msg.header = Header()
                 goal_msg.header.stamp = self.get_clock().now().to_msg()
@@ -746,7 +748,7 @@ class Cr2Auto(Node):
                             marker.scale.x = shape.length
                             marker.scale.y = shape.width
                             marker.scale.z = 0.001
-                            marker.pose.orientation = Cr2Auto.orientation2quaternion(shape.orientation)
+                            marker.pose.orientation = orientation2quaternion(shape.orientation)
                         elif isinstance(shape, Circle):
                             marker.type = Marker.CYLINDER
                             marker.pose.position = self.utm2map(shape.center)
@@ -801,7 +803,7 @@ class Cr2Auto(Node):
             object_msg.header = header
             pose = Pose()
             pose.position = self.utm2map(obstacle.initial_state.position)
-            pose.orientation = Cr2Auto.orientation2quaternion(obstacle.initial_state.orientation)
+            pose.orientation = orientation2quaternion(obstacle.initial_state.orientation)
             object_msg.initial_state.pose_covariance.pose = pose
             object_msg.classification.label = 1
             object_msg.classification.probability = 1.0
@@ -824,7 +826,7 @@ class Cr2Auto(Node):
             object_msg.header = header
             pose = Pose()
             pose.position = self.utm2map(obstacle.initial_state.position)
-            pose.orientation = Cr2Auto.orientation2quaternion(obstacle.initial_state.orientation)
+            pose.orientation = orientation2quaternion(obstacle.initial_state.orientation)
             object_msg.initial_state.pose_covariance.pose = pose
             object_msg.initial_state.twist_covariance.twist.linear.x = 3.0
             object_msg.classification.label = 1
@@ -1280,14 +1282,11 @@ class Cr2Auto(Node):
 
         self.engage_status = not self.engage_status
 
-        if self.get_parameter("detailed_log").get_parameter_value().bool_value or True:
-            self.get_logger().info("Engage message received! Engage: " + str(self.engage_status) + ", current state: " + str(self.get_state()))
+        self.get_logger().info("Engage message received! Engage: " + str(self.engage_status) + ", current state: " + str(self.get_state()))
 
         # Update Autoware state panel
         if self.engage_status and self.get_state() == AutowareState.WAITING_FOR_ENGAGE:
             self.set_state(AutowareState.DRIVING)
-
-            """
             if not self.flag:
                 self.publish_initial_obstacles()
                 self.flag = True
@@ -1310,18 +1309,6 @@ class Cr2Auto(Node):
                 # self.control_cmd_pub.publish(ackermann)
                 # self.gear_cmd_pub.publish(gear_cmd)
                 # self.get_logger().info("initial velocity and acceleration: (%f, %f)" % (ackermann.longitudinal.speed, ackermann.longitudinal.acceleration))
-                initial_state = self.scenario.planning_problem.initial_state
-                new_point = TrajectoryPoint()
-                new_point.pose.position = self.utm2map(initial_state.position[0])
-                new_point.pose.orientation = Cr2Auto.orientation2quaternion(initial_state.orientation)
-                new_point.longitudinal_velocity_mps = initial_state.velocity
-                new_point.acceleration_mps2 = initial_state.acceleration
-                start = AWTrajectory()
-                start.points.append(new_point)
-                self.traj_pub.publish(start)
-                self.get_logger().info("initial velocity and acceleration: (%f, %f)" % (
-                    new_point.longitudinal_velocity_mps, new_point.acceleration_mps2))
-            """
 
         if not self.engage_status and self.get_state() == AutowareState.DRIVING:
             self.set_state(AutowareState.WAITING_FOR_ENGAGE)    
@@ -1345,7 +1332,6 @@ class Cr2Auto(Node):
             return
 
         position_list = []
-
         for i in range(0, len(states)):
             new_point = TrajectoryPoint()
             new_point.pose.position = self.utm2map(states[i].position)
@@ -1633,39 +1619,6 @@ class Cr2Auto(Node):
 
         pose_out = do_transform_pose(pose_in, tf_map)
         return pose_out
-
-    @staticmethod
-    def orientation2quaternion(orientation: float) -> Quaternion:
-        """
-        Transform orientation (in commonroad) to quaternion (in autoware).
-        :param orientation: orientation angles
-        :return: orientation quaternion
-        """
-        quat = Quaternion()
-        quat.w = math.cos(orientation * 0.5)
-        quat.z = math.sin(orientation * 0.5)
-        return quat
-
-    @staticmethod
-    def quaternion2orientation(quaternion: Quaternion) -> float:
-        """
-        Transform quaternion (in autoware) to orientation (in commonroad).
-        :param quaternion: orientation quaternion
-        :return: orientation angles
-        """
-        z = quaternion.z
-        w = quaternion.w
-        mag2 = (z * z) + (w * w)
-        epsilon = 1e-6
-        if abs(mag2 - 1.0) > epsilon:
-            mag = 1.0 / math.sqrt(mag2)
-            z *= mag
-            w *= mag
-
-        y = 2.0 * w * z
-        x = 1.0 - 2.0 * z * z
-        return math.atan2(y, x)
-
 
     def map2utm(self, p: Point) -> np.array:
         """
