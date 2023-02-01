@@ -72,8 +72,6 @@ from SMP.motion_planner.motion_planner import MotionPlanner
 from SMP.motion_planner.utility import create_trajectory_from_list_states
 from SMP.maneuver_automaton.maneuver_automaton import ManeuverAutomaton
 
-#from crdesigner.map_conversion.map_conversion_interface import lanelet_to_commonroad
-
 from commonroad_route_planner.route_planner import RoutePlanner
 
 # local imports
@@ -121,9 +119,7 @@ class Cr2Auto(Node):
         
         self.declare_parameter("write_scenario", False)
         self.declare_parameter("plot_scenario", False)
-        self.declare_parameter("scenario_update_time", 0.5)
         self.declare_parameter("planner_update_time", 0.5)
-        self.declare_parameter("goal_is_reached_update_time", 0.1)
         self.declare_parameter("detailed_log", False)
 
         self.get_logger().info("Map path is: " + self.get_parameter("map_path").get_parameter_value().string_value) 
@@ -347,8 +343,9 @@ class Cr2Auto(Node):
         self.initialize_velocity_planner()
 
         if self.planning_problem_set is not None:
+
             self.publish_initial_states()
-            # self.publish_initial_obstacles()
+            self.publish_initial_obstacles()
         else:
             self.get_logger().info("planning_problem not set")
 
@@ -436,6 +433,7 @@ class Cr2Auto(Node):
 
                     if not self.velocity_planner.get_is_velocity_planning_completed():
                         self.get_logger().info("Can't run route planner because interface is still waiting for velocity planner")
+                        self.velocity_planner.send_reference_path([self.utm2map(point) for point in self.reference_path], self.current_goal_msg.pose.position)
                         self.is_computing_trajectory = False
                         return
 
@@ -549,10 +547,10 @@ class Cr2Auto(Node):
             self.get_logger().info("self.use_local_coordinates = False, converting CR coordinates to AW")
 
         if abs(self.aw_origin_longitude) > 180 or abs(self.aw_origin_latitude) > 90:
-            # set origin point (TUM MI building) in default UTM 32 zone
-            #self.aw_origin_latitude = 0
-            #self.aw_origin_longitude = 0
-            self.get_logger().error("Invalid lat/lon coordinates: lat %d, lon %d" % (self.aw_origin_latitude, self.aw_origin_longitude))
+            # In some CR scenarios, the lat/long values are set to non-existing values. Use 0 values instead
+            self.aw_origin_latitude = 0
+            self.aw_origin_longitude = 0
+            self.get_logger().warn("Invalid lat/lon coordinates: lat %d, lon %d. Using lat 0 long 0 instead." % (self.aw_origin_latitude, self.aw_origin_longitude))
 
         
         utm_str = utm.from_latlon(float(self.aw_origin_latitude), float(self.aw_origin_longitude))
