@@ -1,5 +1,6 @@
 from commonroad_rp.reactive_planner import ReactivePlanner
 from commonroad_rp.configuration_builder import ConfigurationBuilder
+from commonroad_rp.utility.evaluation import create_full_solution_trajectory, create_planning_problem_solution
 import numpy as np
 
 from copy import deepcopy
@@ -53,6 +54,14 @@ class RP2Interface:
                     if last_state.time_step == state.time_step:
                         continue
                 self.valid_states.append(state)
+
+    # TODO store trajectory
+    def store_trajectory(self, planning_problem):
+        # create full solution trajectory
+        ego_solution_trajectory = create_full_solution_trajectory(self.config, record_state_list)
+
+        # create CR solution
+        solution = create_planning_problem_solution(self.config, ego_solution_trajectory, self.scenario, planning_problem)
 
 
     # This function can be used to generate test cases for test_rp.py

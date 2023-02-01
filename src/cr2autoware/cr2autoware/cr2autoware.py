@@ -354,15 +354,22 @@ class Cr2Auto(Node):
             self.get_logger().info("Detailed log is enabled")
             self.get_logger().info("Init complete!")
 
-        
+        # decide whether planner goes in interactive planner mode or trajectory following mode
         if self.solution_path == "":
             # create a timer to run planner
+            self.get_logger().info("Starting interactive planning mode...")
             self.timer_solve_planning_problem = self.create_timer(
                 timer_period_sec=self.get_parameter("planner_update_time").get_parameter_value().double_value,
                 callback=self.solve_planning_problem, callback_group=self.callback_group)
         else:
             # follow solution trajectory
+            self.get_logger().info("Loading solution trajectory...")
+
             self.follow_solution_trajectory()
+
+            self.timer_follow_trajectory_mode_update = self.create_timer(
+                timer_period_sec=self.get_parameter("planner_update_time").get_parameter_value().double_value,
+                callback=self.follow_trajectory_mode_update, callback_group=self.callback_group)
             
 
     def update_scenario(self):
@@ -500,6 +507,26 @@ class Cr2Auto(Node):
             self.get_logger().error(traceback.format_exc())
 
 
+    """
+    This method is called periodically when the follow trajectory mode is activated. It checks if the goal position is reached.
+    """
+    def follow_trajectory_mode_update(self):
+        try:
+            if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+                    self.get_logger().info("Next cycle of follow trajectory mode")
+
+            # update scenario
+            self.update_scenario()
+
+            if not self.route_planned:
+                # try to set a new goal position
+                self._set_new_goal()
+            else:
+                # check if goal is reached
+                self._is_goal_reached()
+        except Exception:
+            self.get_logger().error(traceback.format_exc())
+    
     def _is_goal_reached(self):
         """
         Check if vehicle is in goal region. If in goal region set new goal.
@@ -561,11 +588,15 @@ class Cr2Auto(Node):
 
     def follow_solution_trajectory(self):
         solution = CommonRoadSolutionReader.open(self.solution_path)
-        solution_traj = solution.planning_problem_solutions.trajectory
+        solution_traj = solution.planning_problem_solutions[0].trajectory
         if self.get_parameter("detailed_log").get_parameter_value().bool_value:
-            self.get_logger().info("Loading solution trajectory: ", solution_traj.valid_states)
+            self.get_logger().info("Solution trajectory: " + str(solution_traj))
 
-        self._prepare_traj_msg(solution_traj.valid_states)
+        states = solution_traj.state_list
+        for i in range(len(states)-1):
+            states[i].acceleration = states[i+1].velocity - states[i].velocity
+        states[len(states)-1].acceleration = 0
+        self._prepare_traj_msg(states)
 
         self.set_state(AutowareState.WAITING_FOR_ENGAGE)
     
@@ -758,8 +789,21 @@ class Cr2Auto(Node):
 
                         goal_region_msgs.markers.append(marker)
                         id += 1
+
+                """
+                # calculate point in the middle of goal region as Autoware goal
+                goal = PoseStamped()
+                goal.pose.position.x = goal_state.position.x
+                goal.pose.position.y = goal_state.position.y
+                goal.pose.position.z = goal_state.position.z
+                self.goal_msgs.append(goal)
+                """
+
             self.goal_region_pub.publish(goal_region_msgs)
             self.get_logger().info('published the goal region')
+
+        # publish goal
+        #self._pub_goals()
 
     def initialize_velocity_planner(self):
         # Initialize Velocity Planner
