@@ -3,7 +3,7 @@ from typing import List
 import math
 import numpy as np
 import matplotlib.pyplot as plt
-from commonroad.geometry.shape import Rectangle
+from commonroad.geometry.shape import Rectangle, Circle, Polygon
 from commonroad.planning.planning_problem import PlanningProblemSet
 from commonroad.prediction.prediction import TrajectoryPrediction
 from commonroad.scenario.obstacle import ObstacleType, DynamicObstacle
@@ -17,6 +17,9 @@ from geometry_msgs.msg import PoseStamped, Quaternion, Point, Pose, PoseWithCova
 from nav_msgs.msg import Odometry
 from visualization_msgs.msg import MarkerArray, Marker
 from std_msgs.msg import ColorRGBA, Header
+
+# Autoware message imports
+from dummy_perception_publisher.msg import Object
 
 
 @enum.unique
@@ -141,23 +144,201 @@ def quaternion2orientation(quaternion: Quaternion) -> float:
     x = 1.0 - 2.0 * z * z
     return math.atan2(y, x)
 
-def map2utm(self, p: Point) -> np.array:
+def map2utm(origin_transformation, p: Point) -> np.array:
     """
     Transform position (in autoware) to position (in commonroad).
+    :param origin_transformation: list or array with 2 elements
     :param p: position autoware
     :return: position commonroad
     """
-    _x = self.origin_transformation_x + p.x
-    _y = self.origin_transformation_y + p.y
+    _x = origin_transformation[0] + p.x
+    _y = origin_transformation[1] + p.y
     return np.array([_x, _y])
 
-def utm2map(self, position: np.array) -> Point:
+def utm2map(origin_transformation, position: np.array) -> Point:
     """
     Transform position (in commonroad) to position (in autoware).
+    :param origin_transformation: list or array with 2 elements
     :param position: position commonroad
     :return: position autoware
     """
     p = Point()
-    p.x = position[0] - self.origin_transformation_x
-    p.y = position[1] - self.origin_transformation_y
+    p.x = position[0] - origin_transformation[0]
+    p.y = position[1] - origin_transformation[1]
     return p
+
+def create_goal_marker(position):
+    """
+    creates a ros sphere marker to represent a goal
+    :param: position: ros pose.position
+    :return: new marker
+    """
+    marker = Marker()
+    marker.header.frame_id = "map"
+    marker.frame_locked = True
+    marker.type = Marker.SPHERE
+    marker.action = Marker.ADD
+    marker.scale.x = 1.0
+    marker.scale.y = 1.0
+    marker.scale.z = 0.1
+    marker.color.r = 0.0
+    marker.color.g = 1.0
+    marker.color.b = 0.0
+    marker.color.a = 1.0
+    marker.pose.position.x = position.x
+    marker.pose.position.y = position.y
+    marker.pose.position.z = position.z
+    
+    return marker
+
+def create_goal_region_marker(shape, origin_transformation):
+    """
+    creates a ros marker to represent a goal_region
+    :param: shape: shape(s) of the goal region
+    :param origin_transformation: list or array with 2 elements
+    :return: new marker
+    """
+    marker = Marker()
+    marker.header.frame_id = "map"
+    marker.ns = "goal_region"
+    marker.frame_locked = True
+    marker.action = Marker.ADD
+    marker.color.r = 1.0
+    marker.color.g = 0.843
+    marker.color.b = 0.0
+    marker.color.a = 1.0
+    marker.pose.position.z = 0.0
+    if isinstance(shape, Rectangle):
+        marker.type = Marker.CUBE
+        marker.pose.position = utm2map(origin_transformation, shape.center)
+        marker.scale.x = shape.length
+        marker.scale.y = shape.width
+        marker.scale.z = 0.001
+        marker.pose.orientation = orientation2quaternion(shape.orientation)
+    elif isinstance(shape, Circle):
+        marker.type = Marker.CYLINDER
+        marker.pose.position = utm2map(origin_transformation, shape.center)
+        marker.scale.x = shape.radius
+        marker.scale.y = shape.radius
+        marker.scale.z = 0.001
+    elif isinstance(shape, Polygon): # visualizes borders of a goal region
+        marker.type = Marker.LINE_STRIP
+        marker.scale.x = 0.15
+        points = []
+        for v in shape.vertices:
+            point = Point()
+            point.x = v[0]
+            point.y = v[1]
+            points.append(point)
+        marker.points = points
+    return marker
+
+def create_object_base_msg(header, origin_transformation, obstacle):
+    """
+    creates a base Object message for static and dynamic obstacles
+    :param header: header message for Object
+    :param origin_transformation: list or array with 2 elements
+    :param obstacle: CR obstacle
+    :return: new Object
+    """
+    object_msg = Object()
+    object_msg.header = header
+    pose = Pose()
+    pose.position = utm2map(origin_transformation, obstacle.initial_state.position)
+    pose.orientation = orientation2quaternion(obstacle.initial_state.orientation)
+    object_msg.initial_state.pose_covariance.pose = pose
+    object_msg.classification.label = 1
+    object_msg.classification.probability = 1.0
+    object_msg.shape.dimensions.x = obstacle.obstacle_shape.length
+    object_msg.shape.dimensions.y = obstacle.obstacle_shape.width
+    object_msg.shape.dimensions.z = 1.5
+
+    return object_msg
+
+
+def log_obstacle(object_msg, static):
+    """
+    simplifies obstacle logging
+    :param object_msg: Object message that contains obstacle information
+    :param static: True for static and False for dynamic obstacles
+    :return: a string for obstacle logging
+    """
+    pose = object_msg.initial_state.pose_covariance.pose
+    if static:
+        return "published a static obstacle at: (%f %f). Dim: (%f, %f)" % (
+                pose.position.x, pose.position.y,
+                object_msg.shape.dimensions.x, object_msg.shape.dimensions.y
+                )
+    else:
+        return "published a dynamic obstacle at: (%f %f); Dim: (%f, %f); velocity: %f; acceleration: %f" % (
+                pose.position.x, pose.position.y,
+                object_msg.shape.dimensions.x, object_msg.shape.dimensions.y,
+                object_msg.initial_state.twist_covariance.twist.linear.x,
+                object_msg.initial_state.accel_covariance.accel.linear.x
+                )
+
+# _process_dynamic_obs helper method
+
+def traj_linear_interpolate(self, point_1: Pose, point_2: Pose, smaller_dt: float, bigger_dt: float) -> Pose:
+    """
+    interpolation for a point between two points
+    :param point_1: point which will be smaller than interpolated point (on left-side)
+    :param point_1: point which will be bigger than interpolated point (on right-side)
+    :param smaller_dt: time step for the point will be interpolated
+    :param bigger_dt: time step for the points which will be used for interpolation
+    :return: pose of the interpolated point
+    """
+    new_point = Pose()
+    new_point.position.x = point_1.position.x + \
+                            ((point_2.position.x - point_1.position.x) / smaller_dt) * \
+                            (bigger_dt - smaller_dt)
+    new_point.position.y = point_1.position.y + \
+                            ((point_2.position.y - point_1.position.y) / smaller_dt) * \
+                            (bigger_dt - smaller_dt)
+    new_point.position.z = point_1.position.z + \
+                            ((point_2.position.z - point_1.position.z) / smaller_dt) * \
+                            (bigger_dt - smaller_dt)
+    new_point.orientation.x = point_1.orientation.x + \
+                                ((point_2.orientation.x - point_1.orientation.x) / smaller_dt) * \
+                                (bigger_dt - smaller_dt)
+    new_point.orientation.y = point_1.orientation.y + \
+                                ((point_2.orientation.y - point_1.orientation.y) / smaller_dt) * \
+                                (bigger_dt - smaller_dt)
+    new_point.orientation.z = point_1.orientation.z + \
+                                ((point_2.orientation.z - point_1.orientation.z) / smaller_dt) * \
+                                (bigger_dt - smaller_dt)
+    new_point.orientation.w = point_1.orientation.w + \
+                                ((point_2.orientation.w - point_1.orientation.w) / smaller_dt) * \
+                                (bigger_dt - smaller_dt)
+    return new_point
+
+# _process_dynamic_obs helper method
+def upsample_trajectory(traj, dt_ratio):
+    """
+    computes upsampled trajectory list
+    :param traj: trajectory to compute
+    :param dt_ratio: dt_ratio
+    """
+    point_2 = traj[-1]
+    point_1 = traj[-2]
+    new_points_x = np.linspace(point_1.position.x, point_2.position.x, dt_ratio)
+    new_points_y = np.linspace(point_1.position.y, point_2.position.y, dt_ratio)
+    new_points_z = np.linspace(point_1.position.z, point_2.position.z, dt_ratio)
+    new_points_ort_x = np.linspace(point_1.orientation.x, point_2.orientation.x, dt_ratio)
+    new_points_ort_y = np.linspace(point_1.orientation.y, point_2.orientation.y, dt_ratio)
+    new_points_ort_z = np.linspace(point_1.orientation.z, point_2.orientation.z, dt_ratio)
+    new_points_ort_w = np.linspace(point_1.orientation.w, point_2.orientation.w, dt_ratio)
+    for i in range(1, dt_ratio - 1):  # don't take first and last samples, they were already appended
+        new_point_pos = Point()
+        new_point_pos.x = new_points_x[i]
+        new_point_pos.y = new_points_y[i]
+        new_point_pos.z = new_points_z[i]
+        new_point_ort = Quaternion()
+        new_point_ort.x = new_points_ort_x[i]
+        new_point_ort.y = new_points_ort_y[i]
+        new_point_ort.z = new_points_ort_z[i]
+        new_point_ort.w = new_points_ort_w[i]
+        new_traj_point = Pose()
+        new_traj_point.position = new_point_pos
+        new_traj_point.orientation = new_point_ort
+        traj.insert(-1, new_traj_point)  # upsampled trajectory list
