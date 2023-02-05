@@ -233,6 +233,56 @@ def create_goal_region_marker(shape, origin_transformation):
         marker.points = points
     return marker
 
+def create_route_marker_msg(path, velocities):
+    """
+    creates a message for a route in rviz Marker.LINE_STRIP format
+    :param path: 
+    :param velocities:
+    """
+    route = Marker()
+    route.header.frame_id = "map"
+    route.id = 1
+    route.ns = "route"
+    route.frame_locked = True
+    route.type = Marker.LINE_STRIP
+    route.action = Marker.ADD
+    route.scale.x = 0.1
+    route.scale.y = 0.1
+    route.scale.z = 0.1
+    route.color.r = 0.0
+    route.color.g = 0.0
+    route.color.b = 1.0
+    route.color.a = 0.3
+
+    if path != []:
+        max_velocity = max(velocities)
+        if max_velocity < 0.1:
+            max_velocity = 0.1
+
+    for i in range(0, len(path)):
+        point = path[i]
+        if i < len(velocities):
+            vel = velocities[i]
+        else:
+            # change config parameters of velocity smoother if whole path not calculated
+            vel = 0
+
+        #p = utm2map(self.origin_transformation, point)
+        #p.z = 0
+        p = point
+        route.points.append(p)
+
+        c = ColorRGBA()
+        c.r = 1.0 * vel / max_velocity
+        c.g = 0.0
+        c.b = 1.0 - 1.0 * vel/ max_velocity
+        c.a = 1.0
+        route.colors.append(c)
+
+        route_msg = MarkerArray()
+        route_msg.markers.append(route)
+        return route_msg
+
 def create_object_base_msg(header, origin_transformation, obstacle):
     """
     creates a base Object message for static and dynamic obstacles
