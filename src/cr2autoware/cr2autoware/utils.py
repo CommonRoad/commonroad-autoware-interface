@@ -279,9 +279,9 @@ def create_route_marker_msg(path, velocities):
         c.a = 1.0
         route.colors.append(c)
 
-        route_msg = MarkerArray()
-        route_msg.markers.append(route)
-        return route_msg
+    route_msg = MarkerArray()
+    route_msg.markers.append(route)
+    return route_msg
 
 def create_object_base_msg(header, origin_transformation, obstacle):
     """

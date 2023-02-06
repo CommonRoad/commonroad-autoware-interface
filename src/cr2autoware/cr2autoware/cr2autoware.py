@@ -545,7 +545,8 @@ class Cr2Auto(Node):
             self.origin_transformation = [0, 0]
         else:
             self.origin_transformation = [aw_origin_x - cr_origin_x, aw_origin_y - cr_origin_y]
-        self.get_logger().info("origin transformation x: %s,   origin transformation y: %s" % (self.origin_transformation[0], self.origin_transformation[1]))
+        self.get_logger().info("origin transformation x: %s,   origin transformation y: %s" %
+         (self.origin_transformation[0], self.origin_transformation[1]))
 
     def create_ego_vehicle_info(self):
         """
@@ -562,7 +563,8 @@ class Cr2Auto(Node):
 
     def build_scenario(self):
         """
-        Open commonroad scenario in parallel if it is in the same folder as the autoware map or transform map from osm/lanelet2 format to commonroad scenario format.
+        Open commonroad scenario in parallel if it is in the same folder as the autoware map or 
+        transform map from osm/lanelet2 format to commonroad scenario format.
         """
         map_path = self.get_parameter('map_path').get_parameter_value().string_value
         # get osm file in folder map_path
@@ -574,7 +576,8 @@ class Cr2Auto(Node):
             self.scenario, self.planning_problem_set = commonroad_reader.open()
 
         else:
-            self.get_logger().info(f"Could not find a commonroad scenario inside the directory. Creating it from the autoware map instead")
+            self.get_logger().info(
+                f"Could not find a commonroad scenario inside the directory. Creating it from the autoware map instead")
             left_driving = self.get_parameter('left_driving').get_parameter_value().bool_value
             adjacencies = self.get_parameter('adjacencies').get_parameter_value().bool_value
             self.scenario = lanelet_to_commonroad(map_filename,
