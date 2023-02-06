@@ -10,7 +10,7 @@ import yaml
 # commonroad_to_lanelet(input_path, output_name, proj)
 
 # Change basis_path and map_name here
-basis_path = "/home/drivingsim/autoware_tum/autoware/src/universe/autoware.universe/planning/tum_commonroad_planning/dfg-car/src/cr2autoware/test_solution/"
+basis_path = "/home/andrii/autoware/src/universe/autoware.universe/planning/tum_commonroad_planning/dfg-car/src/cr2autoware/test_solution/"
 map_name = "usa_peach-1_1_t-1" # without .xml
 
 

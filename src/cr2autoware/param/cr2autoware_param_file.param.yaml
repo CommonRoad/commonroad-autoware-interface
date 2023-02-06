@@ -6,6 +6,7 @@
     plot_scenario: False
     planner_update_time: 0.5 # run each x.x seconds
     detailed_log: True
+    do_not_publish_obstacles: True # don't publish static and dynamic obstacles
 
     vehicle:
       cg_to_front: 1.0 # meter
@@ -21,7 +22,7 @@
 
     # parameters for reactive planner
     reactive_planner:
-      default_yaml_folder: "/home/drivingsim/autoware_tum/autoware/src/universe/autoware.universe/planning/tum_commonroad_planning/reactive-planner/configurations/defaults/"
+      default_yaml_folder: "/home/andrii/autoware/src/universe/autoware.universe/planning/tum_commonroad_planning/reactive-planner/configurations/defaults/"
       sampling:
         # lateral sampling interval
         d_min: -3
