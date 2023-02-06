@@ -109,6 +109,7 @@ class Cr2Auto(Node):
         self.declare_parameter("plot_scenario", False)
         self.declare_parameter("planner_update_time", 0.5)
         self.declare_parameter("detailed_log", False)
+        self.declare_parameter("do_not_publish_obstacles", False)
 
         self.get_logger().info("Map path is: " + self.get_parameter("map_path").get_parameter_value().string_value) 
         self.get_logger().info("Solution path is: " + self.get_parameter("solution_file").get_parameter_value().string_value) 
@@ -123,7 +124,7 @@ class Cr2Auto(Node):
         self.origin_transformation= [None, None]
         self.vehicle_length, self.vehicle_width = None, None
         self.scenario = None
-
+        self.flag = self.get_parameter("do_not_publish_obstacles").get_parameter_value().bool_value
         self.solution_path = self.get_parameter("solution_file").get_parameter_value().string_value
 
         self.planning_problem = None
@@ -147,7 +148,6 @@ class Cr2Auto(Node):
 
         self.build_scenario()  # build scenario from osm map
         self.convert_origin()
-        self.flag = False # for initalial obstacles initialization after engaging
         
         # Define Planner 
         self.planner_type = self.get_parameter("planner_type").get_parameter_value().integer_value
@@ -312,7 +312,6 @@ class Cr2Auto(Node):
 
         if self.planning_problem_set is not None:
             self.publish_initial_states()
-            # self.publish_initial_obstacles()
         else:
             self.get_logger().info("planning_problem not set")
 
