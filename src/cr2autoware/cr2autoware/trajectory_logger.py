@@ -48,13 +48,18 @@ class TrajectoryLogger():
         self.logger.info("Solution trajectory stored!")
 
     # load a trajectory from a CommonRoad solution file
-    def load_trajectory(self, solution_path):
+    def load_trajectory(self, solution_path, min_velocity=0.1):
         solution = CommonRoadSolutionReader.open(solution_path)
         solution_traj = solution.planning_problem_solutions[0].trajectory
         if self.detailed_log:
             self.logger.info("Solution trajectory: " + str(solution_traj))
 
         states = solution_traj.state_list
+
+        # velocity shouldn't be 0, otherwise car won't drive
+        for i in range(len(states)):
+            states[i].velocity = max(min_velocity, states[i].velocity)
+
         for i in range(len(states)-1):
             states[i].acceleration = states[i+1].velocity - states[i].velocity
         states[len(states)-1].acceleration = 0
