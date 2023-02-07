@@ -1,6 +1,5 @@
 from commonroad_rp.reactive_planner import ReactivePlanner
 from commonroad_rp.configuration_builder import ConfigurationBuilder
-from commonroad_rp.utility.evaluation import create_full_solution_trajectory, create_planning_problem_solution
 import numpy as np
 
 from copy import deepcopy
@@ -11,7 +10,7 @@ import os
 
 class RP2Interface:
     
-    def __init__(self, scenario, dir_config_default, d_min, d_max, t_min, dt, planning_horizon, v_length, v_width, v_wheelbase):
+    def __init__(self, scenario, dir_config_default, d_min, d_max, t_min, dt, planning_horizon, v_length, v_width, v_wheelbase, trajectory_logger):
         # construct reactive planner
         self.scenario=scenario
         self.config = ConfigurationBuilder.build_configuration(name_scenario=str(self.scenario.scenario_id), dir_config_default=dir_config_default)
@@ -22,7 +21,8 @@ class RP2Interface:
         self.reactive_planner.vehicle_params.width = v_width
         self.reactive_planner.vehicle_params.wheelbase = v_wheelbase
 
-        self.save_to_pickle("rp_interface", scenario, dir_config_default, d_min, d_max, t_min, dt, planning_horizon, v_length, v_width, v_wheelbase)
+        #self.save_to_pickle("rp_interface", scenario, dir_config_default, d_min, d_max, t_min, dt, planning_horizon, v_length, v_width, v_wheelbase, trajectory_logger)
+        trajectory_logger.set_config(self.config)
 
     def _run_reactive_planner(self, init_state, goal, reference_path, reference_velocity):
         """
@@ -33,7 +33,7 @@ class RP2Interface:
 
         x_0 = deepcopy(init_state)
 
-        self.save_to_pickle("rp_params", init_state, goal, reference_path, reference_velocity)
+        #self.save_to_pickle("rp_params", init_state, goal, reference_path, reference_velocity)
         self.reactive_planner.set_desired_velocity(reference_velocity)
 
 
@@ -54,14 +54,6 @@ class RP2Interface:
                     if last_state.time_step == state.time_step:
                         continue
                 self.valid_states.append(state)
-
-    # TODO store trajectory
-    def store_trajectory(self, planning_problem):
-        # create full solution trajectory
-        ego_solution_trajectory = create_full_solution_trajectory(self.config, record_state_list)
-
-        # create CR solution
-        solution = create_planning_problem_solution(self.config, ego_solution_trajectory, self.scenario, planning_problem)
 
 
     # This function can be used to generate test cases for test_rp.py
