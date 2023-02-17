@@ -34,44 +34,23 @@ _**param:**_
 * `default_yaml`: includes default parameters for reactive planner.
 
 ## Environment setup
-Install **Docker**, **NVIDIA Container Toolkit** and **rocker**. See for that: https://autowarefoundation.github.io/autoware-documentation/latest/installation/autoware/docker-installation/
-
-In the following, we use a folder `~/workspace` to collect all repositories and code. You are free to use any other path for that folder.
-
-1. `mkdir ~/workspace && mkdir ~/workspace/workspace`
-2. `cd ~/workspace && git clone https://github.com/autowarefoundation/autoware.git`
-3. _**Option 1:**_ `cd ~/workspace/workspace && git clone https://gitlab.lrz.de/cps/dfg-car.git`
-
-   _**Option 2:**_ `cd ~/workspace/workspace && git clone https://gitlab.lrz.de/av2.0/commonroad/commonroad-autoware-interface.git`
-4. Clone the following necessary CommonRoad repositories into the `/workspace/workspace` directory (see also the directory structure in section [Code structure](#code-structure)):
-    - **commonroad-scenario-designer**: 
-        - `git clone https://gitlab.lrz.de/cps/commonroad-scenario-designer.git`
-        - `cd commonroad-scenario-designer`
-        - `pip install -e .` or `python setup.py install`
-    - **commonroad-search**:
-        - `git clone https://gitlab.lrz.de/cps/commonroad-search.git`
-        - `cd commonroad-search`
-        - `git checkout feature-cr2aw`
-        - `pip install -r requirements.txt`
-    - **reactive-planner**
-        - `git clone -b development https://gitlab.lrz.de/cps/reactive-planner.git`
-        - `cd reactive-planner`
-        - `git checkout feature_update_cr_io`
-        - `pip install .`
-5. Do the setup of the docker containers for [cr2autoware](#cr2autoware-setup) and [autoware.universe](#autowareuniverse-setup).
+* Follow the overall softare installation and launch procedure of TUM-Launch: https://wiki.tum.de/pages/viewpage.action?spaceKey=edgar&title=Overall+Software+Installation+and+Launch
+* Make sure that the used autoware, autoware.universe and tum.launch repositories are checked out on the cr2autoware feature branch
+* Initialize and update the git submodules
 
 ### Repositories used
 | Tools | Versions|
 |-|-|
+| commonroad-scenario-designer | commonroad-scenario-designer:latest |
+| commonroad-search | feature-cr2aw:latest |
+| reactive-planner | feature_cr_io_new:latest |
 | commonroad-io | 2022.3 |
 | commonroad-drivability-checker | 2022.2.1 |
 | commonroad-vehicle-models | 2.0.0 |
-| commonroad-search | feature-cr2aw:latest |
-| commonroad-scenario-designer | develop:latest |
 | commonroad-route-planner | 2022.3
-| reactive-planner | feature_update_cr_io:latest |
+| autoware | integrate_cr2autoware_interface:latest |
+| tum.launch | 50-integrate-cr2autoware-interface:latest |
 | autoware.universe | 50-integrate-cr2autoware-interface:latest |
-| autoware.core | master:latest |
 
 ## Docker 
 Here the docker setup is described:
@@ -137,27 +116,29 @@ To update the docker image in the container registry run the following commands 
     * Run `colcon build --packages-select autoware_launch && source ~/autoware/install/setup.bash` .
 
 ## How to use
-0. Create **2** terminals (maybe Terminator is usefull here)
+### Option 1: Use one terminal
+1. Run the docker image using: `rocker -e LIBGL_ALWAYS_SOFTWARE=1 --x11 --user --volume $HOME/autoware -- <dockerimage>`
 
-1. Terminal **1**: open **cr2autoware** container
+2. Source autoware: `source install/setup.bash`
 
-* _**Option 1:**_ 
-`rocker --nvidia --x11 --volume $HOME/workspace/workspace:/root/workspace -- gitlab.lrz.de:5005/cps/dfg-car:latest` 
+3. Launch autoware and the interface together: `ros2 launch tum_launch planning_simulator.launch.xml map_path:=sample-map-planning/ vehicle_model:=sample_vehicle sensor_model:=sample_sensor_kit`
 
-* _**Option 2:**_ 
-`rocker --nvidia --x11 --volume $HOME/workspace/workspace:/root/workspace -- gitlab.lrz.de:5005/av2.0/commonroad/commonroad-autoware-interface:latest` 
+### Option 2: Use two terminals
+To view the debug output of Autoware better, it is helpful to have separate terminals for Autoware and the Cr2Autoware interface
 
-- To start the CommonRoad Interface: `ros2 launch cr2autoware test.launch.py`
+0. Comment out the cr2autoware part in the launch file (`src/launcher/tum_launch/tum_launch/launch/cr2autoware.launch.xml`)
 
-2. Terminal **2**: open **autoware.universe** container 
+1. (Terminal 1) Run the docker image using: `rocker -e LIBGL_ALWAYS_SOFTWARE=1 --x11 --user --volume $HOME/autoware -- <dockerimage>`
 
-* _**Option 1:**_ 
-``rocker --nvidia --x11 --user --volume $HOME/workspace/autoware:$HOME/autoware --volume $HOME/workspace/workspace:$HOME/workspace -- gitlab.lrz.de:5005/cps/dfg-car:autoware-universe`` 
+2. (Terminal 1) Source autoware: `source install/setup.bash`
 
-* _**Option 2:**_ 
-``rocker --nvidia --x11 --user --volume $HOME/workspace/autoware:$HOME/autoware --volume $HOME/workspace/workspace:$HOME/workspace -- gitlab.lrz.de:5005/av2.0/commonroad/commonroad-autoware-interface:autoware-universe`` 
+3. (Terminal 1) Launch autoware: `ros2 launch tum_launch planning_simulator.launch.xml map_path:=sample-map-planning/ vehicle_model:=sample_vehicle sensor_model:=sample_sensor_kit`
 
-- To start autoware simulation: `source ~/autoware/install/setup.bash && ros2 launch autoware_launch planning_simulator.launch.xml map_path:=$HOME/workspace/dfg-car/src/cr2autoware/data/sample-map-planning vehicle_model:=sample_vehicle sensor_model:=sample_sensor_kit`
+4. (Terminal 2) Connect to the docker container: `docker exec -it <container_id> bash`
+
+5. (Terminal 2) Source autoware: `source install/setup.bash`
+
+6. (Terminal 2) Launch cr2autoware: `ros2 launch tum_launch cr2autoware.launch.xml map_path:="sample-map-planning"`
 
 On this page is shown how to use the simple simulator to init state of the car and set a goal: https://autowarefoundation.github.io/autoware-documentation/latest/tutorials/ad-hoc-simulation/planning-simulation/
 
