@@ -41,7 +41,7 @@ _**param:**_
 ### Repositories used
 | Tools | Versions|
 |-|-|
-| commonroad-scenario-designer | commonroad-scenario-designer:latest |
+| commonroad-scenario-designer | 40-load-commonroad-scenarios:latest |
 | commonroad-search | feature-cr2aw:latest |
 | reactive-planner | feature_cr_io_new:latest |
 | commonroad-io | 2022.3 |
