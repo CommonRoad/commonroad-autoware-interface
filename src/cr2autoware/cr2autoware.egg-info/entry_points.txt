@@ -1,3 +1,0 @@
-[console_scripts]
-cr2autoware_node = cr2autoware.cr2autoware:main
-
