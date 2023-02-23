@@ -1,7 +1,7 @@
 # Our DFG-Car: **EDGAR**
 
 ## Description
-This project builds an interface between commonroad and autoware.universe/core. 
+This project builds an interface between [CommonRoad](https://commonroad.in.tum.de/) and [Autoware.Universe](https://github.com/autowarefoundation/autoware.universe). 
 
 ## Table of Contents
 
@@ -12,23 +12,27 @@ This project builds an interface between commonroad and autoware.universe/core.
 - [**How to use**](#how-to-use)
 - [Functionality](#functionality)
 
-## Introduction of files
-_**cr2autoware:**_
-* `cr2autoware.py`: a ROS2 node that subscribes information from autoware and processes information and publishes data to autoware.
-* `velocity_planner.py`: Used to generate a high-level velocity profile for the planner
-* `trajectory_logger.py`: Store and load vehicle trajectories as CommonRoad solution file
-* `tf2_geometry_msgs.py`: defines help-functions for transformation between map frame and other frames.
-* `utils.py`: used for utility functionality.
+## File structure
+```
+.
+├── cr2autoware
+│   ├── cr2autoware.py                        # ROS2 interface node that subscribes/publishes data from/to Autoware
+│   ├── velocity_planner.py                   # Generates a high-level (reference) velocity profile for the planner
+│   ├── rp_interface.py                       # Contains interface to the reactive planner
+│   ├── trajectory_logger.py                  # Stores and loads planned trajectories as CommonRoad solution file
+│   ├── tf2_geometry_msgs.py                  # helper functions for transformation between coordinate frames
+│   └── utils.py                              # various utility fuctions
+├── data                                      # directory to store sample CommonRoad/Lanelet2 maps
+├── launch
+│   └── cr2autoware_node.launch.xml           # launchfile for CR2Auto ROS node 
+├── param
+│   ├── cr2autoware_param_file.param.yaml     # config settings for the vehicle, reactive planner, and velocity planner
+│   └── default_yaml                          # default config parameters for the reactive planner
+```
 
-_**launch:**_
-* `cr2autoware_node.launch.xml`: launchfile for this node 
-
-_**param:**_
-* `cr2autoware_param_file.param.yaml`: includes interface settings, configuration variables for the vehicle, reactive planner, and velocity planner.
-* `default_yaml`: includes default parameters for the reactive planner.
 
 ## Setup
-* Follow the overall softare installation and launch procedure of TUM-Launch: https://wiki.tum.de/pages/viewpage.action?spaceKey=edgar&title=Overall+Software+Installation+and+Launch  
+* Follow the [overall software installation and launch procedure](https://wiki.tum.de/display/edgar/Rocker+Workflow) of TUM-Launch: 
 **Important**: In the installation instructions, you have the option to build the docker image yourself or to pull it from the CI pipeline. It you decide for the latter option, change the url to: `gitlab.lrz.de:5005/cps/dfg-car:latest`! This docker image also includes the cr2autoware dependencies.
 * Make sure that the used autoware, autoware.universe and tum.launch repositories are checked out on the cr2autoware feature branch
 * Initialize and update the git submodules
@@ -47,7 +51,7 @@ _**param:**_
 | autoware.universe | 50-integrate-cr2autoware-interface:latest |
 
 ## Modifications to autoware
-See the TUM-Launch wiki for a list of changes peformed on autoware, autoware.universe and tum.launch and how to replicate them: https://gitlab.lrz.de/cps/dfg-car/-/wikis/TUM-Launch.
+See the TUM-Launch wiki for a list of changes performed on autoware, autoware.universe and tum.launch and how to replicate them: https://gitlab.lrz.de/cps/dfg-car/-/wikis/TUM-Launch.
 
 When updating the autoware version, make sure that the documented changes aren't overwritten.
 
@@ -82,4 +86,4 @@ To view the debug output of Autoware better, it is helpful to have separate term
     - Set config parameter `store_trajectory` to True and define a solution file path with the config parameter `store_trajectory_file`
     - The trajectory is stored as soon as the goal is reached
 - Replay a solution trajectory: Trajectories can be replayed by adding the path to the solution file as a launch argument, e.g.: `ros2 launch tum_launch cr2autoware.launch.xml map_path:="sample-map-planning" solution_file:="sample-map-planning/solutions/solution1.xml"`. Use the engage button to start/pause/restart the trajectory replaying.
-- Some test maps (CommonRoad + OSM (Autoware) + configuration) can be found in `autoware/src/universe/autoware.universe/planning/tum_commonroad_planning/dfg-car/src/cr2autoware/data/test_maps/lanelet2`. If you want to create your own Autoware-compatible maps: [Load CommonRoad scenarios: usage and explanation](https://gitlab.lrz.de/cps/dfg-car/-/wikis/Usage-and-explanation:-load-commonroad-scenarios)
+- Some test maps (CommonRoad + OSM (Autoware) + configuration) can be found in `autoware/src/universe/autoware.universe/planning/tum_commonroad_planning/dfg-car/src/cr2autoware/data/test_maps/lanelet2`. If you want to create your own Autoware-compatible maps: [Load CommonRoad scenarios: usage and explanation](https://gitlab.lrz.de/cps/dfg-car/-/wikis/Load-CommonRoad-scenarios:-usage-and-explanation)
