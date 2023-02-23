@@ -37,8 +37,8 @@ _**param:**_
 | Tools | Versions|
 |-|-|
 | commonroad-scenario-designer | 40-load-commonroad-scenarios:latest |
-| commonroad-search | feature-cr2aw:latest |
-| reactive-planner | feature_cr_io_new:latest |
+| commonroad-search | master:latest |
+| reactive-planner | development:latest |
 | commonroad-io | 2022.3 |
 | commonroad-drivability-checker | 2022.2.1 |
 | commonroad-route-planner | 2022.3
