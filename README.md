@@ -1,12 +1,13 @@
-# Our DFG-Car: **EDGAR**
+# CommonRoad-Autoware Motion Planning Interface
 
 ## Description
 This project builds an interface between [CommonRoad](https://commonroad.in.tum.de/) and [Autoware.Universe](https://github.com/autowarefoundation/autoware.universe). 
 
 ## Table of Contents
 
-- [Introduction of the files](#introduction-of-files)
+- [File structure](#file-structure)
 - [Setup](#setup)
+- [Repositories and Dependencies](#repositories-and-dependencies)  
 - [Modifications to Autoware](#modifications-to-autoware)
 - [Push a new docker image](#push-a-new-docker-image)
 - [**How to use**](#how-to-use)
@@ -32,12 +33,12 @@ This project builds an interface between [CommonRoad](https://commonroad.in.tum.
 
 
 ## Setup
-* Follow the [overall software installation and launch procedure](https://wiki.tum.de/display/edgar/Rocker+Workflow) of TUM-Launch: 
+* Follow the [overall software installation and launch procedure](https://wiki.tum.de/display/edgar/Rocker+Workflow) (Rocker Workflow) of TUM-Launch: 
 **Important**: In the installation instructions, you have the option to build the docker image yourself or to pull it from the CI pipeline. It you decide for the latter option, change the url to: `gitlab.lrz.de:5005/cps/dfg-car:latest`! This docker image also includes the cr2autoware dependencies.
-* Make sure that the used autoware, autoware.universe and tum.launch repositories are checked out on the cr2autoware feature branch
-* Initialize and update the git submodules
+* Make sure that the used autoware, autoware.universe and tum.launch repositories are checked out on the correct feature branches (see table below)
+* Initialize and update the submodules via `git submodule update --init`
 
-### Repositories and Dependencies
+## Repositories and Dependencies
 The current version requires the following repositories as dependencies. Further dependencies are included as pip packages (`requirements.txt`).
 
 | Tools | Versions|
@@ -49,7 +50,7 @@ The current version requires the following repositories as dependencies. Further
 | autoware.universe | 50-integrate-cr2autoware-interface:latest |
 | tum.launch | 50-integrate-cr2autoware-interface:latest |
 
-## Modifications to autoware
+## Modifications to Autoware
 See the TUM-Launch wiki for a list of changes performed on autoware, autoware.universe and tum.launch and how to replicate them: https://gitlab.lrz.de/cps/dfg-car/-/wikis/TUM-Launch.
 
 When updating the autoware version, make sure that the documented changes aren't overwritten.
