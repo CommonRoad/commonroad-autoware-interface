@@ -50,7 +50,7 @@ The commonroad dependencies and the CR2Autoware interface are currently included
 ## Setup
 1. Follow the [overall software installation and launch procedure](https://wiki.tum.de/display/edgar/Rocker+Workflow) (Rocker Workflow) of TUM-Launch:
     * You can either build the Docker image yourself 
-    * **OR** you can pull an existing image: currently our prebuilt (including CR2Autoware dependencies) are stored in our container registry at `gitlab.lrz.de:5005/cps/dfg-car:latest`.
+    * **OR** you can pull an existing image: currently our prebuilt images (including CR2Autoware dependencies) are stored in our container registry at `gitlab.lrz.de:5005/cps/dfg-car:latest`.
 2.  Make sure that the used autoware, autoware.universe and tum.launch repositories are checked out on the correct feature branches (see table above)
 3. Initialize and update the submodules in autoware.universe via `git submodule update --init`.
 
