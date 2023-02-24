@@ -37,18 +37,17 @@ This project builds an interface between [CommonRoad](https://commonroad.in.tum.
 * Make sure that the used autoware, autoware.universe and tum.launch repositories are checked out on the cr2autoware feature branch
 * Initialize and update the git submodules
 
-### Repositories used
+### Repositories and Dependencies
+The current version requires the following repositories as dependencies. Further dependencies are included as pip packages (`requirements.txt`).
+
 | Tools | Versions|
 |-|-|
 | commonroad-scenario-designer | 40-load-commonroad-scenarios:latest |
 | commonroad-search | master:latest |
 | reactive-planner | development:latest |
-| commonroad-io | 2022.3 |
-| commonroad-drivability-checker | 2022.2.1 |
-| commonroad-route-planner | 2022.3
 | autoware | integrate_cr2autoware_interface:latest |
-| tum.launch | 50-integrate-cr2autoware-interface:latest |
 | autoware.universe | 50-integrate-cr2autoware-interface:latest |
+| tum.launch | 50-integrate-cr2autoware-interface:latest |
 
 ## Modifications to autoware
 See the TUM-Launch wiki for a list of changes performed on autoware, autoware.universe and tum.launch and how to replicate them: https://gitlab.lrz.de/cps/dfg-car/-/wikis/TUM-Launch.

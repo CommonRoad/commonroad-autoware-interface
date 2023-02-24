@@ -7,3 +7,4 @@ pyproj
 pyyaml
 utm
 pytest
+shapely==1.8.5.post1
