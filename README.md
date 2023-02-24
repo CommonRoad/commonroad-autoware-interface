@@ -6,8 +6,8 @@ This project builds an interface between [CommonRoad](https://commonroad.in.tum.
 ## Table of Contents
 
 - [File structure](#file-structure)
-- [Setup](#setup)
-- [Repositories and Dependencies](#repositories-and-dependencies)  
+- [Repositories and Dependencies](#repositories-and-dependencies)
+- [Setup](#setup) 
 - [Modifications to Autoware](#modifications-to-autoware)
 - [Push a new docker image](#push-a-new-docker-image)
 - [**How to use**](#how-to-use)
@@ -32,14 +32,10 @@ This project builds an interface between [CommonRoad](https://commonroad.in.tum.
 ```
 
 
-## Setup
-* Follow the [overall software installation and launch procedure](https://wiki.tum.de/display/edgar/Rocker+Workflow) (Rocker Workflow) of TUM-Launch: 
-**Important**: In the installation instructions, you have the option to build the docker image yourself or to pull it from the CI pipeline. It you decide for the latter option, change the url to: `gitlab.lrz.de:5005/cps/dfg-car:latest`! This docker image also includes the cr2autoware dependencies.
-* Make sure that the used autoware, autoware.universe and tum.launch repositories are checked out on the correct feature branches (see table below)
-* Initialize and update the submodules via `git submodule update --init`
-
 ## Repositories and Dependencies
-The current version requires the following repositories as dependencies. Further dependencies are included as pip packages (`requirements.txt`).
+The current version requires the following repositories as dependencies. Further dependencies are included as pip packages (see `requirements.txt`).
+
+The commonroad dependencies and the CR2Autoware interface are currently included as submodules in `autoware.universe/planning/tum_commonroad_planning/`.
 
 | Tools | Versions|
 |-|-|
@@ -50,18 +46,28 @@ The current version requires the following repositories as dependencies. Further
 | autoware.universe | 50-integrate-cr2autoware-interface:latest |
 | tum.launch | 50-integrate-cr2autoware-interface:latest |
 
-## Modifications to Autoware
-See the TUM-Launch wiki for a list of changes performed on autoware, autoware.universe and tum.launch and how to replicate them: https://gitlab.lrz.de/cps/dfg-car/-/wikis/TUM-Launch.
 
-When updating the autoware version, make sure that the documented changes aren't overwritten.
+## Setup
+1. Follow the [overall software installation and launch procedure](https://wiki.tum.de/display/edgar/Rocker+Workflow) (Rocker Workflow) of TUM-Launch:
+    * You can either build the Docker image yourself 
+    * **OR** you can pull an existing image: currently our prebuilt (including CR2Autoware dependencies) are stored in our container registry at `gitlab.lrz.de:5005/cps/dfg-car:latest`.
+2.  Make sure that the used autoware, autoware.universe and tum.launch repositories are checked out on the correct feature branches (see table above)
+3. Initialize and update the submodules in autoware.universe via `git submodule update --init`.
+
+
+## Modifications to Autoware
+See the [TUM-Launch Wiki page](https://gitlab.lrz.de/cps/dfg-car/-/wikis/TUM-Launch) for the list of changes made to autoware, autoware.universe and tum.launch and how to replicate them.
+
+*Note: When updating the autoware version, make sure that the documented changes aren't overwritten.*
 
 ## Push a new docker image
 
-To update the docker image in the gitlab container registry, run the following commands (change the gitlab address if you are working with the AV2.0 repository):
-0. Perform your changes on the code
-1. Build the docker image, e.g. with: `docker build -t autoware_image . -f autoware/docker/tum_docker/Dockerfile`
-2. Rename image : `docker tag autoware_image gitlab.lrz.de:5005/cps/dfg-car:latest`
-3. Upload image `docker push gitlab.lrz.de:5005/cps/dfg-car:latest`
+To update the docker image in the GitLab container registry, run the following commands (change the GitLab address if you are working with a different repository, e.g., the AV2.0 repo):
+
+1. Make the desired changes to your code
+2. Build the docker image, e.g., via: `docker build -t autoware_image . -f autoware/docker/tum_docker/Dockerfile`
+3. Rename/Tag the image : `docker tag autoware_image gitlab.lrz.de:5005/cps/dfg-car:latest`
+4. Push the image to the container registry: `docker push gitlab.lrz.de:5005/cps/dfg-car:latest`
 
 ## How to use
 ### Option 1: Use one terminal
@@ -69,16 +75,16 @@ To update the docker image in the gitlab container registry, run the following c
 2. Source autoware: `source install/setup.bash`
 3. Launch autoware and the interface together: `ros2 launch tum_launch planning_simulator.launch.xml map_path:=sample-map-planning/ vehicle_model:=sample_vehicle sensor_model:=sample_sensor_kit`
 
-### Option 2: Use two terminals
-To view the debug output of Autoware better, it is helpful to have separate terminals for Autoware and the Cr2Autoware interface
+### Option 2: Use two terminals *(recommended)*
+To view the debug output of Autoware better, it is helpful to have separate terminals for Autoware and the CR2Autoware interface_
 
-0. Comment out the cr2autoware part in the launch file (`src/launcher/tum_launch/tum_launch/launch/cr2autoware.launch.xml`)
-1. (Terminal 1) Run the docker image using: `rocker -e LIBGL_ALWAYS_SOFTWARE=1 --x11 --user --volume $HOME/autoware -- <dockerimage>`
-2. (Terminal 1) Source autoware: `source install/setup.bash`
-3. (Terminal 1) Launch autoware: `ros2 launch tum_launch planning_simulator.launch.xml map_path:=sample-map-planning/ vehicle_model:=sample_vehicle sensor_model:=sample_sensor_kit`
-4. (Terminal 2) Connect to the docker container: `docker exec -it <container_id> bash`
-5. (Terminal 2) Source autoware: `source install/setup.bash`
-6. (Terminal 2) Launch cr2autoware: `ros2 launch tum_launch cr2autoware.launch.xml map_path:="sample-map-planning"`
+1. Comment out the cr2autoware part in the launch file (`src/launcher/tum_launch/tum_launch/launch/cr2autoware.launch.xml`)
+2. (Terminal 1) Run the docker image using: `rocker -e LIBGL_ALWAYS_SOFTWARE=1 --x11 --user --volume $HOME/autoware -- <dockerimage>`
+3. (Terminal 1) Source autoware: `source install/setup.bash`
+4. (Terminal 1) Launch autoware: `ros2 launch tum_launch planning_simulator.launch.xml map_path:=sample-map-planning/ vehicle_model:=sample_vehicle sensor_model:=sample_sensor_kit`
+5. (Terminal 2) Connect to the docker container: `docker exec -it <container_id> bash`
+6. (Terminal 2) Source autoware: `source install/setup.bash`
+7. (Terminal 2) Launch cr2autoware: `ros2 launch tum_launch cr2autoware.launch.xml map_path:="sample-map-planning"`
 
 ## Functionality
 - This page shows how to initialize the state of the ego vehicle and how to set a goal in rviz: https://autowarefoundation.github.io/autoware-documentation/latest/tutorials/ad-hoc-simulation/planning-simulation/
