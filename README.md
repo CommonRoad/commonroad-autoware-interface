@@ -29,6 +29,10 @@ This project builds an interface between [CommonRoad](https://commonroad.in.tum.
 ├── param
 │   ├── cr2autoware_param_file.param.yaml     # config settings for the vehicle, reactive planner, and velocity planner
 │   └── default_yaml                          # default config parameters for the reactive planner
+├── scripts
+│   ├── cr2lanelet.py                         # script for offline conversion of a CR map to Lanelet2 format
+│   ├── lanelet2cr.py                         # script for offline conversion of a Lanelet2 map to CR format
+├── test                                      # directory containing test scripts and test outputs
 ```
 
 
@@ -39,29 +43,49 @@ The commonroad dependencies and the CR2Autoware interface are currently included
 
 | Tools | Versions|
 |-|-|
-| commonroad-scenario-designer | 40-load-commonroad-scenarios:latest |
-| commonroad-search | master:latest |
-| reactive-planner | development:latest |
-| autoware | integrate_cr2autoware_interface:latest |
-| autoware.universe | 50-integrate-cr2autoware-interface:latest |
-| tum.launch | 50-integrate-cr2autoware-interface:latest |
+| cps/commonroad-scenario-designer | 40-load-commonroad-scenarios:latest |
+| cps/commonroad-search | master:latest |
+| cps/reactive-planner | development:latest |
+| AV2.0/autoware | integrate_cr2autoware_interface:latest |
+| AV2.0/autoware.universe | 50-integrate-cr2autoware-interface:latest |
+| AV2.0/tum_launch | 50-integrate-cr2autoware-interface:latest |
 
 
 ## Setup
-1. Follow the [overall software installation and launch procedure](https://wiki.tum.de/display/edgar/Rocker+Workflow) (Rocker Workflow) of TUM-Launch:
-    * You can either build the Docker image yourself 
-    * **OR** you can pull an existing image: currently our prebuilt images (including CR2Autoware dependencies) are stored in our container registry at `gitlab.lrz.de:5005/cps/dfg-car:latest`.
-2.  Make sure that the used autoware, autoware.universe and tum.launch repositories are checked out on the correct feature branches (see table above)
-3. Initialize and update the submodules in autoware.universe via `git submodule update --init`.
+The setup is aligned with the Rocker Workflow for the 
+[overall software installation and launch procedure](https://wiki.tum.de/display/edgar/Rocker+Workflow) with the following additions.
+1. Clone AV2.0 autoware repository and checkout branch *[integrate_cr2autoware_interface](https://gitlab.lrz.de/av2.0/autoware/-/tree/integrate_cr2autoware_interface)*.
+2. Follow steps 2-4 of the Rocker Workflow
+3. Verify that the pulled autoware.universe and tum_launch repos are on the correct branches (see above)
+4. Run setup script for CR2Autoware (replace `<autoware_root>` accordingly)
+```shell
+. <autoware_root>/autoware/src/universe/autoware.universe/planning/tum_commonroad_planning/cr2autoware_install.sh
+```
+5. Follow steps 5-7 of the Rocker Workflow
 
 
-## Modifications to Autoware
-See the [TUM-Launch Wiki page](https://gitlab.lrz.de/cps/dfg-car/-/wikis/TUM-Launch) for the list of changes made to autoware, autoware.universe and tum.launch and how to replicate them.
+## Usage and Launch
+The interface can be launched within the AW planning simulator via one launch command. We differentiate between two use-cases:
 
-*Note: When updating the autoware version, make sure that the documented changes aren't overwritten.*
+1. **Motion planning mode**: Here, the reactive planner can be used for motion planning on any map or CommonRoad scenario
+stored in `<map_directory>`. If the folder contains a CommonRoad scenario, additional scenario information (e.g., initial state,
+   goal pose, obstacles...) are loaded from the CR scenario.
+```shell
+ros2 launch tum_launch planning_simulator.launch.xml map_path:=<map_directory> \
+vehicle_model:=sample_vehicle sensor_model:=sample_sensor_kit
+```
+2. **Trajectory replay mode**: Here, a previously planned and stored trajectory in the CommonRoad format can be loaded 
+   and followed by the controller. The solution file is stored in `<map_directory>/solutions/solution.xml`
+```shell
+ros2 launch tum_launch cr2autoware.launch.xml map_path:=<map_directory> \
+vehicle_model:=sample_vehicle sensor_model:=sample_sensor_kit \
+solution_file:="sample-map-planning/solutions/solution1.xml"
+```
 
-## Push a new docker image
 
+## Development
+
+### Push a new docker image
 To update the docker image in the GitLab container registry, run the following commands (change the GitLab address if you are working with a different repository, e.g., the AV2.0 repo):
 
 1. Make the desired changes to your code
@@ -69,27 +93,24 @@ To update the docker image in the GitLab container registry, run the following c
 3. Rename/Tag the image : `docker tag autoware_image gitlab.lrz.de:5005/cps/dfg-car:latest`
 4. Push the image to the container registry: `docker push gitlab.lrz.de:5005/cps/dfg-car:latest`
 
-## How to use
-### Option 1: Use one terminal
-1. Run the docker image using: `rocker -e LIBGL_ALWAYS_SOFTWARE=1 --x11 --user --volume $HOME/autoware -- <dockerimage>`
-2. Source autoware: `source install/setup.bash`
-3. Launch autoware and the interface together: `ros2 launch tum_launch planning_simulator.launch.xml map_path:=sample-map-planning/ vehicle_model:=sample_vehicle sensor_model:=sample_sensor_kit`
+### Modifications to Autoware
+See the [TUM-Launch Wiki page](https://gitlab.lrz.de/cps/dfg-car/-/wikis/TUM-Launch) for the list of changes made to 
+autoware, autoware.universe and tum.launch for the integration of the interface and how to replicate them.
 
-### Option 2: Use two terminals *(recommended)*
-To view the debug output of Autoware better, it is helpful to have separate terminals for Autoware and the CR2Autoware interface_
+*Note: When updating the autoware version, make sure that the documented changes aren't overwritten.*
 
-1. Comment out the cr2autoware part in the launch file (`src/launcher/tum_launch/tum_launch/launch/cr2autoware.launch.xml`)
-2. (Terminal 1) Run the docker image using: `rocker -e LIBGL_ALWAYS_SOFTWARE=1 --x11 --user --volume $HOME/autoware -- <dockerimage>`
-3. (Terminal 1) Source autoware: `source install/setup.bash`
-4. (Terminal 1) Launch autoware: `ros2 launch tum_launch planning_simulator.launch.xml map_path:=sample-map-planning/ vehicle_model:=sample_vehicle sensor_model:=sample_sensor_kit`
-5. (Terminal 2) Connect to the docker container: `docker exec -it <container_id> bash`
-6. (Terminal 2) Source autoware: `source install/setup.bash`
-7. (Terminal 2) Launch cr2autoware: `ros2 launch tum_launch cr2autoware.launch.xml map_path:="sample-map-planning"`
-
-## Functionality
+### Functionality
 - This page shows how to initialize the state of the ego vehicle and how to set a goal in rviz: https://autowarefoundation.github.io/autoware-documentation/latest/tutorials/ad-hoc-simulation/planning-simulation/
 - Store a solution trajectory:
     - Set config parameter `store_trajectory` to True and define a solution file path with the config parameter `store_trajectory_file`
     - The trajectory is stored as soon as the goal is reached
 - Replay a solution trajectory: Trajectories can be replayed by adding the path to the solution file as a launch argument, e.g.: `ros2 launch tum_launch cr2autoware.launch.xml map_path:="sample-map-planning" solution_file:="sample-map-planning/solutions/solution1.xml"`. Use the engage button to start/pause/restart the trajectory replaying.
 - Some test maps (CommonRoad + OSM (Autoware) + configuration) can be found in `autoware/src/universe/autoware.universe/planning/tum_commonroad_planning/dfg-car/src/cr2autoware/data/test_maps/lanelet2`. If you want to create your own Autoware-compatible maps: [Load CommonRoad scenarios: usage and explanation](https://gitlab.lrz.de/cps/dfg-car/-/wikis/Load-CommonRoad-scenarios:-usage-and-explanation)
+
+
+## Authors
+*In alphabethic order by first name:*
+
+Maintainers: Gerald Würsching, Yuanfei Lin
+
+Contributors: Andrii Chumak, Florian Weiser, Gerald Würsching, Jan Franck, Koray Koca, Yuanfei Lin, Yashuai Yan
