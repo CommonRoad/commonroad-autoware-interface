@@ -136,7 +136,7 @@ class Cr2Auto(Node):
         self.planner_state_list = None
         name_file_motion_primitives = 'V_0.0_20.0_Vstep_4.0_SA_-1.066_1.066_SAstep_0.18_T_0.5_Model_BMW_320i.xml'
         # TODO: Check why this line fails (FileNotFoundError)
-        self.automaton = ManeuverAutomaton.generate_automaton(name_file_motion_primitives)
+        # self.automaton = ManeuverAutomaton.generate_automaton(name_file_motion_primitives)
         self.write_scenario = self.get_parameter('write_scenario').get_parameter_value().bool_value
         self.is_computing_trajectory = False  # stop update scenario when trajectory is compuself.declare_parameter('velocity_planner.lookahead_dist', 2.0)
         self.create_ego_vehicle_info()  # compute ego vehicle width and height
@@ -160,17 +160,20 @@ class Cr2Auto(Node):
         if self.planner_type == 1:
             self.planner = MotionPlanner.BreadthFirstSearch
         elif self.planner_type == 2:
-            self.planner=RP2Interface(self.scenario,
-                                      dir_config_default=self.get_parameter("reactive_planner.default_yaml_folder").get_parameter_value().string_value,
-                                      d_min = self.get_parameter('reactive_planner.sampling.d_min').get_parameter_value().integer_value,
-                                      d_max = self.get_parameter('reactive_planner.sampling.d_max').get_parameter_value().integer_value,
-                                      t_min = self.get_parameter('reactive_planner.sampling.t_min').get_parameter_value().double_value,            
-                                      dt = self.get_parameter('reactive_planner.planning.dt').get_parameter_value().double_value,
-                                      planning_horizon = self.get_parameter('reactive_planner.planning.planning_horizon').get_parameter_value().double_value,                                      
-                                      v_length = self.vehicle_length,
-                                      v_width = self.vehicle_width,
-                                      v_wheelbase = self.vehicle_wheelbase,
-                                      trajectory_logger = self.trajectory_logger)
+            _cur_file_path = os.path.dirname(os.path.realpath(__file__))
+            _rel_path_conf_default = self.get_parameter("reactive_planner.default_yaml_folder").get_parameter_value().string_value
+            dir_conf_default = os.path.join(_cur_file_path, _rel_path_conf_default)
+            self.planner = RP2Interface(self.scenario,
+                                        dir_config_default=dir_conf_default,
+                                        d_min=self.get_parameter('reactive_planner.sampling.d_min').get_parameter_value().integer_value,
+                                        d_max=self.get_parameter('reactive_planner.sampling.d_max').get_parameter_value().integer_value,
+                                        t_min=self.get_parameter('reactive_planner.sampling.t_min').get_parameter_value().double_value,
+                                        dt=self.get_parameter('reactive_planner.planning.dt').get_parameter_value().double_value,
+                                        planning_horizon=self.get_parameter('reactive_planner.planning.planning_horizon').get_parameter_value().double_value,
+                                        v_length=self.vehicle_length,
+                                        v_width=self.vehicle_width,
+                                        v_wheelbase=self.vehicle_wheelbase,
+                                        trajectory_logger=self.trajectory_logger)
         else:
             self.get_logger().warn("Planner type is not correctly specified ... Using Default Planner")
             self.planner_type = 1

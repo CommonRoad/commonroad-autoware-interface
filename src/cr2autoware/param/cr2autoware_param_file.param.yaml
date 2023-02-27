@@ -25,7 +25,7 @@
     # parameters for reactive planner
     reactive_planner:
       # TODO include as relative path
-      default_yaml_folder: "/home/drivingsim/autoware_tum/autoware/src/universe/autoware.universe/planning/tum_commonroad_planning/reactive-planner/configurations/defaults/"
+      default_yaml_folder: "../../../reactive-planner/configurations/defaults/"
       sampling:
         # lateral sampling interval
         d_min: -3
