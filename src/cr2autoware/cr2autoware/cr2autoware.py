@@ -648,13 +648,17 @@ class Cr2Auto(Node):
         # if no commonroad file is present in the directory then create it
         if not map_filename_cr is None and len(map_filename_cr) > 0:
             self.load_from_lanelet = True
+            self.get_logger().info(
+                f"Found a CommonRoad scenario file inside the directory. "
+                f"Loading map and planning problem from CommonRoad scenario file")
             commonroad_reader = CommonRoadFileReader(map_filename_cr[0])
             self.scenario, self.planning_problem_set = commonroad_reader.open()
 
         else:
             self.load_from_lanelet = False
             self.get_logger().info(
-                f"Could not find a commonroad scenario inside the directory. Creating it from the autoware map instead")
+                f"Could not find a CommonRoad scenario file inside the directory. "
+                f"Creating from autoware map via Lanelet2CommonRoad conversion instead")
             left_driving = self.get_parameter('left_driving').get_parameter_value().bool_value
             adjacencies = self.get_parameter('adjacencies').get_parameter_value().bool_value
             self.scenario = lanelet_to_commonroad(map_filename,

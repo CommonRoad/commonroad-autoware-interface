@@ -65,21 +65,26 @@ The setup is aligned with the Rocker Workflow for the
 
 
 ## Usage and Launch
-The interface can be launched within the AW planning simulator via one launch command. We differentiate between two use-cases:
+The interface can be launched within the AW planning simulator via one launch command. We differentiate between two main use-cases:
 
-1. **Motion planning mode**: Here, the reactive planner can be used for motion planning on any map or CommonRoad scenario
-stored in `<map_directory>`. If the folder contains a CommonRoad scenario, additional scenario information (e.g., initial state,
-   goal pose, obstacles...) are loaded from the CR scenario.
+### Motion planning mode 
+Here, the CommonRoad interface can be used for motion planning on any map or CommonRoad scenario
+stored in `<map_directory>`. Currently, the reactive-planner is used per default, however, the interface will be extended to run
+with arbitrary planners in CommonRoad.
+If the folder contains a CommonRoad scenario, additional scenario information (e.g., initial state, goal pose, obstacles...)
+are loaded from the CR scenario.
 ```shell
 ros2 launch tum_launch planning_simulator.launch.xml map_path:=<map_directory> \
 vehicle_model:=sample_vehicle sensor_model:=sample_sensor_kit
 ```
-2. **Trajectory replay mode**: Here, a previously planned and stored trajectory in the CommonRoad format can be loaded 
+
+### Trajectory replay mode
+Here, a previously planned and stored trajectory in the CommonRoad format can be loaded 
    and followed by the controller. The solution file is stored in `<map_directory>/solutions/solution.xml`
 ```shell
 ros2 launch tum_launch cr2autoware.launch.xml map_path:=<map_directory> \
 vehicle_model:=sample_vehicle sensor_model:=sample_sensor_kit \
-solution_file:="sample-map-planning/solutions/solution1.xml"
+solution_file:="<map_directory>/solutions/solution.xml"
 ```
 
 
@@ -100,17 +105,18 @@ autoware, autoware.universe and tum.launch for the integration of the interface 
 *Note: When updating the autoware version, make sure that the documented changes aren't overwritten.*
 
 ### Functionality
-- This page shows how to initialize the state of the ego vehicle and how to set a goal in rviz: https://autowarefoundation.github.io/autoware-documentation/latest/tutorials/ad-hoc-simulation/planning-simulation/
-- Store a solution trajectory:
-    - Set config parameter `store_trajectory` to True and define a solution file path with the config parameter `store_trajectory_file`
-    - The trajectory is stored as soon as the goal is reached
+- [This page](https://autowarefoundation.github.io/autoware-documentation/latest/tutorials/ad-hoc-simulation/planning-simulation/) 
+  shows how to manually place an initial ego state and goal pose within the planning simulator in RVIZ
+- Storing a solution trajectory in motion planning mode:
+    - Set config parameter `store_trajectory=True` set the solution file path via `store_trajectory_file` in the cr2autoware_param_file
+    - The driven trajectory of the ego vehicle is automatically stored as soon as the goal is reached
 - Replay a solution trajectory: Trajectories can be replayed by adding the path to the solution file as a launch argument, e.g.: `ros2 launch tum_launch cr2autoware.launch.xml map_path:="sample-map-planning" solution_file:="sample-map-planning/solutions/solution1.xml"`. Use the engage button to start/pause/restart the trajectory replaying.
 - Some test maps (CommonRoad + OSM (Autoware) + configuration) can be found in `autoware/src/universe/autoware.universe/planning/tum_commonroad_planning/dfg-car/src/cr2autoware/data/test_maps/lanelet2`. If you want to create your own Autoware-compatible maps: [Load CommonRoad scenarios: usage and explanation](https://gitlab.lrz.de/cps/dfg-car/-/wikis/Load-CommonRoad-scenarios:-usage-and-explanation)
 
 
 ## Authors
-*In alphabethic order by first name:*
+**In alphabethic order by last name:**
 
-Maintainers: Gerald Würsching, Yuanfei Lin
+Maintainers: Yuanfei Lin, Gerald Würsching
 
-Contributors: Andrii Chumak, Florian Weiser, Gerald Würsching, Jan Franck, Koray Koca, Yuanfei Lin, Yashuai Yan
+Contributors: Andrii Chumak, Jan Franck, Koray Koca, Yuanfei Lin, Florian Weiser, Gerald Würsching,  Yashuai Yan
