@@ -164,7 +164,7 @@ class Cr2Auto(Node):
             _rel_path_conf_default = self.get_parameter("reactive_planner.default_yaml_folder").get_parameter_value().string_value
             dir_conf_default = os.path.join(_cur_file_path, _rel_path_conf_default)
             self.planner = RP2Interface(self.scenario,
-                                        dir_config_default=dir_conf_default,
+                                        dir_config_default= self.get_parameter("reactive_planner.default_yaml_folder").get_parameter_value().string_value,
                                         d_min=self.get_parameter('reactive_planner.sampling.d_min').get_parameter_value().integer_value,
                                         d_max=self.get_parameter('reactive_planner.sampling.d_max').get_parameter_value().integer_value,
                                         t_min=self.get_parameter('reactive_planner.sampling.t_min').get_parameter_value().double_value,
