@@ -1,23 +1,15 @@
----
-
 /**:
   ros__parameters:
-    map_osm_file: "/root/workspace/dfg-car/src/cr2autoware/data/sample-map-planning/lanelet2_map.osm"
-    latitude: 35.238094905136874
-    longitude: 139.90095439549778
-    proj_str: "+proj=utm +zone=54 +datum=WGS84 +ellps=WGS84"
-    elevation: 1.0
-    origin_offset_lat: -5.239983224214484e-06
-    origin_offset_lon: 4.5845488187978845e-06
     left_driving: True
     adjacencies: False
-    write_scenario: False # write generated scenario as xml file after map is converted
+    write_scenario: True # write generated scenario as xml file after map is converted
     plot_scenario: False
-    filename: "cr2autoware_output.xml" # name of the scenario for saving
-    scenario_update_time: 0.25 # run each x.x seconds
     planner_update_time: 0.5 # run each x.x seconds
-    goal_is_reached_update_time: 0.1 # run each x.x seconds
-
+    detailed_log: True
+    do_not_publish_obstacles: True # don't publish static and dynamic obstacles
+    store_trajectory: False
+    store_trajectory_file: "output/solutions/solution1.xml" # CommonRoad solution file path
+    
     vehicle:
       cg_to_front: 1.0 # meter
       cg_to_rear: 1.0 # meter
@@ -32,16 +24,22 @@
 
     # parameters for reactive planner
     reactive_planner:
-      default_yaml_folder: "/root/workspace/dfg-car/src/cr2autoware/param/"
+      # TODO include as relative path
+      default_yaml_folder: "/home/drivingsim/autoware/src/universe/autoware.universe/planning/tum_commonroad_planning/reactive-planner/configurations/defaults/"
       sampling:
         # lateral sampling interval
         d_min: -3
         d_max: 3
         # minimum time sampling in s (t_max is given by planning horizon)
-        t_min: 0.1
+        t_min: 0.4
 
       planning:
         # planner time step (in s)
         dt: 0.1
         # planning time horizon (in s)
         planning_horizon: 5.0
+        
+    velocity_planner:
+      init_velocity: 5.0 # m/s - not yet implemented; should only be used for lanelet2 maps
+      lookahead_dist: 3.0 # m
+      lookahead_time: 0.8 # s

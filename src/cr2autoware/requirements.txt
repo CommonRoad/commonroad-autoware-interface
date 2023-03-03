@@ -1,0 +1,11 @@
+methodtools
+setuptools
+commonroad-io==2022.3
+commonroad-drivability-checker==2022.2.1
+commonroad-vehicle-models>=3.0.0
+commonroad-route-planner==2022.3
+pyproj
+pyyaml
+utm
+pytest
+shapely==1.8.5.post1

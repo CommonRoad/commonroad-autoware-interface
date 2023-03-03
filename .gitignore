@@ -1,5 +1,22 @@
-.idea/
+__pycache__/
+
+output/
+
+# Distribution / packaging
+dist/
 build/
+cmake-build-debug/
+/build-debug/
 install/
 log/
-output/
+*.egg
+*.egg-info/
+
+# PyCharm
+**/.idea
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# macOS
+.DS_Store

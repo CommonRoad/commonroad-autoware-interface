@@ -16,6 +16,8 @@ planning:
   factor: 1
   # velocity threshold (in m/s) for switching to low velocity mode
   low_vel_mode_threshold: 4
+  
+  time_steps_computation: 20
 
 
 
