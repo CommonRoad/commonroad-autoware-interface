@@ -34,7 +34,7 @@ This project builds an interface between [CommonRoad](https://commonroad.in.tum.
 │   ├── lanelet2cr.py                         # script for offline conversion of a Lanelet2 map to CR format
 ├── test                                      # directory containing test scripts and test outputs
 ```
-
+*(`resource` folder and `package.xml` are required for being recognized as a node by ROS2)*
 
 ## Repositories and Dependencies
 The current version requires the following repositories as dependencies. Further dependencies are included as pip packages (see `requirements.txt`).
@@ -111,7 +111,7 @@ autoware, autoware.universe and tum.launch for the integration of the interface 
     - Set config parameter `store_trajectory=True` set the solution file path via `store_trajectory_file` in the cr2autoware_param_file
     - The driven trajectory of the ego vehicle is automatically stored as soon as the goal is reached
 - Replay a solution trajectory: Trajectories can be replayed by adding the path to the solution file as a launch argument, e.g.: `ros2 launch tum_launch cr2autoware.launch.xml map_path:="sample-map-planning" solution_file:="sample-map-planning/solutions/solution1.xml"`. Use the engage button to start/pause/restart the trajectory replaying.
-- Some test maps (CommonRoad + OSM (Autoware) + configuration) can be found in `autoware/src/universe/autoware.universe/planning/tum_commonroad_planning/dfg-car/src/cr2autoware/data/test_maps/lanelet2`. If you want to create your own Autoware-compatible maps: [Load CommonRoad scenarios: usage and explanation](https://gitlab.lrz.de/cps/dfg-car/-/wikis/Load-CommonRoad-scenarios:-usage-and-explanation)
+- Some test maps (CommonRoad + OSM (Autoware) + configuration) can be found in `autoware/src/universe/autoware.universe/planning/tum_commonroad_planning/dfg-car/src/cr2autoware/data/test_maps/lanelet2`. If you want to create your own Autoware-compatible maps: [Load CommonRoad scenarios: usage and explanation](https://gitlab.lrz.de/cps/dfg-car/-/wikis/Load-CommonRoad-scenarios-usage-and-explanation)
 
 
 ## Authors
