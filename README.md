@@ -53,7 +53,7 @@ The commonroad dependencies and the CR2Autoware interface are currently included
 
 ## Setup
 The setup is aligned with the Rocker Workflow for the 
-[overall software installation and launch procedure](https://wiki.tum.de/display/edgar/Rocker+Workflow) with the following additions.
+[overall software installation and launch procedure](https://wiki.tum.de/pages/viewpage.action?pageId=1208844439) with the following additions.
 1. Clone AV2.0 autoware repository and checkout branch *[integrate_cr2autoware_interface](https://gitlab.lrz.de/av2.0/autoware/-/tree/integrate_cr2autoware_interface)*.
 2. Follow steps 2-4 of the Rocker Workflow
 3. Verify that the pulled autoware.universe and tum_launch repos are on the correct branches (see above)
