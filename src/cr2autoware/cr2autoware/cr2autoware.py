@@ -58,6 +58,7 @@ from tf2_ros.buffer import Buffer
 from tf2_ros.transform_listener import TransformListener
 from visualization_msgs.msg import Marker
 from visualization_msgs.msg import MarkerArray
+import yaml
 
 from cr2autoware.rp_interface import RP2Interface
 from cr2autoware.scenario_handler import ScenarioHandler
@@ -81,39 +82,10 @@ class Cr2Auto(Node):
         # ignore typing due to bug in rclpy
         super().__init__(node_name="cr2autoware")  # type: ignore
 
-        # declare ros parameters
-        self.declare_parameter("vehicle.max_velocity", 5.0)
-        self.declare_parameter("vehicle.min_velocity", 1.0)
-        self.declare_parameter("trajectory_planner_type", 1)
-        self.declare_parameter("vehicle.cg_to_front", 1.0)
-        self.declare_parameter("vehicle.cg_to_rear", 1.0)
-        self.declare_parameter("vehicle.width", 2.0)
-        self.declare_parameter("vehicle.front_overhang", 0.5)
-        self.declare_parameter("vehicle.rear_overhang", 0.5)
-        self.declare_parameter("map_path", "")
-        self.declare_parameter("solution_file", "")
-        self.declare_parameter("left_driving", False)
-        self.declare_parameter("adjacencies", False)
-
-        self.declare_parameter("store_trajectory", False)
-        self.declare_parameter("store_trajectory_file", "")
-
-        self.declare_parameter("reactive_planner.default_yaml_folder", "")
-        self.declare_parameter("reactive_planner.sampling.d_min", -3)
-        self.declare_parameter("reactive_planner.sampling.d_max", 3)
-        self.declare_parameter("reactive_planner.sampling.t_min", 0.4)
-        self.declare_parameter("reactive_planner.planning.planning_horizon", 0.4)
-
-        self.declare_parameter("velocity_planner.init_velocity", 1.0)
-        self.declare_parameter("velocity_planner.lookahead_dist", 2.0)
-        self.declare_parameter("velocity_planner.lookahead_time", 0.8)
-
-        self.declare_parameter("scenario.dt", 0.1)
-        self.declare_parameter("write_scenario", False)
-        self.declare_parameter("plot_scenario", False)
-        self.declare_parameter("planner_update_time", 0.5)
-        self.declare_parameter("detailed_log", False)
-        self.declare_parameter("publish_obstacles", False)
+        # Declare ros parameters
+        param = yaml.load(open(os.path.dirname(__file__) + "/ros_param.yaml"))
+        for key, value in param.items():
+            self.declare_parameter(key, value)
 
         self.get_logger().info(
             "Map path is: " + self.get_parameter("map_path").get_parameter_value().string_value
