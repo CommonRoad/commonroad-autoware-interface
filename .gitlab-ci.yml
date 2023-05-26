@@ -1,0 +1,22 @@
+default:
+  image: python:3.10
+
+stages: # List of stages for jobs, and their order of execution
+  - pre
+
+pre-commit-job:
+  stage: pre
+  variables:
+    GIT_CHECKOUT: "true"
+  script:
+    - echo "pre-commit checks are running..."
+    - pip install pre-commit
+    - "pre-commit run
+      --color=always
+      --config .pre-commit-config.yaml
+      --from-ref=$CI_MERGE_REQUEST_DIFF_BASE_SHA
+      --to-ref=$CI_COMMIT_SHA
+      "
+  allow_failure: false
+  only:
+    - merge_requests
