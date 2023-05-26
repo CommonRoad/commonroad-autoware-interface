@@ -9,7 +9,7 @@
     do_not_publish_obstacles: True # don't publish static and dynamic obstacles
     store_trajectory: False
     store_trajectory_file: "output/solutions/solution1.xml" # CommonRoad solution file path
-    
+
     vehicle:
       cg_to_front: 1.0 # meter
       cg_to_rear: 1.0 # meter
@@ -24,8 +24,10 @@
 
     # parameters for reactive planner
     reactive_planner:
-      # TODO include as relative path
-      default_yaml_folder: "/home/drivingsim/autoware/src/universe/autoware.universe/planning/tum_commonroad_planning/reactive-planner/configurations/defaults/"
+      # config folder of reactive planner
+      # support absolute paths
+      # supports realative paths to: install/cr2autoware/share/cr2autoware
+      default_yaml_folder: "../../../../src/universe/autoware.universe/planning/tum_commonroad_planning/reactive-planner/configurations/defaults/"
       sampling:
         # lateral sampling interval
         d_min: -3
@@ -38,7 +40,7 @@
         dt: 0.1
         # planning time horizon (in s)
         planning_horizon: 5.0
-        
+
     velocity_planner:
       init_velocity: 5.0 # m/s - not yet implemented; should only be used for lanelet2 maps
       lookahead_dist: 3.0 # m

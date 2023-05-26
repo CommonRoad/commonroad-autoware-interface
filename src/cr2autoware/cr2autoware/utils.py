@@ -1,25 +1,38 @@
 import enum
-from typing import List
 import math
-import numpy as np
-import matplotlib.pyplot as plt
-from commonroad.geometry.shape import Rectangle, Circle, Polygon
+import pathlib
+from typing import List
+
+from ament_index_python import get_package_share_directory
+from commonroad.geometry.shape import Circle
+from commonroad.geometry.shape import Polygon
+from commonroad.geometry.shape import Rectangle
 from commonroad.planning.planning_problem import PlanningProblemSet
 from commonroad.prediction.prediction import TrajectoryPrediction
-from commonroad.scenario.obstacle import ObstacleType, DynamicObstacle
+from commonroad.scenario.obstacle import DynamicObstacle
+from commonroad.scenario.obstacle import ObstacleType
 from commonroad.scenario.scenario import Scenario
-from commonroad.scenario.trajectory import State, Trajectory
+from commonroad.scenario.trajectory import State
+from commonroad.scenario.trajectory import Trajectory
+
 # import CommonRoad-io modules
 from commonroad.visualization.mp_renderer import MPRenderer
 
-# ROS message imports
-from geometry_msgs.msg import PoseStamped, Quaternion, Point, Pose, PoseWithCovarianceStamped
-from nav_msgs.msg import Odometry
-from visualization_msgs.msg import MarkerArray, Marker
-from std_msgs.msg import ColorRGBA, Header
-
 # Autoware message imports
 from dummy_perception_publisher.msg import Object
+
+# ROS message imports
+from geometry_msgs.msg import Point
+from geometry_msgs.msg import Pose
+from geometry_msgs.msg import Quaternion
+import matplotlib.pyplot as plt
+import numpy as np
+import rclpy.logging as ros_logging
+from std_msgs.msg import ColorRGBA
+from visualization_msgs.msg import Marker
+from visualization_msgs.msg import MarkerArray
+
+logger = ros_logging.get_logger(__name__)
 
 
 @enum.unique
@@ -32,15 +45,28 @@ class MotionPrimitiveStatus(enum.Enum):
 
 
 def plot_primitive_path(mp: List[State], status: MotionPrimitiveStatus, plotting_params):
-    plt.plot(mp[-1].position[0], mp[-1].position[1], color=plotting_params[status.value][0], marker='o', markersize=8,
-             zorder=27)
+    plt.plot(
+        mp[-1].position[0],
+        mp[-1].position[1],
+        color=plotting_params[status.value][0],
+        marker="o",
+        markersize=8,
+        zorder=27,
+    )
     x = []
     y = []
     for state in mp:
         x.append(state.position[0])
         y.append(state.position[1])
-    plt.plot(x, y, color=plotting_params[status.value][0], marker="", linestyle=plotting_params[status.value][1],
-             linewidth=plotting_params[status.value][2], zorder=25)
+    plt.plot(
+        x,
+        y,
+        color=plotting_params[status.value][0],
+        marker="",
+        linestyle=plotting_params[status.value][1],
+        linewidth=plotting_params[status.value][2],
+        zorder=25,
+    )
 
 
 def display_steps(scenario_data, algorithm, config, **args):
@@ -50,21 +76,24 @@ def display_steps(scenario_data, algorithm, config, **args):
     planning_problem = scenario_data[3]
 
     plt.figure()
-    plt.axis('equal')
+    plt.axis("equal")
     renderer = MPRenderer()
-    draw_params = {'scenario': {'lanelet': {'facecolor': '#F8F8F8'}}}
+    draw_params = {"scenario": {"lanelet": {"facecolor": "#F8F8F8"}}}
     scenario.draw(renderer, draw_params=draw_params)
 
-    ego_vehicle = DynamicObstacle(obstacle_id=scenario.generate_object_id(), obstacle_type=ObstacleType.CAR,
-                                  obstacle_shape=ego_shape,
-                                  initial_state=initial_state)
+    ego_vehicle = DynamicObstacle(
+        obstacle_id=scenario.generate_object_id(),
+        obstacle_type=ObstacleType.CAR,
+        obstacle_shape=ego_shape,
+        initial_state=initial_state,
+    )
     ego_vehicle.draw(renderer)
     planning_problem.draw(renderer)
 
     renderer.render()
 
-    if 'limit_depth' in args:
-        path, primitives, list_states_nodes = algorithm(limit_depth=args['limit_depth'])
+    if "limit_depth" in args:
+        path, primitives, list_states_nodes = algorithm(limit_depth=args["limit_depth"])
     else:
         path, primitives, list_states_nodes = algorithm()
 
@@ -74,9 +103,9 @@ def display_steps(scenario_data, algorithm, config, **args):
             plt.pause(0.1)
 
 
-def visualize_solution(scenario: Scenario,
-                       planning_problem_set: PlanningProblemSet,
-                       trajectory: Trajectory) -> None:
+def visualize_solution(
+    scenario: Scenario, planning_problem_set: PlanningProblemSet, trajectory: Trajectory
+) -> None:
     num_time_steps = len(trajectory.state_list)
 
     # create the ego vehicle prediction using the trajectory and the shape of the obstacle
@@ -87,36 +116,46 @@ def visualize_solution(scenario: Scenario,
     # generate the dynamic obstacle according to the specification
     dynamic_obstacle_id = scenario.generate_object_id()
     dynamic_obstacle_type = ObstacleType.CAR
-    dynamic_obstacle = DynamicObstacle(dynamic_obstacle_id,
-                                       dynamic_obstacle_type,
-                                       dynamic_obstacle_shape,
-                                       dynamic_obstacle_initial_state,
-                                       dynamic_obstacle_prediction)
+    dynamic_obstacle = DynamicObstacle(
+        dynamic_obstacle_id,
+        dynamic_obstacle_type,
+        dynamic_obstacle_shape,
+        dynamic_obstacle_initial_state,
+        dynamic_obstacle_prediction,
+    )
 
     # visualize scenario
     plt.figure()
     renderer = MPRenderer()
     for i in range(0, num_time_steps):
         renderer.clear()
-        scenario.draw(renderer, draw_params={'time_begin': i})
+        scenario.draw(renderer, draw_params={"time_begin": i})
         planning_problem_set.draw(renderer)
-        dynamic_obstacle.draw(renderer, draw_params={'time_begin': i,
-                                                     'dynamic_obstacle': {'shape': {'facecolor': 'green'},
-                                                                          'trajectory': {'draw_trajectory': True,
-                                                                                         'facecolor': '#ff00ff',
-                                                                                         'draw_continuous': True,
-                                                                                         'z_order': 60,
-                                                                                         'line_width': 5}
-                                                                          }
-                                                     })
+        dynamic_obstacle.draw(
+            renderer,
+            draw_params={
+                "time_begin": i,
+                "dynamic_obstacle": {
+                    "shape": {"facecolor": "green"},
+                    "trajectory": {
+                        "draw_trajectory": True,
+                        "facecolor": "#ff00ff",
+                        "draw_continuous": True,
+                        "z_order": 60,
+                        "line_width": 5,
+                    },
+                },
+            },
+        )
 
-        plt.gca().set_aspect('equal')
+        plt.gca().set_aspect("equal")
         renderer.render()
         plt.pause(0.1)
 
+
 def orientation2quaternion(orientation: float) -> Quaternion:
-    """
-    Transform orientation (in commonroad) to quaternion (in autoware).
+    """Transform orientation (in commonroad) to quaternion (in autoware).
+
     :param orientation: orientation angles
     :return: orientation quaternion
     """
@@ -125,9 +164,10 @@ def orientation2quaternion(orientation: float) -> Quaternion:
     quat.z = math.sin(orientation * 0.5)
     return quat
 
+
 def quaternion2orientation(quaternion: Quaternion) -> float:
-    """
-    Transform quaternion (in autoware) to orientation (in commonroad).
+    """Transform quaternion (in autoware) to orientation (in commonroad).
+
     :param quaternion: orientation quaternion
     :return: orientation angles
     """
@@ -144,9 +184,10 @@ def quaternion2orientation(quaternion: Quaternion) -> float:
     x = 1.0 - 2.0 * z * z
     return math.atan2(y, x)
 
+
 def map2utm(origin_transformation, p: Point) -> np.array:
-    """
-    Transform position (in autoware) to position (in commonroad).
+    """Transform position (in autoware) to position (in commonroad).
+
     :param origin_transformation: list or array with 2 elements
     :param p: position autoware
     :return: position commonroad
@@ -155,9 +196,10 @@ def map2utm(origin_transformation, p: Point) -> np.array:
     _y = origin_transformation[1] + p.y
     return np.array([_x, _y])
 
+
 def utm2map(origin_transformation, position: np.array) -> Point:
-    """
-    Transform position (in commonroad) to position (in autoware).
+    """Transform position (in commonroad) to position (in autoware).
+
     :param origin_transformation: list or array with 2 elements
     :param position: position commonroad
     :return: position autoware
@@ -167,9 +209,10 @@ def utm2map(origin_transformation, position: np.array) -> Point:
     p.y = position[1] - origin_transformation[1]
     return p
 
+
 def create_goal_marker(position):
-    """
-    creates a ros sphere marker to represent a goal
+    """Create a ros sphere marker to represent a goal.
+
     :param: position: ros pose.position
     :return: new marker
     """
@@ -188,12 +231,13 @@ def create_goal_marker(position):
     marker.pose.position.x = position.x
     marker.pose.position.y = position.y
     marker.pose.position.z = position.z
-    
+
     return marker
 
+
 def create_goal_region_marker(shape, origin_transformation):
-    """
-    creates a ros marker to represent a goal_region
+    """Create a ros marker to represent a goal_region.
+
     :param: shape: shape(s) of the goal region
     :param origin_transformation: list or array with 2 elements
     :return: new marker
@@ -221,7 +265,7 @@ def create_goal_region_marker(shape, origin_transformation):
         marker.scale.x = shape.radius
         marker.scale.y = shape.radius
         marker.scale.z = 0.001
-    elif isinstance(shape, Polygon): # visualizes borders of a goal region
+    elif isinstance(shape, Polygon):  # visualizes borders of a goal region
         marker.type = Marker.LINE_STRIP
         marker.scale.x = 0.15
         points = []
@@ -233,10 +277,11 @@ def create_goal_region_marker(shape, origin_transformation):
         marker.points = points
     return marker
 
+
 def create_route_marker_msg(path, velocities):
-    """
-    creates a message for a route in rviz Marker.LINE_STRIP format
-    :param path: 
+    """Create a message for a route in rviz Marker.LINE_STRIP format.
+
+    :param path:
     :param velocities:
     """
     route = Marker()
@@ -267,15 +312,15 @@ def create_route_marker_msg(path, velocities):
             # change config parameters of velocity smoother if whole path not calculated
             vel = 0
 
-        #p = utm2map(self.origin_transformation, point)
-        #p.z = 0
+        # p = utm2map(self.origin_transformation, point)
+        # p.z = 0
         p = point
         route.points.append(p)
 
         c = ColorRGBA()
         c.r = 1.0 * vel / max_velocity
         c.g = 0.0
-        c.b = 1.0 - 1.0 * vel/ max_velocity
+        c.b = 1.0 - 1.0 * vel / max_velocity
         c.a = 1.0
         route.colors.append(c)
 
@@ -283,9 +328,10 @@ def create_route_marker_msg(path, velocities):
     route_msg.markers.append(route)
     return route_msg
 
+
 def create_object_base_msg(header, origin_transformation, obstacle):
-    """
-    creates a base Object message for static and dynamic obstacles
+    """Create a base Object message for static and dynamic obstacles.
+
     :param header: header message for Object
     :param origin_transformation: list or array with 2 elements
     :param obstacle: CR obstacle
@@ -307,8 +353,8 @@ def create_object_base_msg(header, origin_transformation, obstacle):
 
 
 def log_obstacle(object_msg, static):
-    """
-    simplifies obstacle logging
+    """Simplify obstacle logging.
+
     :param object_msg: Object message that contains obstacle information
     :param static: True for static and False for dynamic obstacles
     :return: a string for obstacle logging
@@ -316,22 +362,33 @@ def log_obstacle(object_msg, static):
     pose = object_msg.initial_state.pose_covariance.pose
     if static:
         return "published a static obstacle at: (%f %f). Dim: (%f, %f)" % (
-                pose.position.x, pose.position.y,
-                object_msg.shape.dimensions.x, object_msg.shape.dimensions.y
-                )
+            pose.position.x,
+            pose.position.y,
+            object_msg.shape.dimensions.x,
+            object_msg.shape.dimensions.y,
+        )
     else:
-        return "published a dynamic obstacle at: (%f %f); Dim: (%f, %f); velocity: %f; acceleration: %f" % (
-                pose.position.x, pose.position.y,
-                object_msg.shape.dimensions.x, object_msg.shape.dimensions.y,
+        return (
+            "published a dynamic obstacle at: (%f %f); Dim: (%f, %f); velocity: %f; acceleration: %f"
+            % (
+                pose.position.x,
+                pose.position.y,
+                object_msg.shape.dimensions.x,
+                object_msg.shape.dimensions.y,
                 object_msg.initial_state.twist_covariance.twist.linear.x,
-                object_msg.initial_state.accel_covariance.accel.linear.x
-                )
+                object_msg.initial_state.accel_covariance.accel.linear.x,
+            )
+        )
+
 
 # _process_dynamic_obs helper method
 
-def traj_linear_interpolate(self, point_1: Pose, point_2: Pose, smaller_dt: float, bigger_dt: float) -> Pose:
-    """
-    interpolation for a point between two points
+
+def traj_linear_interpolate(
+    self, point_1: Pose, point_2: Pose, smaller_dt: float, bigger_dt: float
+) -> Pose:
+    """Interpole a point between two points.
+
     :param point_1: point which will be smaller than interpolated point (on left-side)
     :param point_1: point which will be bigger than interpolated point (on right-side)
     :param smaller_dt: time step for the point will be interpolated
@@ -339,33 +396,34 @@ def traj_linear_interpolate(self, point_1: Pose, point_2: Pose, smaller_dt: floa
     :return: pose of the interpolated point
     """
     new_point = Pose()
-    new_point.position.x = point_1.position.x + \
-                            ((point_2.position.x - point_1.position.x) / smaller_dt) * \
-                            (bigger_dt - smaller_dt)
-    new_point.position.y = point_1.position.y + \
-                            ((point_2.position.y - point_1.position.y) / smaller_dt) * \
-                            (bigger_dt - smaller_dt)
-    new_point.position.z = point_1.position.z + \
-                            ((point_2.position.z - point_1.position.z) / smaller_dt) * \
-                            (bigger_dt - smaller_dt)
-    new_point.orientation.x = point_1.orientation.x + \
-                                ((point_2.orientation.x - point_1.orientation.x) / smaller_dt) * \
-                                (bigger_dt - smaller_dt)
-    new_point.orientation.y = point_1.orientation.y + \
-                                ((point_2.orientation.y - point_1.orientation.y) / smaller_dt) * \
-                                (bigger_dt - smaller_dt)
-    new_point.orientation.z = point_1.orientation.z + \
-                                ((point_2.orientation.z - point_1.orientation.z) / smaller_dt) * \
-                                (bigger_dt - smaller_dt)
-    new_point.orientation.w = point_1.orientation.w + \
-                                ((point_2.orientation.w - point_1.orientation.w) / smaller_dt) * \
-                                (bigger_dt - smaller_dt)
+    new_point.position.x = point_1.position.x + (
+        (point_2.position.x - point_1.position.x) / smaller_dt
+    ) * (bigger_dt - smaller_dt)
+    new_point.position.y = point_1.position.y + (
+        (point_2.position.y - point_1.position.y) / smaller_dt
+    ) * (bigger_dt - smaller_dt)
+    new_point.position.z = point_1.position.z + (
+        (point_2.position.z - point_1.position.z) / smaller_dt
+    ) * (bigger_dt - smaller_dt)
+    new_point.orientation.x = point_1.orientation.x + (
+        (point_2.orientation.x - point_1.orientation.x) / smaller_dt
+    ) * (bigger_dt - smaller_dt)
+    new_point.orientation.y = point_1.orientation.y + (
+        (point_2.orientation.y - point_1.orientation.y) / smaller_dt
+    ) * (bigger_dt - smaller_dt)
+    new_point.orientation.z = point_1.orientation.z + (
+        (point_2.orientation.z - point_1.orientation.z) / smaller_dt
+    ) * (bigger_dt - smaller_dt)
+    new_point.orientation.w = point_1.orientation.w + (
+        (point_2.orientation.w - point_1.orientation.w) / smaller_dt
+    ) * (bigger_dt - smaller_dt)
     return new_point
+
 
 # _process_dynamic_obs helper method
 def upsample_trajectory(traj, dt_ratio):
-    """
-    computes upsampled trajectory list
+    """Compute upsampled trajectory list.
+
     :param traj: trajectory to compute
     :param dt_ratio: dt_ratio
     """
@@ -378,7 +436,9 @@ def upsample_trajectory(traj, dt_ratio):
     new_points_ort_y = np.linspace(point_1.orientation.y, point_2.orientation.y, dt_ratio)
     new_points_ort_z = np.linspace(point_1.orientation.z, point_2.orientation.z, dt_ratio)
     new_points_ort_w = np.linspace(point_1.orientation.w, point_2.orientation.w, dt_ratio)
-    for i in range(1, dt_ratio - 1):  # don't take first and last samples, they were already appended
+    for i in range(
+        1, dt_ratio - 1
+    ):  # don't take first and last samples, they were already appended
         new_point_pos = Point()
         new_point_pos.x = new_points_x[i]
         new_point_pos.y = new_points_y[i]
@@ -392,3 +452,26 @@ def upsample_trajectory(traj, dt_ratio):
         new_traj_point.position = new_point_pos
         new_traj_point.orientation = new_point_ort
         traj.insert(-1, new_traj_point)  # upsampled trajectory list
+
+
+def get_absolute_path_from_package(
+    relative_path: str, package_name: str = "cr2autoware"
+) -> pathlib.Path:
+    """Find the absolute path of the configuration file.
+
+    :param relative_path: path to the config file; may be an absolute path
+        or a path relative **to the packages src directory**.
+        (e.g. "autoware/src/universe/autoware.universe/planning/tum_commonroad_planning/cr2autoware" for the cr2autoware node)
+    :param package_name: the package name to which paths are relative to
+    :return: absolute path to the config file
+    """
+    if pathlib.Path(relative_path).is_absolute():
+        logger.debug(f"Found absolute path to config file: {relative_path}")
+        return pathlib.Path(relative_path)
+
+    base_path = get_package_share_directory(package_name)
+    logger.debug(
+        f"Found relative path to config file: {relative_path}. "
+        f"Joining with base path: {base_path}"
+    )
+    return pathlib.Path(base_path).joinpath(relative_path)
