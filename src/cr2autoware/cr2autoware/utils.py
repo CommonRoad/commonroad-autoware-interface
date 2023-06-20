@@ -185,7 +185,7 @@ def quaternion2orientation(quaternion: Quaternion) -> float:
     return math.atan2(y, x)
 
 
-def map2utm(origin_transformation, p: Point) -> np.array:
+def map2utm(origin_transformation, p: Point) -> np.ndarray:
     """Transform position (in autoware) to position (in commonroad).
 
     :param origin_transformation: list or array with 2 elements
