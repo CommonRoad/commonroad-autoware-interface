@@ -6,9 +6,13 @@
     plot_scenario: False
     planner_update_time: 0.5 # run each x.x seconds
     detailed_log: True
-    do_not_publish_obstacles: True # don't publish static and dynamic obstacles
+    publish_obstacles: True # publish static and dynamic obstacles from CommonRoad scenario
     store_trajectory: False
     store_trajectory_file: "output/solutions/solution1.xml" # CommonRoad solution file path
+
+    scenario:
+      # time step of scenario in s; used only in case dt cannot be loaded from a commonroad scenario file
+      dt: 0.1
 
     vehicle:
       cg_to_front: 1.0 # meter
@@ -36,8 +40,6 @@
         t_min: 0.4
 
       planning:
-        # planner time step (in s)
-        dt: 0.1
         # planning time horizon (in s)
         planning_horizon: 5.0
 
