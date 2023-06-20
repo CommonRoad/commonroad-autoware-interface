@@ -84,7 +84,7 @@ class Cr2Auto(Node):
         # declare ros parameters
         self.declare_parameter("vehicle.max_velocity", 5.0)
         self.declare_parameter("vehicle.min_velocity", 1.0)
-        self.declare_parameter("planner_type", 1)
+        self.declare_parameter("trajectory_planner_type", 1)
         self.declare_parameter("vehicle.cg_to_front", 1.0)
         self.declare_parameter("vehicle.cg_to_rear", 1.0)
         self.declare_parameter("vehicle.width", 2.0)
@@ -124,7 +124,7 @@ class Cr2Auto(Node):
         )
 
         self.write_scenario = self.get_parameter("write_scenario").get_parameter_value().bool_value
-        self.callback_group = ReentrantCallbackGroup()
+        self.callback_group = ReentrantCallbackGroup()  # Callback group for async execution
         self.rnd = None
         self.ego_vehicle = None
         self.ego_vehicle_state: Optional[CustomState] = None
@@ -174,10 +174,10 @@ class Cr2Auto(Node):
             self.get_logger().set_level(LoggingSeverity.DEBUG)
 
         # Define Planner
-        self.planner_type = self.get_parameter("planner_type").get_parameter_value().integer_value
-        if self.planner_type == 1:
-            self.planner = MotionPlanner.BreadthFirstSearch
-        elif self.planner_type == 2:
+        self.trajectory_planner_type = (
+            self.get_parameter("trajectory_planner_type").get_parameter_value().integer_value
+        )
+        if self.trajectory_planner_type == 1:  # Reactive planner
             dir_config = utils.get_absolute_path_from_package(
                 self.get_parameter("reactive_planner.default_yaml_folder")
                 .get_parameter_value()
@@ -193,7 +193,7 @@ class Cr2Auto(Node):
             # )
             # not used
             # dir_conf_default = os.path.join(_cur_file_path, _rel_path_conf_default)
-            self.planner = RP2Interface(
+            self.trajectory_planner = RP2Interface(
                 self.scenario,
                 dir_config_default=dir_config.as_posix(),
                 d_min=self.get_parameter("reactive_planner.sampling.d_min")
@@ -215,13 +215,8 @@ class Cr2Auto(Node):
                 trajectory_logger=self.trajectory_logger,
             )
         else:
-            self.get_logger().warn(
-                "Planner type is not correctly specified ... Using Default Planner"
-            )
-            self.planner_type = 1
-            self.planner = MotionPlanner.BreadthFirstSearch
+            self.get_logger().error("Planner type is not correctly specified!")
 
-        # create callback group for async execution
         self.current_state_sub = self.create_subscription(
             Odometry,
             "/localization/kinematic_state",
@@ -406,12 +401,7 @@ class Cr2Auto(Node):
                     if self.get_parameter("detailed_log").get_parameter_value().bool_value:
                         self.get_logger().info("Solving planning problem!")
 
-                    if self.planner_type == 1:  # Breadth First Search
-                        if self.get_parameter("detailed_log").get_parameter_value().bool_value:
-                            self.get_logger().info("Running breadth first search")
-                        self._run_search_planner()
-
-                    if self.planner_type == 2:  # Reactive Planner
+                    if self.trajectory_planner_type == 1:  # Reactive Planner
                         reference_velocity = max(
                             1,
                             self.velocity_planner.get_velocity_at_aw_position_with_lookahead(
@@ -454,38 +444,40 @@ class Cr2Auto(Node):
                         if init_state.velocity < 0.1:
                             init_state.velocity = 0.1
 
-                        self.planner._run_reactive_planner(
+                        self.trajectory_planner.plan(
                             init_state=init_state,
                             goal=self.planning_problem.goal,
                             reference_path=self.reference_path,
                             reference_velocity=reference_velocity,
                         )
 
-                        assert self.planner.optimal is not False
-                        assert self.planner.valid_states != []
-                        assert max([s.velocity for s in self.planner.valid_states]) > 0
+                        assert self.trajectory_planner.optimal is not False
+                        assert self.trajectory_planner.valid_states != []
+                        assert max([s.velocity for s in self.trajectory_planner.valid_states]) > 0
 
                         if self.get_parameter("detailed_log").get_parameter_value().bool_value:
                             self.get_logger().info(
                                 "Reactive planner trajectory: "
-                                + str([self.planner.valid_states[0].position])
+                                + str([self.trajectory_planner.valid_states[0].position])
                                 + " -> ... -> "
-                                + str([self.planner.valid_states[-1].position])
+                                + str([self.trajectory_planner.valid_states[-1].position])
                             )
                             self.get_logger().info(
                                 "Reactive planner velocities: "
-                                + str([s.velocity for s in self.planner.valid_states])
+                                + str([s.velocity for s in self.trajectory_planner.valid_states])
                             )
                             self.get_logger().info(
                                 "Reactive planner acc: "
-                                + str([s.acceleration for s in self.planner.valid_states])
+                                + str(
+                                    [s.acceleration for s in self.trajectory_planner.valid_states]
+                                )
                             )
 
                         # calculate velocities and accelerations of planner states
                         # self._calculate_velocities(self.planner.valid_states, self.ego_vehicle_state.velocity)
 
                         # publish trajectory
-                        self._prepare_traj_msg(self.planner.valid_states)
+                        self._prepare_traj_msg(self.trajectory_planner.valid_states)
                         if self.get_parameter("detailed_log").get_parameter_value().bool_value:
                             self.get_logger().info("Autoware state and engage messages published!")
 
@@ -1050,7 +1042,7 @@ class Cr2Auto(Node):
         Run one cycle of search based planner.
         """
         # construct motion planner
-        planner = self.planner(
+        planner = self.trajectory_planner(
             scenario=self.scenario, planning_problem=self.planning_problem, automaton=self.automaton
         )
         # visualize searching process
