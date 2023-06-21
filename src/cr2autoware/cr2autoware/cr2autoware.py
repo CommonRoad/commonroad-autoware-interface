@@ -4,8 +4,6 @@ import os
 import traceback
 from typing import Optional
 
-from SMP.motion_planner.motion_planner import MotionPlanner
-
 # Autoware message imports
 from autoware_auto_planning_msgs.msg import Trajectory as AWTrajectory  # type: ignore
 from autoware_auto_planning_msgs.msg import TrajectoryPoint  # type: ignore
@@ -112,11 +110,6 @@ class Cr2Auto(Node):
         self.planning_problem_set = None
         self.route_planned = False
         self.planner_state_list = None
-        # name_file_motion_primitives = (
-        #     "V_0.0_20.0_Vstep_4.0_SA_-1.066_1.066_SAstep_0.18_T_0.5_Model_BMW_320i.xml"
-        # )
-        # TODO: Check why this line fails (FileNotFoundError)
-        # self.automaton = ManeuverAutomaton.generate_automaton(name_file_motion_primitives)
         self.is_computing_trajectory = False  # stop update scenario when trajectory is compuself.declare_parameter('velocity_planner.lookahead_dist', 2.0)
         self.create_ego_vehicle_info()  # compute ego vehicle width and height
         self.tf_buffer = Buffer(cache_time=rclpy.duration.Duration(seconds=10.0))
@@ -1008,35 +1001,6 @@ class Cr2Auto(Node):
 
         if self.get_parameter("detailed_log").get_parameter_value().bool_value:
             self.get_logger().info("Route planning completed!")
-
-    def _run_search_planner(self):
-        """
-        Run one cycle of search based planner.
-        """
-        # construct motion planner
-        planner = self.trajectory_planner(
-            scenario=self.scenario, planning_problem=self.planning_problem, automaton=self.automaton
-        )
-        # visualize searching process
-        # scenario_data = (self.scenario, planner.state_initial, planner.shape_ego, self.planning_problem)
-        # display_steps(scenario_data, planner.execute_search, planner.config_plot)
-
-        path, _, _ = planner.execute_search()
-        if path is not None:
-            valid_states = []
-            # there are duplicated points, which will arise "same point" exception in AutowareAuto
-            for states in path:
-                for state in states:
-                    if len(valid_states) > 0:
-                        last_state = valid_states[-1]
-                        if last_state.time_step == state.time_step:
-                            continue
-                    valid_states.append(state)
-
-            self._prepare_traj_msg(valid_states)
-            # visualize_solution(self.scenario, self.planning_problem, create_trajectory_from_list_states(path)) #ToDo: check if working
-        else:
-            self.get_logger().error("Failed to solve the planning problem.")
 
     def _pub_goals(self):
         """
