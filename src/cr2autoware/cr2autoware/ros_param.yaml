@@ -1,6 +1,6 @@
 vehicle.max_velocity: 5.0
 vehicle.min_velocity: 1.0
-planner_type: 1
+trajectory_planner_type: 1
 vehicle.cg_to_front: 1.0
 vehicle.cg_to_rear: 1.0
 vehicle.width: 2.0
@@ -9,7 +9,7 @@ vehicle.rear_overhang: 0.5
 map_path: ""
 solution_file: ""
 left_driving: false
-adjacencies": false
+adjacencies: false
 store_trajectory: false
 store_trajectory_file: ""
 reactive_planner.default_yaml_folder: ""
