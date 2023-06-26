@@ -23,8 +23,7 @@
       max_velocity: 10.0 # m/s
       min_velocity: 0.0 # m/s
 
-      # Planner type #1: Search based planner (default), #2: reactive planner
-    planner_type: 2
+    trajectory_planner_type: 1 # 1: reactive planner
 
     # parameters for reactive planner
     reactive_planner:
