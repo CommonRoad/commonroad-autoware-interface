@@ -3,6 +3,7 @@ from copy import deepcopy
 import os
 import traceback
 from typing import Optional
+import yaml
 
 # Autoware message imports
 from autoware_auto_planning_msgs.msg import Trajectory as AWTrajectory  # type: ignore
@@ -56,7 +57,6 @@ from tf2_ros.buffer import Buffer
 from tf2_ros.transform_listener import TransformListener
 from visualization_msgs.msg import Marker
 from visualization_msgs.msg import MarkerArray
-import yaml
 
 from cr2autoware.configuration import RPParams
 from cr2autoware.planning_problem_handler import PlanningProblemHandler
