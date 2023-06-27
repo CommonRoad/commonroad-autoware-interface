@@ -3,7 +3,6 @@ from copy import deepcopy
 import os
 import traceback
 from typing import Optional
-import yaml
 
 # Autoware message imports
 from autoware_auto_planning_msgs.msg import Trajectory as AWTrajectory  # type: ignore
@@ -57,8 +56,10 @@ from tf2_ros.buffer import Buffer
 from tf2_ros.transform_listener import TransformListener
 from visualization_msgs.msg import Marker
 from visualization_msgs.msg import MarkerArray
+import yaml
 
 from cr2autoware.configuration import RPParams
+from cr2autoware.planning_problem_handler import PlanningProblemHandler
 from cr2autoware.planning_problem_handler import PlanningProblemHandler
 from cr2autoware.rp_interface import RP2Interface
 from cr2autoware.scenario_handler import ScenarioHandler
@@ -77,6 +78,7 @@ class Cr2Auto(Node):
 
     scenario_handler: ScenarioHandler
     plan_prob_handler: PlanningProblemHandler
+    plan_prob_handler: PlanningProblemHandler
 
     def __init__(self):
         """Construct Cr2Auto class."""
@@ -84,7 +86,7 @@ class Cr2Auto(Node):
         super().__init__(node_name="cr2autoware")  # type: ignore
 
         # Declare ros parameters
-        with open(os.path.dirname(__file__) + "/ros_param.yaml", 'r') as stream:
+        with open(os.path.dirname(__file__) + "/ros_param.yaml", "r") as stream:
             param = yaml.load(stream, Loader=yaml.Loader)
         for key, value in param.items():
             self.declare_parameter(key, value)
@@ -214,6 +216,14 @@ class Cr2Auto(Node):
         if self.write_scenario:
             self._write_scenario()
 
+        self.set_state(AutowareState.WAITING_FOR_ROUTE)
+
+        self.plan_prob_handler = PlanningProblemHandler(
+            self, self.scenario, self.origin_transformation
+        )
+        if self.write_scenario:
+            self._write_scenario()
+
         self.initialize_velocity_planner()
         self.initialize_trajectory_planner()
 
@@ -294,6 +304,19 @@ class Cr2Auto(Node):
         if self.scenario_handler is None:
             raise RuntimeError("Scenario handler not initialized.")
         return self.scenario_handler.scenario
+
+    @property
+    def planning_problem(self) -> Optional[PlanningProblem]:
+        """Get planning problem object retrieved from the planning problem handler.
+
+        Caution: Does not trigger an update of the planning problem."""
+        if self.plan_prob_handler is None:
+            raise RuntimeError("Planning problem handler not initialized.")
+        return self.plan_prob_handler.planning_problem
+
+    @planning_problem.setter
+    def planning_problem(self, planning_problem):
+        self.plan_prob_handler.planning_problem = planning_problem
 
     @property
     def planning_problem(self) -> Optional[PlanningProblem]:
