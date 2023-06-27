@@ -3,7 +3,6 @@ from copy import deepcopy
 import os
 import traceback
 from typing import Optional
-import yaml
 
 # Autoware message imports
 from autoware_auto_planning_msgs.msg import Trajectory as AWTrajectory  # type: ignore
@@ -57,7 +56,9 @@ from tf2_ros.buffer import Buffer
 from tf2_ros.transform_listener import TransformListener
 from visualization_msgs.msg import Marker
 from visualization_msgs.msg import MarkerArray
+import yaml
 
+from cr2autoware.planning_problem_handler import PlanningProblemHandler
 from cr2autoware.rp_interface import RP2Interface
 from cr2autoware.scenario_handler import ScenarioHandler
 
@@ -74,6 +75,7 @@ class Cr2Auto(Node):
     """Cr2Auto class that is an interface between Autoware and CommonRoad."""
 
     scenario_handler: ScenarioHandler
+    plan_prob_handler: PlanningProblemHandler
 
     def __init__(self):
         """Construct Cr2Auto class."""
@@ -81,7 +83,7 @@ class Cr2Auto(Node):
         super().__init__(node_name="cr2autoware")  # type: ignore
 
         # Declare ros parameters
-        with open(os.path.dirname(__file__) + "/ros_param.yaml", 'r') as stream:
+        with open(os.path.dirname(__file__) + "/ros_param.yaml", "r") as stream:
             param = yaml.load(stream, Loader=yaml.Loader)
         for key, value in param.items():
             self.declare_parameter(key, value)
@@ -107,7 +109,6 @@ class Cr2Auto(Node):
         )
         self.solution_path = self.get_parameter("solution_file").get_parameter_value().string_value
 
-        self.planning_problem = None
         self.planning_problem_set = None
         self.route_planned = False
         self.planner_state_list = None
@@ -131,8 +132,6 @@ class Cr2Auto(Node):
 
         self.scenario_handler = ScenarioHandler(self)
         self.origin_transformation = self.scenario_handler.origin_transformation
-        if self.write_scenario:
-            self._write_scenario()
 
         if self.get_parameter("detailed_log").get_parameter_value().bool_value:
             from rclpy.logging import LoggingSeverity
@@ -259,12 +258,13 @@ class Cr2Auto(Node):
 
         self.set_state(AutowareState.WAITING_FOR_ROUTE)
 
-        self.initialize_velocity_planner()
+        self.plan_prob_handler = PlanningProblemHandler(
+            self, self.scenario, self.origin_transformation
+        )
+        if self.write_scenario:
+            self._write_scenario()
 
-        if self.planning_problem_set is not None:
-            self.publish_initial_states()
-        else:
-            self.get_logger().info("planning_problem not set")
+        self.initialize_velocity_planner()
 
         if self.get_parameter("detailed_log").get_parameter_value().bool_value:
             self.get_logger().info("Detailed log is enabled")
@@ -306,6 +306,19 @@ class Cr2Auto(Node):
         if self.scenario_handler is None:
             raise RuntimeError("Scenario handler not initialized.")
         return self.scenario_handler.scenario
+
+    @property
+    def planning_problem(self) -> Optional[PlanningProblem]:
+        """Get planning problem object retrieved from the planning problem handler.
+
+        Caution: Does not trigger an update of the planning problem."""
+        if self.plan_prob_handler is None:
+            raise RuntimeError("Planning problem handler not initialized.")
+        return self.plan_prob_handler.planning_problem
+
+    @planning_problem.setter
+    def planning_problem(self, planning_problem):
+        self.plan_prob_handler.planning_problem = planning_problem
 
     def solve_planning_problem(self) -> None:
         """Update loop for interactive planning mode and solve planning problem with algorithms offered by commonroad."""
@@ -571,110 +584,6 @@ class Cr2Auto(Node):
         self.vehicle_length = front_overhang + cg_to_front + cg_to_rear + rear_overhang
         self.vehicle_width = width
         self.vehicle_wheelbase = cg_to_front + cg_to_rear
-
-    def publish_initial_states(self):
-        """Publish the initial state, the goal, and the goal region from the commonroad scenario to Autoware."""
-        if len(list(self.planning_problem_set.planning_problem_dict.values())) > 0:
-            self.scenario.planning_problem = list(
-                self.planning_problem_set.planning_problem_dict.values()
-            )[0]
-        else:
-            self.get_logger().info("planning problem not found in the scenario")
-            return
-
-        initial_state = self.scenario.planning_problem.initial_state
-        if initial_state is None:
-            self.get_logger().info("no initial state given")
-            return
-        # save inital obstacles because they are removed in _process_static_obs()
-        self.initial_static_obstacles = self.scenario.static_obstacles
-        self.initial_dynamic_obstacles = self.scenario.dynamic_obstacles
-        # publish the iniatial pose to the autoware PoseWithCovarianceStamped
-        initial_pose_msg = PoseWithCovarianceStamped()
-        header = Header()
-        header.stamp = self.get_clock().now().to_msg()
-        header.frame_id = "map"
-        initial_pose_msg.header = header
-        pose = Pose()
-        pose.position = utils.utm2map(self.origin_transformation, initial_state.position)
-        pose.orientation = utils.orientation2quaternion(initial_state.orientation)
-        initial_pose_msg.pose.pose = pose
-        self.initial_pose_pub.publish(initial_pose_msg)
-        self.get_logger().info(
-            "initial pose (%f, %f)" % (initial_state.position[0], initial_state.position[1])
-        )
-
-        # publish the goal if present
-        if len(self.scenario.planning_problem.goal.state_list) > 0:
-            goal_state = self.scenario.planning_problem.goal.state_list[0]
-            position, orientation = None, None
-            if isinstance(
-                goal_state.position, ShapeGroup
-            ):  # goal is a lanelet => compute orientation from its shape
-                shape = goal_state.position.shapes[0]
-                position = (
-                    shape.vertices[0] + shape.vertices[1]
-                ) / 2  # starting middle point on the goal lanelet
-                possible_lanelets = self.scenario.lanelet_network.find_lanelet_by_shape(shape)
-                for pl in possible_lanelets:  # find an appropriate lanelet
-                    try:
-                        orientation = utils.orientation2quaternion(
-                            self.scenario.lanelet_network.find_lanelet_by_id(
-                                pl
-                            ).orientation_by_position(position)
-                        )
-                        break
-                    except AssertionError:
-                        continue
-
-            if (
-                hasattr(goal_state, "position")
-                and hasattr(goal_state, "orientation")
-                or (position is not None and orientation is not None)
-            ):  # for the ShapeGroup case
-                if position is None and orientation is None:
-                    position = goal_state.position.center
-                    orientation = utils.orientation2quaternion(goal_state.orientation.start)  # w,z
-                goal_msg = PoseStamped()
-                goal_msg.header = header
-                pose = Pose()
-                pose.position = utils.utm2map(self.origin_transformation, position)
-                pose.orientation = orientation
-                goal_msg.pose = pose
-                self.goal_pose_pub.publish(goal_msg)
-                self.get_logger().info("goal pose: (%f, %f)" % (pose.position.x, pose.position.y))
-
-            # visualize goal region(s)
-            marker_id = 0xFFFF  # just a value
-            goal_region_msgs = MarkerArray()
-            for goal_state in self.scenario.planning_problem.goal.state_list:
-                if hasattr(goal_state, "position"):
-                    shapes = []
-                    if isinstance(goal_state.position, ShapeGroup):  # extract shapes
-                        for shape in goal_state.position.shapes:
-                            shapes.append(shape)
-                    else:
-                        shapes = [goal_state.position]
-                    for shape in shapes:
-                        marker = utils.create_goal_region_marker(shape, self.origin_transformation)
-                        marker.id = marker_id
-                        goal_region_msgs.markers.append(marker)
-                        marker_id += 1
-
-                """
-                # calculate point in the middle of goal region as Autoware goal
-                goal = PoseStamped()
-                goal.pose.position.x = goal_state.position.x
-                goal.pose.position.y = goal_state.position.y
-                goal.pose.position.z = goal_state.position.z
-                self.goal_msgs.append(goal)
-                """
-
-            self.goal_region_pub.publish(goal_region_msgs)
-            self.get_logger().info("published the goal region")
-
-        # publish goal
-        # self._pub_goals()
 
     def initialize_velocity_planner(self):
         # Initialize Velocity Planner
