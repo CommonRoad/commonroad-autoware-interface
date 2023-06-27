@@ -232,14 +232,9 @@ class ScenarioHandler:
     def _build_scenario_from_commonroad(self, map_filename_cr: str) -> CRScenario:
         self._logger.info(
             "Found a CommonRoad scenario file inside the directory. "
-            "Loading map and planning problem from CommonRoad scenario file"
+            "Loading map from CommonRoad scenario file"
         )
         commonroad_reader = CommonRoadFileReader(map_filename_cr)
-        self._logger.warning(
-            "Loading CommonRoad scenario file. "
-            "Discarding the `PlanningProblemSet` from the file "
-            "as it is not part of the scenario handler!"
-        )
         return commonroad_reader.open()[0]
 
     def _build_scenario_from_autoware(

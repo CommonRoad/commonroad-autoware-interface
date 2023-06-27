@@ -4,6 +4,7 @@ import pathlib
 from typing import List
 
 from ament_index_python import get_package_share_directory
+from commonroad.common.util import AngleInterval
 from commonroad.geometry.shape import Circle
 from commonroad.geometry.shape import Polygon
 from commonroad.geometry.shape import Rectangle
@@ -12,6 +13,7 @@ from commonroad.prediction.prediction import TrajectoryPrediction
 from commonroad.scenario.obstacle import DynamicObstacle
 from commonroad.scenario.obstacle import ObstacleType
 from commonroad.scenario.scenario import Scenario
+from commonroad.scenario.state import AngleExactOrInterval
 from commonroad.scenario.trajectory import State
 from commonroad.scenario.trajectory import Trajectory
 
@@ -153,12 +155,14 @@ def visualize_solution(
         plt.pause(0.1)
 
 
-def orientation2quaternion(orientation: float) -> Quaternion:
+def orientation2quaternion(orientation: AngleExactOrInterval) -> Quaternion:
     """Transform orientation (in commonroad) to quaternion (in autoware).
 
     :param orientation: orientation angles
     :return: orientation quaternion
     """
+    if isinstance(orientation, AngleInterval):
+        raise NotImplementedError("orientation2quaternion not implemented for type AngleInterval")
     quat = Quaternion()
     quat.w = math.cos(orientation * 0.5)
     quat.z = math.sin(orientation * 0.5)
