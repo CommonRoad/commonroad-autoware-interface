@@ -997,8 +997,8 @@ class Cr2Auto(Node):
 
         self.rnd.clear()
         self.ego_vehicle_handler.ego_vehicle = (
-            self.ego_vehivle_handler.create_ego_with_cur_location()
-        )  # TODO zla2fe
+            self.ego_vehicle_handler.create_ego_with_cur_location()
+        )
         # self.rnd.draw_params.static_obstacle.occupancy.shape.rectangle.facecolor = "#ff0000"
         # self.rnd.draw_params.static_obstacle.occupancy.shape.rectangle.edgecolor = "#000000"
         # self.rnd.draw_params.static_obstacle.occupancy.shape.rectangle.zorder = 50
