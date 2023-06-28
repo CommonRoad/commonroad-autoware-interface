@@ -60,6 +60,7 @@ import yaml
 
 from cr2autoware.configuration import RPParams
 from cr2autoware.planning_problem_handler import PlanningProblemHandler
+from cr2autoware.ego_vehicle_handler import EgoVehicleHandler
 from cr2autoware.planning_problem_handler import PlanningProblemHandler
 from cr2autoware.rp_interface import RP2Interface
 from cr2autoware.scenario_handler import ScenarioHandler
@@ -103,8 +104,11 @@ class Cr2Auto(Node):
         self.write_scenario = self.get_parameter("write_scenario").get_parameter_value().bool_value
         self.callback_group = ReentrantCallbackGroup()  # Callback group for async execution
         self.rnd = None
-        self.ego_vehicle = None
-        self.ego_vehicle_state: Optional[CustomState] = None
+
+        self.ego_vehicle_handler = EgoVehicleHandler(self)
+        self.ego_vehicle = self.ego_vehicle_handler.ego_vehicle
+        self.ego_vehicle_state = self.ego_vehicle_handler.ego_vehicle_state
+
         # buffer for static obstacles
         self.last_trajectory = None
         self.vehicle_length, self.vehicle_width = None, None
@@ -116,7 +120,7 @@ class Cr2Auto(Node):
         self.route_planned = False
         self.planner_state_list = None
         self.is_computing_trajectory = False  # stop update scenario when trajectory is compuself.declare_parameter('velocity_planner.lookahead_dist', 2.0)
-        self.create_ego_vehicle_info()  # compute ego vehicle width and height
+        self.ego_vehicle_handler.create_ego_vehicle_info()  # compute ego vehicle width and height
         self.tf_buffer = Buffer(cache_time=rclpy.duration.Duration(seconds=10.0))
         self.tf_listener = TransformListener(self.tf_buffer, self)  # convert among frames
         self.aw_state = AutowareState()
@@ -338,7 +342,7 @@ class Cr2Auto(Node):
             if not self.is_computing_trajectory:
                 # Compute trajectory
                 self.is_computing_trajectory = True
-                self.update_ego_vehicle()
+                self.ego_vehicle_handler.update_ego_vehicle()
                 self.scenario_handler.update_scenario()
                 self.plot_save_scenario()
 
@@ -489,7 +493,7 @@ class Cr2Auto(Node):
                 self.get_logger().info("Next cycle of follow trajectory mode")
 
             # update scenario
-            self.update_ego_vehicle()
+            self.ego_vehicle_handler.update_ego_vehicle()
             self.scenario_handler.update_scenario()
             self.plot_save_scenario()
 
@@ -501,16 +505,6 @@ class Cr2Auto(Node):
                 self._is_goal_reached()
         except Exception:
             self.get_logger().error(traceback.format_exc())
-
-    def update_ego_vehicle(self):
-        """Update the commonroad scenario with the latest vehicle state and obstacle messages received."""
-        # process last state message
-        if self.current_vehicle_state is not None:
-            self._process_current_state()
-        else:
-            if self.get_parameter("detailed_log").get_parameter_value().bool_value:
-                self.get_logger().info("has not received a vehicle state yet!")
-            return
 
     def plot_save_scenario(self):
         if self.get_parameter("plot_scenario").get_parameter_value().bool_value:
@@ -580,21 +574,6 @@ class Cr2Auto(Node):
         self._prepare_traj_msg(states)
 
         self.set_state(AutowareState.WAITING_FOR_ENGAGE)
-
-    def create_ego_vehicle_info(self):
-        """Compute the dimensions of the ego vehicle."""
-        cg_to_front = self.get_parameter("vehicle.cg_to_front").get_parameter_value().double_value
-        cg_to_rear = self.get_parameter("vehicle.cg_to_rear").get_parameter_value().double_value
-        width = self.get_parameter("vehicle.width").get_parameter_value().double_value
-        front_overhang = (
-            self.get_parameter("vehicle.front_overhang").get_parameter_value().double_value
-        )
-        rear_overhang = (
-            self.get_parameter("vehicle.rear_overhang").get_parameter_value().double_value
-        )
-        self.vehicle_length = front_overhang + cg_to_front + cg_to_rear + rear_overhang
-        self.vehicle_width = width
-        self.vehicle_wheelbase = cg_to_front + cg_to_rear
 
     def initialize_velocity_planner(self):
         # Initialize Velocity Planner
@@ -667,7 +646,7 @@ class Cr2Auto(Node):
                 self.current_vehicle_state.twist.twist.linear.x,
             )
 
-            self.ego_vehicle_state = CustomState(
+            self.ego_vehicle_handler.ego_vehicle_state = CustomState(
                 position=position,
                 orientation=orientation,
                 velocity=self.current_vehicle_state.twist.twist.linear.x,
@@ -973,7 +952,9 @@ class Cr2Auto(Node):
             plt.ion()
 
         self.rnd.clear()
-        self.ego_vehicle = self._create_ego_with_cur_location()
+        self.ego_vehicle_handler.ego_vehicle = (
+            self.ego_vehivle_handler.create_ego_with_cur_location()
+        )  # TODO zla2fe
         # self.rnd.draw_params.static_obstacle.occupancy.shape.rectangle.facecolor = "#ff0000"
         # self.rnd.draw_params.static_obstacle.occupancy.shape.rectangle.edgecolor = "#000000"
         # self.rnd.draw_params.static_obstacle.occupancy.shape.rectangle.zorder = 50
@@ -1001,32 +982,6 @@ class Cr2Auto(Node):
         # self.planning_problem.draw(self.rnd) #ToDo: check if working
         self.rnd.render()
         plt.pause(0.1)
-
-    def _create_ego_with_cur_location(self):
-        """
-        Create a new ego vehicle with current position for visualization.
-        """
-        ego_vehicle_id = self.scenario.generate_object_id()
-        ego_vehicle_type = ObstacleType.CAR
-        ego_vehicle_shape = Rectangle(width=self.vehicle_width, length=self.vehicle_length)
-        if self.last_trajectory is None:
-            return DynamicObstacle(
-                ego_vehicle_id, ego_vehicle_type, ego_vehicle_shape, self.ego_vehicle_state
-            )
-        else:
-            pred_traj = TrajectoryPrediction(
-                self._awtrajectory_to_crtrajectory(
-                    1, self.ego_vehicle_state.time_step, self.last_trajectory.points
-                ),
-                ego_vehicle_shape,
-            )
-            return DynamicObstacle(
-                ego_vehicle_id,
-                ego_vehicle_type,
-                ego_vehicle_shape,
-                self.ego_vehicle_state,
-                prediction=pred_traj,
-            )
 
     def _write_scenario(self):
         """
