@@ -59,7 +59,6 @@ from visualization_msgs.msg import MarkerArray
 import yaml
 
 from cr2autoware.configuration import RPParams
-from cr2autoware.planning_problem_handler import PlanningProblemHandler
 from cr2autoware.ego_vehicle_handler import EgoVehicleHandler
 from cr2autoware.planning_problem_handler import PlanningProblemHandler
 from cr2autoware.rp_interface import RP2Interface
