@@ -151,7 +151,50 @@ class Cr2Auto(Node):
 
             self.get_logger().set_level(LoggingSeverity.DEBUG)
 
-        # Create publishers and subscribers
+        # Define Planner
+        self.trajectory_planner_type = (
+            self.get_parameter("trajectory_planner_type").get_parameter_value().integer_value
+        )
+        if self.trajectory_planner_type == 1:  # Reactive planner
+            dir_config = utils.get_absolute_path_from_package(
+                self.get_parameter("reactive_planner.default_yaml_folder")
+                .get_parameter_value()
+                .string_value,
+                package_name="cr2autoware",
+            )
+            # not used
+            # _cur_file_path = os.path.dirname(os.path.realpath(__file__))
+            # _rel_path_conf_default = (
+            #     self.get_parameter("reactive_planner.default_yaml_folder")
+            #     .get_parameter_value()
+            #     .string_value
+            # )
+            # not used
+            # dir_conf_default = os.path.join(_cur_file_path, _rel_path_conf_default)
+            self.trajectory_planner = RP2Interface(
+                self.scenario,
+                dir_config_default=dir_config.as_posix(),
+                d_min=self.get_parameter("reactive_planner.sampling.d_min")
+                .get_parameter_value()
+                .integer_value,
+                d_max=self.get_parameter("reactive_planner.sampling.d_max")
+                .get_parameter_value()
+                .integer_value,
+                t_min=self.get_parameter("reactive_planner.sampling.t_min")
+                .get_parameter_value()
+                .double_value,
+                dt=self.scenario.dt,
+                planning_horizon=self.get_parameter("reactive_planner.planning.planning_horizon")
+                .get_parameter_value()
+                .double_value,
+                v_length=self.vehicle_length,
+                v_width=self.vehicle_width,
+                v_wheelbase=self.ego_vehicle_handler.vehicle_wheelbase,
+                trajectory_logger=self.trajectory_logger,
+            )
+        else:
+            self.get_logger().error("Planner type is not correctly specified!")
+
         self.current_state_sub = self.create_subscription(
             Odometry,
             "/localization/kinematic_state",
@@ -642,7 +685,8 @@ class Cr2Auto(Node):
                 )
             # steering_angle=  arctan2(wheelbase * yaw_rate, velocity)
             steering_angle = np.arctan2(
-                self.vehicle_wheelbase * self.current_vehicle_state.twist.twist.angular.z,
+                self.ego_vehicle_handler.vehicle_wheelbase
+                * self.current_vehicle_state.twist.twist.angular.z,
                 self.current_vehicle_state.twist.twist.linear.x,
             )
 
