@@ -12,28 +12,22 @@ class RP2Interface(TrajectoryPlannerInterface):
     def __init__(
         self,
         scenario,
-        dir_config_default,
-        d_min,
-        d_max,
-        t_min,
         dt,
-        planning_horizon,
-        v_length,
-        v_width,
-        v_wheelbase,
         trajectory_logger,
+        params,
     ):
         # construct reactive planner
         self.scenario = scenario
         self.config = ConfigurationBuilder.build_configuration(
-            name_scenario=str(self.scenario.scenario_id), dir_config_default=dir_config_default
+            name_scenario=str(self.scenario.scenario_id),
+            dir_config_default=params.dir_config_default.as_posix(),
         )
         self.reactive_planner = ReactivePlanner(self.config)
-        self.reactive_planner.set_d_sampling_parameters(d_min, d_max)
-        self.reactive_planner.set_t_sampling_parameters(t_min, dt, planning_horizon)
-        self.reactive_planner.vehicle_params.length = v_length
-        self.reactive_planner.vehicle_params.width = v_width
-        self.reactive_planner.vehicle_params.wheelbase = v_wheelbase
+        self.reactive_planner.set_d_sampling_parameters(params.d_min, params.d_max)
+        self.reactive_planner.set_t_sampling_parameters(params.t_min, dt, params.planning_horizon)
+        self.reactive_planner.vehicle_params.length = params.vehicle_length
+        self.reactive_planner.vehicle_params.width = params.vehicle_width
+        self.reactive_planner.vehicle_params.wheelbase = params.vehicle_wheelbase
 
         # self.save_to_pickle("rp_interface", scenario, dir_config_default, d_min, d_max, t_min, dt, planning_horizon, v_length, v_width, v_wheelbase, trajectory_logger)
         trajectory_logger.set_config(self.config)
@@ -71,7 +65,7 @@ class RP2Interface(TrajectoryPlannerInterface):
     # This function can be used to generate test cases for test_rp.py
     def save_to_pickle(self, filename, *args):
         # save file to test/pickle_files
-        test_path = "/home/drivingsim/autoware/src/universe/autoware.universe/planning/tum_commonroad_planning/dfg-car/src/cr2autoware/test/pickle_files"
+        test_path = os.path.dirname(__file__) + "/test/pickle_files"
         file = os.path.join(test_path, filename + ".pkl")
         with open(file, "wb") as output:
             pickle.dump(args, output, pickle.HIGHEST_PROTOCOL)

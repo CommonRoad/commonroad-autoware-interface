@@ -58,6 +58,7 @@ from visualization_msgs.msg import Marker
 from visualization_msgs.msg import MarkerArray
 import yaml
 
+from cr2autoware.configuration import RPParams
 from cr2autoware.planning_problem_handler import PlanningProblemHandler
 from cr2autoware.rp_interface import RP2Interface
 from cr2autoware.scenario_handler import ScenarioHandler
@@ -96,6 +97,7 @@ class Cr2Auto(Node):
             + self.get_parameter("solution_file").get_parameter_value().string_value
         )
 
+        # Init class attributes
         self.write_scenario = self.get_parameter("write_scenario").get_parameter_value().bool_value
         self.callback_group = ReentrantCallbackGroup()  # Callback group for async execution
         self.rnd = None
@@ -108,7 +110,6 @@ class Cr2Auto(Node):
             self.get_parameter("publish_obstacles").get_parameter_value().bool_value
         )
         self.solution_path = self.get_parameter("solution_file").get_parameter_value().string_value
-
         self.planning_problem_set = None
         self.route_planned = False
         self.planner_state_list = None
@@ -116,13 +117,19 @@ class Cr2Auto(Node):
         self.create_ego_vehicle_info()  # compute ego vehicle width and height
         self.tf_buffer = Buffer(cache_time=rclpy.duration.Duration(seconds=10.0))
         self.tf_listener = TransformListener(self.tf_buffer, self)  # convert among frames
-
         self.aw_state = AutowareState()
         self.engage_status = False
         self.reference_path_published = False
-
         self.new_initial_pose = False
         self.new_pose_received = False
+        # vars to save last messages
+        self.current_vehicle_state = None
+        # https://github.com/tier4/autoware_auto_msgs/blob/tier4/main/autoware_auto_system_msgs/msg/AutowareState.idl
+        self.last_msg_aw_state = 1  # 1 = initializing
+        self.goal_msgs = []
+        self.current_goal_msg = None
+        self.last_goal_reached = self.get_clock().now()
+        self.reference_path = None
 
         self.trajectory_logger = TrajectoryLogger(
             None,
@@ -138,50 +145,7 @@ class Cr2Auto(Node):
 
             self.get_logger().set_level(LoggingSeverity.DEBUG)
 
-        # Define Planner
-        self.trajectory_planner_type = (
-            self.get_parameter("trajectory_planner_type").get_parameter_value().integer_value
-        )
-        if self.trajectory_planner_type == 1:  # Reactive planner
-            dir_config = utils.get_absolute_path_from_package(
-                self.get_parameter("reactive_planner.default_yaml_folder")
-                .get_parameter_value()
-                .string_value,
-                package_name="cr2autoware",
-            )
-            # not used
-            # _cur_file_path = os.path.dirname(os.path.realpath(__file__))
-            # _rel_path_conf_default = (
-            #     self.get_parameter("reactive_planner.default_yaml_folder")
-            #     .get_parameter_value()
-            #     .string_value
-            # )
-            # not used
-            # dir_conf_default = os.path.join(_cur_file_path, _rel_path_conf_default)
-            self.trajectory_planner = RP2Interface(
-                self.scenario,
-                dir_config_default=dir_config.as_posix(),
-                d_min=self.get_parameter("reactive_planner.sampling.d_min")
-                .get_parameter_value()
-                .integer_value,
-                d_max=self.get_parameter("reactive_planner.sampling.d_max")
-                .get_parameter_value()
-                .integer_value,
-                t_min=self.get_parameter("reactive_planner.sampling.t_min")
-                .get_parameter_value()
-                .double_value,
-                dt=self.scenario.dt,
-                planning_horizon=self.get_parameter("reactive_planner.planning.planning_horizon")
-                .get_parameter_value()
-                .double_value,
-                v_length=self.vehicle_length,
-                v_width=self.vehicle_width,
-                v_wheelbase=self.vehicle_wheelbase,
-                trajectory_logger=self.trajectory_logger,
-            )
-        else:
-            self.get_logger().error("Planner type is not correctly specified!")
-
+        # Create publishers and subscribers
         self.current_state_sub = self.create_subscription(
             Odometry,
             "/localization/kinematic_state",
@@ -189,7 +153,6 @@ class Cr2Auto(Node):
             1,
             callback_group=self.callback_group,
         )
-
         # subscribe initial pose
         self.initialpose_sub = self.create_subscription(
             PoseWithCovarianceStamped,
@@ -240,23 +203,10 @@ class Cr2Auto(Node):
         self.route_pub = self.create_publisher(
             MarkerArray, "/planning/mission_planning/route_marker", qos_route_pub
         )
-
         # publish initial state of the scenario
         self.initial_pose_pub = self.create_publisher(PoseWithCovarianceStamped, "/initialpose", 1)
         # publish goal region(s) of the scenario
         self.goal_region_pub = self.create_publisher(MarkerArray, "/goal_region_marker_array", 1)
-        # publish static obstacles
-
-        # vars to save last messages
-        self.current_vehicle_state = None
-        # https://github.com/tier4/autoware_auto_msgs/blob/tier4/main/autoware_auto_system_msgs/msg/AutowareState.idl
-        self.last_msg_aw_state = 1  # 1 = initializing
-        self.goal_msgs = []
-        self.current_goal_msg = None
-        self.last_goal_reached = self.get_clock().now()
-        self.reference_path = None
-
-        self.set_state(AutowareState.WAITING_FOR_ROUTE)
 
         self.plan_prob_handler = PlanningProblemHandler(
             self, self.scenario, self.origin_transformation
@@ -265,12 +215,50 @@ class Cr2Auto(Node):
             self._write_scenario()
 
         self.initialize_velocity_planner()
+        self.initialize_trajectory_planner()
 
         if self.get_parameter("detailed_log").get_parameter_value().bool_value:
             self.get_logger().info("Detailed log is enabled")
             self.get_logger().info("Init complete!")
 
-        # decide whether planner goes in interactive planner mode or trajectory following mode
+        self.initialize_mode()
+
+    @property
+    def scenario(self) -> Scenario:
+        """Get scenario object retrieved from the scenario_handler.
+
+        Caution: Does not trigger an update of the scenario.
+        """
+        if self.scenario_handler is None:
+            raise RuntimeError("Scenario handler not initialized.")
+        return self.scenario_handler.scenario
+
+    def initialize_trajectory_planner(self):
+        """Define planner according to trajectory_planner_type."""
+        self.trajectory_planner_type = (
+            self.get_parameter("trajectory_planner_type").get_parameter_value().integer_value
+        )
+        if self.trajectory_planner_type == 1:  # Reactive planner
+            # not used
+            # _cur_file_path = os.path.dirname(os.path.realpath(__file__))
+            # _rel_path_conf_default = (
+            #     self.get_parameter("reactive_planner.default_yaml_folder")
+            #     .get_parameter_value()
+            #     .string_value
+            # )
+            # not used
+            # dir_conf_default = os.path.join(_cur_file_path, _rel_path_conf_default)
+            params = RPParams(self.get_parameter)
+            self.trajectory_planner = RP2Interface(
+                self.scenario, self.scenario.dt, self.trajectory_logger, params
+            )
+        else:
+            self.get_logger().error("Planner type is not correctly specified!")
+
+        self.set_state(AutowareState.WAITING_FOR_ROUTE)
+
+    def initialize_mode(self):
+        """Decide whether planner goes in interactive planner mode or trajectory following mode."""
         if self.solution_path == "":
             # create a timer to run planner
             self.interactive_mode = True
