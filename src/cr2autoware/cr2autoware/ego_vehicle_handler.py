@@ -3,6 +3,7 @@ import typing
 from typing import Any
 from typing import Dict
 from typing import Optional
+import numpy as np
 
 from commonroad.geometry.shape import Rectangle
 from commonroad.prediction.prediction import TrajectoryPrediction
@@ -10,8 +11,10 @@ from commonroad.scenario.obstacle import DynamicObstacle
 from commonroad.scenario.obstacle import ObstacleType
 from commonroad.scenario.state import CustomState
 from rcl_interfaces.msg import ParameterValue
+import rclpy
 from rclpy.impl.rcutils_logger import RcutilsLogger
 from rclpy.publisher import Publisher
+import cr2autoware.utils as utils
 
 # Avoid circular imports
 if typing.TYPE_CHECKING:
@@ -66,27 +69,71 @@ class EgoVehicleHandler:
         self._init_parameters()
 
     def _init_parameters(self) -> None:
-        def _get_parameter(name: str) -> ParameterValue:
-            return self._node.get_parameter(name).get_parameter_value()
-
-        self.MAP_PATH = _get_parameter("map_path").string_value
+        self.MAP_PATH = self._node.get_parameter("map_path").get_parameter_value().string_value
         if not os.path.exists(self.MAP_PATH):
             raise ValueError("Can't find given map path: %s" % self.MAP_PATH)
 
-        self.VERBOSE = _get_parameter("detailed_log").bool_value
+        self.VERBOSE = self._node.get_parameter("detailed_log").get_parameter_value().bool_value
         if self.VERBOSE:
             from rclpy.logging import LoggingSeverity
 
             self._logger.set_level(LoggingSeverity.DEBUG)
 
+    def process_current_state(self) -> None:
+        """Calculate the current commonroad state from the autoware latest state message."""
+        if self._ego_vehicle_state is not None:
+            source_frame = self._ego_vehicle_state.header.frame_id
+            time_step = 0
+            # lookup transform
+            succeed = self._node.tf_buffer.can_transform(
+                "map",
+                source_frame,
+                rclpy.time.Time(),
+            )
+            if not succeed:
+                self.get_logger().error(f"Failed to transform from {source_frame} to map frame")
+                return None
+
+            if source_frame != "map":
+                temp_pose_stamped = PoseStamped()
+                temp_pose_stamped.header = self._ego_vehicle_state.header
+                temp_pose_stamped.pose = self._ego_vehicle_state.pose.pose
+                pose_transformed = self.transform_pose(temp_pose_stamped, "map")
+                position = utils.map2utm(self._node.origin_transformation, pose_transformed.pose.position)
+                orientation = utils.quaternion2orientation(pose_transformed.pose.orientation)
+            else:
+                position = utils.map2utm(
+                    self._node.origin_transformation,
+                    self._ego_vehicle_state.pose.pose.position,
+                )
+                orientation = utils.quaternion2orientation(
+                    self._ego_vehicle_state.pose.pose.orientation
+                )
+            # steering_angle=  arctan2(wheelbase * yaw_rate, velocity)
+            steering_angle = np.arctan2(
+                self.vehicle_wheelbase
+                * self._ego_vehicle_state.twist.twist.angular.z,
+                self._ego_vehicle_state.twist.twist.linear.x,
+            )
+
+            self._ego_vehicle_state = CustomState(
+                position=position,
+                orientation=orientation,
+                velocity=self._ego_vehicle_state.twist.twist.linear.x,
+                yaw_rate=self._ego_vehicle_state.twist.twist.angular.z,
+                slip_angle=0.0,
+                time_step=time_step,
+                steering_angle=steering_angle,
+            )
+
     def update_ego_vehicle(self):
         """Update the commonroad scenario with the latest vehicle state and obstacle messages received."""
         # process last state message
-        if self.current_vehicle_state is not None:
-            self._process_current_state()
+        if self._ego_vehicle_state is not None:
+            self.process_current_state()
         else:
-            if self.get_parameter("detailed_log").get_parameter_value().bool_value:
-                self.get_logger().info("has not received a vehicle state yet!")
+            if self._node.get_parameter("detailed_log").get_parameter_value().bool_value:
+                self._node.get_logger().info("has not received a vehicle state yet!")
             return
 
     def create_ego_vehicle_info(self):

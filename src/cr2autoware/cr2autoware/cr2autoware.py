@@ -128,7 +128,6 @@ class Cr2Auto(Node):
         self.new_initial_pose = False
         self.new_pose_received = False
         # vars to save last messages
-        self.current_vehicle_state = None
         # https://github.com/tier4/autoware_auto_msgs/blob/tier4/main/autoware_auto_system_msgs/msg/AutowareState.idl
         self.last_msg_aw_state = 1  # 1 = initializing
         self.goal_msgs = []
@@ -149,50 +148,6 @@ class Cr2Auto(Node):
             from rclpy.logging import LoggingSeverity
 
             self.get_logger().set_level(LoggingSeverity.DEBUG)
-
-        # Define Planner
-        self.trajectory_planner_type = (
-            self.get_parameter("trajectory_planner_type").get_parameter_value().integer_value
-        )
-        if self.trajectory_planner_type == 1:  # Reactive planner
-            dir_config = utils.get_absolute_path_from_package(
-                self.get_parameter("reactive_planner.default_yaml_folder")
-                .get_parameter_value()
-                .string_value,
-                package_name="cr2autoware",
-            )
-            # not used
-            # _cur_file_path = os.path.dirname(os.path.realpath(__file__))
-            # _rel_path_conf_default = (
-            #     self.get_parameter("reactive_planner.default_yaml_folder")
-            #     .get_parameter_value()
-            #     .string_value
-            # )
-            # not used
-            # dir_conf_default = os.path.join(_cur_file_path, _rel_path_conf_default)
-            self.trajectory_planner = RP2Interface(
-                self.scenario,
-                dir_config_default=dir_config.as_posix(),
-                d_min=self.get_parameter("reactive_planner.sampling.d_min")
-                .get_parameter_value()
-                .integer_value,
-                d_max=self.get_parameter("reactive_planner.sampling.d_max")
-                .get_parameter_value()
-                .integer_value,
-                t_min=self.get_parameter("reactive_planner.sampling.t_min")
-                .get_parameter_value()
-                .double_value,
-                dt=self.scenario.dt,
-                planning_horizon=self.get_parameter("reactive_planner.planning.planning_horizon")
-                .get_parameter_value()
-                .double_value,
-                v_length=self.vehicle_length,
-                v_width=self.vehicle_width,
-                v_wheelbase=self.ego_vehicle_handler.vehicle_wheelbase,
-                trajectory_logger=self.trajectory_logger,
-            )
-        else:
-            self.get_logger().error("Planner type is not correctly specified!")
 
         self.current_state_sub = self.create_subscription(
             Odometry,
@@ -428,7 +383,7 @@ class Cr2Auto(Node):
                         reference_velocity = max(
                             1,
                             self.velocity_planner.get_velocity_at_aw_position_with_lookahead(
-                                self.current_vehicle_state.pose.pose.position,
+                                self.ego_vehicle_state.pose.pose.position,
                                 self.ego_vehicle_state.velocity,
                             ),
                         )
@@ -636,55 +591,11 @@ class Cr2Auto(Node):
         Safe the message for later processing.
         :param msg: current kinematic state message
         """
-        self.current_vehicle_state = msg
+        self.ego_vehicle_handler.ego_vehicle_state = msg
         self.new_pose_received = True
 
-    def _process_current_state(self) -> None:
-        """Calculate the current commonroad state from the autoware latest state message."""
-        if self.current_vehicle_state is not None:
-            source_frame = self.current_vehicle_state.header.frame_id
-            time_step = 0
-            # lookup transform
-            succeed = self.tf_buffer.can_transform(
-                "map",
-                source_frame,
-                rclpy.time.Time(),
-            )
-            if not succeed:
-                self.get_logger().error(f"Failed to transform from {source_frame} to map frame")
-                return None
-
-            if source_frame != "map":
-                temp_pose_stamped = PoseStamped()
-                temp_pose_stamped.header = self.current_vehicle_state.header
-                temp_pose_stamped.pose = self.current_vehicle_state.pose.pose
-                pose_transformed = self.transform_pose(temp_pose_stamped, "map")
-                position = utils.map2utm(self.origin_transformation, pose_transformed.pose.position)
-                orientation = utils.quaternion2orientation(pose_transformed.pose.orientation)
-            else:
-                position = utils.map2utm(
-                    self.origin_transformation,
-                    self.current_vehicle_state.pose.pose.position,
-                )
-                orientation = utils.quaternion2orientation(
-                    self.current_vehicle_state.pose.pose.orientation
-                )
-            # steering_angle=  arctan2(wheelbase * yaw_rate, velocity)
-            steering_angle = np.arctan2(
-                self.ego_vehicle_handler.vehicle_wheelbase
-                * self.current_vehicle_state.twist.twist.angular.z,
-                self.current_vehicle_state.twist.twist.linear.x,
-            )
-
-            self.ego_vehicle_handler.ego_vehicle_state = CustomState(
-                position=position,
-                orientation=orientation,
-                velocity=self.current_vehicle_state.twist.twist.linear.x,
-                yaw_rate=self.current_vehicle_state.twist.twist.angular.z,
-                slip_angle=0.0,
-                time_step=time_step,
-                steering_angle=steering_angle,
-            )
+    #def _process_current_state(self) -> None:
+    #        self.ego_vehicle_handler.process_current_state()
 
     def _awtrajectory_to_crtrajectory(self, mode, time_step, traj):
         """
