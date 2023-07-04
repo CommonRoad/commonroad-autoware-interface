@@ -28,7 +28,6 @@ from commonroad.scenario.state import CustomState
 from commonroad.scenario.trajectory import Trajectory as CRTrajectory
 from commonroad.visualization.mp_renderer import MPRenderer
 from commonroad_dc.geometry.util import resample_polyline
-from commonroad_route_planner.route_planner import RoutePlanner
 
 # ROS message imports
 from geometry_msgs.msg import Pose
@@ -60,6 +59,7 @@ import yaml
 
 from cr2autoware.configuration import RPParams
 from cr2autoware.planning_problem_handler import PlanningProblemHandler
+from cr2autoware.route_planner import RoutePlannerInterface
 from cr2autoware.rp_interface import RP2Interface
 from cr2autoware.scenario_handler import ScenarioHandler
 
@@ -119,6 +119,7 @@ class Cr2Auto(Node):
         self.tf_listener = TransformListener(self.tf_buffer, self)  # convert among frames
         self.aw_state = AutowareState()
         self.engage_status = False
+
         self.reference_path_published = False
         self.new_initial_pose = False
         self.new_pose_received = False
@@ -217,6 +218,12 @@ class Cr2Auto(Node):
         self.initialize_velocity_planner()
         self.initialize_trajectory_planner()
 
+        self.route_planner = RoutePlannerInterface(
+            self.get_parameter,
+            self.get_logger(),
+            self.scenario,
+            self.route_pub,
+        )
         if self.get_parameter("detailed_log").get_parameter_value().bool_value:
             self.get_logger().info("Detailed log is enabled")
             self.get_logger().info("Init complete!")
@@ -350,16 +357,18 @@ class Cr2Auto(Node):
                         self.velocity_planner.send_reference_path(
                             [
                                 utils.utm2map(self.origin_transformation, point)
-                                for point in self.reference_path
+                                for point in self.route_planner.reference_path
                             ],
                             self.current_goal_msg.pose.position,
                         )
                         self.is_computing_trajectory = False
                         return
 
-                    if not self.reference_path_published:
+                    if not self.route_planner.reference_path_published:
                         # publish current reference path
-                        self._pub_route(*self.velocity_planner.get_reference_velocities())
+                        self.route_planner._pub_route(
+                            *self.velocity_planner.get_reference_velocities()
+                        )
 
                     if self.get_state() == AutowareState.DRIVING:
                         # log current position
@@ -393,16 +402,16 @@ class Cr2Auto(Node):
                             )
                             self.get_logger().info(
                                 "Reactive planner reference path length: "
-                                + str(len(self.reference_path))
+                                + str(len(self.route_planner.reference_path))
                             )
-                            if len(self.reference_path > 1):
+                            if len(self.route_planner.reference_path > 1):
                                 self.get_logger().info(
                                     "Reactive planner reference path: "
-                                    + str(self.reference_path[0])
+                                    + str(self.route_planner.reference_path[0])
                                     + "  --->  ["
-                                    + str(len(self.reference_path) - 2)
+                                    + str(len(self.route_planner.reference_path) - 2)
                                     + " states skipped]  --->  "
-                                    + str(self.reference_path[-1])
+                                    + str(self.route_planner.reference_path[-1])
                                 )
 
                         # when starting the route and the initial velocity is 0, the reactive planner would return zero velocity for
@@ -414,7 +423,7 @@ class Cr2Auto(Node):
                         self.trajectory_planner.plan(
                             init_state=init_state,
                             goal=self.planning_problem.goal,
-                            reference_path=self.reference_path,
+                            reference_path=self.route_planner.reference_path,
                             reference_velocity=reference_velocity,
                         )
 
@@ -524,7 +533,7 @@ class Cr2Auto(Node):
                     self.set_state(AutowareState.ARRIVED_GOAL)
 
                     # publish empty trajectory
-                    self._pub_route([], [])
+                    self.route_planner._pub_route([], [])
                 else:
                     self._set_new_goal()
 
@@ -703,7 +712,7 @@ class Cr2Auto(Node):
         self._pub_goals()
         # autoware requires that the reference path has to be published again when new goals are published
         if self.velocity_planner.get_is_velocity_planning_completed():
-            self._pub_route(*self.velocity_planner.get_reference_velocities())
+            self.route_planner._pub_route(*self.velocity_planner.get_reference_velocities())
 
     def set_state(self, new_aw_state: AutowareState):
         self.aw_state.state = new_aw_state
@@ -793,11 +802,16 @@ class Cr2Auto(Node):
                 planning_problem_id=1, initial_state=self.ego_vehicle_state, goal_region=goal_region
             )
             self.get_logger().info("Set new goal active!")
-            self._plan_route()
+            self.route_planner.plan(self.planning_problem)
+            self.velocity_planner.send_reference_path(
+                [
+                    utils.utm2map(self.origin_transformation, point)
+                    for point in self.route_planner.reference_path
+                ],
+                self.current_goal_msg.pose.position,
+            )
             self._pub_goals()
-
             self.set_state(AutowareState.WAITING_FOR_ENGAGE)
-
             self.route_planned = True
         else:
             if self.get_parameter("detailed_log").get_parameter_value().bool_value:
@@ -870,35 +884,6 @@ class Cr2Auto(Node):
         # visualize_solution(self.scenario, self.planning_problem, create_trajectory_from_list_states(path)) #ToDo: test
 
     # plan route
-    def _plan_route(self):
-        """
-        Plan a route using commonroad route planner and the current scenario and planning problem.
-        """
-
-        self.reference_path_published = False
-
-        if self.get_parameter("detailed_log").get_parameter_value().bool_value:
-            self.get_logger().info("Planning route")
-
-        route_planner = RoutePlanner(self.scenario, self.planning_problem)
-        reference_path = route_planner.plan_routes().retrieve_first_route().reference_path
-        # smooth reference path
-        tck, u = splprep(reference_path.T, u=None, k=3, s=0.0)
-        u_new = np.linspace(u.min(), u.max(), 200)
-        x_new, y_new = splev(u_new, tck, der=0)
-        reference_path = np.array([x_new, y_new]).transpose()
-        reference_path = resample_polyline(reference_path, 1)
-        # remove duplicated vertices in reference path
-        _, idx = np.unique(reference_path, axis=0, return_index=True)
-        reference_path = reference_path[np.sort(idx)]
-        self.reference_path = reference_path
-        self.velocity_planner.send_reference_path(
-            [utils.utm2map(self.origin_transformation, point) for point in self.reference_path],
-            self.current_goal_msg.pose.position,
-        )
-
-        if self.get_parameter("detailed_log").get_parameter_value().bool_value:
-            self.get_logger().info("Route planning completed!")
 
     def _pub_goals(self):
         """
@@ -928,18 +913,6 @@ class Cr2Auto(Node):
                 goals_msg.markers.append(marker)
 
         self.route_pub.publish(goals_msg)
-
-    def _pub_route(self, path, velocities):
-        """
-        Publish planned route as marker to visualize in RVIZ.
-        """
-        self.reference_path_published = True
-        self.route_pub.publish(utils.create_route_marker_msg(path, velocities))
-
-        if self.get_parameter("detailed_log").get_parameter_value().bool_value:
-            self.get_logger().info("Reference path published!")
-            self.get_logger().info("Path length: " + str(len(path)))
-            self.get_logger().info("Velocities length: " + str(len(velocities)))
 
     def _plot_scenario(self):
         """
