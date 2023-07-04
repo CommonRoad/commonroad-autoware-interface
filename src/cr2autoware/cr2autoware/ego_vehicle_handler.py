@@ -167,8 +167,6 @@ class EgoVehicleHandler:
                 steering_angle=steering_angle,
             )
 
-            self._node.get_logger().info("####################  FUCKSHIT  #####################")
-
     def update_ego_vehicle(self):
         """Update the commonroad scenario with the latest vehicle state and obstacle messages received."""
         # process last state message
