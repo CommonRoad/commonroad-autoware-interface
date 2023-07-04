@@ -104,12 +104,9 @@ class Cr2Auto(Node):
         self.rnd = None
 
         self.ego_vehicle_handler = EgoVehicleHandler(self)
-        self.ego_vehicle = self.ego_vehicle_handler.ego_vehicle
-        self.ego_vehicle_state = self.ego_vehicle_handler.ego_vehicle_state
 
         # buffer for static obstacles
         self.last_trajectory = None
-        self.vehicle_length, self.vehicle_width = None, None
         self.PUBLISH_OBSTACLES = (
             self.get_parameter("publish_obstacles").get_parameter_value().bool_value
         )
@@ -374,7 +371,7 @@ class Cr2Auto(Node):
 
                     if self.get_state() == AutowareState.DRIVING:
                         # log current position
-                        self.trajectory_logger.log_state(self.ego_vehicle_state)
+                        self.trajectory_logger.log_state(self.ego_vehicle_handler.ego_vehicle_state)
 
                     if self.get_parameter("detailed_log").get_parameter_value().bool_value:
                         self.get_logger().info("Solving planning problem!")
@@ -383,8 +380,8 @@ class Cr2Auto(Node):
                         reference_velocity = max(
                             1,
                             self.velocity_planner.get_velocity_at_aw_position_with_lookahead(
-                                self.ego_vehicle_state.pose.pose.position,
-                                self.ego_vehicle_state.velocity,
+                                self.ego_vehicle_handler.current_vehicle_state.pose.pose.position,
+                                self.ego_vehicle_handler.ego_vehicle_state.velocity,
                             ),
                         )
 
@@ -392,11 +389,11 @@ class Cr2Auto(Node):
                             self.get_logger().info("Running reactive planner")
                             self.get_logger().info(
                                 "Reactive planner init_state position: "
-                                + str(self.ego_vehicle_state.position)
+                                + str(self.ego_vehicle_handler.ego_vehicle_state.position)
                             )
                             self.get_logger().info(
                                 "Reactive planner init_state velocity: "
-                                + str(max(self.ego_vehicle_state.velocity, 0.1))
+                                + str(max(self.ego_vehicle_handler.ego_vehicle_state.velocity, 0.1))
                             )
                             self.get_logger().info(
                                 "Reactive planner reference path velocity: "
@@ -418,7 +415,7 @@ class Cr2Auto(Node):
 
                         # when starting the route and the initial velocity is 0, the reactive planner would return zero velocity for
                         # it's first state and thus never start driving. As a result, we increase the velocity a little bit here
-                        init_state = deepcopy(self.ego_vehicle_state)
+                        init_state = deepcopy(self.ego_vehicle_handler.ego_vehicle_state)
                         if init_state.velocity < 0.1:
                             init_state.velocity = 0.1
 
@@ -452,7 +449,7 @@ class Cr2Auto(Node):
                             )
 
                         # calculate velocities and accelerations of planner states
-                        # self._calculate_velocities(self.planner.valid_states, self.ego_vehicle_state.velocity)
+                        # self._calculate_velocities(self.planner.valid_states, self.ego_vehicle_handler.ego_vehicle_state.velocity)
 
                         # publish trajectory
                         self._prepare_traj_msg(self.trajectory_planner.valid_states)
@@ -501,7 +498,7 @@ class Cr2Auto(Node):
         """Check if vehicle is in goal region. If in goal region set new goal."""
         if self.planning_problem:
             if (
-                self.planning_problem.goal.is_reached(self.ego_vehicle_state)
+                self.planning_problem.goal.is_reached(self.ego_vehicle_handler.ego_vehicle_state)
                 and (self.get_clock().now() - self.last_goal_reached).nanoseconds > 5e8
             ):
                 self.get_logger().info("Car arrived at goal!")
@@ -591,11 +588,11 @@ class Cr2Auto(Node):
         Safe the message for later processing.
         :param msg: current kinematic state message
         """
-        self.ego_vehicle_handler.ego_vehicle_state = msg
+        self.ego_vehicle_handler.current_vehicle_state = msg
         self.new_pose_received = True
 
-    #def _process_current_state(self) -> None:
-    #        self.ego_vehicle_handler.process_current_state()
+    def _process_current_state(self) -> None:
+            self.ego_vehicle_handler.process_current_state()
 
     def _awtrajectory_to_crtrajectory(self, mode, time_step, traj):
         """
@@ -690,7 +687,7 @@ class Cr2Auto(Node):
             pos_y = position[1]
             self.get_logger().info("Pose position utm: " + str(position))
             orientation = utils.quaternion2orientation(current_msg.pose.orientation)
-            if self.ego_vehicle_state is None:
+            if self.ego_vehicle_handler.ego_vehicle_state is None:
                 self.get_logger().error("ego vehicle state is None")
                 return
 
@@ -722,7 +719,7 @@ class Cr2Auto(Node):
                 goal_lanelet_width = 3.0
 
             region = Rectangle(
-                length=self.vehicle_length + 0.25 * self.vehicle_length,
+                length=self.ego_vehicle_handler.vehicle_length + 0.25 * self.ego_vehicle_handler.vehicle_length,
                 width=goal_lanelet_width,
                 center=position,
                 orientation=orientation,
@@ -733,7 +730,7 @@ class Cr2Auto(Node):
 
             goal_region = GoalRegion([goal_state])
             self.planning_problem = PlanningProblem(
-                planning_problem_id=1, initial_state=self.ego_vehicle_state, goal_region=goal_region
+                planning_problem_id=1, initial_state=self.ego_vehicle_handler.ego_vehicle_state, goal_region=goal_region
             )
             self.get_logger().info("Set new goal active!")
             self._plan_route()
@@ -900,7 +897,7 @@ class Cr2Auto(Node):
         # self.rnd.draw_params.static_obstacle.occupancy.shape.rectangle.edgecolor = "#000000"
         # self.rnd.draw_params.static_obstacle.occupancy.shape.rectangle.zorder = 50
         # self.rnd.draw_params.static_obstacle.occupancy.shape.rectangle.opacity = 1
-        """self.ego_vehicle.draw(self.rnd, draw_params={ # outdate cr-io
+        """self.ego_vehicle_handler.ego_vehicle.draw(self.rnd, draw_params={ # outdate cr-io
             "static_obstacle": {
                 "occupancy": {
                     "shape": {
