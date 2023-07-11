@@ -592,7 +592,7 @@ class Cr2Auto(Node):
         self.new_pose_received = True
 
     def _process_current_state(self) -> None:
-            self.ego_vehicle_handler.process_current_state()
+        self.ego_vehicle_handler.process_current_state()
 
     def _awtrajectory_to_crtrajectory(self, mode, time_step, traj):
         """
@@ -719,7 +719,8 @@ class Cr2Auto(Node):
                 goal_lanelet_width = 3.0
 
             region = Rectangle(
-                length=self.ego_vehicle_handler.vehicle_length + 0.25 * self.ego_vehicle_handler.vehicle_length,
+                length=self.ego_vehicle_handler.vehicle_length
+                + 0.25 * self.ego_vehicle_handler.vehicle_length,
                 width=goal_lanelet_width,
                 center=position,
                 orientation=orientation,
@@ -730,7 +731,9 @@ class Cr2Auto(Node):
 
             goal_region = GoalRegion([goal_state])
             self.planning_problem = PlanningProblem(
-                planning_problem_id=1, initial_state=self.ego_vehicle_handler.ego_vehicle_state, goal_region=goal_region
+                planning_problem_id=1,
+                initial_state=self.ego_vehicle_handler.ego_vehicle_state,
+                goal_region=goal_region,
             )
             self.get_logger().info("Set new goal active!")
             self._plan_route()

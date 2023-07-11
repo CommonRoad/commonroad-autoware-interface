@@ -3,17 +3,18 @@ import typing
 from typing import Any
 from typing import Dict
 from typing import Optional
-import numpy as np
 
 from commonroad.geometry.shape import Rectangle
 from commonroad.prediction.prediction import TrajectoryPrediction
 from commonroad.scenario.obstacle import DynamicObstacle
 from commonroad.scenario.obstacle import ObstacleType
 from commonroad.scenario.state import CustomState
-from rcl_interfaces.msg import ParameterValue
+from geometry_msgs.msg import PoseStamped
+import numpy as np
 import rclpy
 from rclpy.impl.rcutils_logger import RcutilsLogger
 from rclpy.publisher import Publisher
+
 import cr2autoware.utils as utils
 
 # Avoid circular imports
@@ -94,7 +95,7 @@ class EgoVehicleHandler:
         return self._vehicle_wheelbase
 
     @vehicle_wheelbase.setter
-    def vehicle_wheelbase(self, current_vehicle_state) -> None:
+    def vehicle_wheelbase(self, vehicle_wheelbase) -> None:
         self._vehicle_wheelbase = vehicle_wheelbase
 
     def __init__(self, node: "Cr2Auto"):
@@ -140,7 +141,9 @@ class EgoVehicleHandler:
                 temp_pose_stamped.header = self._current_vehicle_state.header
                 temp_pose_stamped.pose = self._current_vehicle_state.pose.pose
                 pose_transformed = self.transform_pose(temp_pose_stamped, "map")
-                position = utils.map2utm(self._node.origin_transformation, pose_transformed.pose.position)
+                position = utils.map2utm(
+                    self._node.origin_transformation, pose_transformed.pose.position
+                )
                 orientation = utils.quaternion2orientation(pose_transformed.pose.orientation)
             else:
                 position = utils.map2utm(
@@ -152,8 +155,7 @@ class EgoVehicleHandler:
                 )
             # steering_angle=  arctan2(wheelbase * yaw_rate, velocity)
             steering_angle = np.arctan2(
-                self.vehicle_wheelbase
-                * self._current_vehicle_state.twist.twist.angular.z,
+                self.vehicle_wheelbase * self._current_vehicle_state.twist.twist.angular.z,
                 self._current_vehicle_state.twist.twist.linear.x,
             )
 
