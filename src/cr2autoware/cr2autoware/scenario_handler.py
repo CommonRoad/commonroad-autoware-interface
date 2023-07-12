@@ -518,7 +518,7 @@ class ScenarioHandler:
             object_msg = utils.create_object_base_msg(header, self.origin_transformation, obstacle)
             if isinstance(obstacle, DynamicObstacle):
                 try:
-                    # Bug in CommonRoad: initial_state is not of type InitialState (warumauchimmer)
+                    # Bug in CommonRoad?: initial_state is not of type InitialState (warumauchimmer)
                     state: InitialState = obstacle.initial_state  # type: ignore
                     object_msg.initial_state.twist_covariance.twist.linear.x = state.velocity
                     object_msg.initial_state.accel_covariance.accel.linear.x = state.acceleration

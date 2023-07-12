@@ -13,7 +13,6 @@ from commonroad.common.file_writer import CommonRoadFileWriter
 from commonroad.common.file_writer import OverwriteExistingFile
 from commonroad.common.util import Interval
 from commonroad.geometry.shape import Rectangle
-from commonroad.geometry.shape import ShapeGroup
 from commonroad.planning.goal import GoalRegion
 from commonroad.planning.planning_problem import PlanningProblem
 from commonroad.planning.planning_problem import PlanningProblemSet
@@ -47,8 +46,8 @@ from rclpy.qos import QoSDurabilityPolicy
 from rclpy.qos import QoSHistoryPolicy
 from rclpy.qos import QoSProfile
 from rclpy.qos import QoSReliabilityPolicy
-from scipy.interpolate import splev
-from scipy.interpolate import splprep
+from scipy.interpolate import splev  # type: ignore
+from scipy.interpolate import splprep  # type: ignore
 from std_msgs.msg import Header
 import tf2_ros
 from tf2_ros.buffer import Buffer
@@ -70,6 +69,11 @@ from cr2autoware.trajectory_logger import TrajectoryLogger
 import cr2autoware.utils as utils
 from cr2autoware.velocity_planner import VelocityPlanner
 
+try:
+    from cr2autoware.spot_handler import SpotHandler
+except ImportError:
+    SpotHandler = None
+
 matplotlib.use("TkAgg")
 
 
@@ -78,6 +82,7 @@ class Cr2Auto(Node):
 
     scenario_handler: ScenarioHandler
     plan_prob_handler: PlanningProblemHandler
+    spot_handler: Optional["SpotHandler"]  # May be None if Spot is not installed or disabled
 
     def __init__(self):
         """Construct Cr2Auto class."""
@@ -141,6 +146,16 @@ class Cr2Auto(Node):
 
         self.scenario_handler = ScenarioHandler(self)
         self.origin_transformation = self.scenario_handler.origin_transformation
+        if self.get_parameter("enable_spot").get_parameter_value().bool_value:
+            if SpotHandler is None:
+                self.get_logger().error(
+                    "The Spot module has been enabled but wasn't be imported! "
+                    "Have you installed SPOT into your Python environment? "
+                    "Continuing without SPOT."
+                )
+                self.spot_handler = None
+            else:
+                self.spot_handler = SpotHandler(self)
 
         if self.get_parameter("detailed_log").get_parameter_value().bool_value:
             from rclpy.logging import LoggingSeverity
@@ -202,7 +217,9 @@ class Cr2Auto(Node):
         qos_route_pub.reliability = QoSReliabilityPolicy.RELIABLE
         qos_route_pub.durability = QoSDurabilityPolicy.TRANSIENT_LOCAL
         self.route_pub = self.create_publisher(
-            MarkerArray, "/planning/mission_planning/route_marker", qos_route_pub
+            MarkerArray,
+            "/planning/mission_planning/route_marker",
+            qos_route_pub,
         )
         # publish initial state of the scenario
         self.initial_pose_pub = self.create_publisher(PoseWithCovarianceStamped, "/initialpose", 1)
@@ -247,6 +264,19 @@ class Cr2Auto(Node):
         if self.scenario_handler is None:
             raise RuntimeError("Scenario handler not initialized.")
         return self.scenario_handler.scenario
+
+    @property
+    def planning_problem(self) -> Optional[PlanningProblem]:
+        """Get planning problem object retrieved from the planning problem handler.
+
+        Caution: Does not trigger an update of the planning problem."""
+        if self.plan_prob_handler is None:
+            raise RuntimeError("Planning problem handler not initialized.")
+        return self.plan_prob_handler.planning_problem
+
+    @planning_problem.setter
+    def planning_problem(self, planning_problem):
+        self.plan_prob_handler.planning_problem = planning_problem
 
     def initialize_trajectory_planner(self):
         """Define planner according to trajectory_planner_type."""
@@ -300,29 +330,6 @@ class Cr2Auto(Node):
                 callback_group=self.callback_group,
             )
 
-    @property
-    def scenario(self) -> Scenario:
-        """Get scenario object retrieved from the scenario_handler.
-
-        Caution: Does not trigger an update of the scenario.
-        """
-        if self.scenario_handler is None:
-            raise RuntimeError("Scenario handler not initialized.")
-        return self.scenario_handler.scenario
-
-    @property
-    def planning_problem(self) -> Optional[PlanningProblem]:
-        """Get planning problem object retrieved from the planning problem handler.
-
-        Caution: Does not trigger an update of the planning problem."""
-        if self.plan_prob_handler is None:
-            raise RuntimeError("Planning problem handler not initialized.")
-        return self.plan_prob_handler.planning_problem
-
-    @planning_problem.setter
-    def planning_problem(self, planning_problem):
-        self.plan_prob_handler.planning_problem = planning_problem
-
     def solve_planning_problem(self) -> None:
         """Update loop for interactive planning mode and solve planning problem with algorithms offered by commonroad."""
         try:
@@ -333,6 +340,12 @@ class Cr2Auto(Node):
                 self.ego_vehicle_handler.update_ego_vehicle()
                 self.scenario_handler.update_scenario()
                 self.plot_save_scenario()
+                if self.planning_problem and self.spot_handler is not None:
+                    self.spot_handler.update(
+                        self.scenario,
+                        self.origin_transformation,
+                        self.planning_problem,
+                    )
 
                 # check if initial pose was changed (if true: recalculate reference path)
                 if self.new_initial_pose:
@@ -587,7 +600,9 @@ class Cr2Auto(Node):
         )
         # publish trajectory to motion velocity smoother
         self.velocity_pub = self.create_publisher(
-            AWTrajectory, "/planning/scenario_planning/scenario_selector/trajectory", 1
+            AWTrajectory,
+            "/planning/scenario_planning/scenario_selector/trajectory",
+            1,
         )
         self.velocity_planner.set_publisher(self.velocity_pub)
 
@@ -735,7 +750,9 @@ class Cr2Auto(Node):
                 orientation=orientation,
             )
             goal_state = CustomState(
-                position=region, time_step=Interval(0, 1000), velocity=velocity_interval
+                position=region,
+                time_step=Interval(0, 1000),
+                velocity=velocity_interval,
             )
 
             goal_region = GoalRegion([goal_state])
@@ -940,7 +957,9 @@ class Cr2Auto(Node):
 
         try:
             tf_map = self.tf_buffer.lookup_transform(
-                target_frame, source_frame, rclpy.time.Time.from_msg(pose_in.header.stamp)
+                target_frame,
+                source_frame,
+                rclpy.time.Time.from_msg(pose_in.header.stamp),
             )
         except tf2_ros.ExtrapolationException:
             tf_map = self.tf_buffer.lookup_transform(target_frame, source_frame, rclpy.time.Time())
