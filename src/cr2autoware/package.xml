@@ -4,7 +4,7 @@
   <name>cr2autoware</name>
   <version>0.0.0</version>
   <description>TODO: Package description</description>
-  <maintainer email="drivingsim@todo.todo">drivingsim</maintainer>
+  <maintainer email="commonroad@lists.lrz.de">commonroad</maintainer>
   <license>TODO: License declaration</license>
 
   <depend>geometry_msgs</depend>
