@@ -28,8 +28,8 @@ setup(
     python_requires='>=3.7',
     install_requires=[
     	'setuptools',
-    	'commonroad-io==2022.3',
-    	'commonroad-drivability-checker==2022.2.1',
+    	'commonroad-io>=2022.3',
+    	'commonroad-drivability-checker==2023.1',
     	'commonroad-vehicle-models>=3.0.0',
     	'commonroad-route-planner==2022.3',
     	'pyproj',
