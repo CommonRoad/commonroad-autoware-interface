@@ -9,7 +9,7 @@
     publish_obstacles: True # publish static and dynamic obstacles from CommonRoad scenario
     store_trajectory: False
     store_trajectory_file: "output/solutions/solution1.xml" # CommonRoad solution file path
-    enable_spot: True # enable spot
+    enable_spot: False # enable spot
 
     scenario:
       # time step of scenario in s; used only in case dt cannot be loaded from a commonroad scenario file
