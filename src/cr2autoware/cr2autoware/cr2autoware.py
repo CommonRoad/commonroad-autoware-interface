@@ -33,7 +33,7 @@ from geometry_msgs.msg import Pose
 from geometry_msgs.msg import PoseStamped
 from geometry_msgs.msg import PoseWithCovarianceStamped
 import matplotlib
-if os.environ.get('DISPLAY') is None:
+if os.environ.get('DISPLAY') is not None:
     matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 from nav_msgs.msg import Odometry
