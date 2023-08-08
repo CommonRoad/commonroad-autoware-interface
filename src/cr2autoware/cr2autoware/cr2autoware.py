@@ -157,6 +157,8 @@ class Cr2Auto(Node):
                 self.spot_handler = None
             else:
                 self.spot_handler = SpotHandler(self)
+        else:
+            self.spot_handler = None
 
         if self.get_parameter("detailed_log").get_parameter_value().bool_value:
             from rclpy.logging import LoggingSeverity
