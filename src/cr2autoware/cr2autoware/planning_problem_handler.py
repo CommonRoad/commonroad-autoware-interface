@@ -179,7 +179,7 @@ class PlanningProblemHandler:
             goal_position = goal_state.position  # type: ignore
         except AttributeError as e:
             self._logger.warning(f"Goal state of type {type(goal_state)} has no position.")
-            self._logger.debug(e)
+            self._logger.debug(str(e))
             return
 
         # If the goal is a lanelet, this is stored as a ShapeGroup
@@ -195,7 +195,7 @@ class PlanningProblemHandler:
                 orientation = utils.orientation2quaternion(goal_state.orientation)  # type: ignore
             except AttributeError as e:
                 self._logger.warning(f"Goal state of type {type(goal_state)} has no orientation.")
-                self._logger.debug(e)
+                self._logger.debug(str(e))
                 return
 
         # If position cannot be inferred from the lanelet, get it from the goal position
