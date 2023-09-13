@@ -119,7 +119,7 @@ class ScenarioHandler:
     def _read_map_config(self, map_path: str) -> Dict[str, Any]:
         map_config = {}
 
-        map_config_tmp = list(glob.iglob(os.path.join(map_path, "*.[yY][aA][mM][lL]")))
+        map_config_tmp = list(glob.iglob(os.path.join(map_path, ("map_config" + "*.[yY][aA][mM][lL]"))))
         if not map_config_tmp:
             raise ValueError("Couldn't load map origin! No YAML file exists in: %s" % map_path)
 
