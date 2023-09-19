@@ -707,7 +707,7 @@ class Cr2Auto(Node):
             routing_state_msg.state = 3
             self.routing_state_pub.publish(routing_state_msg)
             # call client for change to stop service
-            change_to_stop_response = self.change_to_stop_client.call_async(self.change_to_stop_request)
+            change_to_stop_response = self.change_to_stop_client.call(self.change_to_stop_request)
             # set /vehicle/engage to False if goal arrived
             self.engage_status = False
         else:
