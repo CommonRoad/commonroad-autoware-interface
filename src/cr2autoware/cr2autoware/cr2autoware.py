@@ -1,19 +1,53 @@
-# general imports
+# standard imports
 from copy import deepcopy
 import os
 import traceback
 from typing import Optional
 
-# Autoware message imports
+# third party imports
+import numpy as np
+import yaml
+import matplotlib
+if os.environ.get('DISPLAY') is not None:
+    matplotlib.use("TkAgg")
+import matplotlib.pyplot as plt
+
+# Autoware.Auto message imports
 from autoware_auto_planning_msgs.msg import Trajectory as AWTrajectory  # type: ignore
 from autoware_auto_planning_msgs.msg import TrajectoryPoint  # type: ignore
 from autoware_auto_system_msgs.msg import AutowareState  # type: ignore
 from autoware_auto_vehicle_msgs.msg import Engage  # type: ignore
+
+# Autoware AdAPI message imports
 from autoware_adapi_v1_msgs.msg import RouteState # type: ignore
 from autoware_adapi_v1_msgs.srv import ChangeOperationMode # type: ignore
 
 # Tier IV message imports
 from tier4_planning_msgs.msg import VelocityLimit   # type: ignore
+
+# ROS message imports
+from geometry_msgs.msg import Pose
+from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseWithCovarianceStamped
+from nav_msgs.msg import Odometry
+from std_msgs.msg import Header
+from visualization_msgs.msg import Marker
+from visualization_msgs.msg import MarkerArray
+
+# ROS imports
+# rclpy
+import rclpy
+from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.executors import MultiThreadedExecutor
+from rclpy.node import Node
+from rclpy.qos import QoSDurabilityPolicy
+from rclpy.qos import QoSHistoryPolicy
+from rclpy.qos import QoSProfile
+from rclpy.qos import QoSReliabilityPolicy
+# tf2
+import tf2_ros
+from tf2_ros.buffer import Buffer
+from tf2_ros.transform_listener import TransformListener
 
 # commonroad-io imports
 from commonroad.common.file_writer import CommonRoadFileWriter
@@ -23,48 +57,13 @@ from commonroad.geometry.shape import Rectangle
 from commonroad.planning.goal import GoalRegion
 from commonroad.planning.planning_problem import PlanningProblem
 from commonroad.planning.planning_problem import PlanningProblemSet
-from commonroad.prediction.prediction import TrajectoryPrediction
-from commonroad.scenario.obstacle import DynamicObstacle
-from commonroad.scenario.obstacle import ObstacleType
 from commonroad.scenario.scenario import Scenario
 from commonroad.scenario.scenario import Tag
 from commonroad.scenario.state import CustomState
 from commonroad.scenario.trajectory import Trajectory as CRTrajectory
 from commonroad.visualization.mp_renderer import MPRenderer
-from commonroad_dc.geometry.util import resample_polyline
 
-# ROS2 message imports
-from geometry_msgs.msg import Pose
-from geometry_msgs.msg import PoseStamped
-from geometry_msgs.msg import PoseWithCovarianceStamped
-
-import matplotlib
-if os.environ.get('DISPLAY') is not None:
-    matplotlib.use("TkAgg")
-import matplotlib.pyplot as plt
-from nav_msgs.msg import Odometry
-import numpy as np
-
-# ROS imports
-import rclpy
-from rclpy.callback_groups import ReentrantCallbackGroup
-from rclpy.executors import MultiThreadedExecutor
-from rclpy.node import Node
-from rclpy.qos import QoSDurabilityPolicy
-from rclpy.qos import QoSHistoryPolicy
-from rclpy.qos import QoSProfile
-from rclpy.qos import QoSReliabilityPolicy
-from scipy.interpolate import splev  # type: ignore
-from scipy.interpolate import splprep  # type: ignore
-from std_msgs.msg import Header
-import tf2_ros
-from tf2_ros.buffer import Buffer
-from tf2_ros.transform_listener import TransformListener
-from visualization_msgs.msg import Marker
-from visualization_msgs.msg import MarkerArray
-import yaml
-
-# local imports
+# cr2autoware imports
 from cr2autoware.configuration import RPParams
 from cr2autoware.ego_vehicle_handler import EgoVehicleHandler
 from cr2autoware.planning_problem_handler import PlanningProblemHandler
@@ -84,97 +83,122 @@ except ImportError:
 
 
 class Cr2Auto(Node):
-    """Cr2Auto class that is an interface between Autoware and CommonRoad."""
+    """
+    Cr2Auto class that is an instance of a ROS2 Node.
+    This node serves as a the main interface between CommonRoad and Autoware.Universe
+    """
 
+    # TODO: Why are these defined as class attributes?
     scenario_handler: ScenarioHandler
     plan_prob_handler: PlanningProblemHandler
     spot_handler: Optional["SpotHandler"]  # May be None if Spot is not installed or disabled
 
     def __init__(self):
-        """Construct Cr2Auto class."""
+        """
+        Constructor of the Cr2Auto class.
+        """
         # ignore typing due to bug in rclpy
         super().__init__(node_name="cr2autoware")  # type: ignore
 
-        # Declare ros parameters
+        # Declare ROS parameters
+        # For simplification, the parameters which need to be declared are listed in the ros_param.yml file
         with open(os.path.dirname(__file__) + "/ros_param.yaml", "r") as stream:
             param = yaml.load(stream, Loader=yaml.Loader)
         for key, value in param.items():
             self.declare_parameter(key, value)
 
-        self.get_logger().info(
-            "Map path is: " + self.get_parameter("map_path").get_parameter_value().string_value
-        )
-        self.get_logger().info(
-            "Solution path is: "
-            + self.get_parameter("solution_file").get_parameter_value().string_value
-        )
+        # initialize logging level
+        if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+            from rclpy.logging import LoggingSeverity
+            self.get_logger().info("Detailed log is enabled")
+            self.get_logger().set_level(LoggingSeverity.DEBUG)
 
-        # Init class attributes
-        self.write_scenario = self.get_parameter("write_scenario").get_parameter_value().bool_value
+        # log map path and solution path
+        self.get_logger().info(
+            "Map path is: " + self.get_parameter("map_path").get_parameter_value().string_value)
+        self.get_logger().info(
+            "Solution path is: " + self.get_parameter("solution_file").get_parameter_value().string_value)
+
+        # intialize callback group
         self.callback_group = ReentrantCallbackGroup()  # Callback group for async execution
+
+
+        # intialize commonroad-specfic attributes
+        self.write_scenario = self.get_parameter("write_scenario").get_parameter_value().bool_value
+        self.PUBLISH_OBSTACLES = self.get_parameter("publish_obstacles").get_parameter_value().bool_value
+        self.solution_path = self.get_parameter("solution_file").get_parameter_value().string_value
         self.rnd = None
 
-        self.ego_vehicle_handler = EgoVehicleHandler(self)
-
-        # buffer for static obstacles
-        self.last_trajectory = None
-        self.PUBLISH_OBSTACLES = (
-            self.get_parameter("publish_obstacles").get_parameter_value().bool_value
-        )
-        self.solution_path = self.get_parameter("solution_file").get_parameter_value().string_value
-
-        self.planning_problem_set = None
-        self.route_planned = False
-        self.planner_state_list = None
-        self.is_computing_trajectory = False  # stop update scenario when trajectory is compuself.declare_parameter('velocity_planner.lookahead_dist', 2.0)
-        self.ego_vehicle_handler.create_ego_vehicle_info()  # compute ego vehicle width and height
-        self.tf_buffer = Buffer(cache_time=rclpy.duration.Duration(seconds=10.0))
-        self.tf_listener = TransformListener(self.tf_buffer, self)  # convert among frames
-
-        # init AutowareState and Engage Status and Auto Button Status
-        self.aw_state = AutowareState()
-        self.engage_status = False
-        self.auto_button_status = False
-
-        self.reference_path_published = False
-        self.new_initial_pose = False
-        self.new_pose_received = False
-        self.external_velocity_limit = 1337.0
-
-        # vars to save last messages
-        # https://github.com/tier4/autoware_auto_msgs/blob/tier4/main/autoware_auto_system_msgs/msg/AutowareState.idl
-        self.last_msg_aw_state = 1  # 1 = initializing
-        self.goal_msgs = []
-        self.current_goal_msg = None
-        self.last_goal_reached = self.get_clock().now()
-        self.reference_path = None
-
+        # intialize CR trajectory logger (optionally store CR solution file)
         self.trajectory_logger = TrajectoryLogger(
             None,
             self.get_logger(),
             self.get_parameter("detailed_log").get_parameter_value().bool_value,
         )
 
+        # initialize trajectory_planner_type
+        self.trajectory_planner_type = (
+            self.get_parameter("trajectory_planner_type").get_parameter_value().integer_value)
+        
+        # ========= CommonRoad Handlers =========
+        # scenario handler
         self.scenario_handler = ScenarioHandler(self)
         self.origin_transformation = self.scenario_handler.origin_transformation
+        # ego vehicle handler (TODO why not call create ego info directly when instantiating?)
+        self.ego_vehicle_handler = EgoVehicleHandler(self)
+        self.ego_vehicle_handler.create_ego_vehicle_info()
+        # planning problem handler
+        self.plan_prob_handler = PlanningProblemHandler(
+            self, self.scenario, self.origin_transformation)
+        # SPOT handler (optional)
         if self.get_parameter("enable_spot").get_parameter_value().bool_value:
             if SpotHandler is None:
                 self.get_logger().error(
-                    "The Spot module has been enabled but wasn't be imported! "
+                    "The Spot module has been enabled but wasn't imported! "
                     "Have you installed SPOT into your Python environment? "
-                    "Continuing without SPOT."
-                )
+                    "Continuing without SPOT.")
                 self.spot_handler = None
             else:
                 self.spot_handler = SpotHandler(self)
         else:
             self.spot_handler = None
+        
+        # write CommonRoad scenario to xml file
+        if self.write_scenario:
+            self._write_scenario()
+        
+        # intiailize planning-specific attributes
+        self.planning_problem_set = None
+        self.route_planned = False
+        self.planner_state_list = None
+        self.is_computing_trajectory = False  # stop update scenario when trajectory is being computed
+        self.reference_path = None
+        self.reference_path_published = False
+        self.new_initial_pose = False
+        self.new_pose_received = False
+        self.external_velocity_limit = 1337.0
 
-        if self.get_parameter("detailed_log").get_parameter_value().bool_value:
-            from rclpy.logging import LoggingSeverity
 
-            self.get_logger().set_level(LoggingSeverity.DEBUG)
+        # initialize tf        
+        self.tf_buffer = Buffer(cache_time=rclpy.duration.Duration(seconds=10.0))
+        self.tf_listener = TransformListener(self.tf_buffer, self)  # convert among frames
 
+
+        # initialize AutowareState and Engage Status and Auto Button Status
+        self.aw_state = AutowareState()
+        self.engage_status = False
+        self.auto_button_status = False
+
+        
+        # vars to save last messages
+        # https://github.com/tier4/autoware_auto_msgs/blob/tier4/main/autoware_auto_system_msgs/msg/AutowareState.idl
+        self.last_msg_aw_state = 1  # 1 = initializing
+        self.goal_msgs = []
+        self.current_goal_msg = None
+        self.last_goal_reached = self.get_clock().now()
+        
+
+        # ========= Subscribers =========
         # subscribe current state from odometry
         self.current_state_sub = self.create_subscription(
             Odometry,
@@ -199,7 +223,7 @@ class Cr2Auto(Node):
             1,
             callback_group=self.callback_group,
         )
-        # subscribe autoware engage
+        # subscribe autoware engage message
         self.auto_button_sub = self.create_subscription(
             Engage,
             "/autoware/engage",
@@ -207,7 +231,8 @@ class Cr2Auto(Node):
             1,
             callback_group=self.callback_group,
         )
-        # subscribe velocity limit from API (Here we directly use the value from the API velocity limit setter in RVIZ. 
+        # subscribe velocity limit from API 
+        # (Here we directly use the value from the API velocity limit setter in RVIZ. 
         # In the default AW.Universe this value is input to the node external_velocity_limit_selector which selects the velocity limit from different values)
         self.create_subscription(
             VelocityLimit,
@@ -217,6 +242,8 @@ class Cr2Auto(Node):
             callback_group=self.callback_group,
         )
 
+
+        # ========= Publishers =========
         # publish goal pose
         self.goal_pose_pub = self.create_publisher(
             PoseStamped,
@@ -224,32 +251,42 @@ class Cr2Auto(Node):
             1,
         )
         # publish trajectory
-        # Humble Update: Does not publish the trajectory directly to /planning/scenario_planning/trajectory but instead uses a dummy-topic that is analyzed by the 
+        # We do not publish the trajectory directly to /planning/scenario_planning/trajectory but instead use a dummy-topic that is analyzed by the 
         # planning_validator, which in turn is checked by the system_error_monitor
         self.traj_pub = self.create_publisher(
-            AWTrajectory, "/planning/commonroad/trajectory", 1
+            AWTrajectory, 
+            "/planning/commonroad/trajectory", 
+            1
         )
         # publish autoware state
         # list of states: https://gitlab.com/autowarefoundation/autoware.auto/autoware_auto_msgs/-/blob/master/autoware_auto_system_msgs/msg/AutowareState.idl
-        self.aw_state_pub = self.create_publisher(AutowareState, "/autoware/state", 1)
-
-        # clieant for change to stop service call (only for publishing "stop" if goal arrived)
-        self.change_to_stop_client = self.create_client(ChangeOperationMode, "/api/operation_mode/change_to_stop")
-        self.change_to_stop_request = ChangeOperationMode.Request()
-
-        # engage publisher for Planning Simulation
-        self.vehicle_engage_pub = self.create_publisher(Engage, "/vehicle/engage", 1)
-
-        # routing state publisher
+        self.aw_state_pub = self.create_publisher(
+            AutowareState, 
+            "/autoware/state", 
+            1
+        )
+        # publish vehicle engage for AW Planning Simulation
+        self.vehicle_engage_pub = self.create_publisher(
+            Engage, 
+            "/vehicle/engage", 
+            1
+        )
+        # publish engage required by node /control/operation_mode_transistion_manager
+        self.api_engage_pub = self.create_publisher(
+            Engage, 
+            "/api/autoware/get/engage", 
+            1
+        )
+        # publish routing state
         qos_routing_state_pub = QoSProfile(depth=1)
         qos_routing_state_pub.history = QoSHistoryPolicy.KEEP_LAST
         qos_routing_state_pub.reliability = QoSReliabilityPolicy.RELIABLE
         qos_routing_state_pub.durability = QoSDurabilityPolicy.TRANSIENT_LOCAL
-        self.routing_state_pub = self.create_publisher(RouteState, "/api/routing/state", qos_routing_state_pub)
-        
-        # engage publisher for /control/operation_mode_transistion_manager
-        self.api_engage_pub = self.create_publisher(Engage, "/api/autoware/get/engage", 1)
-
+        self.routing_state_pub = self.create_publisher(
+            RouteState, 
+            "/api/routing/state", 
+            qos_routing_state_pub
+        )
         # publish route marker
         qos_route_pub = QoSProfile(depth=1)
         qos_route_pub.history = QoSHistoryPolicy.KEEP_LAST
@@ -260,39 +297,46 @@ class Cr2Auto(Node):
             "/planning/mission_planning/route_marker",
             qos_route_pub,
         )
-        # publish initial state of the scenario
-        self.initial_pose_pub = self.create_publisher(PoseWithCovarianceStamped, "/initialpose", 1)
-        # publish goal region(s) of the scenario
-        self.goal_region_pub = self.create_publisher(MarkerArray, "/goal_region_marker_array", 1)
-
-        self.plan_prob_handler = PlanningProblemHandler(
-            self, self.scenario, self.origin_transformation
+        # publish initial state of the scenario (replay solution trajectory mode)
+        self.initial_pose_pub = self.create_publisher(
+            PoseWithCovarianceStamped, 
+            "/initialpose", 
+            1
         )
-        if self.write_scenario:
-            self._write_scenario()
+        # publish goal region(s) of the scenario (TODO: check, currently not used)
+        self.goal_region_pub = self.create_publisher(
+            MarkerArray, 
+            "/goal_region_marker_array", 
+            1
+        )
 
+
+        # ========= Service Clients =========
+        # client for change to stop service call (only for publishing "stop" if goal arrived)
+        self.change_to_stop_client = self.create_client(
+            ChangeOperationMode, 
+            "/api/operation_mode/change_to_stop"
+        )
+        self.change_to_stop_request = ChangeOperationMode.Request()
+
+        
+        # ========= Set up Planning Interfaces =========
+        # set initial Autoware State (Waiting for route)
         self.set_state(AutowareState.WAITING_FOR_ROUTE)
 
-        self.plan_prob_handler = PlanningProblemHandler(
-            self, self.scenario, self.origin_transformation
-        )
-        if self.write_scenario:
-            self._write_scenario()
+        # set route planner
+        self.route_planner = self._set_route_planner()
 
-        self.initialize_velocity_planner()
-        self.initialize_trajectory_planner()
+        # set velocity planner
+        self._set_velocity_planner()
 
-        self.route_planner = RoutePlannerInterface(
-            self.get_parameter,
-            self.get_logger(),
-            self.scenario,
-            self.route_pub,
-        )
+        # set trajectory planner using factory function
+        self.trajectory_planner = self._trajectory_planner_factory()
+
         if self.get_parameter("detailed_log").get_parameter_value().bool_value:
-            self.get_logger().info("Detailed log is enabled")
-            self.get_logger().info("Init complete!")
+            self.get_logger().info("Cr2Auto initialization is completed!")
 
-        self.initialize_mode()
+        self._set_cr2auto_mode()
 
     @property
     def scenario(self) -> Scenario:
@@ -316,37 +360,60 @@ class Cr2Auto(Node):
     @planning_problem.setter
     def planning_problem(self, planning_problem):
         self.plan_prob_handler.planning_problem = planning_problem
+    
+    def _set_route_planner(self):
+        """
+        Initializes the route planner
+        """
+        return RoutePlannerInterface(self.get_parameter, self.get_logger(), self.scenario, self.route_pub)
 
-    def initialize_trajectory_planner(self):
-        """Define planner according to trajectory_planner_type."""
-        self.trajectory_planner_type = (
-            self.get_parameter("trajectory_planner_type").get_parameter_value().integer_value
+    def _set_velocity_planner(self):
+        """
+        Initializes the velocity planner
+        """
+        self.velocity_planner = VelocityPlanner(
+            self.get_parameter("detailed_log").get_parameter_value().bool_value,
+            self.get_logger(),
+            self.get_parameter("velocity_planner.lookahead_dist").get_parameter_value().double_value,
+            self.get_parameter("velocity_planner.lookahead_time").get_parameter_value().double_value,
         )
+
+        # subscribe trajectory from motion velocity smoother
+        self.traj_sub_smoothed = self.create_subscription(
+            AWTrajectory,
+            "/planning/scenario_planning/trajectory_smoothed",
+            self.velocity_planner.smoothed_trajectory_callback,
+            1,
+            callback_group=self.callback_group,
+        )
+        # publish reference trajectory to motion velocity smoother
+        self.velocity_pub = self.create_publisher(
+            AWTrajectory,
+            "/planning/scenario_planning/scenario_selector/trajectory",
+            1,
+        )
+        self.velocity_planner.set_publisher(self.velocity_pub)
+
+    def _trajectory_planner_factory(self):
+        """
+        Factory function to initialize trajectory planner according to specified type.
+        """
         if self.trajectory_planner_type == 1:  # Reactive planner
-            # not used
-            # _cur_file_path = os.path.dirname(os.path.realpath(__file__))
-            # _rel_path_conf_default = (
-            #     self.get_parameter("reactive_planner.default_yaml_folder")
-            #     .get_parameter_value()
-            #     .string_value
-            # )
-            # not used
-            # dir_conf_default = os.path.join(_cur_file_path, _rel_path_conf_default)
             params = RPParams(self.get_parameter)
-            self.trajectory_planner = RP2Interface(
-                self.scenario, self.scenario.dt, self.trajectory_logger, params
-            )
+            return RP2Interface(self.scenario, self.scenario.dt, self.trajectory_logger, params)
         else:
             self.get_logger().error("Planner type is not correctly specified!")
 
-        self.set_state(AutowareState.WAITING_FOR_ROUTE)
-
-    def initialize_mode(self):
-        """Decide whether planner goes in interactive planner mode or trajectory following mode."""
+    def _set_cr2auto_mode(self):
+        """
+        Decide whether the CR2Autoware interface goes in interactive planning mode or trajectory following mode.
+        """
         if self.solution_path == "":
-            # create a timer to run planner
+            # set interactive mode to true
             self.interactive_mode = True
             self.get_logger().info("Starting interactive planning mode...")
+
+            # create a timer for periodically solving planning problem
             self.timer_solve_planning_problem = self.create_timer(
                 timer_period_sec=self.get_parameter("planner_update_time")
                 .get_parameter_value()
@@ -361,6 +428,7 @@ class Cr2Auto(Node):
 
             self.follow_solution_trajectory()
 
+            # create a timer for periodically updating trajectory following
             self.timer_follow_trajectory_mode_update = self.create_timer(
                 timer_period_sec=self.get_parameter("planner_update_time")
                 .get_parameter_value()
@@ -370,7 +438,10 @@ class Cr2Auto(Node):
             )
 
     def solve_planning_problem(self) -> None:
-        """Update loop for interactive planning mode and solve planning problem with algorithms offered by commonroad."""
+        """
+        Main planning function
+        Update loop for interactive planning mode and solve planning problem with algorithms offered by CommonRoad.
+        """
         try:
             # avoid parallel processing issues by checking if a planning problem is already being solved
             if not self.is_computing_trajectory:
@@ -530,7 +601,9 @@ class Cr2Auto(Node):
             self.get_logger().error(traceback.format_exc())
 
     def follow_trajectory_mode_update(self):
-        """Update mode for follow trajectory mode. It checks if the goal position is reached."""
+        """
+        Update mode for follow trajectory mode. It checks if the goal position is reached.
+        """
         try:
             if self.get_parameter("detailed_log").get_parameter_value().bool_value:
                 self.get_logger().info("Next cycle of follow trajectory mode")
@@ -589,7 +662,9 @@ class Cr2Auto(Node):
                     self._set_new_goal()
 
     def follow_solution_trajectory(self):
-        """Follow a trajectory provided by a CommonRoad solution file."""
+        """
+        Follow/Replay a trajectory provided by a CommonRoad solution file.
+        """
         states = self.trajectory_logger.load_trajectory(self.solution_path)
 
         # set initial pose to first position in solution trajectory and publish it
@@ -617,34 +692,6 @@ class Cr2Auto(Node):
         self._prepare_traj_msg(states)
 
         self.set_state(AutowareState.WAITING_FOR_ENGAGE)
-
-    def initialize_velocity_planner(self):
-        # Initialize Velocity Planner
-        self.velocity_planner = VelocityPlanner(
-            self.get_parameter("detailed_log").get_parameter_value().bool_value,
-            self.get_logger(),
-            self.get_parameter("velocity_planner.lookahead_dist")
-            .get_parameter_value()
-            .double_value,
-            self.get_parameter("velocity_planner.lookahead_time")
-            .get_parameter_value()
-            .double_value,
-        )
-
-        self.traj_sub_smoothed = self.create_subscription(
-            AWTrajectory,
-            "/planning/scenario_planning/trajectory_smoothed",
-            self.velocity_planner.smoothed_trajectory_callback,
-            1,
-            callback_group=self.callback_group,
-        )
-        # publish trajectory to motion velocity smoother
-        self.velocity_pub = self.create_publisher(
-            AWTrajectory,
-            "/planning/scenario_planning/scenario_selector/trajectory",
-            1,
-        )
-        self.velocity_planner.set_publisher(self.velocity_pub)
 
     def current_state_callback(self, msg: Odometry) -> None:
         """Callback to current kinematic state of the ego vehicle.
