@@ -11,6 +11,11 @@ from autoware_auto_system_msgs.msg import AutowareState  # type: ignore
 from autoware_auto_vehicle_msgs.msg import Engage  # type: ignore
 from autoware_adapi_v1_msgs.msg import RouteState # type: ignore
 from autoware_adapi_v1_msgs.srv import ChangeOperationMode # type: ignore
+
+# Tier IV message imports
+from tier4_planning_msgs.msg import VelocityLimit   # type: ignore
+
+# commonroad-io imports
 from commonroad.common.file_writer import CommonRoadFileWriter
 from commonroad.common.file_writer import OverwriteExistingFile
 from commonroad.common.util import Interval
@@ -21,8 +26,6 @@ from commonroad.planning.planning_problem import PlanningProblemSet
 from commonroad.prediction.prediction import TrajectoryPrediction
 from commonroad.scenario.obstacle import DynamicObstacle
 from commonroad.scenario.obstacle import ObstacleType
-
-# commonroad imports
 from commonroad.scenario.scenario import Scenario
 from commonroad.scenario.scenario import Tag
 from commonroad.scenario.state import CustomState
@@ -30,10 +33,11 @@ from commonroad.scenario.trajectory import Trajectory as CRTrajectory
 from commonroad.visualization.mp_renderer import MPRenderer
 from commonroad_dc.geometry.util import resample_polyline
 
-# ROS message imports
+# ROS2 message imports
 from geometry_msgs.msg import Pose
 from geometry_msgs.msg import PoseStamped
 from geometry_msgs.msg import PoseWithCovarianceStamped
+
 import matplotlib
 if os.environ.get('DISPLAY') is not None:
     matplotlib.use("TkAgg")
@@ -60,14 +64,13 @@ from visualization_msgs.msg import Marker
 from visualization_msgs.msg import MarkerArray
 import yaml
 
+# local imports
 from cr2autoware.configuration import RPParams
 from cr2autoware.ego_vehicle_handler import EgoVehicleHandler
 from cr2autoware.planning_problem_handler import PlanningProblemHandler
 from cr2autoware.route_planner import RoutePlannerInterface
 from cr2autoware.rp_interface import RP2Interface
 from cr2autoware.scenario_handler import ScenarioHandler
-
-# local imports
 from cr2autoware.tf2_geometry_msgs import do_transform_pose
 from cr2autoware.trajectory_logger import TrajectoryLogger
 import cr2autoware.utils as utils
@@ -136,6 +139,8 @@ class Cr2Auto(Node):
         self.reference_path_published = False
         self.new_initial_pose = False
         self.new_pose_received = False
+        self.external_velocity_limit = 1337.0
+
         # vars to save last messages
         # https://github.com/tier4/autoware_auto_msgs/blob/tier4/main/autoware_auto_system_msgs/msg/AutowareState.idl
         self.last_msg_aw_state = 1  # 1 = initializing
@@ -170,6 +175,7 @@ class Cr2Auto(Node):
 
             self.get_logger().set_level(LoggingSeverity.DEBUG)
 
+        # subscribe current state from odometry
         self.current_state_sub = self.create_subscription(
             Odometry,
             "/localization/kinematic_state",
@@ -201,6 +207,16 @@ class Cr2Auto(Node):
             1,
             callback_group=self.callback_group,
         )
+        # subscribe velocity limit from API (Here we directly use the value from the API velocity limit setter in RVIZ. 
+        # In the default AW.Universe this value is input to the node external_velocity_limit_selector which selects the velocity limit from different values)
+        self.create_subscription(
+            VelocityLimit,
+            "/planning/scenario_planning/max_velocity_default",
+            self.velocity_limit_callback,
+            1,
+            callback_group=self.callback_group,
+        )
+
         # publish goal pose
         self.goal_pose_pub = self.create_publisher(
             PoseStamped,
@@ -399,10 +415,7 @@ class Cr2Auto(Node):
                             "Can't run route planner because interface is still waiting for velocity planner"
                         )
                         self.velocity_planner.send_reference_path(
-                            [
-                                utils.utm2map(self.origin_transformation, point)
-                                for point in self.route_planner.reference_path
-                            ],
+                            [utils.utm2map(self.origin_transformation, point) for point in self.route_planner.reference_path],
                             self.current_goal_msg.pose.position,
                         )
                         self.is_computing_trajectory = False
@@ -463,12 +476,16 @@ class Cr2Auto(Node):
                         init_state = deepcopy(self.ego_vehicle_handler.ego_vehicle_state)
                         if init_state.velocity < 0.1:
                             init_state.velocity = 0.1
+                        
+                        # set reference velocity considering external limit 
+                        ref_vel = min(reference_velocity, self.external_velocity_limit)
 
+                        # call the one-step plan function
                         self.trajectory_planner.plan(
                             init_state=init_state,
                             goal=self.planning_problem.goal,
                             reference_path=self.route_planner.reference_path,
-                            reference_velocity=reference_velocity,
+                            reference_velocity=ref_vel,
                         )
 
                         assert self.trajectory_planner.optimal is not False
@@ -691,6 +708,14 @@ class Cr2Auto(Node):
         # autoware requires that the reference path has to be published again when new goals are published
         if self.velocity_planner.get_is_velocity_planning_completed():
             self.route_planner._pub_route(*self.velocity_planner.get_reference_velocities())
+    
+    def velocity_limit_callback(self, msg: VelocityLimit) -> None:
+        """
+        Callback to external velocity limit from API. We directly subscribe the topic 
+        /planning/scenario_planning/max_velocity_default sent from the API in RVIZ.
+        :param msg: Veloctiy Limit message
+        """
+        self.external_velocity_limit = max(0, msg.max_velocity)
 
     def set_state(self, new_aw_state: AutowareState):
         self.aw_state.state = new_aw_state
