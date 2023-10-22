@@ -110,6 +110,9 @@ class EgoVehicleHandler:
         # Get parameters from the node
         self._init_parameters()
 
+        # create ego vehicle dimension infos
+        self._create_ego_vehicle_info()
+
     def _init_parameters(self) -> None:
         self.MAP_PATH = self._node.get_parameter("map_path").get_parameter_value().string_value
         if not os.path.exists(self.MAP_PATH):
@@ -179,7 +182,7 @@ class EgoVehicleHandler:
                 self._node.get_logger().info("has not received a vehicle state yet!")
             return
 
-    def create_ego_vehicle_info(self):
+    def _create_ego_vehicle_info(self):
         """Compute the dimensions of the ego vehicle."""
         cg_to_front = (
             self._node.get_parameter("vehicle.cg_to_front").get_parameter_value().double_value

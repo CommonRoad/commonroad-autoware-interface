@@ -136,20 +136,19 @@ class Cr2Auto(Node):
             self.get_parameter("detailed_log").get_parameter_value().bool_value,
         )
 
-        # initialize trajectory_planner_type
-        self.trajectory_planner_type = (
-            self.get_parameter("trajectory_planner_type").get_parameter_value().integer_value)
         
         # ========= CommonRoad Handlers =========
         # scenario handler
-        self.scenario_handler = ScenarioHandler(self)
+        self.scenario_handler: ScenarioHandler = ScenarioHandler(self)
         self.origin_transformation = self.scenario_handler.origin_transformation
-        # ego vehicle handler (TODO why not call create ego info directly when instantiating?)
-        self.ego_vehicle_handler = EgoVehicleHandler(self)
-        self.ego_vehicle_handler.create_ego_vehicle_info()
+
+        # ego vehicle handler
+        self.ego_vehicle_handler: EgoVehicleHandler = EgoVehicleHandler(self)
+
         # planning problem handler
-        self.plan_prob_handler = PlanningProblemHandler(
-            self, self.scenario, self.origin_transformation)
+        self.plan_prob_handler: PlanningProblemHandler = PlanningProblemHandler(self, 
+                                                                                self.scenario, 
+                                                                                self.origin_transformation)
         # SPOT handler (optional)
         if self.get_parameter("enable_spot").get_parameter_value().bool_value:
             if SpotHandler is None:
@@ -167,7 +166,7 @@ class Cr2Auto(Node):
         if self.write_scenario:
             self._write_scenario()
         
-        # intiailize planning-specific attributes
+        # intiialize planning-specific attributes
         self.planning_problem_set = None
         self.route_planned = False
         self.planner_state_list = None
@@ -320,9 +319,12 @@ class Cr2Auto(Node):
         self.change_to_stop_request = ChangeOperationMode.Request()
 
         
-        # ========= Set up Planning Interfaces =========
+        # ========= Set up Planner Interfaces =========
         # set initial Autoware State (Waiting for route)
         self.set_state(AutowareState.WAITING_FOR_ROUTE)
+
+        # get trajectory_planner_type
+        self.trajectory_planner_type = (self.get_parameter("trajectory_planner_type").get_parameter_value().integer_value)
 
         # set route planner
         self.route_planner = self._set_route_planner()
@@ -333,15 +335,19 @@ class Cr2Auto(Node):
         # set trajectory planner using factory function
         self.trajectory_planner = self._trajectory_planner_factory()
 
+        # set mode of interface (interactive or replay mode)
+        self._set_cr2auto_mode()
+
+
+        # ========= Finish init() =========
         if self.get_parameter("detailed_log").get_parameter_value().bool_value:
             self.get_logger().info("Cr2Auto initialization is completed!")
 
-        self._set_cr2auto_mode()
 
     @property
     def scenario(self) -> Scenario:
-        """Get scenario object retrieved from the scenario_handler.
-
+        """
+        Get scenario object retrieved from the scenario_handler.
         Caution: Does not trigger an update of the scenario.
         """
         if self.scenario_handler is None:
@@ -350,18 +356,22 @@ class Cr2Auto(Node):
 
     @property
     def planning_problem(self) -> Optional[PlanningProblem]:
-        """Get planning problem object retrieved from the planning problem handler.
-
-        Caution: Does not trigger an update of the planning problem."""
+        """
+        Get planning problem object retrieved from the planning problem handler.
+        Caution: Does not trigger an update of the planning problem.
+        """
         if self.plan_prob_handler is None:
             raise RuntimeError("Planning problem handler not initialized.")
         return self.plan_prob_handler.planning_problem
 
     @planning_problem.setter
     def planning_problem(self, planning_problem):
+        """
+        Set planning problem in the planning problem handler.
+        """
         self.plan_prob_handler.planning_problem = planning_problem
     
-    def _set_route_planner(self):
+    def _set_route_planner(self) -> RoutePlannerInterface:
         """
         Initializes the route planner
         """
