@@ -9,6 +9,8 @@ from autoware_auto_planning_msgs.msg import Trajectory as AWTrajectory  # type: 
 from autoware_auto_planning_msgs.msg import TrajectoryPoint  # type: ignore
 from autoware_auto_system_msgs.msg import AutowareState  # type: ignore
 from autoware_auto_vehicle_msgs.msg import Engage  # type: ignore
+from autoware_adapi_v1_msgs.msg import RouteState # type: ignore
+from autoware_adapi_v1_msgs.srv import ChangeOperationMode # type: ignore
 from commonroad.common.file_writer import CommonRoadFileWriter
 from commonroad.common.file_writer import OverwriteExistingFile
 from commonroad.common.util import Interval
@@ -125,8 +127,11 @@ class Cr2Auto(Node):
         self.ego_vehicle_handler.create_ego_vehicle_info()  # compute ego vehicle width and height
         self.tf_buffer = Buffer(cache_time=rclpy.duration.Duration(seconds=10.0))
         self.tf_listener = TransformListener(self.tf_buffer, self)  # convert among frames
+
+        # init AutowareState and Engage Status and Auto Button Status
         self.aw_state = AutowareState()
         self.engage_status = False
+        self.auto_button_status = False
 
         self.reference_path_published = False
         self.new_initial_pose = False
@@ -189,10 +194,10 @@ class Cr2Auto(Node):
             callback_group=self.callback_group,
         )
         # subscribe autoware engage
-        self.engage_sub = self.create_subscription(
+        self.auto_button_sub = self.create_subscription(
             Engage,
-            "/api/external/cr2autoware/engage",
-            self.engage_callback,
+            "/autoware/engage",
+            self.auto_button_callback,
             1,
             callback_group=self.callback_group,
         )
@@ -203,17 +208,32 @@ class Cr2Auto(Node):
             1,
         )
         # publish trajectory
+        # Humble Update: Does not publish the trajectory directly to /planning/scenario_planning/trajectory but instead uses a dummy-topic that is analyzed by the 
+        # planning_validator, which in turn is checked by the system_error_monitor
         self.traj_pub = self.create_publisher(
-            AWTrajectory, "/planning/scenario_planning/trajectory", 1
+            AWTrajectory, "/planning/commonroad/trajectory", 1
         )
         # publish autoware state
         # list of states: https://gitlab.com/autowarefoundation/autoware.auto/autoware_auto_msgs/-/blob/master/autoware_auto_system_msgs/msg/AutowareState.idl
         self.aw_state_pub = self.create_publisher(AutowareState, "/autoware/state", 1)
-        # publish autoware engage
-        self.engage_pub = self.create_publisher(Engage, "/autoware/engage", 1)
+
+        # clieant for change to stop service call (only for publishing "stop" if goal arrived)
+        self.change_to_stop_client = self.create_client(ChangeOperationMode, "/api/operation_mode/change_to_stop")
+        self.change_to_stop_request = ChangeOperationMode.Request()
+
+        # engage publisher for Planning Simulation
         self.vehicle_engage_pub = self.create_publisher(Engage, "/vehicle/engage", 1)
-        self.ext_engage_pub = self.create_publisher(Engage, "/api/external/get/engage", 1)
+
+        # routing state publisher
+        qos_routing_state_pub = QoSProfile(depth=1)
+        qos_routing_state_pub.history = QoSHistoryPolicy.KEEP_LAST
+        qos_routing_state_pub.reliability = QoSReliabilityPolicy.RELIABLE
+        qos_routing_state_pub.durability = QoSDurabilityPolicy.TRANSIENT_LOCAL
+        self.routing_state_pub = self.create_publisher(RouteState, "/api/routing/state", qos_routing_state_pub)
+        
+        # engage publisher for /control/operation_mode_transistion_manager
         self.api_engage_pub = self.create_publisher(Engage, "/api/autoware/get/engage", 1)
+
         # publish route marker
         qos_route_pub = QoSProfile(depth=1)
         qos_route_pub.history = QoSHistoryPolicy.KEEP_LAST
@@ -675,18 +695,29 @@ class Cr2Auto(Node):
     def set_state(self, new_aw_state: AutowareState):
         self.aw_state.state = new_aw_state
         if self.get_parameter("detailed_log").get_parameter_value().bool_value:
-            self.get_logger().info("Setting new state to: " + str(new_aw_state))
+            self.get_logger().info("Setting new AutowareState to: " + str(new_aw_state))
         self.aw_state_pub.publish(self.aw_state)
 
-        if new_aw_state != AutowareState.DRIVING:
+        # publish /vehicle/engage=True if in DRIVING
+        if new_aw_state == AutowareState.DRIVING:
+            self.engage_status = True
+        elif new_aw_state == AutowareState.ARRIVED_GOAL:
+            # publish routing state if goal arrived
+            routing_state_msg = RouteState()
+            routing_state_msg.state = 3
+            self.routing_state_pub.publish(routing_state_msg)
+            # call client for change to stop service
+            change_to_stop_response = self.change_to_stop_client.call(self.change_to_stop_request)
+            # set /vehicle/engage to False if goal arrived
+            self.engage_status = False
+        else:
             self.engage_status = False
 
-        # Send engage signal
+        # Send /vehicle/engage signal
         engage_msg = Engage()
         engage_msg.engage = self.engage_status
-        self.engage_pub.publish(engage_msg)
         self.vehicle_engage_pub.publish(engage_msg)
-        self.ext_engage_pub.publish(engage_msg)
+        
         self.api_engage_pub.publish(engage_msg)
 
     def get_state(self):
@@ -788,18 +819,19 @@ class Cr2Auto(Node):
         self.last_msg_aw_state = msg.state
 
     # The engage signal is sent by the tum_state_rviz_plugin
-    # msg.engage sent by tum_state_rviz_plugin will always be true
-    def engage_callback(self, msg: Engage) -> None:
-        self.engage_status = not self.engage_status
+    # msg.engage sent by tum_state_rviz_plugin will always be true    
+    def auto_button_callback(self, msg: Engage) -> None:
+        self.auto_button_status = msg.engage
+        
         self.get_logger().info(
-            "Engage message received! Engage: "
-            + str(self.engage_status)
-            + ", current state: "
+            "Auto Button message received! Auto Button Status: "
+            + str(self.auto_button_status)
+            + ", current AutowareState: "
             + str(self.get_state())
         )
 
         # Update Autoware state panel
-        if self.engage_status and self.get_state() == AutowareState.WAITING_FOR_ENGAGE:
+        if self.auto_button_status and self.get_state() == AutowareState.WAITING_FOR_ENGAGE:
             self.set_state(AutowareState.DRIVING)
             if self.PUBLISH_OBSTACLES:  # publish obstacle at once after engaged
                 self.scenario_handler.publish_initial_obstacles()
@@ -808,9 +840,11 @@ class Cr2Auto(Node):
         if not self.engage_status and self.get_state() == AutowareState.DRIVING:
             self.set_state(AutowareState.WAITING_FOR_ENGAGE)
 
+        """
         # reset follow sultion trajectory simulation if interface is in trajectory follow mode and goal is reached
         if not self.interactive_mode and self.get_state() == AutowareState.ARRIVED_GOAL:
-            self.follow_solution_trajectory()
+            self.follow_solution_trajectory()"""
+    
 
     def _prepare_traj_msg(self, states):
         """
