@@ -39,6 +39,7 @@ from visualization_msgs.msg import MarkerArray
 import rclpy
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
+from rclpy.logging import LoggingSeverity
 from rclpy.node import Node
 from rclpy.qos import QoSDurabilityPolicy
 from rclpy.qos import QoSHistoryPolicy
@@ -109,7 +110,6 @@ class Cr2Auto(Node):
 
         # initialize logging level
         if self.get_parameter("detailed_log").get_parameter_value().bool_value:
-            from rclpy.logging import LoggingSeverity
             self.get_logger().info("Detailed log is enabled")
             self.get_logger().set_level(LoggingSeverity.DEBUG)
 
@@ -119,24 +119,22 @@ class Cr2Auto(Node):
         self.get_logger().info(
             "Solution path is: " + self.get_parameter("solution_file").get_parameter_value().string_value)
 
-        # intialize callback group
+        # initialize callback group
         self.callback_group = ReentrantCallbackGroup()  # Callback group for async execution
 
-
-        # intialize commonroad-specfic attributes
+        # initialize commonroad-specfic attributes
         self.write_scenario = self.get_parameter("write_scenario").get_parameter_value().bool_value
         self.PUBLISH_OBSTACLES = self.get_parameter("publish_obstacles").get_parameter_value().bool_value
         self.solution_path = self.get_parameter("solution_file").get_parameter_value().string_value
         self.rnd = None
 
-        # intialize CR trajectory logger (optionally store CR solution file)
+        # initialize CR trajectory logger (optionally store CR solution file)
         self.trajectory_logger = TrajectoryLogger(
             None,
             self.get_logger(),
             self.get_parameter("detailed_log").get_parameter_value().bool_value,
         )
 
-        
         # ========= CommonRoad Handlers =========
         # scenario handler
         self.scenario_handler: ScenarioHandler = ScenarioHandler(self)
@@ -177,25 +175,21 @@ class Cr2Auto(Node):
         self.new_pose_received = False
         self.external_velocity_limit = 1337.0
 
-
         # initialize tf        
         self.tf_buffer = Buffer(cache_time=rclpy.duration.Duration(seconds=10.0))
         self.tf_listener = TransformListener(self.tf_buffer, self)  # convert among frames
-
 
         # initialize AutowareState and Engage Status and Auto Button Status
         self.aw_state = AutowareState()
         self.engage_status = False
         self.auto_button_status = False
 
-        
         # vars to save last messages
         # https://github.com/tier4/autoware_auto_msgs/blob/tier4/main/autoware_auto_system_msgs/msg/AutowareState.idl
         self.last_msg_aw_state = 1  # 1 = initializing
         self.goal_msgs = []
         self.current_goal_msg = None
         self.last_goal_reached = self.get_clock().now()
-        
 
         # ========= Subscribers =========
         # subscribe current state from odometry
@@ -232,7 +226,8 @@ class Cr2Auto(Node):
         )
         # subscribe velocity limit from API 
         # (Here we directly use the value from the API velocity limit setter in RVIZ. 
-        # In the default AW.Universe this value is input to the node external_velocity_limit_selector which selects the velocity limit from different values)
+        # In the default AW.Universe this value is input to the node external_velocity_limit_selector
+        # which selects the velocity limit from different values)
         self.create_subscription(
             VelocityLimit,
             "/planning/scenario_planning/max_velocity_default",
@@ -240,7 +235,6 @@ class Cr2Auto(Node):
             1,
             callback_group=self.callback_group,
         )
-
 
         # ========= Publishers =========
         # publish goal pose
@@ -250,8 +244,9 @@ class Cr2Auto(Node):
             1,
         )
         # publish trajectory
-        # We do not publish the trajectory directly to /planning/scenario_planning/trajectory but instead use a dummy-topic that is analyzed by the 
-        # planning_validator, which in turn is checked by the system_error_monitor
+        # We do not publish the trajectory directly to /planning/scenario_planning/trajectory
+        # but instead use a dummy-topic that is analyzed by the planning_validator, which in turn is checked
+        # by the system_error_monitor
         self.traj_pub = self.create_publisher(
             AWTrajectory, 
             "/planning/commonroad/trajectory", 
@@ -309,7 +304,6 @@ class Cr2Auto(Node):
             1
         )
 
-
         # ========= Service Clients =========
         # client for change to stop service call (only for publishing "stop" if goal arrived)
         self.change_to_stop_client = self.create_client(
@@ -318,7 +312,6 @@ class Cr2Auto(Node):
         )
         self.change_to_stop_request = ChangeOperationMode.Request()
 
-        
         # ========= Set up Planner Interfaces =========
         # set initial Autoware State (Waiting for route)
         self.set_state(AutowareState.WAITING_FOR_ROUTE)
@@ -338,11 +331,9 @@ class Cr2Auto(Node):
         # set mode of interface (interactive or replay mode)
         self._set_cr2auto_mode()
 
-
         # ========= Finish init() =========
         if self.get_parameter("detailed_log").get_parameter_value().bool_value:
             self.get_logger().info("Cr2Auto initialization is completed!")
-
 
     @property
     def scenario(self) -> Scenario:
@@ -394,14 +385,12 @@ class Cr2Auto(Node):
             "/planning/scenario_planning/trajectory_smoothed",
             self.velocity_planner.smoothed_trajectory_callback,
             1,
-            callback_group=self.callback_group,
-        )
+            callback_group=self.callback_group)
         # publish reference trajectory to motion velocity smoother
         self.velocity_pub = self.create_publisher(
             AWTrajectory,
             "/planning/scenario_planning/scenario_selector/trajectory",
-            1,
-        )
+            1)
         self.velocity_planner.set_publisher(self.velocity_pub)
 
     def _trajectory_planner_factory(self):
@@ -429,8 +418,7 @@ class Cr2Auto(Node):
                 .get_parameter_value()
                 .double_value,
                 callback=self.solve_planning_problem,
-                callback_group=self.callback_group,
-            )
+                callback_group=self.callback_group)
         else:
             # follow solution trajectory
             self.interactive_mode = False
@@ -444,8 +432,7 @@ class Cr2Auto(Node):
                 .get_parameter_value()
                 .double_value,
                 callback=self.follow_trajectory_mode_update,
-                callback_group=self.callback_group,
-            )
+                callback_group=self.callback_group)
 
     def solve_planning_problem(self) -> None:
         """

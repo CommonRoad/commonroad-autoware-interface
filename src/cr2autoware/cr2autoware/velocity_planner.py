@@ -1,26 +1,39 @@
+# third party imports
 import numpy as np
 import math
 
-from cr2autoware.utils import orientation2quaternion
-
+# ROS message imports
 from builtin_interfaces.msg import Duration
+
+# Autoware.Auto message imports
 from autoware_auto_planning_msgs.msg import TrajectoryPoint
 from autoware_auto_planning_msgs.msg import Trajectory as AWTrajectory
+
+# commonroad-dc imports
 from commonroad_dc.geometry.util import compute_orientation_from_polyline
 
-class VelocityPlanner():
-    """
-    VelocityPlanner sends the planned reference path to the Autoware Velocity Planner and retrieve velocity information
-    The Autoware gets its path information from /planning/scenario_planning/lane_driving/behavior_planning/path_with_lane_id
-    and publishes its results to /planning/scenario_planning/lane_driving/behavior_planning/path
-    """
-    def __init__(self, detailed_log, logger, lookahead_dist, lookahead_time):
+# cr2autoware imports
+from cr2autoware.utils import orientation2quaternion
 
-        self.detailed_log = detailed_log
+
+class VelocityPlanner:
+    """
+    Class for velocity planner using the motion velocity smoother node from AW.Universe. The velocity planner converts
+    a planned reference path (polyline) to a reference trajectory by velocity information to the path (similar to
+    path-velocity-decomposition techniques in motion planning)
+
+    ======== Publishers and Subscribers ========
+    Publisher to motion velocity smoother (input): /planning/scenario_planning/scenario_selector/trajectory
+    Subscriber from motion velocity smoother (output): /planning/scenario_planning/trajectory_smoothed
+    """
+    def __init__(self, verbose, logger, lookahead_dist, lookahead_time):
+
+        self.verbose = verbose
         self.logger = logger
 
-        if self.detailed_log:
-            self.logger.info("Initializing velocity planner with lookahead distance " + str(lookahead_dist) + " and lookahead time " + str(lookahead_time))
+        if self.verbose:
+            self.logger.info("Initializing velocity planner with lookahead distance " + str(lookahead_dist) +
+                             " and lookahead time " + str(lookahead_time))
 
         # variable indicates if velocity planning for latest published route is completed
         self.velocity_planning_completed = False
@@ -37,7 +50,7 @@ class VelocityPlanner():
     # convert reference path to a trajectory and publish it to the motion velocity smoother module
     def send_reference_path(self, input_point_list, goal_pos):
 
-        if self.detailed_log:
+        if self.verbose:
             self.logger.info("Preparing velocity planner message...")
 
         self.velocity_planning_completed = False
@@ -65,12 +78,12 @@ class VelocityPlanner():
 
         self.pub.publish(traj)
 
-        if self.detailed_log:
+        if self.verbose:
             self.logger.info("Velocity planner message published!")
 
     def smoothed_trajectory_callback(self, msg: AWTrajectory):
 
-        if self.detailed_log:
+        if self.verbose:
             self.logger.info("Smoothed AW Trajectory received!")
 
         point_list = []
@@ -127,6 +140,7 @@ class VelocityPlanner():
                 min_i = i
         return min_i
 
+    # TODO check, can this be removed?
     """ Connection to Autoware Velocity Planner Module
     # send Autoware message /planning/scenario_planning/lane_driving/behavior_planning/path_with_lane_id of type PathWithLaneId
     # point_list: list of points
