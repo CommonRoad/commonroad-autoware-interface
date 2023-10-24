@@ -139,15 +139,7 @@ class CR2AutowareParams(BaseParams):
     vehicle: VehicleParams = field(default_factory=VehicleParams)
     velocity_planner: VelocityPlannerParams = field(default_factory=VelocityPlannerParams)
     trajectory_planner: TrajectoryPlannerParams = field(default_factory=TrajectoryPlannerParams)
-
-    def __post__init__(self):
-        """add field for specific trajectory planner parameters depending on specified type"""
-        planner_type = self.trajectory_planner.trajectory_planner_type
-        if planner_type == 1:
-            self.rp_interface: RPInterfaceParams = field(default_factory=RPInterfaceParams)
-        else:
-            raise ValueError(f"Given trajectory planner type: {planner_type} is invalid")
-
+    rp_interface: RPInterfaceParams = field(default_factory=RPInterfaceParams)
 
 
 
