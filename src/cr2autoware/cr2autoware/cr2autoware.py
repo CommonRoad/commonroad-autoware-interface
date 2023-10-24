@@ -119,8 +119,8 @@ class Cr2Auto(Node):
             self.declare_parameter(key, value)
 
         # initialize logging level
-        if self.get_parameter("detailed_log").get_parameter_value().bool_value:
-            self.get_logger().info("Detailed log is enabled")
+        if self.verbose:
+            self.get_logger().info("Verbose logging is enabled. Setting Log Level to DEBUG.")
             self.get_logger().set_level(LoggingSeverity.DEBUG)
 
         # log map path and solution path
@@ -142,7 +142,7 @@ class Cr2Auto(Node):
         self.trajectory_logger = TrajectoryLogger(
             None,
             self.get_logger(),
-            self.get_parameter("detailed_log").get_parameter_value().bool_value,
+            self.verbose,
         )
 
         # ========= CommonRoad Handlers =========
@@ -344,7 +344,7 @@ class Cr2Auto(Node):
         self._set_cr2auto_mode()
 
         # ========= Finish init() =========
-        if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+        if self.verbose:
             self.get_logger().info("Cr2Auto initialization is completed!")
 
     @property
@@ -390,7 +390,7 @@ class Cr2Auto(Node):
     def _set_velocity_planner(self):
         """Initializes the velocity planner"""
         self.velocity_planner = VelocityPlanner(
-            self.get_parameter("detailed_log").get_parameter_value().bool_value,
+            self.verbose,
             self.get_logger(),
             self.get_parameter("velocity_planner.lookahead_dist").get_parameter_value().double_value,
             self.get_parameter("velocity_planner.lookahead_time").get_parameter_value().double_value,
@@ -516,7 +516,7 @@ class Cr2Auto(Node):
                         # log current position
                         self.trajectory_logger.log_state(self.ego_vehicle_handler.ego_vehicle_state)
 
-                    if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+                    if self.verbose:
                         self.get_logger().info("Solving planning problem!")
 
                     if self.trajectory_planner_type == 1:  # Reactive Planner
@@ -528,7 +528,7 @@ class Cr2Auto(Node):
                             ),
                         )
 
-                        if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+                        if self.verbose:
                             self.get_logger().info("Running reactive planner")
                             self.get_logger().info(
                                 "Reactive planner init_state position: "
@@ -577,7 +577,7 @@ class Cr2Auto(Node):
                         assert self.trajectory_planner.valid_states != []
                         assert max([s.velocity for s in self.trajectory_planner.valid_states]) > 0
 
-                        if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+                        if self.verbose:
                             self.get_logger().info(
                                 "Reactive planner trajectory: "
                                 + str([self.trajectory_planner.valid_states[0].position])
@@ -600,7 +600,7 @@ class Cr2Auto(Node):
 
                         # publish trajectory
                         self._prepare_traj_msg(self.trajectory_planner.valid_states)
-                        if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+                        if self.verbose:
                             self.get_logger().info("Autoware state and engage messages published!")
 
                     # check if goal is reached
@@ -608,7 +608,7 @@ class Cr2Auto(Node):
 
                 self.is_computing_trajectory = False
             else:
-                if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+                if self.verbose:
                     self.get_logger().info("already solving planning problem")
 
         except Exception:
@@ -619,7 +619,7 @@ class Cr2Auto(Node):
         Update mode for follow trajectory mode. It checks if the goal position is reached.
         """
         try:
-            if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+            if self.verbose:
                 self.get_logger().info("Next cycle of follow trajectory mode")
 
             # update scenario
@@ -762,7 +762,7 @@ class Cr2Auto(Node):
         self.get_logger().info("Received new goal pose!")
         self.goal_msgs.append(msg)
 
-        if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+        if self.verbose:
             self.get_logger().info("goal msg: " + str(msg))
 
         self._pub_goals()
@@ -780,7 +780,7 @@ class Cr2Auto(Node):
 
     def set_state(self, new_aw_state: AutowareState):
         self.aw_state.state = new_aw_state
-        if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+        if self.verbose:
             self.get_logger().info("Setting new AutowareState to: " + str(new_aw_state))
         self.aw_state_pub.publish(self.aw_state)
 
@@ -816,7 +816,7 @@ class Cr2Auto(Node):
         """
         # set new goal if we have one
         if len(self.goal_msgs) > 0:
-            if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+            if self.verbose:
                 self.get_logger().info("Setting new goal")
 
             self.set_state(AutowareState.PLANNING)
@@ -845,7 +845,7 @@ class Cr2Auto(Node):
                 [np.array([pos_x, pos_y])]
             )
 
-            if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+            if self.verbose:
                 self.get_logger().info("goal pos_x: " + str(pos_x) + ", pos_y: " + str(pos_y))
 
             if goal_lanelet_id == [[]]:
@@ -894,7 +894,7 @@ class Cr2Auto(Node):
             self.set_state(AutowareState.WAITING_FOR_ENGAGE)
             self.route_planned = True
         else:
-            if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+            if self.verbose:
                 self.get_logger().info("No new goal could be set")
 
     def state_callback(self, msg: AutowareState) -> None:
@@ -937,7 +937,7 @@ class Cr2Auto(Node):
         :param states: trajectory points
         :param contains_goal: flag to reduce speed over the last 10 steps
         """
-        if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+        if self.verbose:
             self.get_logger().info("Preparing trajectory message!")
 
         self.traj = AWTrajectory()
