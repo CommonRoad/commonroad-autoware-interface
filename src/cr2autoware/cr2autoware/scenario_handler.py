@@ -43,13 +43,14 @@ if typing.TYPE_CHECKING:
 
 
 class ScenarioHandler:
-    """Handles communication with autoware for CommonRoad Scenario relevant data.
-
+    """
+    Handles communication with Autoware for CommonRoad Scenario relevant data.
     Keeps an up to date state of the current scenario in CommonRoad format.
 
-    Publishes:
+    ======== Publishers:
     _OBSTACLE_PUBLISHER: "/simulation/dummy_perception_publisher/object_info"
-    Subscribes:
+
+    ======== Subscribers:
     "/perception/object_recognition/detection/objects" (subscribes to DetectedObjects messages)
     "/perception/object_recognition/objects" (subscribes to PredictedObjects messages)
     """

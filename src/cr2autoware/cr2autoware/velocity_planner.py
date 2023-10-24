@@ -22,9 +22,11 @@ class VelocityPlanner:
     a planned reference path (polyline) to a reference trajectory by velocity information to the path (similar to
     path-velocity-decomposition techniques in motion planning)
 
-    ======== Publishers and Subscribers ========
-    Publisher to motion velocity smoother (input): /planning/scenario_planning/scenario_selector/trajectory
-    Subscriber from motion velocity smoother (output): /planning/scenario_planning/trajectory_smoothed
+    ======== Publishers
+    To motion velocity smoother (input): /planning/scenario_planning/scenario_selector/trajectory
+
+    ======== Subscribers
+    From motion velocity smoother (output): /planning/scenario_planning/trajectory_smoothed
     """
     def __init__(self, verbose, logger, lookahead_dist, lookahead_time):
 
