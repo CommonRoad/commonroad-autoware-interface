@@ -3,6 +3,7 @@ from copy import deepcopy
 import os
 import traceback
 from typing import Optional
+from dataclasses import asdict, fields
 
 # third party imports
 import numpy as np
@@ -65,7 +66,7 @@ from commonroad.scenario.trajectory import Trajectory as CRTrajectory
 from commonroad.visualization.mp_renderer import MPRenderer
 
 # cr2autoware imports
-from cr2autoware.configuration import RPParams
+from cr2autoware.configuration import RPParams, CR2AutowareParams
 from cr2autoware.ego_vehicle_handler import EgoVehicleHandler
 from cr2autoware.planning_problem_handler import PlanningProblemHandler
 from cr2autoware.route_planner import RoutePlannerInterface
@@ -101,6 +102,15 @@ class Cr2Auto(Node):
         # ignore typing due to bug in rclpy
         super().__init__(node_name="cr2autoware")  # type: ignore
 
+        # TODO: new way of declaring ROS params
+        # Declare ROS parameters
+        self.params: CR2AutowareParams = CR2AutowareParams()
+        self._initialize_ros_parameters()
+
+        # set verbosity level
+        self.verbose = self.params.general.detailed_log
+
+        # TODO remove this part after new param structure is tested
         # Declare ROS parameters
         # For simplification, the parameters which need to be declared are listed in the ros_param.yml file
         with open(os.path.dirname(__file__) + "/ros_param.yaml", "r") as stream:
@@ -272,6 +282,7 @@ class Cr2Auto(Node):
             1
         )
         # publish routing state
+        # TODO simplify
         qos_routing_state_pub = QoSProfile(depth=1)
         qos_routing_state_pub.history = QoSHistoryPolicy.KEEP_LAST
         qos_routing_state_pub.reliability = QoSReliabilityPolicy.RELIABLE
@@ -282,6 +293,7 @@ class Cr2Auto(Node):
             qos_routing_state_pub
         )
         # publish route marker
+        # TODO simplify
         qos_route_pub = QoSProfile(depth=1)
         qos_route_pub.history = QoSHistoryPolicy.KEEP_LAST
         qos_route_pub.reliability = QoSReliabilityPolicy.RELIABLE
@@ -357,21 +369,26 @@ class Cr2Auto(Node):
 
     @planning_problem.setter
     def planning_problem(self, planning_problem):
-        """
-        Set planning problem in the planning problem handler.
-        """
+        """Set planning problem in the planning problem handler."""
         self.plan_prob_handler.planning_problem = planning_problem
+
+    def _initialize_ros_parameters(self):
+        """
+        Initializes all ROS parameters for CR2Auto node.
+        ROS parameters need to be declared via self.declare_parameter("param", default value) and stored
+        in a Param dataclass (self.param)
+        """
+        # We use the default values specified in the param dataclasses as defaults for self.declare_parameter
+        for sub_params in fields(self.params):
+            for key, default_val in asdict(sub_params).items():
+                sub_params[key] = self.declare_parameter(key, default_val).value
     
     def _set_route_planner(self) -> RoutePlannerInterface:
-        """
-        Initializes the route planner
-        """
+        """Initializes the route planner"""
         return RoutePlannerInterface(self.get_parameter, self.get_logger(), self.scenario, self.route_pub)
 
     def _set_velocity_planner(self):
-        """
-        Initializes the velocity planner
-        """
+        """Initializes the velocity planner"""
         self.velocity_planner = VelocityPlanner(
             self.get_parameter("detailed_log").get_parameter_value().bool_value,
             self.get_logger(),
@@ -648,7 +665,7 @@ class Cr2Auto(Node):
                         .string_value,
                     )
 
-                if self.goal_msgs == []:
+                if not self.goal_msgs:
                     self.route_planned = False
                     self.planning_problem = None
                     self.set_state(AutowareState.ARRIVED_GOAL)
@@ -728,7 +745,7 @@ class Cr2Auto(Node):
 
     def initial_pose_callback(self, msg: PoseWithCovarianceStamped) -> None:
         """
-        Callback to initial pose changes. Safe message for later processing
+        Callback to initial pose changes. Save message for later processing
         :param msg: Initial Pose message
         """
 
@@ -882,7 +899,7 @@ class Cr2Auto(Node):
 
     def state_callback(self, msg: AutowareState) -> None:
         """
-        Callback to autoware state. Safe the message for later processing.
+        Callback to autoware state. Save the message for later processing.
         :param msg: autoware state message
         """
         self.last_msg_aw_state = msg.state
@@ -913,7 +930,6 @@ class Cr2Auto(Node):
         # reset follow sultion trajectory simulation if interface is in trajectory follow mode and goal is reached
         if not self.interactive_mode and self.get_state() == AutowareState.ARRIVED_GOAL:
             self.follow_solution_trajectory()"""
-    
 
     def _prepare_traj_msg(self, states):
         """
@@ -948,8 +964,6 @@ class Cr2Auto(Node):
         self.traj_pub.publish(self.traj)
         self.get_logger().info("New trajectory published !!!")
         # visualize_solution(self.scenario, self.planning_problem, create_trajectory_from_list_states(path)) #ToDo: test
-
-    # plan route
 
     def _pub_goals(self):
         """

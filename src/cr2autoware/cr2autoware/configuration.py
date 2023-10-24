@@ -19,15 +19,6 @@ class BaseParams:
     """
     CR2Auto base parameters.
     """
-    __initialized: bool = field(init=False, default=False, repr=False)
-
-    def __post_init__(self):
-        """Post initialization of base parameter class."""
-        # pylint: disable=unused-private-member
-        self.__initialized = True
-        # Make sure that the base parameters are propagated to all sub-parameters
-        # This cannot be done in the init method, because the sub-parameters are not yet initialized.
-        # This is not a noop, as it calls the __setattr__ method. Do not remove!
 
     def __getitem__(self, item: str) -> Any:
         """Getter for base parameter value."""
