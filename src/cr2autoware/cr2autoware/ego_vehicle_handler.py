@@ -136,7 +136,7 @@ class EgoVehicleHandler:
                 rclpy.time.Time(),
             )
             if not succeed:
-                self.get_logger().error(f"Failed to transform from {source_frame} to map frame")
+                self._logger.error(f"Failed to transform from {source_frame} to map frame")
                 return None
 
             if source_frame != "map":
