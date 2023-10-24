@@ -66,7 +66,7 @@ from commonroad.scenario.trajectory import Trajectory as CRTrajectory
 from commonroad.visualization.mp_renderer import MPRenderer
 
 # cr2autoware imports
-from cr2autoware.configuration import RPParams, CR2AutowareParams
+from cr2autoware.configuration import CR2AutowareParams
 from cr2autoware.ego_vehicle_handler import EgoVehicleHandler
 from cr2autoware.planning_problem_handler import PlanningProblemHandler
 from cr2autoware.route_planner import RoutePlannerInterface
@@ -101,8 +101,7 @@ class Cr2Auto(Node):
         # ignore typing due to bug in rclpy
         super().__init__(node_name="cr2autoware")  # type: ignore
 
-        # TODO: new way of declaring ROS params
-        # Declare ROS parameters
+        # Declare ROS parameters and add to params class
         self.params: CR2AutowareParams = CR2AutowareParams()
         self._initialize_ros_parameters()
 
@@ -112,14 +111,6 @@ class Cr2Auto(Node):
         if self.verbose:
             self._logger.info("Verbose logging is enabled. Setting Log Level to DEBUG.")
             self._logger.set_level(LoggingSeverity.DEBUG)
-
-        # TODO remove this part after new param structure is tested
-        # Declare ROS parameters
-        # For simplification, the parameters which need to be declared are listed in the ros_param.yml file
-        """with open(os.path.dirname(__file__) + "/ros_param.yaml", "r") as stream:
-            param = yaml.load(stream, Loader=yaml.Loader)
-        for key, value in param.items():
-            self.declare_parameter(key, value)"""
 
         # log map path and solution path
         self._logger.info(
