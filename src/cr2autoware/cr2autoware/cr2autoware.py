@@ -83,7 +83,6 @@ except ImportError:
     SpotHandler = None
 
 
-
 class Cr2Auto(Node):
     """
     Cr2Auto class that is an instance of a ROS2 Node.
@@ -376,7 +375,8 @@ class Cr2Auto(Node):
         in a Param dataclass (self.param)
         """
         # We use the default values specified in the param dataclasses as defaults for self.declare_parameter
-        for sub_params in fields(self.params):
+        for f in fields(self.params):
+            sub_params = self.params[f.name]
             for key, default_val in asdict(sub_params).items():
                 sub_params[key] = self.declare_parameter(key, default_val).value
     
