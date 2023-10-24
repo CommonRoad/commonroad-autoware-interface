@@ -201,7 +201,7 @@ class SpotHandler:
         def _get_parameter(name: str) -> ParameterValue:
             return self._node.get_parameter(name).get_parameter_value()
 
-        self.VERBOSE = _get_parameter("detailed_log").bool_value
+        self.VERBOSE = _get_parameter("general.detailed_log").bool_value
         if self.VERBOSE:
             from rclpy.logging import LoggingSeverity
 
@@ -209,7 +209,7 @@ class SpotHandler:
             spot.setLoggingMode(1)
 
         self.PLANNING_HORIZON = _get_parameter(
-            "reactive_planner.planning.planning_horizon"
+            "trajectory_planner.planning_horizon"
         ).double_value
 
     def _init_publishers(self, node: "Cr2Auto"):

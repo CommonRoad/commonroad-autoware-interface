@@ -76,11 +76,11 @@ class PlanningProblemHandler:
         def _get_parameter(name: str) -> ParameterValue:
             return self._node.get_parameter(name).get_parameter_value()
 
-        self.MAP_PATH = _get_parameter("map_path").string_value
+        self.MAP_PATH = _get_parameter("general.map_path").string_value
         if not Path(self.MAP_PATH).exists():
             raise ValueError("Can't find given map path: %s" % self.MAP_PATH)
 
-        self.VERBOSE = _get_parameter("detailed_log").bool_value
+        self.VERBOSE = _get_parameter("general.detailed_log").bool_value
         if self.VERBOSE:
             from rclpy.logging import LoggingSeverity
 

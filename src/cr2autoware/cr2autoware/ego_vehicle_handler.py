@@ -114,11 +114,11 @@ class EgoVehicleHandler:
         self._create_ego_vehicle_info()
 
     def _init_parameters(self) -> None:
-        self.MAP_PATH = self._node.get_parameter("map_path").get_parameter_value().string_value
+        self.MAP_PATH = self._node.get_parameter("general.map_path").get_parameter_value().string_value
         if not os.path.exists(self.MAP_PATH):
             raise ValueError("Can't find given map path: %s" % self.MAP_PATH)
 
-        self.VERBOSE = self._node.get_parameter("detailed_log").get_parameter_value().bool_value
+        self.VERBOSE = self._node.get_parameter("general.detailed_log").get_parameter_value().bool_value
         if self.VERBOSE:
             from rclpy.logging import LoggingSeverity
 
@@ -178,7 +178,7 @@ class EgoVehicleHandler:
         if self._current_vehicle_state is not None:
             self.process_current_state()
         else:
-            if self._node.get_parameter("detailed_log").get_parameter_value().bool_value:
+            if self._node.get_parameter("general.detailed_log").get_parameter_value().bool_value:
                 self._node.get_logger().info("has not received a vehicle state yet!")
             return
 

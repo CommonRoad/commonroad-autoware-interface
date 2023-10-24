@@ -123,17 +123,17 @@ class Cr2Auto(Node):
 
         # log map path and solution path
         self._logger.info(
-            "Map path is: " + self.get_parameter("map_path").get_parameter_value().string_value)
+            "Map path is: " + self.get_parameter("general.map_path").get_parameter_value().string_value)
         self._logger.info(
-            "Solution path is: " + self.get_parameter("solution_file").get_parameter_value().string_value)
+            "Solution path is: " + self.get_parameter("general.solution_file").get_parameter_value().string_value)
 
         # initialize callback group
         self.callback_group = ReentrantCallbackGroup()  # Callback group for async execution
 
         # initialize commonroad-specfic attributes
-        self.write_scenario = self.get_parameter("write_scenario").get_parameter_value().bool_value
-        self.PUBLISH_OBSTACLES = self.get_parameter("publish_obstacles").get_parameter_value().bool_value
-        self.solution_path = self.get_parameter("solution_file").get_parameter_value().string_value
+        self.write_scenario = self.get_parameter("general.write_scenario").get_parameter_value().bool_value
+        self.PUBLISH_OBSTACLES = self.get_parameter("scenario.publish_obstacles").get_parameter_value().bool_value
+        self.solution_path = self.get_parameter("general.solution_file").get_parameter_value().string_value
         self.rnd = None
 
         # initialize CR trajectory logger (optionally store CR solution file)
@@ -156,7 +156,7 @@ class Cr2Auto(Node):
                                                                                 self.scenario, 
                                                                                 self.origin_transformation)
         # SPOT handler (optional)
-        if self.get_parameter("enable_spot").get_parameter_value().bool_value:
+        if self.get_parameter("general.enable_spot").get_parameter_value().bool_value:
             if SpotHandler is None:
                 self._logger.error(
                     "The Spot module has been enabled but wasn't imported! "
@@ -325,7 +325,7 @@ class Cr2Auto(Node):
         self.set_state(AutowareState.WAITING_FOR_ROUTE)
 
         # get trajectory_planner_type
-        self.trajectory_planner_type = (self.get_parameter("trajectory_planner_type").get_parameter_value().integer_value)
+        self.trajectory_planner_type = (self.get_parameter("trajectory_planner.trajectory_planner_type").get_parameter_value().integer_value)
 
         # set route planner
         self.route_planner = self._set_route_planner()
@@ -377,8 +377,10 @@ class Cr2Auto(Node):
         # We use the default values specified in the param dataclasses as defaults for self.declare_parameter
         for f in fields(self.params):
             sub_params = self.params[f.name]
-            for key, default_val in asdict(sub_params).items():
-                sub_params[key] = self.declare_parameter(key, default_val).value
+            prefix = f.name
+            for key, val in asdict(sub_params).items():
+                tmp = prefix + "." + key
+                sub_params[key] = self.declare_parameter(tmp, val).value
     
     def _set_route_planner(self) -> RoutePlannerInterface:
         """Initializes the route planner"""
@@ -412,8 +414,10 @@ class Cr2Auto(Node):
         Factory function to initialize trajectory planner according to specified type.
         """
         if self.trajectory_planner_type == 1:  # Reactive planner
-            params = RPParams(self.get_parameter)
-            return RP2Interface(self.scenario, self.scenario.dt, self.trajectory_logger, params)
+            params = self.params.trajectory_planner
+            return RP2Interface(self.scenario, self.scenario.dt, self.trajectory_logger, params,
+                                self.ego_vehicle_handler.vehicle_length, self.ego_vehicle_handler.vehicle_width,
+                                self.ego_vehicle_handler.vehicle_wheelbase)
         else:
             self._logger.error("Planner type is not correctly specified!")
 
@@ -428,7 +432,7 @@ class Cr2Auto(Node):
 
             # create a timer for periodically solving planning problem
             self.timer_solve_planning_problem = self.create_timer(
-                timer_period_sec=self.get_parameter("planner_update_time")
+                timer_period_sec=self.get_parameter("trajectory_planner.planner_update_time")
                 .get_parameter_value()
                 .double_value,
                 callback=self.solve_planning_problem,
@@ -442,7 +446,7 @@ class Cr2Auto(Node):
 
             # create a timer for periodically updating trajectory following
             self.timer_follow_trajectory_mode_update = self.create_timer(
-                timer_period_sec=self.get_parameter("planner_update_time")
+                timer_period_sec=self.get_parameter("trajectory_planner.planner_update_time")
                 .get_parameter_value()
                 .double_value,
                 callback=self.follow_trajectory_mode_update,
@@ -634,7 +638,7 @@ class Cr2Auto(Node):
             self._logger.error(traceback.format_exc())
 
     def plot_save_scenario(self):
-        if self.get_parameter("plot_scenario").get_parameter_value().bool_value:
+        if self.get_parameter("general.plot_scenario").get_parameter_value().bool_value:
             self._plot_scenario()
 
         if self.write_scenario:
@@ -652,12 +656,12 @@ class Cr2Auto(Node):
 
                 if (
                     self.interactive_mode
-                    and self.get_parameter("store_trajectory").get_parameter_value().bool_value
+                    and self.get_parameter("general.store_trajectory").get_parameter_value().bool_value
                 ):
                     self.trajectory_logger.store_trajectory(
                         self.scenario,
                         self.planning_problem,
-                        self.get_parameter("store_trajectory_file")
+                        self.get_parameter("general.store_trajectory_file")
                         .get_parameter_value()
                         .string_value,
                     )

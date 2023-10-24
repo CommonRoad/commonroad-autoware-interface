@@ -15,19 +15,24 @@ class RP2Interface(TrajectoryPlannerInterface):
         dt,
         trajectory_logger,
         params,
+        veh_length,
+        veh_width,
+        veh_wheelbase
     ):
+        rp_params = params.rp_interface
+
         # construct reactive planner
         self.scenario = scenario
         self.config = ConfigurationBuilder.build_configuration(
             name_scenario=str(self.scenario.scenario_id),
-            dir_config_default=params.dir_config_default.as_posix(),
+            dir_config_default=rp_params.dir_config_default.as_posix(),
         )
         self.reactive_planner = ReactivePlanner(self.config)
-        self.reactive_planner.set_d_sampling_parameters(params.d_min, params.d_max)
-        self.reactive_planner.set_t_sampling_parameters(params.t_min, dt, params.planning_horizon)
-        self.reactive_planner.vehicle_params.length = params.vehicle_length
-        self.reactive_planner.vehicle_params.width = params.vehicle_width
-        self.reactive_planner.vehicle_params.wheelbase = params.vehicle_wheelbase
+        self.reactive_planner.set_d_sampling_parameters(rp_params.d_min, rp_params.d_max)
+        self.reactive_planner.set_t_sampling_parameters(rp_params.t_min, dt, params.planning_horizon)
+        self.reactive_planner.vehicle_params.length = veh_length
+        self.reactive_planner.vehicle_params.width = veh_width
+        self.reactive_planner.vehicle_params.wheelbase = veh_wheelbase
 
         # self.save_to_pickle("rp_interface", scenario, dir_config_default, d_min, d_max, t_min, dt, planning_horizon, v_length, v_width, v_wheelbase, trajectory_logger)
         trajectory_logger.set_config(self.config)
