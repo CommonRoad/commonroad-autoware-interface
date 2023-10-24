@@ -116,10 +116,10 @@ class Cr2Auto(Node):
         # TODO remove this part after new param structure is tested
         # Declare ROS parameters
         # For simplification, the parameters which need to be declared are listed in the ros_param.yml file
-        with open(os.path.dirname(__file__) + "/ros_param.yaml", "r") as stream:
+        """with open(os.path.dirname(__file__) + "/ros_param.yaml", "r") as stream:
             param = yaml.load(stream, Loader=yaml.Loader)
         for key, value in param.items():
-            self.declare_parameter(key, value)
+            self.declare_parameter(key, value)"""
 
         # log map path and solution path
         self._logger.info(
