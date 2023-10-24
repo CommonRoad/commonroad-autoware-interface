@@ -378,9 +378,9 @@ class Cr2Auto(Node):
         for f in fields(self.params):
             sub_params = self.params[f.name]
             prefix = f.name
-            for key, val in asdict(sub_params).items():
+            for key, default_val in asdict(sub_params).items():
                 tmp = prefix + "." + key
-                sub_params[key] = self.declare_parameter(tmp, val).value
+                sub_params[key] = self.declare_parameter(tmp, default_val).value
     
     def _set_route_planner(self) -> RoutePlannerInterface:
         """Initializes the route planner"""
@@ -414,8 +414,7 @@ class Cr2Auto(Node):
         Factory function to initialize trajectory planner according to specified type.
         """
         if self.trajectory_planner_type == 1:  # Reactive planner
-            params = self.params.trajectory_planner
-            return RP2Interface(self.scenario, self.scenario.dt, self.trajectory_logger, params,
+            return RP2Interface(self.scenario, self.scenario.dt, self.trajectory_logger, self.params,
                                 self.ego_vehicle_handler.vehicle_length, self.ego_vehicle_handler.vehicle_width,
                                 self.ego_vehicle_handler.vehicle_wheelbase)
         else:

@@ -19,6 +19,7 @@ class RP2Interface(TrajectoryPlannerInterface):
         veh_width,
         veh_wheelbase
     ):
+        traj_planner_params = params.trajectory_planner
         rp_params = params.rp_interface
 
         # construct reactive planner
@@ -29,7 +30,7 @@ class RP2Interface(TrajectoryPlannerInterface):
         )
         self.reactive_planner = ReactivePlanner(self.config)
         self.reactive_planner.set_d_sampling_parameters(rp_params.d_min, rp_params.d_max)
-        self.reactive_planner.set_t_sampling_parameters(rp_params.t_min, dt, params.planning_horizon)
+        self.reactive_planner.set_t_sampling_parameters(rp_params.t_min, dt, traj_planner_params.planning_horizon)
         self.reactive_planner.vehicle_params.length = veh_length
         self.reactive_planner.vehicle_params.width = veh_width
         self.reactive_planner.vehicle_params.wheelbase = veh_wheelbase

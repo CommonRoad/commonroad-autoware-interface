@@ -127,13 +127,6 @@ class TrajectoryPlannerParams(BaseParams):
     # planning horizon (in seconds)
     planning_horizon: float = 5.0
 
-    def __post__init__(self):
-        """add field for specific trajectory planner parameters depending on specified type"""
-        if self.trajectory_planner_type == 1:
-            self.rp_interface: RPInterfaceParams = field(default_factory=RPInterfaceParams)
-        else:
-            raise ValueError(f"Given trajectory planner type: {self.trajectory_planner_type} is invalid")
-
 
 @dataclass
 class CR2AutowareParams(BaseParams):
@@ -147,6 +140,13 @@ class CR2AutowareParams(BaseParams):
     velocity_planner: VelocityPlannerParams = field(default_factory=VelocityPlannerParams)
     trajectory_planner: TrajectoryPlannerParams = field(default_factory=TrajectoryPlannerParams)
 
+    def __post__init__(self):
+        """add field for specific trajectory planner parameters depending on specified type"""
+        planner_type = self.trajectory_planner.trajectory_planner_type
+        if planner_type == 1:
+            self.rp_interface: RPInterfaceParams = field(default_factory=RPInterfaceParams)
+        else:
+            raise ValueError(f"Given trajectory planner type: {planner_type} is invalid")
 
 
 

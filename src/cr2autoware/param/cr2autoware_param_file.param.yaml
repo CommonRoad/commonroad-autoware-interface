@@ -35,9 +35,9 @@
       planner_update_time: 0.5 # run each x.x seconds
       planning_horizon: 5.0
 
-      rp_interface:
-        default_yaml_folder: "../../../../src/universe/autoware.universe/planning/tum_commonroad_planning/reactive-planner/configurations/defaults/"
-        d_min: -3
-        d_max: 3
-        # minimum time sampling in s (t_max is given by planning horizon)
-        t_min: 0.4
+    rp_interface:
+      default_yaml_folder: "../../../../src/universe/autoware.universe/planning/tum_commonroad_planning/reactive-planner/configurations/defaults/"
+      d_min: -3
+      d_max: 3
+      # minimum time sampling in s (t_max is given by planning horizon)
+      t_min: 0.4
