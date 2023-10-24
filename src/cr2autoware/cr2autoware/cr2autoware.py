@@ -281,22 +281,20 @@ class Cr2Auto(Node):
             1
         )
         # publish routing state
-        # TODO simplify
-        qos_routing_state_pub = QoSProfile(depth=1)
-        qos_routing_state_pub.history = QoSHistoryPolicy.KEEP_LAST
-        qos_routing_state_pub.reliability = QoSReliabilityPolicy.RELIABLE
-        qos_routing_state_pub.durability = QoSDurabilityPolicy.TRANSIENT_LOCAL
+        qos_routing_state_pub = utils.create_qos_profile(QoSHistoryPolicy.KEEP_LAST,
+                                                         QoSReliabilityPolicy.RELIABLE,
+                                                         QoSDurabilityPolicy.TRANSIENT_LOCAL,
+                                                         depth=1)
         self.routing_state_pub = self.create_publisher(
             RouteState, 
             "/api/routing/state", 
             qos_routing_state_pub
         )
         # publish route marker
-        # TODO simplify
-        qos_route_pub = QoSProfile(depth=1)
-        qos_route_pub.history = QoSHistoryPolicy.KEEP_LAST
-        qos_route_pub.reliability = QoSReliabilityPolicy.RELIABLE
-        qos_route_pub.durability = QoSDurabilityPolicy.TRANSIENT_LOCAL
+        qos_route_pub = utils.create_qos_profile(QoSHistoryPolicy.KEEP_LAST,
+                                                 QoSReliabilityPolicy.RELIABLE,
+                                                 QoSDurabilityPolicy.TRANSIENT_LOCAL,
+                                                 depth=1)
         self.route_pub = self.create_publisher(
             MarkerArray,
             "/planning/mission_planning/route_marker",
