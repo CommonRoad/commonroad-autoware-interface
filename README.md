@@ -58,9 +58,9 @@ The commonroad dependencies and the CR2Autoware interface are currently included
 | cps/commonroad-scenario-designer | 40-load-commonroad-scenarios:latest       |
 | cps/commonroad-search            | master:latest                             |
 | cps/reactive-planner             | 7c863397                                  |
-| AV2.0/autoware                   | integrate_cr2autoware_interface:latest    |
+| AV2.0/autoware                   | tmasc_cps_integration:latest    |
 | AV2.0/autoware.universe          | 50-integrate-cr2autoware-interface:latest |
-| AV2.0/tum_launch                 | 50-integrate-cr2autoware-interface:latest |
+| AV2.0/tum_launch                 | tmasc_cps_integration:latest              |
 
 ## Setup
 
@@ -72,18 +72,11 @@ The interface can be launched within the AW planning simulator via one launch co
 
 ### Motion planning mode
 
-Here, the CommonRoad interface can be used for motion planning on any map or CommonRoad scenario
-stored in `<map_directory>`. Currently, the reactive-planner is used per default, however, the interface will be extended to run
-with arbitrary planners in CommonRoad.
-If the folder contains a CommonRoad scenario, additional scenario information (e.g., initial state, goal pose, obstacles...)
-are loaded from the CR scenario.
-
-```shell
-ros2 launch tum_launch planning_simulator.launch.xml map_path:=<map_directory> \
-vehicle_model:=sample_vehicle sensor_model:=sample_sensor_kit
-```
+To launch the overall software including our interface and the planning simulator, a Docker compose workflow is used. Please follow the instructions in our [Wiki](https://collab.dvb.bayern/display/TUMedgar/Docker+Compose+Workflow) to launch the software and run the code in simulation.
 
 ### Trajectory replay mode
+
+**Caution: This mode currently doesn't work and should be updated**
 
 Here, a previously planned and stored trajectory in the CommonRoad format can be loaded
 and followed by the controller. The solution file is stored in `<map_directory>/solutions/solution.xml`
