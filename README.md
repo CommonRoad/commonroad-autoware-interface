@@ -25,7 +25,11 @@ This project builds an interface between [CommonRoad](https://commonroad.in.tum.
 ├── cr2autoware
 │   ├── cr2autoware.py                        # ROS2 interface node that subscribes/publishes data from/to Autoware
 │   ├── velocity_planner.py                   # Generates a high-level (reference) velocity profile for the planner
-│   ├── rp_interface.py                       # Contains interface to the reactive planner
+│   ├── trajectory_planner_interface.py       # Abstract Base class (ABC) for trajectory planner interface
+│   ├── rp_interface.py                       # Interface to the reactive planner (inherited from ABC)
+│   ├── scenario_handler.py                   # Handler class to update CR scenario from Autoware scenario during runtime 
+│   ├── ego_vehicle_handler.py                # Handler class to update ego vehicle state during runtime 
+│   ├── planning_problem_handler.py           # Handler class to update planning problem (initial state + goal) during runtime
 │   ├── trajectory_logger.py                  # Stores and loads planned trajectories as CommonRoad solution file
 │   ├── tf2_geometry_msgs.py                  # helper functions for transformation between coordinate frames
 │   └── utils.py                              # various utility fuctions
@@ -33,7 +37,7 @@ This project builds an interface between [CommonRoad](https://commonroad.in.tum.
 ├── launch
 │   └── cr2autoware_node.launch.xml           # launchfile for CR2Auto ROS node
 ├── param
-│   ├── cr2autoware_param_file.param.yaml     # config settings for the vehicle, reactive planner, and velocity planner
+│   ├── cr2autoware_param_file.param.yaml     # ROS config settings for the vehicle, reactive planner, and velocity planner
 │   └── default_yaml                          # default config parameters for the reactive planner
 ├── scripts
 │   ├── cr2lanelet.py                         # script for offline conversion of a CR map to Lanelet2 format
