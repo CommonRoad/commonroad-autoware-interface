@@ -1,13 +1,13 @@
 import os
 
 from commonroad.common.solution import CommonRoadSolutionReader, CommonRoadSolutionWriter
-from commonroad_rp.reactive_planner import CartesianState
 from commonroad_rp.utility.evaluation import create_planning_problem_solution, create_full_solution_trajectory
 
-"""
-Store and load vehicle trajectories as CommonRoad solution file
-"""
+
 class TrajectoryLogger():
+    """
+    Store and load vehicle trajectories as CommonRoad solution file
+    """
     def __init__(self, reactive_planner_config, logger, detailed_log):
         self.logged_states = []
         self.timestep = 0

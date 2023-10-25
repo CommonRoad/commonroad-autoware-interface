@@ -43,13 +43,14 @@ if typing.TYPE_CHECKING:
 
 
 class ScenarioHandler:
-    """Handles communication with autoware for CommonRoad Scenario relevant data.
-
+    """
+    Handles communication with Autoware for CommonRoad Scenario relevant data.
     Keeps an up to date state of the current scenario in CommonRoad format.
 
-    Publishes:
+    ======== Publishers:
     _OBSTACLE_PUBLISHER: "/simulation/dummy_perception_publisher/object_info"
-    Subscribes:
+
+    ======== Subscribers:
     "/perception/object_recognition/detection/objects" (subscribes to DetectedObjects messages)
     "/perception/object_recognition/objects" (subscribes to PredictedObjects messages)
     """
@@ -104,13 +105,13 @@ class ScenarioHandler:
         def _get_parameter(name: str) -> ParameterValue:
             return self._node.get_parameter(name).get_parameter_value()
 
-        self.MAP_PATH = _get_parameter("map_path").string_value
+        self.MAP_PATH = _get_parameter("general.map_path").string_value
         if not os.path.exists(self.MAP_PATH):
             raise ValueError("Can't find given map path: %s" % self.MAP_PATH)
 
-        self.LEFT_DRIVING = _get_parameter("left_driving").bool_value
-        self.ADJACENCIES = _get_parameter("adjacencies").bool_value
-        self.VERBOSE = _get_parameter("detailed_log").bool_value
+        self.LEFT_DRIVING = _get_parameter("scenario.left_driving").bool_value
+        self.ADJACENCIES = _get_parameter("scenario.adjacencies").bool_value
+        self.VERBOSE = _get_parameter("general.detailed_log").bool_value
         if self.VERBOSE:
             from rclpy.logging import LoggingSeverity
 

@@ -1,19 +1,20 @@
 /**:
   ros__parameters:
-    left_driving: True
-    adjacencies: False
-    write_scenario: True # write generated scenario as xml file after map is converted
-    plot_scenario: False
-    planner_update_time: 0.5 # run each x.x seconds
-    detailed_log: True
-    publish_obstacles: True # publish static and dynamic obstacles from CommonRoad scenario
-    store_trajectory: False
-    store_trajectory_file: "output/solutions/solution1.xml" # CommonRoad solution file path
-    enable_spot: False # enable spot
+    general:
+      map_path: ""
+      solution_file: ""
+      enable_spot: False # enable spot
+      detailed_log: True
+      write_scenario: True # write generated scenario as xml file after map is converted
+      plot_scenario: False
+      store_trajectory: False
+      store_trajectory_file: "output/solutions/solution1.xml" # CommonRoad solution file path
 
     scenario:
-      # time step of scenario in s; used only in case dt cannot be loaded from a commonroad scenario file
       dt: 0.1
+      left_driving: True
+      adjacencies: False
+      publish_obstacles: True # publish static and dynamic obstacles from CommonRoad scenario
 
     vehicle:
       cg_to_front: 1.0 # meter
@@ -24,26 +25,19 @@
       max_velocity: 10.0 # m/s
       min_velocity: 0.0 # m/s
 
-    trajectory_planner_type: 1 # 1: reactive planner
-
-    # parameters for reactive planner
-    reactive_planner:
-      # config folder of reactive planner
-      # support absolute paths
-      # supports realative paths to: install/cr2autoware/share/cr2autoware
-      default_yaml_folder: "../../../../src/universe/autoware.universe/planning/tum_commonroad_planning/reactive-planner/configurations/defaults/"
-      sampling:
-        # lateral sampling interval
-        d_min: -3
-        d_max: 3
-        # minimum time sampling in s (t_max is given by planning horizon)
-        t_min: 0.4
-
-      planning:
-        # planning time horizon (in s)
-        planning_horizon: 5.0
-
     velocity_planner:
       init_velocity: 5.0 # m/s - not yet implemented; should only be used for lanelet2 maps
       lookahead_dist: 3.0 # m
       lookahead_time: 0.8 # s
+
+    trajectory_planner:
+      trajectory_planner_type: 1 # 1: reactive planner
+      planner_update_time: 0.5 # run each x.x seconds
+      planning_horizon: 5.0
+
+    rp_interface:
+      default_yaml_folder: "../../../../src/universe/autoware.universe/planning/tum_commonroad_planning/reactive-planner/configurations/defaults/"
+      d_min: -3.0
+      d_max: 3.0
+      # minimum time sampling in s (t_max is given by planning horizon)
+      t_min: 0.4

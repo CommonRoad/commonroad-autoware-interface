@@ -110,12 +110,15 @@ class EgoVehicleHandler:
         # Get parameters from the node
         self._init_parameters()
 
+        # create ego vehicle dimension infos
+        self._create_ego_vehicle_info()
+
     def _init_parameters(self) -> None:
-        self.MAP_PATH = self._node.get_parameter("map_path").get_parameter_value().string_value
+        self.MAP_PATH = self._node.get_parameter("general.map_path").get_parameter_value().string_value
         if not os.path.exists(self.MAP_PATH):
             raise ValueError("Can't find given map path: %s" % self.MAP_PATH)
 
-        self.VERBOSE = self._node.get_parameter("detailed_log").get_parameter_value().bool_value
+        self.VERBOSE = self._node.get_parameter("general.detailed_log").get_parameter_value().bool_value
         if self.VERBOSE:
             from rclpy.logging import LoggingSeverity
 
@@ -133,7 +136,7 @@ class EgoVehicleHandler:
                 rclpy.time.Time(),
             )
             if not succeed:
-                self.get_logger().error(f"Failed to transform from {source_frame} to map frame")
+                self._logger.error(f"Failed to transform from {source_frame} to map frame")
                 return None
 
             if source_frame != "map":
@@ -175,11 +178,11 @@ class EgoVehicleHandler:
         if self._current_vehicle_state is not None:
             self.process_current_state()
         else:
-            if self._node.get_parameter("detailed_log").get_parameter_value().bool_value:
+            if self._node.get_parameter("general.detailed_log").get_parameter_value().bool_value:
                 self._node.get_logger().info("has not received a vehicle state yet!")
             return
 
-    def create_ego_vehicle_info(self):
+    def _create_ego_vehicle_info(self):
         """Compute the dimensions of the ego vehicle."""
         cg_to_front = (
             self._node.get_parameter("vehicle.cg_to_front").get_parameter_value().double_value

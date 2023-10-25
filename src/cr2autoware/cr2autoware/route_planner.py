@@ -1,9 +1,15 @@
-from commonroad_dc.geometry.util import resample_polyline
-from commonroad_route_planner.route_planner import RoutePlanner
+# third party imports
 import numpy as np
 from scipy.interpolate import splev
 from scipy.interpolate import splprep
 
+# commonroad-dc imports
+from commonroad_dc.geometry.util import resample_polyline
+
+# commonroad-route-planner imports
+from commonroad_route_planner.route_planner import RoutePlanner
+
+# cr2autoware imports
 import cr2autoware.utils as utils
 
 
@@ -12,7 +18,7 @@ class RoutePlannerInterface:
 
     def __init__(
         self,
-        get_parameter,
+        verbose,
         get_logger,
         scenario,
         route_pub,
@@ -20,7 +26,7 @@ class RoutePlannerInterface:
         # ROS functions
         self.reference_path_published = False
         self.reference_path = None
-        self.get_parameter = get_parameter
+        self.verbose = verbose
         self.get_logger = get_logger
         self.scenario = scenario
         self.route_pub = route_pub
@@ -29,7 +35,7 @@ class RoutePlannerInterface:
         """Plan a route using commonroad route planner and the current scenario and planning problem."""
         self.reference_path_published = False
 
-        if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+        if self.verbose:
             self.get_logger.info("Planning route")
 
         route_planner = RoutePlanner(self.scenario, planning_problem)
@@ -45,7 +51,7 @@ class RoutePlannerInterface:
         reference_path = reference_path[np.sort(idx)]
         self.reference_path = reference_path
 
-        if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+        if self.verbose:
             self.get_logger.info("Route planning completed!")
 
     def _pub_route(self, path, velocities):
@@ -53,7 +59,7 @@ class RoutePlannerInterface:
         self.reference_path_published = True
         self.route_pub.publish(utils.create_route_marker_msg(path, velocities))
 
-        if self.get_parameter("detailed_log").get_parameter_value().bool_value:
+        if self.verbose:
             self.get_logger.info("Reference path published!")
             self.get_logger.info("Path length: " + str(len(path)))
             self.get_logger.info("Velocities length: " + str(len(velocities)))
