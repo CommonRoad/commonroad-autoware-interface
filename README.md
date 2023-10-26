@@ -74,6 +74,8 @@ The interface can be launched within the AW planning simulator via one launch co
 
 To launch the overall software including our interface and the planning simulator, a Docker compose workflow is used. Please follow the instructions in our [Wiki](https://collab.dvb.bayern/display/TUMedgar/Docker+Compose+Workflow) to launch the software and run the code in simulation.
 
+Once you've launched to code and can see the RVIZ window, you can use the planning simulation as explained on [this page](https://autowarefoundation.github.io/autoware-documentation/latest/tutorials/ad-hoc-simulation/planning-simulation/).
+
 ### Trajectory replay mode
 
 **Caution: This mode currently doesn't work and should be updated**
@@ -89,8 +91,6 @@ solution_file:="<map_directory>/solutions/solution.xml"
 
 ### Functionality
 
-- [This page](https://autowarefoundation.github.io/autoware-documentation/latest/tutorials/ad-hoc-simulation/planning-simulation/)
-  shows how to manually place an initial ego state and goal pose within the planning simulator in RVIZ
 - Storing a solution trajectory in motion planning mode:
   - Set config parameter `store_trajectory=True` set the solution file path via `store_trajectory_file` in the cr2autoware_param_file
   - The driven trajectory of the ego vehicle is automatically stored as soon as the goal is reached
