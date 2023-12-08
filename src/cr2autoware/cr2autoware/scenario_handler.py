@@ -250,12 +250,7 @@ class ScenarioHandler:
             "Could not find a CommonRoad scenario file inside the directory. "
             "Creating from autoware map via Lanelet2CommonRoad conversion instead"
         )
-        scenario = lanelet_to_commonroad(
-            map_filename,
-            proj=projection_string,
-            left_driving=left_driving,
-            adjacencies=adjacencies,
-        )
+        scenario = lanelet_to_commonroad(map_filename)
 
         scenario.dt = dt
 

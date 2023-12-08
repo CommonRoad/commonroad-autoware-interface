@@ -1,7 +1,7 @@
 import os
 from commonroad.common.file_reader import CommonRoadFileReader
 from lxml import etree
-from crdesigner.map_conversion.lanelet_lanelet2.cr2lanelet_autoware import CR2LaneletConverter
+from crdesigner.map_conversion.lanelet2.cr2lanelet import CR2LaneletConverter
 import utm
 import yaml
 
@@ -38,7 +38,7 @@ except etree.XMLSyntaxError as xml_error:
     scenario = None
 
 use_local_coordinates = True
-l2osm = CR2LaneletConverter(proj, use_local_coordinates)
+l2osm = CR2LaneletConverter()
 osm = l2osm(scenario)
 with open(f"{output_map_path}", "wb") as file_out:
     file_out.write(

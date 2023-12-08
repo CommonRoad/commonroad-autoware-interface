@@ -7,8 +7,8 @@ from commonroad.scenario.scenario import Tag
 from commonroad.common.file_writer import CommonRoadFileWriter, OverwriteExistingFile
 from commonroad.planning.planning_problem import PlanningProblemSet
 
-from crdesigner.map_conversion.lanelet_lanelet2.lanelet2cr import Lanelet2CRConverter
-from crdesigner.map_conversion.lanelet_lanelet2.lanelet2_parser import Lanelet2Parser
+from crdesigner.map_conversion.lanelet2.lanelet2cr import Lanelet2CRConverter
+from crdesigner.map_conversion.lanelet2.lanelet2_parser import Lanelet2Parser
 
 from crdesigner.map_conversion.map_conversion_interface import lanelet_to_commonroad
 
@@ -39,7 +39,7 @@ adjacencies = False  # replace with favoured value
 
 
 
-scenario = lanelet_to_commonroad(input_map_path, proj, left_driving, adjacencies)
+scenario = lanelet_to_commonroad(input_map_path)
 
 # store converted file as CommonRoad scenario
 writer = CommonRoadFileWriter(
