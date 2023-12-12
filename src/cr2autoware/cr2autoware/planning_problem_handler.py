@@ -116,7 +116,11 @@ class PlanningProblemHandler:
         commonroad_reader = CommonRoadFileReader(commonroad_map_file)
         planning_problem_set = commonroad_reader.open()[1]
         # We only care about the first planning problem
-        return list(planning_problem_set.planning_problem_dict.values())[0]
+        list_pp = list(planning_problem_set.planning_problem_dict.values())
+        if list_pp:
+            return list_pp[0]
+        else:
+            return None
 
     @property
     def planning_problem(self) -> Optional[PlanningProblem]:
