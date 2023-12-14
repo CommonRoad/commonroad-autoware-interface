@@ -25,6 +25,7 @@ from crdesigner.config.lanelet2_config import lanelet2_config
 from crdesigner.map_conversion.map_conversion_interface import lanelet_to_commonroad
 from dummy_perception_publisher.msg import Object  # type: ignore
 from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseWithCovarianceStamped
 import numpy as np
 from pyproj import Proj
 from rcl_interfaces.msg import ParameterValue
@@ -276,6 +277,20 @@ class ScenarioHandler:
             PredictedObjects,
             "/perception/object_recognition/objects",
             lambda msg: self._last_msg.update({"dynamic_obstacle": msg}),
+            1,
+            callback_group=node.callback_group,
+        )
+        node.create_subscription(
+            PoseWithCovarianceStamped,
+            "/initialpose3d",
+            lambda msg: self._last_msg.update({"initial_pose": msg}),
+            1,
+            callback_group=node.callback_group,
+        )
+        node.create_subscription(
+            PoseStamped,
+            "/planning/mission_planning/echo_back_goal_pose",
+            lambda msg: self._last_msg.update({"goal_pose": msg}),
             1,
             callback_group=node.callback_group,
         )
@@ -535,3 +550,29 @@ class ScenarioHandler:
                 object_msg.min_velocity = -10.0
             self._OBSTACLE_PUBLISHER.publish(object_msg)
             self._logger.debug(utils.log_obstacle(object_msg, isinstance(obstacle, StaticObstacle)))
+
+    def get_z_coordinate(self):
+        """calculate the average value of the z coordinate from initial_pose and goal_pose"""
+        initial_pose_z = None
+        goal_pose_z = None
+
+        initial_pose = self._last_msg.get("initial_pose")
+        goal_pose = self._last_msg.get("goal_pose")   
+
+
+        if initial_pose != None and initial_pose.pose.pose.position.z != 0.0:       
+            initial_pose_z = initial_pose.pose.pose.position.z
+
+        if goal_pose != None and goal_pose.pose.position.z != 0.0:
+            goal_pose_z = goal_pose.pose.position.z
+
+        #self._logger.debug("z initial_pose: " + str(initial_pose_z))
+        #self._logger.debug("z goal_pose: " + str(goal_pose_z))
+        z_list = [i for i in [initial_pose_z, goal_pose_z] if i != None]
+        if not z_list:
+            z = 0.0
+            self._logger.info("Z is either not found or is 0.0")
+            return z
+        z = sum(z_list) / len(z_list)
+        #self._logger.debug("publish z: " + str(z))
+        return z
