@@ -75,7 +75,7 @@ class ScenarioParams(BaseParams):
 class VehicleParams(BaseParams):
     """Class for vehicle parameters"""
     # parameters from vehicle_info.param.yaml (TODO: get directly from vehicle description package)
-    # TODO: EDGAR values used here (make configurable)
+    # TODO: EDGAR values used here for intialization (make configurable)
     wheel_base: float = 3.128  # meter
     wheel_tread: float = 1.645  # meter
     front_overhang: float = 0.952  # meter
