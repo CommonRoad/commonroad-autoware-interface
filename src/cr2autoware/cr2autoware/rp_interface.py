@@ -17,7 +17,10 @@ class RP2Interface(TrajectoryPlannerInterface):
         params,
         veh_length,
         veh_width,
-        veh_wheelbase
+        veh_wheelbase,
+        veh_wb_rear_axle,
+        veh_max_steering_angle,
+        veh_max_acceleration
     ):
         traj_planner_params = params.trajectory_planner
         rp_params = params.rp_interface
@@ -34,6 +37,9 @@ class RP2Interface(TrajectoryPlannerInterface):
         self.reactive_planner.vehicle_params.length = veh_length
         self.reactive_planner.vehicle_params.width = veh_width
         self.reactive_planner.vehicle_params.wheelbase = veh_wheelbase
+        self.reactive_planner.vehicle_params.rear_ax_distance = veh_wb_rear_axle
+        self.reactive_planner.vehicle_params.delta_max = veh_max_steering_angle
+        self.reactive_planner.vehicle_params.a_max = veh_max_acceleration
 
         # self.save_to_pickle("rp_interface", scenario, dir_config_default, d_min, d_max, t_min, dt, planning_horizon, v_length, v_width, v_wheelbase, trajectory_logger)
         trajectory_logger.set_config(self.config)

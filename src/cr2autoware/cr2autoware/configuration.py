@@ -74,17 +74,24 @@ class ScenarioParams(BaseParams):
 @dataclass
 class VehicleParams(BaseParams):
     """Class for vehicle parameters"""
-    # center of gravity to axle distances (in meter)
-    cg_to_front: float = 1.0
-    cg_to_rear: float = 1.0
-    # overhang lengths (in meter)
-    front_overhang: float = 0.5
-    rear_overhang: float = 0.5
-    # width (in meter)
-    width: float = 2.0
+    # parameters from vehicle_info.param.yaml (TODO: get directly from vehicle description package)
+    # TODO: EDGAR values used here (make configurable)
+    wheel_base: float = 3.128  # meter
+    wheel_tread: float = 1.645  # meter
+    front_overhang: float = 0.952  # meter
+    rear_overhang: float = 0.897  # meter
+    left_overhang: float = 0.304  # meter
+    right_overhang: float = 0.304  # meter
+    max_steer_angle: float = 0.610865  # rad
+
+    # kinamatic single track params
+    wb_front_axle: float = 1.484  # meter
+    wb_rear_axle: float = 1.644  # meter
+
     # velocity limits (in m/s)
     max_velocity: float = 10.0
     min_velocity: float = 0.0
+    max_acceleration: float = 10.0
 
 
 @dataclass

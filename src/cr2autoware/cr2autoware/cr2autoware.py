@@ -406,8 +406,12 @@ class Cr2Auto(Node):
         """
         if self.trajectory_planner_type == 1:  # Reactive planner
             return RP2Interface(self.scenario, self.scenario.dt, self.trajectory_logger, self.params,
-                                self.ego_vehicle_handler.vehicle_length, self.ego_vehicle_handler.vehicle_width,
-                                self.ego_vehicle_handler.vehicle_wheelbase)
+                                self.ego_vehicle_handler.vehicle_length,
+                                self.ego_vehicle_handler.vehicle_width,
+                                self.ego_vehicle_handler.vehicle_wheelbase,
+                                self.ego_vehicle_handler.vehicle_wb_rear_axle,
+                                self.ego_vehicle_handler.vehicle_max_steer_angle,
+                                self.ego_vehicle_handler.vehicle_max_acceleration)
         else:
             self._logger.error("Planner type is not correctly specified!")
 

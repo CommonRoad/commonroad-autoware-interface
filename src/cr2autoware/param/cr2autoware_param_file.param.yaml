@@ -17,13 +17,24 @@
       publish_obstacles: True # publish static and dynamic obstacles from CommonRoad scenario
 
     vehicle:
-      cg_to_front: 1.0 # meter
-      cg_to_rear: 1.0 # meter
-      width: 2.0 # meter
-      front_overhang: 0.5 # meter
-      rear_overhang: 0.5 # meter
-      max_velocity: 10.0 # m/s
-      min_velocity: 0.0 # m/s
+      # parameters from vehicle_info.param.yaml (TODO: get directly from vehicle description package)
+      # TODO: EDGAR values used here (make configurable)
+      wheel_base: 3.128 # meter
+      wheel_tread: 1.645 # meter
+      front_overhang: 0.952 # meter
+      rear_overhang: 0.897 # meter
+      left_overhang: 0.304 # meter
+      right_overhang: 0.304 # meter
+      max_steer_angle: 0.610865  # rad
+
+      # kinamatic single track params
+      wb_front_axle: 1.484 # meter
+      wb_rear_axle: 1.644 # meter
+
+      # other params (TODO: check if these are used and move somewhere else)
+      max_velocity: 10.0 # m/s (TODO: not used?)
+      min_velocity: 0.0 # m/s (TODO: not used?)
+      max_acceleration: 10.0  # m/s^2 (lon. acceleration limit for planning)
 
     velocity_planner:
       init_velocity: 5.0 # m/s - not yet implemented; should only be used for lanelet2 maps
