@@ -31,16 +31,16 @@
 #      wb_rear_axle: 1.644 # meter
 
       # TODO: Sample vehicle values (make configurable)
-      wheel_base: 2.79 # meter
-      wheel_tread: 1.64 # meter
-      front_overhang: 1.0 # meter
-      rear_overhang: 1.1 # meter
-      left_overhang: 0.128 # meter
-      right_overhang: 0.128 # meter
-      max_steer_angle: 0.70  # rad
-      # kinamatic single track params
-      wb_front_axle: 1.395 # meter
-      wb_rear_axle: 1.395 # meter
+#      wheel_base: 2.79 # meter
+#      wheel_tread: 1.64 # meter
+#      front_overhang: 1.0 # meter
+#      rear_overhang: 1.1 # meter
+#      left_overhang: 0.128 # meter
+#      right_overhang: 0.128 # meter
+#      max_steer_angle: 0.70  # rad
+#      # kinamatic single track params
+#      wb_front_axle: 1.395 # meter
+#      wb_rear_axle: 1.395 # meter
 
       # other params
       max_velocity: 10.0 # m/s (TODO: not used?)
