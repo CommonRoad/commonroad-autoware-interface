@@ -103,6 +103,10 @@ class ScenarioHandler:
         # Creating publishers
         self._init_publishers(self._node)
 
+        # Initialize list of current z values
+        self._z_list = [None, None] #[initial_pose_z, goal_pose_z]
+        self._initialpose3d_z = 0.0 # z value of initialpose3d
+
     def _init_parameters(self) -> None:
         def _get_parameter(name: str) -> ParameterValue:
             return self._node.get_parameter(name).get_parameter_value()
@@ -552,27 +556,45 @@ class ScenarioHandler:
             self._logger.debug(utils.log_obstacle(object_msg, isinstance(obstacle, StaticObstacle)))
 
     def get_z_coordinate(self):
-        """calculate the average value of the z coordinate from initial_pose and goal_pose"""
-        initial_pose_z = None
-        goal_pose_z = None
+        """calculate the mean of the z coordinate from initial_pose and goal_pose"""
+        new_initial_pose_z = None
+        new_goal_pose_z = None
+        initial_pose_z = self._z_list[0]
+        goal_pose_z = self._z_list[1]
 
-        initial_pose = self._last_msg.get("initial_pose")
-        goal_pose = self._last_msg.get("goal_pose")   
+        new_initial_pose = self._last_msg.get("initial_pose")
+        new_goal_pose = self._last_msg.get("goal_pose")   
+ 
+        if new_initial_pose is not None and new_initial_pose.pose.pose.position.z != 0.0:       
+            new_initial_pose_z = new_initial_pose.pose.pose.position.z
 
+        if new_goal_pose is not None and new_goal_pose.pose.position.z != 0.0:
+            new_goal_pose_z = new_goal_pose.pose.position.z
 
-        if initial_pose != None and initial_pose.pose.pose.position.z != 0.0:       
-            initial_pose_z = initial_pose.pose.pose.position.z
+        #check if new goal_pose or initial_pose is published
+        if new_goal_pose_z != goal_pose_z:
+            if new_initial_pose_z != self._initialpose3d_z and new_initial_pose_z is not None:
+                #both initial_pose and goal_pose changed
+                self._initialpose3d_z = new_initial_pose_z
+                self._z_list[0] = new_initial_pose_z
+                self._z_list[1] = new_goal_pose_z
+            elif goal_pose_z is None:
+                #goal_pose initially None and now changed
+                self._z_list[1] = new_goal_pose_z
+            else:
+                #only goal_pose changed and goal_pose was not None before
+                self._z_list[0] = goal_pose_z
+                self._z_list[1] = new_goal_pose_z
+        elif new_initial_pose_z != self._initialpose3d_z and new_initial_pose_z is not None:
+            #only initial_pose changed; set goal_pose to None
+            self._initialpose3d_z = new_initial_pose_z
+            self._z_list[0] = new_initial_pose_z
+            self._z_list[1] = None
 
-        if goal_pose != None and goal_pose.pose.position.z != 0.0:
-            goal_pose_z = goal_pose.pose.position.z
-
-        #self._logger.debug("z initial_pose: " + str(initial_pose_z))
-        #self._logger.debug("z goal_pose: " + str(goal_pose_z))
-        z_list = [i for i in [initial_pose_z, goal_pose_z] if i != None]
-        if not z_list:
+        valid_z_list = [i for i in [self._z_list[0], self._z_list[1]] if i is not None]
+        if not valid_z_list:
             z = 0.0
             self._logger.info("Z is either not found or is 0.0")
             return z
-        z = sum(z_list) / len(z_list)
-        #self._logger.debug("publish z: " + str(z))
+        z = np.median(valid_z_list)
         return z
