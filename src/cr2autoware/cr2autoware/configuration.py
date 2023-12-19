@@ -6,11 +6,14 @@ declared and set upon initialization of the node.
 
 # typing
 import typing
-from typing import Any
+from typing import Any, List
 
 # standard imports
 from dataclasses import dataclass, field, fields
 import yaml
+
+# ROS imports
+from rclpy.parmaeter import Parameter
 
 # cr2autoware imports
 from cr2autoware.utils import get_absolute_path_from_package
@@ -43,6 +46,15 @@ class BaseParams:
         except AttributeError as e:
             raise KeyError(f"{key} is not a parameter of {self.__class__.__name__}") from e
 
+    def _declare_ros_params(self, namespace: str):
+        for field_info in fields(self):
+            # ignore _node
+            if not field_info.name.startswith('_'):
+                key = field_info.name
+                val = getattr(self, key)
+                ros_param_name = namespace + "." + key
+                self._node.declare_parameter(ros_param_name, val).value
+
 
 @dataclass
 class GeneralParams(BaseParams):
@@ -67,13 +79,7 @@ class GeneralParams(BaseParams):
     store_trajectory_file: str = "output/solutions/solution1.xml"
 
     def __post_init__(self):
-        namespace = "general"
-        for field_info in fields(self):
-            if not field_info.name.startswith('_'):
-                key = field_info.name
-                val = getattr(self, key)
-                ros_param_name = namespace + "." + key
-                self._node.declare_parameter(ros_param_name, val).value
+        self._declare_ros_params(namespace="general")
 
 
 @dataclass
@@ -88,13 +94,7 @@ class ScenarioParams(BaseParams):
     publish_obstacles: bool = True
 
     def __post_init__(self):
-        namespace = "scenario"
-        for field_info in fields(self):
-            if not field_info.name.startswith('_'):
-                key = field_info.name
-                val = getattr(self, key)
-                ros_param_name = namespace + "." + key
-                self._node.declare_parameter(ros_param_name, val).value
+        self._declare_ros_params(namespace="scenario")
 
 
 @dataclass
@@ -129,13 +129,7 @@ class VehicleParams(BaseParams):
     def __post_init__(self):
         """Reads and stores static vehicle parameters from vehicle_info.param.yaml"""
         # declare parameters
-        namespace = "vehicle"
-        for field_info in fields(self):
-            if not field_info.name.startswith('_'):
-                key = field_info.name
-                val = getattr(self, key)
-                ros_param_name = namespace + "." + key
-                self._node.declare_parameter(ros_param_name, val).value
+        self._declare_ros_params(namespace="vehicle")
 
         # Read vehicle info YAML file from ROS Params
         self.vehicle_info_param_file = \
@@ -143,14 +137,18 @@ class VehicleParams(BaseParams):
         with open(self.vehicle_info_param_file, "r") as f:
             vehicle_info_params = yaml.safe_load(f)["/**"]["ros__parameters"]
 
-        # Store vehicle info params to class
-        self.wheel_base = vehicle_info_params["wheel_base"]
-        self.wheel_tread = vehicle_info_params["wheel_tread"]
-        self.front_overhang = vehicle_info_params["front_overhang"]
-        self.rear_overhang = vehicle_info_params["rear_overhang"]
-        self.left_overhang = vehicle_info_params["left_overhang"]
-        self.right_overhang = vehicle_info_params["right_overhang"]
-        self.max_steer_angle = vehicle_info_params["max_steer_angle"]
+        # Set ROS params
+        param_type_double = Parameter.Type.DOUBLE
+        ros_vehicle_param_list: List[Parameter] = [
+            Parameter("vehicle.wheel_base", param_type_double, vehicle_info_params["wheel_base"]),
+            Parameter("vehicle.wheel_tread", param_type_double, vehicle_info_params["wheel_tread"]),
+            Parameter("vehicle.front_overhang", param_type_double, vehicle_info_params["front_overhang"]),
+            Parameter("vehicle.rear_overhang", param_type_double, vehicle_info_params["rear_overhang"]),
+            Parameter("vehicle.left_overhang", param_type_double, vehicle_info_params["left_overhang"]),
+            Parameter("vehicle.right_overhang", param_type_double, vehicle_info_params["right_overhang"]),
+            Parameter("vehicle.max_steer_angle", param_type_double, vehicle_info_params["max_steer_angle"]),
+        ]
+        self._node.set_parameters(ros_vehicle_param_list)
 
 
 @dataclass
@@ -164,13 +162,7 @@ class VelocityPlannerParams(BaseParams):
     init_velocity: float = 5.0
 
     def __post_init__(self):
-        namespace = "velocity_planner"
-        for field_info in fields(self):
-            if not field_info.name.startswith('_'):
-                key = field_info.name
-                val = getattr(self, key)
-                ros_param_name = namespace + "." + key
-                self._node.declare_parameter(ros_param_name, val).value
+        self._declare_ros_params(namespace="velocity_planner")
 
 
 @dataclass
@@ -186,13 +178,7 @@ class RPInterfaceParams(BaseParams):
     t_min: float = 0.4
 
     def __post_init__(self):
-        namespace = "rp_interface"
-        for field_info in fields(self):
-            if not field_info.name.startswith('_'):
-                key = field_info.name
-                val = getattr(self, key)
-                ros_param_name = namespace + "." + key
-                self._node.declare_parameter(ros_param_name, val).value
+        self._declare_ros_params(namespace="rp_interface")
 
         # get absolute path from default configs
         self.dir_config_default = get_absolute_path_from_package(relative_path=self.default_yaml_folder,
@@ -211,13 +197,7 @@ class TrajectoryPlannerParams(BaseParams):
     planning_horizon: float = 5.0
 
     def __post_init__(self):
-        namespace = "trajectory_planner"
-        for field_info in fields(self):
-            if not field_info.name.startswith('_'):
-                key = field_info.name
-                val = getattr(self, key)
-                ros_param_name = namespace + "." + key
-                self._node.declare_parameter(ros_param_name, val).value
+        self._declare_ros_params(namespace="trajectory_planner")
 
 
 @dataclass

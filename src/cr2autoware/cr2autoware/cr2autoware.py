@@ -103,7 +103,6 @@ class Cr2Auto(Node):
 
         # Declare ROS parameters and add to params class
         self.params: CR2AutowareParams = CR2AutowareParams(_node=self)
-        # self._initialize_ros_parameters()
 
         # get logger and set verbosity level
         self._logger = self.get_logger()
@@ -358,20 +357,6 @@ class Cr2Auto(Node):
     def planning_problem(self, planning_problem):
         """Set planning problem in the planning problem handler."""
         self.plan_prob_handler.planning_problem = planning_problem
-
-    def _initialize_ros_parameters(self):
-        """
-        Initializes all ROS parameters for CR2Auto node.
-        ROS parameters need to be declared via self.declare_parameter("param", default value) and stored
-        in a Param dataclass (self.param)
-        """
-        # We use the default values specified in the param dataclasses as defaults for self.declare_parameter
-        for f in fields(self.params):
-            sub_params = self.params[f.name]
-            prefix = f.name
-            for key, default_val in asdict(sub_params).items():
-                tmp = prefix + "." + key
-                sub_params[key] = self.declare_parameter(tmp, default_val).value
     
     def _set_route_planner(self) -> RoutePlannerInterface:
         """Initializes the route planner"""
