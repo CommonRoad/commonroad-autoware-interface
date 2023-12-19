@@ -55,7 +55,7 @@ The commonroad dependencies and the CR2Autoware interface are currently included
 
 | Tools                            | Versions                                  |
 | -------------------------------- | ----------------------------------------- |
-| cps/commonroad-scenario-designer | 40-load-commonroad-scenarios:latest       |
+| cps/commonroad-scenario-designer | develop:latest       |
 | cps/commonroad-search            | master:latest                             |
 | cps/reactive-planner             | 7c863397                                  |
 | AV2.0/autoware                   | tmasc_cps_integration:latest              |

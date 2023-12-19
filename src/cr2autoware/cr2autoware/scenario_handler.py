@@ -21,9 +21,11 @@ from commonroad.scenario.scenario import Scenario as CRScenario
 from commonroad.scenario.state import CustomState
 from commonroad.scenario.state import InitialState
 from commonroad.scenario.state import TraceState
+from crdesigner.config.lanelet2_config import lanelet2_config
 from crdesigner.map_conversion.map_conversion_interface import lanelet_to_commonroad
 from dummy_perception_publisher.msg import Object  # type: ignore
 from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseWithCovarianceStamped
 import numpy as np
 from pyproj import Proj
 from rcl_interfaces.msg import ParameterValue
@@ -100,6 +102,10 @@ class ScenarioHandler:
 
         # Creating publishers
         self._init_publishers(self._node)
+
+        # Initialize list of current z values
+        self._z_list = [None, None] #[initial_pose_z, goal_pose_z]
+        self._initialpose3d_z = 0.0 # z value of initialpose3d
 
     def _init_parameters(self) -> None:
         def _get_parameter(name: str) -> ParameterValue:
@@ -226,6 +232,7 @@ class ScenarioHandler:
             scenario = self._build_scenario_from_autoware(
                 map_filename, projection_string, left_driving, adjacencies, dt=dt
             )
+        scenario.convert_to_2d()
         self._initial_obstacles.extend(scenario.static_obstacles)
         self._initial_obstacles.extend(scenario.dynamic_obstacles)
         return scenario
@@ -250,15 +257,15 @@ class ScenarioHandler:
             "Could not find a CommonRoad scenario file inside the directory. "
             "Creating from autoware map via Lanelet2CommonRoad conversion instead"
         )
-        scenario = lanelet_to_commonroad(
-            map_filename,
-            proj=projection_string,
-            left_driving=left_driving,
-            adjacencies=adjacencies,
-        )
 
+        lanelet2_config.proj_string_l2 = projection_string
+        lanelet2_config.left_driving = left_driving
+        lanelet2_config.adjacencies = adjacencies
+        lanelet2_config.translate = True
+
+        scenario = lanelet_to_commonroad(input_file=map_filename,lanelet2_conf=lanelet2_config)
+        
         scenario.dt = dt
-
         return scenario
 
     def _init_subscriptions(self, node: "Cr2Auto") -> None:
@@ -274,6 +281,20 @@ class ScenarioHandler:
             PredictedObjects,
             "/perception/object_recognition/objects",
             lambda msg: self._last_msg.update({"dynamic_obstacle": msg}),
+            1,
+            callback_group=node.callback_group,
+        )
+        node.create_subscription(
+            PoseWithCovarianceStamped,
+            "/initialpose3d",
+            lambda msg: self._last_msg.update({"initial_pose": msg}),
+            1,
+            callback_group=node.callback_group,
+        )
+        node.create_subscription(
+            PoseStamped,
+            "/planning/mission_planning/echo_back_goal_pose",
+            lambda msg: self._last_msg.update({"goal_pose": msg}),
             1,
             callback_group=node.callback_group,
         )
@@ -533,3 +554,47 @@ class ScenarioHandler:
                 object_msg.min_velocity = -10.0
             self._OBSTACLE_PUBLISHER.publish(object_msg)
             self._logger.debug(utils.log_obstacle(object_msg, isinstance(obstacle, StaticObstacle)))
+
+    def get_z_coordinate(self):
+        """calculate the mean of the z coordinate from initial_pose and goal_pose"""
+        new_initial_pose_z = None
+        new_goal_pose_z = None
+        initial_pose_z = self._z_list[0]
+        goal_pose_z = self._z_list[1]
+
+        new_initial_pose = self._last_msg.get("initial_pose")
+        new_goal_pose = self._last_msg.get("goal_pose")   
+ 
+        if new_initial_pose is not None and new_initial_pose.pose.pose.position.z != 0.0:       
+            new_initial_pose_z = new_initial_pose.pose.pose.position.z
+
+        if new_goal_pose is not None and new_goal_pose.pose.position.z != 0.0:
+            new_goal_pose_z = new_goal_pose.pose.position.z
+
+        #check if new goal_pose or initial_pose is published
+        if new_goal_pose_z != goal_pose_z:
+            if new_initial_pose_z != self._initialpose3d_z and new_initial_pose_z is not None:
+                #both initial_pose and goal_pose changed
+                self._initialpose3d_z = new_initial_pose_z
+                self._z_list[0] = new_initial_pose_z
+                self._z_list[1] = new_goal_pose_z
+            elif goal_pose_z is None:
+                #goal_pose initially None and now changed
+                self._z_list[1] = new_goal_pose_z
+            else:
+                #only goal_pose changed and goal_pose was not None before
+                self._z_list[0] = goal_pose_z
+                self._z_list[1] = new_goal_pose_z
+        elif new_initial_pose_z != self._initialpose3d_z and new_initial_pose_z is not None:
+            #only initial_pose changed; set goal_pose to None
+            self._initialpose3d_z = new_initial_pose_z
+            self._z_list[0] = new_initial_pose_z
+            self._z_list[1] = None
+
+        valid_z_list = [i for i in [self._z_list[0], self._z_list[1]] if i is not None]
+        if not valid_z_list:
+            z = 0.0
+            self._logger.info("Z is either not found or is 0.0")
+            return z
+        z = np.median(valid_z_list)
+        return z

@@ -28,6 +28,7 @@ from tier4_planning_msgs.msg import VelocityLimit   # type: ignore
 
 # ROS message imports
 from geometry_msgs.msg import Pose
+from geometry_msgs.msg import Point
 from geometry_msgs.msg import PoseStamped
 from geometry_msgs.msg import PoseWithCovarianceStamped
 from nav_msgs.msg import Odometry
@@ -201,7 +202,7 @@ class Cr2Auto(Node):
         # subscribe initial pose
         self.initialpose_sub = self.create_subscription(
             PoseWithCovarianceStamped,
-            "/initialpose",
+            "/initialpose3d",
             self.initial_pose_callback,
             1,
             callback_group=self.callback_group,
@@ -292,7 +293,7 @@ class Cr2Auto(Node):
         # publish initial state of the scenario (replay solution trajectory mode)
         self.initial_pose_pub = self.create_publisher(
             PoseWithCovarianceStamped, 
-            "/initialpose", 
+            "/initialpose3d", 
             1
         )
         # publish goal region(s) of the scenario (TODO: check, currently not used)
@@ -488,9 +489,11 @@ class Cr2Auto(Node):
 
                     if not self.route_planner.reference_path_published:
                         # publish current reference path
-                        self.route_planner._pub_route(
-                            *self.velocity_planner.get_reference_velocities()
-                        )
+                        point_list, reference_velocities = self.velocity_planner.get_reference_velocities()
+                        #Post process reference path z coordinate
+                        for point in point_list: 
+                            point.z = self.scenario_handler.get_z_coordinate()
+                        self.route_planner._pub_route(point_list, reference_velocities)
 
                     if self.get_state() == AutowareState.DRIVING:
                         # log current position
@@ -740,6 +743,9 @@ class Cr2Auto(Node):
         :param msg: Goal Pose message
         """
         self._logger.info("Received new goal pose!")
+        #Post process goal pose z coordinate
+        msg.pose.position.z = self.scenario_handler.get_z_coordinate()
+
         self.goal_msgs.append(msg)
 
         if self.verbose:
@@ -748,7 +754,11 @@ class Cr2Auto(Node):
         self._pub_goals()
         # autoware requires that the reference path has to be published again when new goals are published
         if self.velocity_planner.get_is_velocity_planning_completed():
-            self.route_planner._pub_route(*self.velocity_planner.get_reference_velocities())
+            point_list, reference_velocities = self.velocity_planner.get_reference_velocities()
+            #Post process reference path z coordinate
+            for point in point_list: 
+                point.z = self.scenario_handler.get_z_coordinate()
+            self.route_planner._pub_route(point_list, reference_velocities)
     
     def velocity_limit_callback(self, msg: VelocityLimit) -> None:
         """
@@ -932,7 +942,9 @@ class Cr2Auto(Node):
         for i in range(0, len(states)):
             new_point = TrajectoryPoint()
             new_point.pose.position = utils.utm2map(self.origin_transformation, states[i].position)
-            position_list.append([states[i].position[0], states[i].position[1]])
+            #Post process trajectory z coordinate
+            new_point.pose.position.z = self.scenario_handler.get_z_coordinate()
+            position_list.append([states[i].position[0], states[i].position[1], self.scenario_handler.get_z_coordinate()])
             new_point.pose.orientation = utils.orientation2quaternion(states[i].orientation)
             new_point.longitudinal_velocity_mps = float(states[i].velocity)
 
