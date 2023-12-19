@@ -102,8 +102,8 @@ class Cr2Auto(Node):
         super().__init__(node_name="cr2autoware")  # type: ignore
 
         # Declare ROS parameters and add to params class
-        self.params: CR2AutowareParams = CR2AutowareParams()
-        self._initialize_ros_parameters()
+        self.params: CR2AutowareParams = CR2AutowareParams(_node=self)
+        # self._initialize_ros_parameters()
 
         # get logger and set verbosity level
         self._logger = self.get_logger()

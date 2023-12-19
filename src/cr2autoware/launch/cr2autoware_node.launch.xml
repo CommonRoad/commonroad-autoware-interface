@@ -8,10 +8,8 @@
 
     <node pkg="cr2autoware" exec="cr2autoware_node" name="cr2autoware_node">
         <param from="$(find-pkg-share cr2autoware)/param/cr2autoware_param_file.param.yaml"/>
-        <param from="$(var vehicle_info_param_file)"/>
-        <param name="general">
-            <param name="map_path" value="$(var map_path)"/>
-            <param name="solution_file" value="$(var solution_file)"/>
-        </param>
+        <param name="general.map_path" value="$(var map_path)"/>
+        <param name="general.solution_file" value="$(var solution_file)"/>
+        <param name="vehicle.vehicle_info_param_file" value="$(var vehicle_info_param_file)"/>
     </node>
 </launch>

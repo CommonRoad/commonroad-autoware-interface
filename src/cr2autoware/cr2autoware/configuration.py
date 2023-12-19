@@ -1,17 +1,23 @@
 """
-This module defines the configuration structure for the CR2Auto node.
+This module defines the parameter structure for the CR2Auto node.
 All ROS parameters are encapsulated within one dataclass CR2AutowareParams (with different sub-dataclasses) and are
 declared and set upon initialization of the node.
 """
 
 # typing
-from typing import Any, Type
+import typing
+from typing import Any
 
 # standard imports
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
+import yaml
 
 # cr2autoware imports
 from cr2autoware.utils import get_absolute_path_from_package
+
+# Avoid circular imports
+if typing.TYPE_CHECKING:
+    from cr2autoware.cr2autoware import Cr2Auto
 
 
 @dataclass
@@ -19,6 +25,8 @@ class BaseParams:
     """
     CR2Auto base parameters.
     """
+    # reference to CR2Auto ROS node
+    _node: "Cr2Auto"
 
     def __getitem__(self, item: str) -> Any:
         """Getter for base parameter value."""
@@ -58,6 +66,15 @@ class GeneralParams(BaseParams):
     # path to store CR solution file
     store_trajectory_file: str = "output/solutions/solution1.xml"
 
+    def __post_init__(self):
+        namespace = "general"
+        for field_info in fields(self):
+            if not field_info.name.startswith('_'):
+                key = field_info.name
+                val = getattr(self, key)
+                ros_param_name = namespace + "." + key
+                self._node.declare_parameter(ros_param_name, val).value
+
 
 @dataclass
 class ScenarioParams(BaseParams):
@@ -70,12 +87,28 @@ class ScenarioParams(BaseParams):
     # publish obstacles from CR scenario
     publish_obstacles: bool = True
 
+    def __post_init__(self):
+        namespace = "scenario"
+        for field_info in fields(self):
+            if not field_info.name.startswith('_'):
+                key = field_info.name
+                val = getattr(self, key)
+                ros_param_name = namespace + "." + key
+                self._node.declare_parameter(ros_param_name, val).value
+
 
 @dataclass
 class VehicleParams(BaseParams):
-    """Class for vehicle parameters"""
-    # parameters from vehicle_info.param.yaml (TODO: get directly from vehicle description package)
-    # TODO: EDGAR values used here for intialization (make configurable)
+    """
+    Class for vehicle handling vehicle parameters
+    - Static vehicle parameters are read from the vehicle_info.param.yaml file in the vehicle_description ROS package
+    - Additional static (e.g., rear axle distance) and dynamic (e.g., max-velocity) parameters are defined here and
+      are declared as ROS parameters for the CR2Auto node
+    """
+    # full path to vehicle_info.param.yaml file
+    vehicle_info_param_file: str = ""
+
+    # Static params: these are retrieved from vehicle_info.param.yaml
     wheel_base: float = 3.128  # meter
     wheel_tread: float = 1.645  # meter
     front_overhang: float = 0.952  # meter
@@ -93,6 +126,29 @@ class VehicleParams(BaseParams):
     min_velocity: float = 0.0
     max_acceleration: float = 10.0
 
+    def __post_init__(self):
+        """Reads and stores static vehicle parameters from vehicle_info.param.yaml"""
+        # Read yaml file
+        with open(self.vehicle_info_param_file, "r") as f:
+            vehicle_info_params = yaml.safe_load(f)["/**"]["ros__parameters"]
+
+        # store vehicle info params to class
+        self.wheel_base = vehicle_info_params["wheel_base"]
+        self.wheel_tread = vehicle_info_params["wheel_tread"]
+        self.front_overhang = vehicle_info_params["front_overhang"]
+        self.rear_overhang = vehicle_info_params["rear_overhang"]
+        self.left_overhang = vehicle_info_params["left_overhang"]
+        self.right_overhang = vehicle_info_params["right_overhang"]
+        self.max_steer_angle = vehicle_info_params["max_steer_angle"]
+
+        namespace = "vehicle"
+        for field_info in fields(self):
+            if not field_info.name.startswith('_'):
+                key = field_info.name
+                val = getattr(self, key)
+                ros_param_name = namespace + "." + key
+                self._node.declare_parameter(ros_param_name, val).value
+
 
 @dataclass
 class VelocityPlannerParams(BaseParams):
@@ -103,6 +159,15 @@ class VelocityPlannerParams(BaseParams):
     lookahead_time: float = 0.8
     # initial velocity (in m/s) (TODO: not yet implemented -> remove?; should only be used for lanelet2 maps)
     init_velocity: float = 5.0
+
+    def __post_init__(self):
+        namespace = "velocity_planner"
+        for field_info in fields(self):
+            if not field_info.name.startswith('_'):
+                key = field_info.name
+                val = getattr(self, key)
+                ros_param_name = namespace + "." + key
+                self._node.declare_parameter(ros_param_name, val).value
 
 
 @dataclass
@@ -118,7 +183,15 @@ class RPInterfaceParams(BaseParams):
     t_min: float = 0.4
 
     def __post_init__(self):
-        """get absolute path for default configs"""
+        namespace = "rp_interface"
+        for field_info in fields(self):
+            if not field_info.name.startswith('_'):
+                key = field_info.name
+                val = getattr(self, key)
+                ros_param_name = namespace + "." + key
+                self._node.declare_parameter(ros_param_name, val).value
+
+        # get absolute path from default configs
         self.dir_config_default = get_absolute_path_from_package(relative_path=self.default_yaml_folder,
                                                                  package_name="cr2autoware")
 
@@ -134,16 +207,35 @@ class TrajectoryPlannerParams(BaseParams):
     # planning horizon (in seconds)
     planning_horizon: float = 5.0
 
+    def __post_init__(self):
+        namespace = "trajectory_planner"
+        for field_info in fields(self):
+            if not field_info.name.startswith('_'):
+                key = field_info.name
+                value = getattr(self, key)
+                tmp = namespace + "." + key
+                self._declare_ros_param(tmp, value)
+
 
 @dataclass
-class CR2AutowareParams(BaseParams):
+class CR2AutowareParams:
     """
     Main parameter class for the CR2Auto node
     """
+    # reference to ROS node
+    _node: "Cr2Auto"
 
-    general: GeneralParams = field(default_factory=GeneralParams)
-    scenario: ScenarioParams = field(default_factory=ScenarioParams)
-    vehicle: VehicleParams = field(default_factory=VehicleParams)
-    velocity_planner: VelocityPlannerParams = field(default_factory=VelocityPlannerParams)
-    trajectory_planner: TrajectoryPlannerParams = field(default_factory=TrajectoryPlannerParams)
-    rp_interface: RPInterfaceParams = field(default_factory=RPInterfaceParams)
+    general: GeneralParams = field(init=False)
+    scenario: ScenarioParams = field(init=False)
+    vehicle: VehicleParams = field(init=False)
+    velocity_planner: VelocityPlannerParams = field(init=False)
+    trajectory_planner: TrajectoryPlannerParams = field(init=False)
+    rp_interface: RPInterfaceParams = field(init=False)
+
+    def __post_init__(self):
+        self.general = GeneralParams(_node=self._node)
+        self.scenario = ScenarioParams(_node=self._node)
+        self.vehicle = VehicleParams(_node=self._node)
+        self.velocity_planner = VelocityPlannerParams(_node=self._node)
+        self.trajectory_planner = TrajectoryPlannerParams(_node=self._node)
+        self.rp_interface = RPInterfaceParams(_node=self._node)
