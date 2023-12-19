@@ -128,19 +128,7 @@ class VehicleParams(BaseParams):
 
     def __post_init__(self):
         """Reads and stores static vehicle parameters from vehicle_info.param.yaml"""
-        # Read yaml file
-        with open(self.vehicle_info_param_file, "r") as f:
-            vehicle_info_params = yaml.safe_load(f)["/**"]["ros__parameters"]
-
-        # store vehicle info params to class
-        self.wheel_base = vehicle_info_params["wheel_base"]
-        self.wheel_tread = vehicle_info_params["wheel_tread"]
-        self.front_overhang = vehicle_info_params["front_overhang"]
-        self.rear_overhang = vehicle_info_params["rear_overhang"]
-        self.left_overhang = vehicle_info_params["left_overhang"]
-        self.right_overhang = vehicle_info_params["right_overhang"]
-        self.max_steer_angle = vehicle_info_params["max_steer_angle"]
-
+        # declare parameters
         namespace = "vehicle"
         for field_info in fields(self):
             if not field_info.name.startswith('_'):
@@ -148,6 +136,21 @@ class VehicleParams(BaseParams):
                 val = getattr(self, key)
                 ros_param_name = namespace + "." + key
                 self._node.declare_parameter(ros_param_name, val).value
+
+        # Read vehicle info YAML file from ROS Params
+        self.vehicle_info_param_file = \
+            self._node.get_parameter("vehicle.vehicle_info_param_file").get_parameter_value().string_value
+        with open(self.vehicle_info_param_file, "r") as f:
+            vehicle_info_params = yaml.safe_load(f)["/**"]["ros__parameters"]
+
+        # Store vehicle info params to class
+        self.wheel_base = vehicle_info_params["wheel_base"]
+        self.wheel_tread = vehicle_info_params["wheel_tread"]
+        self.front_overhang = vehicle_info_params["front_overhang"]
+        self.rear_overhang = vehicle_info_params["rear_overhang"]
+        self.left_overhang = vehicle_info_params["left_overhang"]
+        self.right_overhang = vehicle_info_params["right_overhang"]
+        self.max_steer_angle = vehicle_info_params["max_steer_angle"]
 
 
 @dataclass
@@ -212,9 +215,9 @@ class TrajectoryPlannerParams(BaseParams):
         for field_info in fields(self):
             if not field_info.name.startswith('_'):
                 key = field_info.name
-                value = getattr(self, key)
-                tmp = namespace + "." + key
-                self._declare_ros_param(tmp, value)
+                val = getattr(self, key)
+                ros_param_name = namespace + "." + key
+                self._node.declare_parameter(ros_param_name, val).value
 
 
 @dataclass
