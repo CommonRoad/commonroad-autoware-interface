@@ -49,6 +49,7 @@ class EgoVehicleHandler:
     _vehicle_wb_front_axle: Optional[float] = None
     _vehicle_wb_rear_axle: Optional[float] = None
     _vehicle_max_steer_angle: Optional[float] = None
+    _vehicle_max_acceleration: Optional[float] = None
 
     # Publishers
     _OBSTACLE_PUBLISHER: Publisher
