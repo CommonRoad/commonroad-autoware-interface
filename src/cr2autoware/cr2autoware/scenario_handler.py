@@ -21,7 +21,7 @@ from commonroad.scenario.scenario import Scenario as CRScenario
 from commonroad.scenario.state import CustomState
 from commonroad.scenario.state import InitialState
 from commonroad.scenario.state import TraceState
-from crdesigner.config.lanelet2_config import lanelet2_config
+from crdesigner.common.config.lanelet2_config import lanelet2_config
 from crdesigner.map_conversion.map_conversion_interface import lanelet_to_commonroad
 from dummy_perception_publisher.msg import Object  # type: ignore
 from geometry_msgs.msg import PoseStamped

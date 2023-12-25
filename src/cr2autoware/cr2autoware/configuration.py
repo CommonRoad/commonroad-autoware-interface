@@ -13,7 +13,7 @@ from dataclasses import dataclass, field, fields
 import yaml
 
 # ROS imports
-from rclpy.parmaeter import Parameter
+from rclpy.parameter import Parameter
 
 # cr2autoware imports
 from cr2autoware.utils import get_absolute_path_from_package
