@@ -189,6 +189,23 @@ class RPInterfaceParams(BaseParams):
         self.dir_config_default = get_absolute_path_from_package(relative_path=self.default_yaml_folder,
                                                                  package_name="cr2autoware")
 
+    def get_ros_param(self, param_name: str):
+        namespace = "rp_interface"
+        ros_param_name = namespace + "." + param_name
+        ros_param_value = self._node.get_parameter(ros_param_name).get_parameter_value()
+
+        dtype = type(self.__getitem__(param_name))
+        if dtype == float:
+            return ros_param_value.double_value
+        elif dtype == int:
+            return ros_param_value.integer_value
+        elif dtype == str:
+            return ros_param_value.string_value
+        elif dtype == bool:
+            return ros_param_value.string_value
+        else:
+            raise TypeError(f"<get_ros_params(): Invalid Type {dtype} for ROS Parameter")
+
 
 @dataclass
 class TrajectoryPlannerParams(BaseParams):

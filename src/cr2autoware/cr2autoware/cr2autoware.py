@@ -71,7 +71,7 @@ from cr2autoware.configuration import CR2AutowareParams
 from cr2autoware.ego_vehicle_handler import EgoVehicleHandler
 from cr2autoware.planning_problem_handler import PlanningProblemHandler
 from cr2autoware.route_planner import RoutePlannerInterface
-from cr2autoware.rp_interface import RP2Interface
+from cr2autoware.rp_interface import ReactivePlannerInterface
 from cr2autoware.scenario_handler import ScenarioHandler
 from cr2autoware.tf2_geometry_msgs import do_transform_pose
 from cr2autoware.trajectory_logger import TrajectoryLogger
@@ -391,13 +391,13 @@ class Cr2Auto(Node):
         Factory function to initialize trajectory planner according to specified type.
         """
         if self.trajectory_planner_type == 1:  # Reactive planner
-            return RP2Interface(self.scenario, self.scenario.dt, self.trajectory_logger, self.params,
-                                self.ego_vehicle_handler.vehicle_length,
-                                self.ego_vehicle_handler.vehicle_width,
-                                self.ego_vehicle_handler.vehicle_wheelbase,
-                                self.ego_vehicle_handler.vehicle_wb_rear_axle,
-                                self.ego_vehicle_handler.vehicle_max_steer_angle,
-                                self.ego_vehicle_handler.vehicle_max_acceleration)
+            return ReactivePlannerInterface(self.traj_pub,
+                                            self.scenario,
+                                            self.planning_problem,
+                                            self.scenario.dt,
+                                            self.params.trajectory_planner.planning_horizon,
+                                            self.params.rp_interface,
+                                            self.ego_vehicle_handler)
         else:
             self._logger.error("Planner type is not correctly specified!")
 

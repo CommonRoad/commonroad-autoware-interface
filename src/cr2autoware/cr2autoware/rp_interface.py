@@ -1,6 +1,8 @@
 from copy import deepcopy
 import os
 import pickle
+import typing
+import logging
 
 from commonroad_rp.configuration_builder import ConfigurationBuilder
 from commonroad_rp.reactive_planner import ReactivePlanner
@@ -81,3 +83,70 @@ class RP2Interface(TrajectoryPlannerInterface):
         file = os.path.join(test_path, filename + ".pkl")
         with open(file, "wb") as output:
             pickle.dump(args, output, pickle.HIGHEST_PROTOCOL)
+
+
+###########################################################
+# NEW Class for updated reactive planner
+###########################################################
+from commonroad_rp.utility.config import ReactivePlannerConfiguration
+from commonroad_rp.utility.logger import initialize_logger
+
+from cr2autoware.configuration import RPInterfaceParams
+from cr2autoware.ego_vehicle_handler import EgoVehicleHandler
+
+from rclpy.publisher import Publisher
+
+
+class ReactivePlannerInterface(TrajectoryPlannerInterface):
+    """
+    Trajectory planner interface for the CommonRoad Reactive Planner
+    """
+    def __init__(self, traj_pub: Publisher,
+                 scenario,
+                 planning_problem,
+                 dt,
+                 horizon,
+                 rp_interface_params: RPInterfaceParams,
+                 ego_vehicle_handler: EgoVehicleHandler):
+        # set scenario
+        self.scenario = scenario
+
+        # create reactive planner config
+        rp_config = ReactivePlannerConfiguration.load(file_path=rp_interface_params.dir_config_default.as_posix(),
+                                                      scenario_name=str(scenario.scenario_id))
+        rp_config.update(scenario=scenario, planning_problem=planning_problem)
+
+        # overwrite time step and horizon
+        rp_config.planning.dt = dt
+        rp_config.planning.planning_horizon = horizon
+
+        # overwrite vehicle params in planner config
+        rp_config.vehicle.length = ego_vehicle_handler.vehicle_length
+        rp_config.vehicle.width = ego_vehicle_handler.vehicle_width
+        rp_config.vehicle.wheelbase = ego_vehicle_handler.vehicle_wheelbase
+        rp_config.vehicle.rear_ax_distance = ego_vehicle_handler.vehicle_wb_rear_axle
+        rp_config.vehicle.delta_min = -ego_vehicle_handler.vehicle_max_steer_angle
+        rp_config.vehicle.delta_max = ego_vehicle_handler.vehicle_max_steer_angle
+        rp_config.vehicle.a_max = ego_vehicle_handler.vehicle_max_acceleration
+
+        # initialize reactive planner logger
+        initialize_logger(rp_config)
+
+        # initialize reactive planner object
+        reactive_planner: ReactivePlanner = ReactivePlanner(rp_config)
+
+        # adjust sampling settings from ROS params
+        reactive_planner.set_t_sampling_parameters(t_min=rp_interface_params.get_ros_param("t_min"))
+        reactive_planner.set_d_sampling_parameters(delta_d_min=rp_interface_params.get_ros_param("d_min"),
+                                                   delta_d_max=rp_interface_params.get_ros_param("d_max"))
+
+        # init parent class
+        super().__init__(traj_planner=reactive_planner, traj_pub=traj_pub)
+
+    def plan(self, current_state, goal, reference_path=None, reference_velocity=None):
+        """Overrides plan method from base class and calls the planning algorithm of the reactive planner"""
+        pass
+
+    def update(self):
+        """Overrides update method from base class"""
+        pass
