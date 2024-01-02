@@ -302,13 +302,24 @@ class Cr2Auto(Node):
             "/goal_region_marker_array", 
             1
         )
-        # publish current velocity limit
-        # (currently only subscribed by RVIZ, if we use the external_velocity_limit_selector node,
+        # publish max velocity limit
+        # (currently only subscribed by Motion Velocity Smoother, if we use the external_velocity_limit_selector node,
         #  this publisher can be removed)
         self.velocity_limit_pub = self.create_publisher(
             VelocityLimit,
             "/planning/scenario_planning/max_velocity",
             1
+        )
+        # publish current velocity limit for display in RVIZ
+        # (this separate topic is currently only subscribed by RVIZ)
+        qos_velocity_limit_pub_vis = utils.create_qos_profile(QoSHistoryPolicy.KEEP_LAST,
+                                                              QoSReliabilityPolicy.RELIABLE,
+                                                              QoSDurabilityPolicy.TRANSIENT_LOCAL,
+                                                              depth=1)
+        self.velocity_limit_pub_vis = self.create_publisher(
+            VelocityLimit,
+            "/planning/scenario_planning/current_max_velocity",
+            qos_velocity_limit_pub_vis
         )
 
         # ========= Service Clients =========
@@ -456,7 +467,10 @@ class Cr2Auto(Node):
         # publish velocity limit message
         vel_limit_msg = VelocityLimit()
         vel_limit_msg.max_velocity = vel_limit
+        # publish max velocity for other modules
         self.velocity_limit_pub.publish(vel_limit_msg)
+        # publish max velocity for display in RVIZ
+        self.velocity_limit_pub_vis.publish(vel_limit_msg)
 
     def solve_planning_problem(self) -> None:
         """
