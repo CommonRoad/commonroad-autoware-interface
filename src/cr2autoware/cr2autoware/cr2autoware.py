@@ -103,8 +103,7 @@ class Cr2Auto(Node):
         super().__init__(node_name="cr2autoware")  # type: ignore
 
         # Declare ROS parameters and add to params class
-        self.params: CR2AutowareParams = CR2AutowareParams()
-        self._initialize_ros_parameters()
+        self.params: CR2AutowareParams = CR2AutowareParams(_node=self)
 
         # get logger and set verbosity level
         self._logger = self.get_logger()
@@ -359,20 +358,6 @@ class Cr2Auto(Node):
     def planning_problem(self, planning_problem):
         """Set planning problem in the planning problem handler."""
         self.plan_prob_handler.planning_problem = planning_problem
-
-    def _initialize_ros_parameters(self):
-        """
-        Initializes all ROS parameters for CR2Auto node.
-        ROS parameters need to be declared via self.declare_parameter("param", default value) and stored
-        in a Param dataclass (self.param)
-        """
-        # We use the default values specified in the param dataclasses as defaults for self.declare_parameter
-        for f in fields(self.params):
-            sub_params = self.params[f.name]
-            prefix = f.name
-            for key, default_val in asdict(sub_params).items():
-                tmp = prefix + "." + key
-                sub_params[key] = self.declare_parameter(tmp, default_val).value
     
     def _set_route_planner(self) -> RoutePlannerInterface:
         """Initializes the route planner"""
@@ -407,8 +392,12 @@ class Cr2Auto(Node):
         """
         if self.trajectory_planner_type == 1:  # Reactive planner
             return RP2Interface(self.scenario, self.scenario.dt, self.trajectory_logger, self.params,
-                                self.ego_vehicle_handler.vehicle_length, self.ego_vehicle_handler.vehicle_width,
-                                self.ego_vehicle_handler.vehicle_wheelbase)
+                                self.ego_vehicle_handler.vehicle_length,
+                                self.ego_vehicle_handler.vehicle_width,
+                                self.ego_vehicle_handler.vehicle_wheelbase,
+                                self.ego_vehicle_handler.vehicle_wb_rear_axle,
+                                self.ego_vehicle_handler.vehicle_max_steer_angle,
+                                self.ego_vehicle_handler.vehicle_max_acceleration)
         else:
             self._logger.error("Planner type is not correctly specified!")
 

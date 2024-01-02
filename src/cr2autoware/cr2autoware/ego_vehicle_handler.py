@@ -43,9 +43,13 @@ class EgoVehicleHandler:
     _current_vehicle_state = None
     _node: "Cr2Auto"
     _last_msg: Dict[str, Any] = {}
-    _vehicle_length = None
-    _vehicle_width = None
-    _vehicle_wheelbase = None
+    _vehicle_length: Optional[float] = None
+    _vehicle_width: Optional[float] = None
+    _vehicle_wheelbase: Optional[float] = None
+    _vehicle_wb_front_axle: Optional[float] = None
+    _vehicle_wb_rear_axle: Optional[float] = None
+    _vehicle_max_steer_angle: Optional[float] = None
+    _vehicle_max_acceleration: Optional[float] = None
 
     # Publishers
     _OBSTACLE_PUBLISHER: Publisher
@@ -78,25 +82,29 @@ class EgoVehicleHandler:
     def vehicle_length(self):
         return self._vehicle_length
 
-    @vehicle_length.setter
-    def vehicle_length(self, vehicle_length) -> None:
-        self._vehicle_length = vehicle_length
-
     @property
     def vehicle_width(self):
         return self._vehicle_width
-
-    @vehicle_width.setter
-    def vehicle_width(self, vehicle_width) -> None:
-        self._vehicle_width = vehicle_width
 
     @property
     def vehicle_wheelbase(self):
         return self._vehicle_wheelbase
 
-    @vehicle_wheelbase.setter
-    def vehicle_wheelbase(self, vehicle_wheelbase) -> None:
-        self._vehicle_wheelbase = vehicle_wheelbase
+    @property
+    def vehicle_wb_front_axle(self):
+        return self._vehicle_wb_front_axle
+
+    @property
+    def vehicle_wb_rear_axle(self):
+        return self._vehicle_wb_rear_axle
+
+    @property
+    def vehicle_max_steer_angle(self):
+        return self._vehicle_max_steer_angle
+
+    @property
+    def vehicle_max_acceleration(self):
+        return self._vehicle_max_acceleration
 
     def __init__(self, node: "Cr2Auto"):
         self._node = node
@@ -183,23 +191,38 @@ class EgoVehicleHandler:
             return
 
     def _create_ego_vehicle_info(self):
-        """Compute the dimensions of the ego vehicle."""
-        cg_to_front = (
-            self._node.get_parameter("vehicle.cg_to_front").get_parameter_value().double_value
-        )
-        cg_to_rear = (
-            self._node.get_parameter("vehicle.cg_to_rear").get_parameter_value().double_value
-        )
-        width = self._node.get_parameter("vehicle.width").get_parameter_value().double_value
+        """Set the dimensions and kinematic parameters of the ego vehicle."""
+        # get parameters from node
+        wheel_base = (
+            self._node.get_parameter("vehicle.wheel_base").get_parameter_value().double_value)
+        wheel_tread = (
+            self._node.get_parameter("vehicle.wheel_tread").get_parameter_value().double_value)
+        wb_front_axle = (
+            self._node.get_parameter("vehicle.wb_front_axle").get_parameter_value().double_value)
+        wb_rear_axle = (
+            self._node.get_parameter("vehicle.wb_rear_axle").get_parameter_value().double_value)
         front_overhang = (
-            self._node.get_parameter("vehicle.front_overhang").get_parameter_value().double_value
-        )
+            self._node.get_parameter("vehicle.front_overhang").get_parameter_value().double_value)
         rear_overhang = (
-            self._node.get_parameter("vehicle.rear_overhang").get_parameter_value().double_value
-        )
-        self._vehicle_length = front_overhang + cg_to_front + cg_to_rear + rear_overhang
-        self._vehicle_width = width
-        self._vehicle_wheelbase = cg_to_front + cg_to_rear
+            self._node.get_parameter("vehicle.rear_overhang").get_parameter_value().double_value)
+        left_overhang = (
+            self._node.get_parameter("vehicle.left_overhang").get_parameter_value().double_value)
+        right_overhang = (
+            self._node.get_parameter("vehicle.right_overhang").get_parameter_value().double_value)
+        max_steer_angle = (
+            self._node.get_parameter("vehicle.max_steer_angle").get_parameter_value().double_value)
+        max_acceleration = (
+            self._node.get_parameter("vehicle.max_acceleration").get_parameter_value().double_value
+    )
+
+        # set base and derived params from vehicle base params (see AW.Universe: vehicle_info.cpp)
+        self._vehicle_length = front_overhang + wheel_base + rear_overhang
+        self._vehicle_width = left_overhang + wheel_tread + right_overhang
+        self._vehicle_wheelbase = wheel_base
+        self._vehicle_wb_front_axle = wb_front_axle
+        self._vehicle_wb_rear_axle = wb_rear_axle
+        self._vehicle_max_steer_angle = max_steer_angle
+        self._vehicle_max_acceleration = max_acceleration
 
     def create_ego_with_cur_location(self):
         """Create a new ego vehicle with current position for visualization."""

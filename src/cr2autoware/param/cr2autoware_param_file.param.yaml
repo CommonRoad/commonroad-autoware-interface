@@ -17,13 +17,16 @@
       publish_obstacles: True # publish static and dynamic obstacles from CommonRoad scenario
 
     vehicle:
-      cg_to_front: 1.0 # meter
-      cg_to_rear: 1.0 # meter
-      width: 2.0 # meter
-      front_overhang: 0.5 # meter
-      rear_overhang: 0.5 # meter
-      max_velocity: 10.0 # m/s
-      min_velocity: 0.0 # m/s
+      # static parameters (e.g., wheel_base) are read from vehicle_info.param.yaml (see cr2autoware/configuration.py)
+
+      # kinamatic single track params TODO: EDGAR values (make configurable)
+      wb_front_axle: 1.484 # meter
+      wb_rear_axle: 1.644 # meter
+
+      # other params
+      max_velocity: 10.0 # m/s (TODO: not used?)
+      min_velocity: 0.0 # m/s (TODO: not used?)
+      max_acceleration: 10.0  # m/s^2 (lon. acceleration limit for planning)
 
     velocity_planner:
       init_velocity: 5.0 # m/s - not yet implemented; should only be used for lanelet2 maps
