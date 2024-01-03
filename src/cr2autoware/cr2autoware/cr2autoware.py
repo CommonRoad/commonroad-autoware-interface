@@ -174,7 +174,7 @@ class Cr2Auto(Node):
         self.new_pose_received = False
         self.external_velocity_limit = 1337.0
 
-        # initialize tf        
+        # initialize tf
         self.tf_buffer = Buffer(cache_time=rclpy.duration.Duration(seconds=10.0))
         self.tf_listener = TransformListener(self.tf_buffer, self)  # convert among frames
 
@@ -223,8 +223,8 @@ class Cr2Auto(Node):
             1,
             callback_group=self.callback_group,
         )
-        # subscribe velocity limit from API 
-        # (Here we directly use the value from the API velocity limit setter in RVIZ. 
+        # subscribe velocity limit from API
+        # (Here we directly use the value from the API velocity limit setter in RVIZ.
         # In the default AW.Universe this value is input to the node external_velocity_limit_selector
         # which selects the velocity limit from different values)
         self.create_subscription(
@@ -302,6 +302,25 @@ class Cr2Auto(Node):
             "/goal_region_marker_array", 
             1
         )
+        # publish max velocity limit
+        # (currently only subscribed by Motion Velocity Smoother, if we use the external_velocity_limit_selector node,
+        #  this publisher can be removed)
+        self.velocity_limit_pub = self.create_publisher(
+            VelocityLimit,
+            "/planning/scenario_planning/max_velocity",
+            1
+        )
+        # publish current velocity limit for display in RVIZ
+        # (this separate topic is currently only subscribed by RVIZ)
+        qos_velocity_limit_pub_vis = utils.create_qos_profile(QoSHistoryPolicy.KEEP_LAST,
+                                                              QoSReliabilityPolicy.RELIABLE,
+                                                              QoSDurabilityPolicy.TRANSIENT_LOCAL,
+                                                              depth=1)
+        self.velocity_limit_pub_vis = self.create_publisher(
+            VelocityLimit,
+            "/planning/scenario_planning/current_max_velocity",
+            qos_velocity_limit_pub_vis
+        )
 
         # ========= Service Clients =========
         # client for change to stop service call (only for publishing "stop" if goal arrived)
@@ -329,6 +348,10 @@ class Cr2Auto(Node):
 
         # set mode of interface (interactive or replay mode)
         self._set_cr2auto_mode()
+
+        # set initial velocity limit (from launch config, the limit can be changed during runtime via API)
+        self._set_external_velocity_limit(
+            vel_limit=self.get_parameter("vehicle.max_velocity").get_parameter_value().double_value)
 
         # ========= Finish init() =========
         if self.verbose:
@@ -431,6 +454,23 @@ class Cr2Auto(Node):
                 .double_value,
                 callback=self.follow_trajectory_mode_update,
                 callback_group=self.callback_group)
+
+    def _set_external_velocity_limit(self, vel_limit: float):
+        """
+        Sets the velocity limit for CR2Autoware
+        Publishes the velocity limit for RVIZ
+        TODO: Remove if external_velocity_limit_selector node is used
+        """
+        # set limit
+        self.external_velocity_limit = max(0, vel_limit)
+
+        # publish velocity limit message
+        vel_limit_msg = VelocityLimit()
+        vel_limit_msg.max_velocity = vel_limit
+        # publish max velocity for other modules
+        self.velocity_limit_pub.publish(vel_limit_msg)
+        # publish max velocity for display in RVIZ
+        self.velocity_limit_pub_vis.publish(vel_limit_msg)
 
     def solve_planning_problem(self) -> None:
         """
@@ -545,7 +585,7 @@ class Cr2Auto(Node):
                         if init_state.velocity < 0.1:
                             init_state.velocity = 0.1
                         
-                        # set reference velocity considering external limit 
+                        # set reference velocity considering external limit
                         ref_vel = min(reference_velocity, self.external_velocity_limit)
 
                         # call the one-step plan function
@@ -762,11 +802,11 @@ class Cr2Auto(Node):
     
     def velocity_limit_callback(self, msg: VelocityLimit) -> None:
         """
-        Callback to external velocity limit from API. We directly subscribe the topic 
+        Callback to external velocity limit from API. We directly subscribe the topic
         /planning/scenario_planning/max_velocity_default sent from the API in RVIZ.
         :param msg: Veloctiy Limit message
         """
-        self.external_velocity_limit = max(0, msg.max_velocity)
+        self._set_external_velocity_limit(vel_limit=msg.max_velocity)
 
     def set_state(self, new_aw_state: AutowareState):
         self.aw_state.state = new_aw_state
@@ -895,7 +935,7 @@ class Cr2Auto(Node):
         self.last_msg_aw_state = msg.state
 
     # The engage signal is sent by the tum_state_rviz_plugin
-    # msg.engage sent by tum_state_rviz_plugin will always be true    
+    # msg.engage sent by tum_state_rviz_plugin will always be true
     def auto_button_callback(self, msg: Engage) -> None:
         self.auto_button_status = msg.engage
         
