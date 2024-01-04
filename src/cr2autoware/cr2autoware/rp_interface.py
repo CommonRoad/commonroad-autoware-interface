@@ -110,7 +110,7 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
         # check if valid trajectory is found
         if optimal_traj:
             # add to planned trajectory
-            self._cr_state_list = optimal_traj[0]
+            self._cr_state_list = optimal_traj[0].state_list
 
             # record planned state and input TODO check this
             self._planner.record_state_and_input(optimal_traj[0].state_list[1])
