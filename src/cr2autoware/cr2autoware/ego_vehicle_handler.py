@@ -1,20 +1,30 @@
+# standard imports
 import os
 import typing
 from typing import Any
 from typing import Dict
 from typing import Optional
 
+# third party imports
+import numpy as np
+
+# ROS message imports
+from geometry_msgs.msg import PoseStamped
+
+# ROS imports
+import rclpy
+from rclpy.impl.rcutils_logger import RcutilsLogger
+from rclpy.publisher import Publisher
+from rclpy.logging import LoggingSeverity
+
+# commonroad imports
 from commonroad.geometry.shape import Rectangle
 from commonroad.prediction.prediction import TrajectoryPrediction
 from commonroad.scenario.obstacle import DynamicObstacle
 from commonroad.scenario.obstacle import ObstacleType
 from commonroad.scenario.state import CustomState
-from geometry_msgs.msg import PoseStamped
-import numpy as np
-import rclpy
-from rclpy.impl.rcutils_logger import RcutilsLogger
-from rclpy.publisher import Publisher
 
+# cr2autoware imports
 import cr2autoware.utils as utils
 
 # Avoid circular imports
@@ -58,6 +68,7 @@ class EgoVehicleHandler:
     def ego_vehicle(self):
         return self._ego_vehicle
 
+    # TODO remove this setter after fixing self.create_ego_with_cur_loacation()
     @ego_vehicle.setter
     def ego_vehicle(self, ego_vehicle) -> None:
         self._ego_vehicle = ego_vehicle
@@ -66,14 +77,11 @@ class EgoVehicleHandler:
     def ego_vehicle_state(self) -> Optional[CustomState]:
         return self._ego_vehicle_state
 
-    @ego_vehicle_state.setter
-    def ego_vehicle_state(self, ego_vehicle_state: Optional[CustomState]) -> None:
-        self._ego_vehicle_state = ego_vehicle_state
-
     @property
     def current_vehicle_state(self):
         return self._current_vehicle_state
 
+    # TODO: remove this setter after moving subscriber and callback to this class from CR2Autoware
     @current_vehicle_state.setter
     def current_vehicle_state(self, current_vehicle_state) -> None:
         self._current_vehicle_state = current_vehicle_state
@@ -115,22 +123,13 @@ class EgoVehicleHandler:
         self._current_vehicle_state = None
         self._last_msg = {}
 
-        # Get parameters from the node
-        self._init_parameters()
+        # set logging verbosity
+        self.VERBOSE = self._node.get_parameter("general.detailed_log").get_parameter_value().bool_value
+        if self.VERBOSE:
+            self._logger.set_level(LoggingSeverity.DEBUG)
 
         # create ego vehicle dimension infos
         self._create_ego_vehicle_info()
-
-    def _init_parameters(self) -> None:
-        self.MAP_PATH = self._node.get_parameter("general.map_path").get_parameter_value().string_value
-        if not os.path.exists(self.MAP_PATH):
-            raise ValueError("Can't find given map path: %s" % self.MAP_PATH)
-
-        self.VERBOSE = self._node.get_parameter("general.detailed_log").get_parameter_value().bool_value
-        if self.VERBOSE:
-            from rclpy.logging import LoggingSeverity
-
-            self._logger.set_level(LoggingSeverity.DEBUG)
 
     def process_current_state(self) -> None:
         """Calculate the current commonroad state from the autoware latest state message."""
