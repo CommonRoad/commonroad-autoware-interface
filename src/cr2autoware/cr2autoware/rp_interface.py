@@ -120,15 +120,15 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
 
         # TODO: switch to stopping trajectory if Stop button is pushed
 
-    def update(self, planning_problem=None, route=None, reference_path=None):
+    def update(self, planning_problem: PlanningProblem = None, route: Route = None, reference_path: np.ndarray = None):
         """
         Updates externals of the trajectory planner
         """
         # set planning problem if provided
-        if planning_problem:
+        if planning_problem is not None:
             self._planner.config.planning_problem = planning_problem
         # set new reference path for planner if provided
-        if reference_path:
+        if reference_path is not None:
             rp_coordinate_system = CoordinateSystem(reference=reference_path, smooth_reference=False)
             self._planner.set_reference_path(coordinate_system=rp_coordinate_system)
 
