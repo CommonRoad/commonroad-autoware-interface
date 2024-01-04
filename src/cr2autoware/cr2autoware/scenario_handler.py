@@ -22,6 +22,7 @@ from commonroad.scenario.state import CustomState
 from commonroad.scenario.state import InitialState
 from commonroad.scenario.state import TraceState
 from crdesigner.common.config.lanelet2_config import lanelet2_config
+from crdesigner.common.config.general_config import general_config
 from crdesigner.map_conversion.map_conversion_interface import lanelet_to_commonroad
 from dummy_perception_publisher.msg import Object  # type: ignore
 from geometry_msgs.msg import PoseStamped
@@ -258,12 +259,13 @@ class ScenarioHandler:
             "Creating from autoware map via Lanelet2CommonRoad conversion instead"
         )
 
-        lanelet2_config.proj_string_l2 = projection_string
+        general_config.proj_string_cr = projection_string
         lanelet2_config.left_driving = left_driving
         lanelet2_config.adjacencies = adjacencies
         lanelet2_config.translate = True
 
-        scenario = lanelet_to_commonroad(input_file=map_filename,lanelet2_conf=lanelet2_config)
+        scenario = lanelet_to_commonroad(input_file=map_filename, general_conf=general_config,
+                                         lanelet2_conf=lanelet2_config)
         
         scenario.dt = dt
         return scenario
