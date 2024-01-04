@@ -554,32 +554,7 @@ class Cr2Auto(Node):
                         )
 
                         if self.verbose:
-                            self._logger.info("Running reactive planner")
-                            self._logger.info(
-                                "Reactive planner init_state position: "
-                                + str(self.ego_vehicle_handler.ego_vehicle_state.position)
-                            )
-                            self._logger.info(
-                                "Reactive planner init_state velocity: "
-                                + str(max(self.ego_vehicle_handler.ego_vehicle_state.velocity, 0.1))
-                            )
-                            self._logger.info(
-                                "Reactive planner reference path velocity: "
-                                + str(reference_velocity)
-                            )
-                            self._logger.info(
-                                "Reactive planner reference path length: "
-                                + str(len(self.route_planner.reference_path))
-                            )
-                            if len(self.route_planner.reference_path > 1):
-                                self._logger.info(
-                                    "Reactive planner reference path: "
-                                    + str(self.route_planner.reference_path[0])
-                                    + "  --->  ["
-                                    + str(len(self.route_planner.reference_path) - 2)
-                                    + " states skipped]  --->  "
-                                    + str(self.route_planner.reference_path[-1])
-                                )
+                            self._logger.info("Running trajectory planner")
 
                         # when starting the route and the initial velocity is 0, the reactive planner would return zero velocity for
                         # it's first state and thus never start driving. As a result, we increase the velocity a little bit here
@@ -596,34 +571,8 @@ class Cr2Auto(Node):
                             goal=self.planning_problem.goal,
                             reference_velocity=ref_vel)
 
-                        assert self.trajectory_planner.cr_state_list != []
-                        assert max([s.velocity for s in self.trajectory_planner.cr_state_list]) > 0
-
-                        if self.verbose:
-                            self._logger.info(
-                                "Reactive planner trajectory: "
-                                + str([self.trajectory_planner.cr_state_list[0].position])
-                                + " -> ... -> "
-                                + str([self.trajectory_planner.cr_state_list[-1].position])
-                            )
-                            self._logger.info(
-                                "Reactive planner velocities: "
-                                + str([s.velocity for s in self.trajectory_planner.cr_state_list])
-                            )
-                            self._logger.info(
-                                "Reactive planner acc: "
-                                + str(
-                                    [s.acceleration for s in self.trajectory_planner.cr_state_list]
-                                )
-                            )
-
-                        # calculate velocities and accelerations of planner states
-                        # self._calculate_velocities(self.planner.valid_states, self.ego_vehicle_handler.ego_vehicle_state.velocity)
-
                         # publish trajectory
                         self._prepare_traj_msg(self.trajectory_planner.cr_state_list)
-                        if self.verbose:
-                            self._logger.info("Autoware state and engage messages published!")
 
                     # check if goal is reached
                     self._is_goal_reached()
