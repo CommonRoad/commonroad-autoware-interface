@@ -1,33 +1,29 @@
-from commonroad_rp.reactive_planner import ReactivePlanner
-
-from cr2autoware.trajectory_planner_interface import TrajectoryPlannerInterface
-
-
-
-###########################################################
-# NEW Class for updated reactive planner
-###########################################################
+# third party imports
 import numpy as np
 
+# commonroad imports
 from commonroad.scenario.scenario import Scenario
 from commonroad.planning.planning_problem import PlanningProblem
 from commonroad.scenario.state import CustomState
 
+# route planner
 from commonroad_route_planner.route_planner import Route
 
+# commonroad-rp imports
 from commonroad_rp.utility.config import ReactivePlannerConfiguration
 from commonroad_rp.utility.logger import initialize_logger
 from commonroad_rp.utility.utils_coordinate_system import CoordinateSystem
 from commonroad_rp.state import ReactivePlannerState
+from commonroad_rp.reactive_planner import ReactivePlanner
 
+# cr2autoware
 from cr2autoware.configuration import RPInterfaceParams
 from cr2autoware.ego_vehicle_handler import EgoVehicleHandler
+from cr2autoware.trajectory_planner_interface import TrajectoryPlannerInterface
 
+# ROS imports
 from rclpy.publisher import Publisher
 from rclpy.impl.rcutils_logger import RcutilsLogger
-
-from autoware_auto_planning_msgs.msg import Trajectory as AWTrajectory # type: ignore
-from autoware_auto_planning_msgs.msg import TrajectoryPoint  # type: ignore
 
 
 class ReactivePlannerInterface(TrajectoryPlannerInterface):
@@ -115,10 +111,8 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
             # record planned state and input TODO check this
             self._planner.record_state_and_input(optimal_traj[0].state_list[1])
         else:
-            # TODO: perform emergency brake maneuver if no trajectory is found
+            # TODO: sample emergency brake trajectory if no trajectory is found
             self._cr_state_list = None
-
-        # TODO: switch to stopping trajectory if Stop button is pushed
 
     def update(self, planning_problem: PlanningProblem = None, route: Route = None, reference_path: np.ndarray = None):
         """
@@ -131,18 +125,3 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
         if reference_path is not None:
             rp_coordinate_system = CoordinateSystem(reference=reference_path, smooth_reference=False)
             self._planner.set_reference_path(coordinate_system=rp_coordinate_system)
-
-    def _prepare_trajectory_msg(self) -> AWTrajectory:
-        """Overrides method from base class"""
-        if self._verbose:
-            self._logger.info("Preparing trajectory message!")
-
-        aw_traj = AWTrajectory()
-        aw_traj.header.frame_id = "map"
-
-        # Publish empty trajectory if nothing planned
-        if not self.cr_state_list:
-            self._logger.info("New empty trajectory published !!!")
-            return
-
-        # TODO move function from Main node class

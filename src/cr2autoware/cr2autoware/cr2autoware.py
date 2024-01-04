@@ -572,7 +572,9 @@ class Cr2Auto(Node):
                             reference_velocity=ref_vel)
 
                         # publish trajectory
-                        self._prepare_traj_msg(self.trajectory_planner.cr_state_list)
+                        self.trajectory_planner.publish_trajectory_msg(self.origin_transformation,
+                                                                       self.scenario_handler.get_z_coordinate(),
+                                                                       self.verbose)
 
                     # check if goal is reached
                     self._is_goal_reached()

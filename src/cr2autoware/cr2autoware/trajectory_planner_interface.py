@@ -9,11 +9,15 @@ from rclpy.publisher import Publisher
 from rclpy.impl.rcutils_logger import RcutilsLogger
 
 # Autoware imports
-from autoware_auto_planning_msgs.msg import Trajectory as AWTrajectory
+from autoware_auto_planning_msgs.msg import Trajectory as AWTrajectory  # type: ignore
+from autoware_auto_planning_msgs.msg import TrajectoryPoint  # type: ignore
 
 # commonroad imports
 from commonroad.scenario.state import TraceState
 from commonroad.planning.goal import GoalRegion
+
+# cr2autoware imports
+import cr2autoware.utils as utils
 
 # Avoid circular imports
 if typing.TYPE_CHECKING:
@@ -61,11 +65,48 @@ class TrajectoryPlannerInterface(ABC):
         """Plans a trajectory. The planning algorithm is implemented in the respective planner (self._planner)"""
         pass
 
-    @abstractmethod
-    def _prepare_trajectory_msg(self) -> AWTrajectory:
+    def _prepare_trajectory_msg(self, origin_transformation: List, elevation: float,
+                                verbose: bool = False) -> AWTrajectory:
         """Converts the CommonRoad state list into a AWTrajectory message type for publishing to Autoware"""
-        pass
+        if verbose:
+            self._logger.info("Preparing trajectory message!")
 
-    def publish_trajectory_msg(self, traj_msg: AWTrajectory):
+        # AW Trajectory message
+        aw_traj = AWTrajectory()
+        aw_traj.header.frame_id = "map"
+
+        # Publish empty trajectory if nothing planned
+        if not self.cr_state_list:
+            self._logger.info("New empty trajectory published !!!")
+            return aw_traj
+
+        # Convert CR Trajectory to AW Trajectory message
+        position_list = []
+        for i in range(0, len(self._cr_state_list)):
+            cr_state = self._cr_state_list[i]
+
+            # transform position
+            new_point = TrajectoryPoint()
+            new_point.pose.position = utils.utm2map(origin_transformation, cr_state.position)
+
+            # Post process trajectory elevation (z coordinate)
+            new_point.pose.position.z = elevation
+            position_list.append([cr_state.position[0], cr_state.position[1], elevation])
+            new_point.pose.orientation = utils.orientation2quaternion(cr_state.orientation)
+            new_point.longitudinal_velocity_mps = float(cr_state.velocity)
+
+            # front_wheel_angle_rad not given by Autoware planner
+            # new_point.front_wheel_angle_rad = states[i].steering_angle
+            new_point.acceleration_mps2 = float(cr_state.acceleration)
+            aw_traj.points.append(new_point)
+
+        return aw_traj
+
+    def publish_trajectory_msg(self, origin_transformation: List, elevation: float, verbose):
         """Publishes the output trajectory as AWTrajectory message type"""
+        traj_msg = self._prepare_trajectory_msg(origin_transformation, elevation, verbose)
+
         self._traj_pub.publish(traj_msg)
+
+        if verbose:
+            self._logger.info("New trajectory published !!!")
