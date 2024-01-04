@@ -1,100 +1,33 @@
-from copy import deepcopy
-import os
-import pickle
-import typing
-import logging
-
-from commonroad_rp.configuration_builder import ConfigurationBuilder
 from commonroad_rp.reactive_planner import ReactivePlanner
 
 from cr2autoware.trajectory_planner_interface import TrajectoryPlannerInterface
 
 
-class RP2Interface(TrajectoryPlannerInterface):
-    def __init__(
-        self,
-        scenario,
-        dt,
-        trajectory_logger,
-        params,
-        veh_length,
-        veh_width,
-        veh_wheelbase,
-        veh_wb_rear_axle,
-        veh_max_steering_angle,
-        veh_max_acceleration
-    ):
-        traj_planner_params = params.trajectory_planner
-        rp_params = params.rp_interface
-
-        # construct reactive planner
-        self.scenario = scenario
-        self.config = ConfigurationBuilder.build_configuration(
-            name_scenario=str(self.scenario.scenario_id),
-            dir_config_default=rp_params.dir_config_default.as_posix(),
-        )
-        self.reactive_planner = ReactivePlanner(self.config)
-        self.reactive_planner.set_d_sampling_parameters(rp_params.d_min, rp_params.d_max)
-        self.reactive_planner.set_t_sampling_parameters(rp_params.t_min, dt, traj_planner_params.planning_horizon)
-        self.reactive_planner.vehicle_params.length = veh_length
-        self.reactive_planner.vehicle_params.width = veh_width
-        self.reactive_planner.vehicle_params.wheelbase = veh_wheelbase
-        self.reactive_planner.vehicle_params.rear_ax_distance = veh_wb_rear_axle
-        self.reactive_planner.vehicle_params.delta_max = veh_max_steering_angle
-        self.reactive_planner.vehicle_params.a_max = veh_max_acceleration
-
-        # self.save_to_pickle("rp_interface", scenario, dir_config_default, d_min, d_max, t_min, dt, planning_horizon, v_length, v_width, v_wheelbase, trajectory_logger)
-        trajectory_logger.set_config(self.config)
-
-    def plan(self, init_state, goal, reference_path, reference_velocity):
-        """Run one cycle of reactive planner."""
-        if not hasattr(init_state, "acceleration"):
-            init_state.acceleration = 0.0
-
-        x_0 = deepcopy(init_state)
-
-        # self.save_to_pickle("rp_params", init_state, goal, reference_path, reference_velocity)
-        self.reactive_planner.set_desired_velocity(reference_velocity)
-
-        # set collision checker
-        self.reactive_planner.set_collision_checker(self.scenario)
-        # set route
-        self.reactive_planner.set_reference_path(reference_path)
-        self.valid_states = []
-        # run planner and plan trajectory once
-        self.optimal = self.reactive_planner.plan(
-            x_0
-        )  # returns the planned (i.e., optimal) trajectory
-        # if the planner fails to find an optimal trajectory -> terminate
-        if self.optimal:
-            # correct orientation angle
-            self.planner_state_list = self.reactive_planner.shift_orientation(self.optimal[0])
-            for state in self.planner_state_list.state_list:
-                if len(self.valid_states) > 0:
-                    last_state = self.valid_states[-1]
-                    if last_state.time_step == state.time_step:
-                        continue
-                self.valid_states.append(state)
-
-    # This function can be used to generate test cases for test_rp.py
-    def save_to_pickle(self, filename, *args):
-        # save file to test/pickle_files
-        test_path = os.path.dirname(__file__) + "/test/pickle_files"
-        file = os.path.join(test_path, filename + ".pkl")
-        with open(file, "wb") as output:
-            pickle.dump(args, output, pickle.HIGHEST_PROTOCOL)
-
 
 ###########################################################
 # NEW Class for updated reactive planner
 ###########################################################
+import numpy as np
+
+from commonroad.scenario.scenario import Scenario
+from commonroad.planning.planning_problem import PlanningProblem
+from commonroad.scenario.state import CustomState
+
+from commonroad_route_planner.route_planner import Route
+
 from commonroad_rp.utility.config import ReactivePlannerConfiguration
 from commonroad_rp.utility.logger import initialize_logger
+from commonroad_rp.utility.utils_coordinate_system import CoordinateSystem
+from commonroad_rp.state import ReactivePlannerState
 
 from cr2autoware.configuration import RPInterfaceParams
 from cr2autoware.ego_vehicle_handler import EgoVehicleHandler
 
 from rclpy.publisher import Publisher
+from rclpy.impl.rcutils_logger import RcutilsLogger
+
+from autoware_auto_planning_msgs.msg import Trajectory as AWTrajectory # type: ignore
+from autoware_auto_planning_msgs.msg import TrajectoryPoint  # type: ignore
 
 
 class ReactivePlannerInterface(TrajectoryPlannerInterface):
@@ -102,19 +35,28 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
     Trajectory planner interface for the CommonRoad Reactive Planner
     """
     def __init__(self, traj_pub: Publisher,
-                 scenario,
-                 planning_problem,
-                 dt,
-                 horizon,
+                 logger: RcutilsLogger,
+                 verbose: bool,
+                 scenario: Scenario,
+                 planning_problem: PlanningProblem,
+                 dt: float,
+                 horizon: float,
                  rp_interface_params: RPInterfaceParams,
                  ego_vehicle_handler: EgoVehicleHandler):
+
+        # init parent class
+        super().__init__(traj_pub=traj_pub, logger=logger.get_child("rp_interface"))
+
+        # verbose
+        self._verbose = verbose
+
         # set scenario
         self.scenario = scenario
 
         # create reactive planner config
         rp_config = ReactivePlannerConfiguration.load(file_path=rp_interface_params.dir_config_default.as_posix(),
                                                       scenario_name=str(scenario.scenario_id))
-        rp_config.update(scenario=scenario, planning_problem=planning_problem)
+        rp_config.update(scenario=self.scenario, planning_problem=planning_problem)
 
         # overwrite time step and horizon
         rp_config.planning.dt = dt
@@ -140,13 +82,68 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
         reactive_planner.set_d_sampling_parameters(delta_d_min=rp_interface_params.get_ros_param("d_min"),
                                                    delta_d_max=rp_interface_params.get_ros_param("d_max"))
 
-        # init parent class
-        super().__init__(traj_planner=reactive_planner, traj_pub=traj_pub)
+        # init trajectory planner
+        self._planner: ReactivePlanner = reactive_planner
 
-    def plan(self, current_state, goal, reference_path=None, reference_velocity=None):
+    def plan(self, current_state: CustomState, goal, reference_velocity=None):
         """Overrides plan method from base class and calls the planning algorithm of the reactive planner"""
-        pass
+        # set reference velocity for planner
+        self._planner.set_desired_velocity(reference_velocity)
 
-    def update(self):
-        """Overrides update method from base class"""
-        pass
+        # update collision checker (self.scenario is updated continuously as it is a reference to the scenario handler)
+        self._planner.set_collision_checker(self.scenario)
+
+        # reset planner state
+        # TODO compute initial state cart correctly as ReactivePlannerState
+        # FIXME: subscribe to acceleration info from topic /localization/acceleration
+        if not hasattr(current_state, "acceleration"):
+            current_state.acceleration = 0.0
+        x0_planner_cart = ReactivePlannerState()
+        x0_planner_cart = current_state.convert_state_to_state(x0_planner_cart)
+        self._planner.reset(initial_state_cart=x0_planner_cart,
+                            initial_state_curv=None,
+                            collision_checker=self._planner.collision_checker,
+                            coordinate_system=self._planner.coordinate_system)
+
+        # call plan function and generate trajectory
+        optimal_traj = self._planner.plan()
+
+        # check if valid trajectory is found
+        if optimal_traj:
+            # add to planned trajectory
+            self._cr_state_list = optimal_traj[0]
+
+            # record planned state and input TODO check this
+            self._planner.record_state_and_input(optimal_traj[0].state_list[1])
+        else:
+            # TODO: perform emergency brake maneuver if no trajectory is found
+            self._cr_state_list = None
+
+        # TODO: switch to stopping trajectory if Stop button is pushed
+
+    def update(self, planning_problem=None, route=None, reference_path=None):
+        """
+        Updates externals of the trajectory planner
+        """
+        # set planning problem if provided
+        if planning_problem:
+            self._planner.config.planning_problem = planning_problem
+        # set new reference path for planner if provided
+        if reference_path:
+            rp_coordinate_system = CoordinateSystem(reference=reference_path, smooth_reference=False)
+            self._planner.set_reference_path(coordinate_system=rp_coordinate_system)
+
+    def _prepare_trajectory_msg(self) -> AWTrajectory:
+        """Overrides method from base class"""
+        if self._verbose:
+            self._logger.info("Preparing trajectory message!")
+
+        aw_traj = AWTrajectory()
+        aw_traj.header.frame_id = "map"
+
+        # Publish empty trajectory if nothing planned
+        if not self.cr_state_list:
+            self._logger.info("New empty trajectory published !!!")
+            return
+
+        # TODO move function from Main node class

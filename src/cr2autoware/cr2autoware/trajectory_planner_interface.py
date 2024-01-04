@@ -1,10 +1,12 @@
 # standard imports
 import typing
+from typing import List, Optional, Any
 from abc import ABC
 from abc import abstractmethod
 
 # ROS imports
 from rclpy.publisher import Publisher
+from rclpy.impl.rcutils_logger import RcutilsLogger
 
 # Autoware imports
 from autoware_auto_planning_msgs.msg import Trajectory as AWTrajectory
@@ -26,29 +28,41 @@ class TrajectoryPlannerInterface(ABC):
 
     # reference to trajectory publisher
     _traj_pub: Publisher
+    # reference to ROS logger
+    _logger: RcutilsLogger
 
-    def __init__(self, traj_planner, traj_pub: Publisher):
+    def __init__(self, traj_pub: Publisher, logger: RcutilsLogger):
         """
-        :param traj_planner: The trajectory planner to use
         :param traj_pub: The ROS2 publisher to use which publishes the planned trajectory to Autoware
         """
         # initialize trajectory publisher
         self._traj_pub = traj_pub
 
-        # initialize planner class
-        self._planner = traj_planner
+        # intialize ROS logger
+        self._logger = logger
+
+        # initialize planner class (set in child class)
+        self._planner: Any = None
+
+        # initialize CR trajectory state list
+        self._cr_state_list: Optional[List[TraceState]] = None
+
+    @property
+    def cr_state_list(self) -> Optional[List[TraceState]]:
+        return self._cr_state_list
 
     @abstractmethod
-    def update(self):
+    def update(self, *args, **kwargs):
         """Updates all dynamic inputs of the planner for cyclic re-planning"""
         pass
 
     @abstractmethod
-    def plan(self, current_state: TraceState, goal: GoalRegion, *args, **kwargs):
+    def plan(self, current_state: TraceState, goal: GoalRegion, **kwargs):
         """Plans a trajectory. The planning algorithm is implemented in the respective planner (self._planner)"""
         pass
 
-    def prepare_trajectory_msg(self) -> AWTrajectory:
+    @abstractmethod
+    def _prepare_trajectory_msg(self) -> AWTrajectory:
         """Converts the CommonRoad state list into a AWTrajectory message type for publishing to Autoware"""
         pass
 

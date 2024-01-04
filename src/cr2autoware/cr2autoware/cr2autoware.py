@@ -415,6 +415,8 @@ class Cr2Auto(Node):
         """
         if self.trajectory_planner_type == 1:  # Reactive planner
             return ReactivePlannerInterface(self.traj_pub,
+                                            self._logger,
+                                            self.verbose,
                                             self.scenario,
                                             self.planning_problem,
                                             self.scenario.dt,
@@ -590,31 +592,28 @@ class Cr2Auto(Node):
 
                         # call the one-step plan function
                         self.trajectory_planner.plan(
-                            init_state=init_state,
+                            current_state=init_state,
                             goal=self.planning_problem.goal,
-                            reference_path=self.route_planner.reference_path,
-                            reference_velocity=ref_vel,
-                        )
+                            reference_velocity=ref_vel)
 
-                        assert self.trajectory_planner.optimal is not False
-                        assert self.trajectory_planner.valid_states != []
-                        assert max([s.velocity for s in self.trajectory_planner.valid_states]) > 0
+                        assert self.trajectory_planner.cr_state_list != []
+                        assert max([s.velocity for s in self.trajectory_planner.cr_state_list]) > 0
 
                         if self.verbose:
                             self._logger.info(
                                 "Reactive planner trajectory: "
-                                + str([self.trajectory_planner.valid_states[0].position])
+                                + str([self.trajectory_planner.cr_state_list[0].position])
                                 + " -> ... -> "
-                                + str([self.trajectory_planner.valid_states[-1].position])
+                                + str([self.trajectory_planner.cr_state_list[-1].position])
                             )
                             self._logger.info(
                                 "Reactive planner velocities: "
-                                + str([s.velocity for s in self.trajectory_planner.valid_states])
+                                + str([s.velocity for s in self.trajectory_planner.cr_state_list])
                             )
                             self._logger.info(
                                 "Reactive planner acc: "
                                 + str(
-                                    [s.acceleration for s in self.trajectory_planner.valid_states]
+                                    [s.acceleration for s in self.trajectory_planner.cr_state_list]
                                 )
                             )
 
@@ -622,7 +621,7 @@ class Cr2Auto(Node):
                         # self._calculate_velocities(self.planner.valid_states, self.ego_vehicle_handler.ego_vehicle_state.velocity)
 
                         # publish trajectory
-                        self._prepare_traj_msg(self.trajectory_planner.valid_states)
+                        self._prepare_traj_msg(self.trajectory_planner.cr_state_list)
                         if self.verbose:
                             self._logger.info("Autoware state and engage messages published!")
 
@@ -923,6 +922,10 @@ class Cr2Auto(Node):
             self._pub_goals()
             self.set_state(AutowareState.WAITING_FOR_ENGAGE)
             self.route_planned = True
+
+            # update reference path of trajectory planner
+            self.trajectory_planner.update(reference_path=self.route_planner.reference_path)
+
         else:
             if self.verbose:
                 self._logger.info("No new goal could be set")
