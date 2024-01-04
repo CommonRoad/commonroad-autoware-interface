@@ -25,11 +25,16 @@ class RoutePlannerInterface:
     ):
         # ROS functions
         self.reference_path_published = False
-        self.reference_path = None
+        self._reference_path = None
         self.verbose = verbose
         self.get_logger = get_logger
         self.scenario = scenario
         self.route_pub = route_pub
+
+    @property
+    def reference_path(self):
+        """Getter for reference path"""
+        return self._reference_path
 
     def plan(self, planning_problem, spline_smooth_fac: float = 25.0):
         """Plan a route using commonroad route planner and the current scenario and planning problem."""
@@ -40,16 +45,18 @@ class RoutePlannerInterface:
 
         route_planner = RoutePlanner(self.scenario, planning_problem)
         reference_path = route_planner.plan_routes().retrieve_first_route().reference_path
+
         # smooth reference path
         tck, u = splprep(reference_path.T, u=None, k=3, s=spline_smooth_fac)
         u_new = np.linspace(u.min(), u.max(), 200)
         x_new, y_new = splev(u_new, tck, der=0)
         reference_path = np.array([x_new, y_new]).transpose()
         reference_path = resample_polyline(reference_path, 1)
+
         # remove duplicated vertices in reference path
         _, idx = np.unique(reference_path, axis=0, return_index=True)
         reference_path = reference_path[np.sort(idx)]
-        self.reference_path = reference_path
+        self._reference_path = reference_path
 
         if self.verbose:
             self.get_logger.info("Route planning completed!")
