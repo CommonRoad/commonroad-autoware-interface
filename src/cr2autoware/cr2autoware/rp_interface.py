@@ -61,7 +61,7 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
         rp_config.vehicle.length = ego_vehicle_handler.vehicle_length
         rp_config.vehicle.width = ego_vehicle_handler.vehicle_width
         rp_config.vehicle.wheelbase = ego_vehicle_handler.vehicle_wheelbase
-        rp_config.vehicle.rear_ax_distance = ego_vehicle_handler.vehicle_wb_rear_axle
+        rp_config.vehicle.wb_rear_axle = ego_vehicle_handler.vehicle_wb_rear_axle
         rp_config.vehicle.delta_min = -ego_vehicle_handler.vehicle_max_steer_angle
         rp_config.vehicle.delta_max = ego_vehicle_handler.vehicle_max_steer_angle
         rp_config.vehicle.a_max = ego_vehicle_handler.vehicle_max_acceleration
