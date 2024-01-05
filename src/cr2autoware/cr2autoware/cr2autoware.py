@@ -190,15 +190,6 @@ class Cr2Auto(Node):
         self.last_goal_reached = self.get_clock().now()
 
         # ========= Subscribers =========
-        # subscribe current state from odometry
-        # TODO remove after testing
-        self.current_state_sub = self.create_subscription(
-            Odometry,
-            "/localization/kinematic_state",
-            self.current_state_callback,
-            1,
-            callback_group=self.callback_group,
-        )
         # subscribe initial pose
         self.initialpose_sub = self.create_subscription(
             PoseWithCovarianceStamped,
@@ -461,7 +452,7 @@ class Cr2Auto(Node):
         """
         Sets the velocity limit for CR2Autoware
         Publishes the velocity limit for RVIZ
-        TODO: Remove if external_velocity_limit_selector node is used
+        (Can be removed if external_velocity_limit_selector node is used)
         """
         # set limit
         self.external_velocity_limit = max(0, vel_limit)
@@ -676,23 +667,9 @@ class Cr2Auto(Node):
         self.goal_pose_pub.publish(goal_msg)
 
         # publish solution trajectory
-        self._prepare_traj_msg(states)
+        # TODO this doesn't work anymore -> FIX
 
         self.set_state(AutowareState.WAITING_FOR_ENGAGE)
-
-    # TODO: remove after testing
-    def current_state_callback(self, msg: Odometry) -> None:
-        """Callback to current kinematic state of the ego vehicle.
-
-        Safe the message for later processing.
-        :param msg: current kinematic state message
-        """
-        self.ego_vehicle_handler._current_vehicle_state = msg
-        self.ego_vehicle_handler.new_pose_received = True
-
-    # TODO: remove after testing (not used)
-    def _process_current_state(self) -> None:
-        self.ego_vehicle_handler.process_current_state()
 
     def _awtrajectory_to_crtrajectory(self, mode, time_step, traj):
         """
@@ -917,43 +894,6 @@ class Cr2Auto(Node):
         if not self.interactive_mode and self.get_state() == AutowareState.ARRIVED_GOAL:
             self.follow_solution_trajectory()"""
 
-    # TODO: Remove after testing
-    def _prepare_traj_msg(self, states):
-        """
-        Prepares trajectory to match autoware format. Publish the trajectory.
-        :param states: trajectory points
-        :param contains_goal: flag to reduce speed over the last 10 steps
-        """
-        if self.verbose:
-            self._logger.info("Preparing trajectory message!")
-
-        self.traj = AWTrajectory()
-        self.traj.header.frame_id = "map"
-
-        if states == []:
-            self.traj_pub.publish(self.traj)
-            self._logger.info("New empty trajectory published !!!")
-            return
-
-        position_list = []
-        for i in range(0, len(states)):
-            new_point = TrajectoryPoint()
-            new_point.pose.position = utils.utm2map(self.origin_transformation, states[i].position)
-            #Post process trajectory z coordinate
-            new_point.pose.position.z = self.scenario_handler.get_z_coordinate()
-            position_list.append([states[i].position[0], states[i].position[1], self.scenario_handler.get_z_coordinate()])
-            new_point.pose.orientation = utils.orientation2quaternion(states[i].orientation)
-            new_point.longitudinal_velocity_mps = float(states[i].velocity)
-
-            # front_wheel_angle_rad not given by autoware planner
-            # new_point.front_wheel_angle_rad = states[i].steering_angle
-            new_point.acceleration_mps2 = float(states[i].acceleration)
-            self.traj.points.append(new_point)
-
-        self.traj_pub.publish(self.traj)
-        self._logger.info("New trajectory published !!!")
-        # visualize_solution(self.scenario, self.planning_problem, create_trajectory_from_list_states(path)) #ToDo: test
-
     def _pub_goals(self):
         """
         Publish the goals as markers to visualize in RVIZ.
@@ -1020,7 +960,7 @@ class Cr2Auto(Node):
 
         # self.rnd.draw_params.lanelet.show_label = False
         self.scenario.draw(self.rnd)
-        # self.planning_problem.draw(self.rnd) #ToDo: check if working
+        # self.planning_problem.draw(self.rnd)
         self.rnd.render()
         plt.pause(0.1)
 

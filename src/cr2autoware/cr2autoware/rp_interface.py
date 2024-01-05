@@ -89,9 +89,8 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
         self._planner.set_collision_checker(self.scenario)
 
         # reset planner state
-        # TODO compute initial state cart correctly as ReactivePlannerState
-        # FIXME: subscribe to acceleration info from topic /localization/acceleration
         if not hasattr(current_state, "acceleration"):
+            # current_state uses acceleration localization (see ego_vehicle_handler)
             current_state.acceleration = 0.0
         x0_planner_cart = ReactivePlannerState()
         x0_planner_cart = current_state.convert_state_to_state(x0_planner_cart)
