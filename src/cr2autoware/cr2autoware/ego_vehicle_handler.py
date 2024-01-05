@@ -50,7 +50,6 @@ class EgoVehicleHandler:
 
     _logger: RcutilsLogger
 
-    _ego_vehicle = None
     _ego_vehicle_state: Optional[CustomState] = None
     _current_vehicle_state = None
     _node: "Cr2Auto"
@@ -64,15 +63,6 @@ class EgoVehicleHandler:
 
     # Publishers
     _OBSTACLE_PUBLISHER: Publisher
-
-    @property
-    def ego_vehicle(self):
-        return self._ego_vehicle
-
-    # TODO remove this setter after fixing self.create_ego_with_cur_loacation()
-    @ego_vehicle.setter
-    def ego_vehicle(self, ego_vehicle) -> None:
-        self._ego_vehicle = ego_vehicle
 
     @property
     def ego_vehicle_state(self) -> Optional[CustomState]:
@@ -131,7 +121,6 @@ class EgoVehicleHandler:
             1,
             callback_group=self._node.callback_group)
 
-        self._ego_vehicle = None
         self._ego_vehicle_state = None
         self._current_vehicle_state = None
         self._current_vehicle_acc = None
@@ -257,26 +246,9 @@ class EgoVehicleHandler:
         self._vehicle_max_steer_angle = max_steer_angle
         self._vehicle_max_acceleration = max_acceleration
 
-    def create_ego_with_cur_location(self):
+    def get_cr_ego_vehicle(self):
         """Create a new ego vehicle with current position for visualization."""
         ego_vehicle_id = self._node.scenario_handler.scenario.generate_object_id()
         ego_vehicle_type = ObstacleType.CAR
         ego_vehicle_shape = Rectangle(width=self.vehicle_width, length=self.vehicle_length)
-        if self.last_trajectory is None:
-            return DynamicObstacle(
-                ego_vehicle_id, ego_vehicle_type, ego_vehicle_shape, self.ego_vehicle_state
-            )
-        else:
-            pred_traj = TrajectoryPrediction(
-                self._node._awtrajectory_to_crtrajectory(
-                    1, self.ego_vehicle_state.time_step, self._node.last_trajectory.points
-                ),
-                ego_vehicle_shape,
-            )
-            return DynamicObstacle(
-                ego_vehicle_id,
-                ego_vehicle_type,
-                ego_vehicle_shape,
-                self.ego_vehicle_state,
-                prediction=pred_traj,
-            )
+        return DynamicObstacle(ego_vehicle_id, ego_vehicle_type, ego_vehicle_shape, self.ego_vehicle_state)

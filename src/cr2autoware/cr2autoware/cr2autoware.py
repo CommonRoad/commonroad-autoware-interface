@@ -690,6 +690,7 @@ class Cr2Auto(Node):
         self.ego_vehicle_handler._current_vehicle_state = msg
         self.ego_vehicle_handler.new_pose_received = True
 
+    # TODO: remove after testing (not used)
     def _process_current_state(self) -> None:
         self.ego_vehicle_handler.process_current_state()
 
@@ -985,15 +986,16 @@ class Cr2Auto(Node):
     def _plot_scenario(self):
         """
         Plot the commonroad scenario.
+        # TODO: Test function
         """
         if self.rnd is None:
             self.rnd = MPRenderer()
             plt.ion()
 
         self.rnd.clear()
-        self.ego_vehicle_handler.ego_vehicle = (
-            self.ego_vehicle_handler.create_ego_with_cur_location()
-        )
+
+        cr_ego_vehicle = self.ego_vehicle_handler.get_cr_ego_vehicle()
+
         # self.rnd.draw_params.static_obstacle.occupancy.shape.rectangle.facecolor = "#ff0000"
         # self.rnd.draw_params.static_obstacle.occupancy.shape.rectangle.edgecolor = "#000000"
         # self.rnd.draw_params.static_obstacle.occupancy.shape.rectangle.zorder = 50
@@ -1014,7 +1016,7 @@ class Cr2Auto(Node):
             }
         })"""
         # self.rnd.draw_params["static_obstacle"]["occupancy"]["shape"]["rectangle"]["facecolor"] = "#ff0000"
-        self.ego_vehicle.draw(self.rnd)
+        cr_ego_vehicle.draw(self.rnd)
 
         # self.rnd.draw_params.lanelet.show_label = False
         self.scenario.draw(self.rnd)
