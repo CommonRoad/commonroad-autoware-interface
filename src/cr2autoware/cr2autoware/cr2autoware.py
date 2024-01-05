@@ -23,6 +23,7 @@ from autoware_auto_vehicle_msgs.msg import Engage  # type: ignore
 from autoware_adapi_v1_msgs.msg import RouteState # type: ignore
 from autoware_adapi_v1_msgs.srv import ChangeOperationMode # type: ignore
 
+
 # Tier IV message imports
 from tier4_planning_msgs.msg import VelocityLimit   # type: ignore
 
@@ -178,10 +179,12 @@ class Cr2Auto(Node):
         self.tf_buffer = Buffer(cache_time=rclpy.duration.Duration(seconds=10.0))
         self.tf_listener = TransformListener(self.tf_buffer, self)  # convert among frames
 
-        # initialize AutowareState and Engage Status and Auto Button Status
+        # initialize AutowareState and Engage Status and Auto Button Status and Stop Button Status
+
         self.aw_state = AutowareState()
         self.engage_status = False
         self.auto_button_status = False
+        self.stop_button_status = False
 
         # vars to save last messages
         # https://github.com/tier4/autoware_auto_msgs/blob/tier4/main/autoware_auto_system_msgs/msg/AutowareState.idl
@@ -324,6 +327,7 @@ class Cr2Auto(Node):
 
         # ========= Service Clients =========
         # client for change to stop service call (only for publishing "stop" if goal arrived)
+
         self.change_to_stop_client = self.create_client(
             ChangeOperationMode, 
             "/api/operation_mode/change_to_stop"
@@ -826,6 +830,19 @@ class Cr2Auto(Node):
             change_to_stop_response = self.change_to_stop_client.call(self.change_to_stop_request)
             # set /vehicle/engage to False if goal arrived
             self.engage_status = False
+        elif new_aw_state == AutowareState.WAITING_FOR_ENGAGE and self.stop_button_status:
+            self._logger.info("Stop button pressed!")
+            # call client for change to stop service
+            # change_to_stop_response = self.change_to_stop_client.call(self.change_to_stop_request)
+            # set /vehicle/engage to False when velocity of vehicle is zero
+            init_state = deepcopy(self.ego_vehicle_handler.ego_vehicle_state)
+            while init_state.velocity > 0.01:
+                init_state = deepcopy(self.ego_vehicle_handler.ego_vehicle_state)
+                self._logger.debug("Stop initiated! Velocity is not zero.")
+                self._logger.debug("Velocity: " + str(init_state.velocity))       
+            self.engage_status = False
+            self._logger.debug("Vehicle stoped! Velocity is zero. Setting /vehicle/engage to False")
+            self.stop_button_status = False    
         else:
             self.engage_status = False
 
@@ -956,6 +973,10 @@ class Cr2Auto(Node):
         if not self.engage_status and self.get_state() == AutowareState.DRIVING:
             self.set_state(AutowareState.WAITING_FOR_ENGAGE)
 
+        if not self.auto_button_status and self.get_state() == AutowareState.DRIVING:
+            self.stop_button_status = True
+            self.set_state(AutowareState.WAITING_FOR_ENGAGE)
+                        
         """
         # reset follow sultion trajectory simulation if interface is in trajectory follow mode and goal is reached
         if not self.interactive_mode and self.get_state() == AutowareState.ARRIVED_GOAL:
