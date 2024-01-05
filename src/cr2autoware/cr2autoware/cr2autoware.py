@@ -171,7 +171,6 @@ class Cr2Auto(Node):
         self.reference_path = None
         self.reference_path_published = False
         self.new_initial_pose = False
-        self.new_pose_received = False
         self.external_velocity_limit = 1337.0
 
         # initialize tf
@@ -192,6 +191,7 @@ class Cr2Auto(Node):
 
         # ========= Subscribers =========
         # subscribe current state from odometry
+        # TODO remove after testing
         self.current_state_sub = self.create_subscription(
             Odometry,
             "/localization/kinematic_state",
@@ -497,12 +497,12 @@ class Cr2Auto(Node):
                 # check if initial pose was changed (if true: recalculate reference path)
                 if self.new_initial_pose:
                     # check if the current_vehicle_state was already updated (=pose received by current state callback), otherwise wait one planning cycle
-                    if not self.new_pose_received:
+                    if not self.ego_vehicle_handler.new_pose_received:
                         self.is_computing_trajectory = False
                         return
 
                     self.new_initial_pose = False
-                    self.new_pose_received = False
+                    self.ego_vehicle_handler.new_pose_received = False
                     self._logger.info("Replanning route to goal")
 
                     # insert current goal into list of goal messages and set route_planned to false to trigger route planning
@@ -680,14 +680,15 @@ class Cr2Auto(Node):
 
         self.set_state(AutowareState.WAITING_FOR_ENGAGE)
 
+    # TODO: remove after testing
     def current_state_callback(self, msg: Odometry) -> None:
         """Callback to current kinematic state of the ego vehicle.
 
         Safe the message for later processing.
         :param msg: current kinematic state message
         """
-        self.ego_vehicle_handler.current_vehicle_state = msg
-        self.new_pose_received = True
+        self.ego_vehicle_handler._current_vehicle_state = msg
+        self.ego_vehicle_handler.new_pose_received = True
 
     def _process_current_state(self) -> None:
         self.ego_vehicle_handler.process_current_state()
@@ -725,7 +726,7 @@ class Cr2Auto(Node):
         self._logger.info("Received new initial pose!")
         self.initial_pose = msg
         self.new_initial_pose = True
-        self.new_pose_received = False
+        self.ego_vehicle_handler.new_pose_received = False
 
     def goal_pose_callback(self, msg: PoseStamped) -> None:
         """
@@ -915,6 +916,7 @@ class Cr2Auto(Node):
         if not self.interactive_mode and self.get_state() == AutowareState.ARRIVED_GOAL:
             self.follow_solution_trajectory()"""
 
+    # TODO: Remove after testing
     def _prepare_traj_msg(self, states):
         """
         Prepares trajectory to match autoware format. Publish the trajectory.

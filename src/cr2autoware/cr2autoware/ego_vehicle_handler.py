@@ -10,6 +10,8 @@ import numpy as np
 
 # ROS message imports
 from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import AccelWithCovarianceStamped
+from nav_msgs.msg import Odometry
 
 # ROS imports
 import rclpy
@@ -52,7 +54,6 @@ class EgoVehicleHandler:
     _ego_vehicle_state: Optional[CustomState] = None
     _current_vehicle_state = None
     _node: "Cr2Auto"
-    _last_msg: Dict[str, Any] = {}
     _vehicle_length: Optional[float] = None
     _vehicle_width: Optional[float] = None
     _vehicle_wheelbase: Optional[float] = None
@@ -80,11 +81,6 @@ class EgoVehicleHandler:
     @property
     def current_vehicle_state(self):
         return self._current_vehicle_state
-
-    # TODO: remove this setter after moving subscriber and callback to this class from CR2Autoware
-    @current_vehicle_state.setter
-    def current_vehicle_state(self, current_vehicle_state) -> None:
-        self._current_vehicle_state = current_vehicle_state
 
     @property
     def vehicle_length(self):
@@ -118,10 +114,28 @@ class EgoVehicleHandler:
         self._node = node
         self._logger = node.get_logger().get_child("ego_vehicle_handler")
 
+        # initialize subscriptions
+        # subscribe current state from odometry
+        self.current_state_sub = self._node.create_subscription(
+            Odometry,
+            "/localization/kinematic_state",
+            self.current_state_callback,
+            1,
+            callback_group=self._node.callback_group)
+
+        # subscribe current acceleration (separate topic, currently not in /localization/kinematic_state)
+        self.current_acc_sub = self._node.create_subscription(
+            AccelWithCovarianceStamped,
+            "/localization/acceleration",
+            self.current_acc_callback,
+            1,
+            callback_group=self._node.callback_group)
+
         self._ego_vehicle = None
         self._ego_vehicle_state = None
         self._current_vehicle_state = None
-        self._last_msg = {}
+        self._current_vehicle_acc = None
+        self.new_pose_received = False
 
         # set logging verbosity
         self.VERBOSE = self._node.get_parameter("general.detailed_log").get_parameter_value().bool_value
@@ -130,6 +144,23 @@ class EgoVehicleHandler:
 
         # create ego vehicle dimension infos
         self._create_ego_vehicle_info()
+
+    def current_state_callback(self, msg: Odometry) -> None:
+        """
+        Callback to current kinematic state of the ego vehicle.
+        :param msg: current kinematic state message
+        """
+        self._current_vehicle_state = msg
+        self.new_pose_received = True
+
+    def current_acc_callback(self, msg: AccelWithCovarianceStamped) -> None:
+        """
+        Callback to current acceleration of the ego vehicle.
+        NOTE: acceleration is currently not part of kinematic state message, that's why separate callback is required
+        :param msg: current acceleration message
+        """
+        # store acceleration message
+        self._current_vehicle_acc = msg
 
     def process_current_state(self) -> None:
         """Calculate the current commonroad state from the autoware latest state message."""
@@ -169,11 +200,14 @@ class EgoVehicleHandler:
                 self._current_vehicle_state.twist.twist.linear.x,
             )
 
+            acceleration = self._current_vehicle_acc.accel.accel.linear.x
+
             self._ego_vehicle_state = CustomState(
                 position=position,
                 orientation=orientation,
                 velocity=self._current_vehicle_state.twist.twist.linear.x,
                 yaw_rate=self._current_vehicle_state.twist.twist.angular.z,
+                acceleration=acceleration,
                 slip_angle=0.0,
                 time_step=time_step,
                 steering_angle=steering_angle,
