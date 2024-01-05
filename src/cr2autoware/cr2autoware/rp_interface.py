@@ -83,7 +83,7 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
     def plan(self, current_state: CustomState, goal, reference_velocity=None):
         """Overrides plan method from base class and calls the planning algorithm of the reactive planner"""
         # set reference velocity for planner
-        self._planner.set_desired_velocity(reference_velocity)
+        self._planner.set_desired_velocity(desired_velocity=reference_velocity, current_speed=current_state.velocity)
 
         # update collision checker (self.scenario is updated continuously as it is a reference to the scenario handler)
         self._planner.set_collision_checker(self.scenario)
