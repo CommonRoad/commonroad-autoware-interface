@@ -50,7 +50,7 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
         self.scenario = scenario
 
         # create reactive planner config
-        rp_config = ReactivePlannerConfiguration()
+        rp_config = ReactivePlannerConfiguration().load(file_path=rp_interface_params.get_ros_param("path_rp_config"))
         rp_config.update(scenario=self.scenario, planning_problem=planning_problem)
 
         # overwrite time step and horizon

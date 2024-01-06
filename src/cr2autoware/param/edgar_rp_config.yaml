@@ -1,0 +1,38 @@
+planning:
+  dt: 0.1
+  replanning_frequency: 3
+  time_steps_computation: 20
+  low_vel_mode_threshold: 10
+  continuous_collision_check: False
+  standstill_lookahead: 10
+  constraints_to_check: ["velocity", "acceleration", "kappa", "kappa_dot", "yaw_rate"]
+
+vehicle:
+  # CR vehicle type (see commonroad-vehicle-models): #1: Ford Escort, #2: BMW 320i, 3 = VW Vanagon
+  id_type_vehicle: 2
+
+  length: 4.977
+  width: 2.253
+
+  wb_front_axle: 1.484
+  wb_rear_axle: 1.644
+  wheelbase: 3.128
+
+  delta_min: -0.610865
+  delta_max: 0.610865
+  v_delta_min: -0.4
+  v_delta_max: 0.4
+  a_max: 5.0
+
+sampling:
+  sampling_method: 1
+  longitudinal_mode: "velocity_keeping"
+  num_sampling_levels: 4
+  t_min: 0.4
+  d_min: -0.5
+  d_max: 0.5
+
+debug:
+  multiproc: False
+  num_workers: 6
+  logging_level: "INFO"

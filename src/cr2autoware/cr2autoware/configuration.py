@@ -172,9 +172,9 @@ class VelocityPlannerParams(BaseParams):
 @dataclass
 class RPInterfaceParams(BaseParams):
     """Class for reactive planner interface parameters"""
-    # path to folder with default yaml configurations (TODO: deprecated, remove with new version of reactive planner)
-    default_yaml_folder: str = \
-        "../../../../src/universe/autoware.universe/planning/tum_commonroad_planning/reactive-planner/configurations/defaults/"
+    # path to folder with reactive planner yaml configuration
+    rp_config_yaml: str = \
+        "../../../../src/universe/autoware.universe/planning/tum_commonroad_planning/dfg-car/src/cr2autoware/param/edgar_rp_config.yaml"
 
     # sampling settings
     d_min: float = -3.0
@@ -186,8 +186,8 @@ class RPInterfaceParams(BaseParams):
         self._declare_ros_params(namespace="rp_interface")
 
         # get absolute path from default configs
-        self.dir_config_default = get_absolute_path_from_package(relative_path=self.default_yaml_folder,
-                                                                 package_name="cr2autoware")
+        self.path_rp_config = get_absolute_path_from_package(relative_path=self.rp_config_yaml,
+                                                             package_name="cr2autoware")
 
     def get_ros_param(self, param_name: str):
         namespace = "rp_interface"

@@ -39,7 +39,7 @@
       planning_horizon: 5.0
 
     rp_interface:
-      default_yaml_folder: "../../../../src/universe/autoware.universe/planning/tum_commonroad_planning/reactive-planner/configurations/defaults/"
+      rp_config_yaml: "../../../../src/universe/autoware.universe/planning/tum_commonroad_planning/dfg-car/src/cr2autoware/param/edgar_rp_config.yaml"
       d_min: -3.0
       d_max: 3.0
       # minimum time sampling in s (t_max is given by planning horizon)
