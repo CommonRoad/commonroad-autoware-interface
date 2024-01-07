@@ -1,3 +1,7 @@
+general:
+  path_scenarios: "example_scenarios/"
+  path_output: "output/"
+
 planning:
   dt: 0.1
   replanning_frequency: 3
@@ -20,19 +24,19 @@ vehicle:
 
   delta_min: -0.610865
   delta_max: 0.610865
-  v_delta_min: -0.4
-  v_delta_max: 0.4
-  a_max: 5.0
+  v_delta_min: -0.698   # TODO find out EDGAR params (0.698 in default Autoware)
+  v_delta_max: 0.698    # TODO find out EDGAR params
+  a_max: 10.0
 
 sampling:
   sampling_method: 1
   longitudinal_mode: "velocity_keeping"
   num_sampling_levels: 4
-  t_min: 0.4
-  d_min: -0.5
-  d_max: 0.5
+  t_min: 1.0
+  d_min: -1.5
+  d_max: 1.5
 
 debug:
-  multiproc: False
+  multiproc: True
   num_workers: 6
   logging_level: "INFO"
