@@ -82,7 +82,7 @@ class TrajectoryPlannerInterface(ABC):
 
         # Convert CR Trajectory to AW Trajectory message
         position_list = []
-        for i in range(0, len(self._cr_state_list)):
+        for i in range(1, len(self._cr_state_list)):
             cr_state = self._cr_state_list[i]
 
             # transform position
