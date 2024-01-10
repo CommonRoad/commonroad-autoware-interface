@@ -4,13 +4,25 @@ from scipy.interpolate import splev
 from scipy.interpolate import splprep
 
 # commonroad-dc imports
-from commonroad_dc.geometry.util import resample_polyline
+from commonroad_dc.geometry.util import resample_polyline, chaikins_corner_cutting, compute_curvature_from_polyline
 
 # commonroad-route-planner imports
 from commonroad_route_planner.route_planner import RoutePlanner
 
 # cr2autoware imports
 import cr2autoware.utils as utils
+
+
+def _simple_reduce_curvature(ref_path: np.ndarray, max_curv: float, resample_step: float = 1.0):
+        max_curvature = 0.5
+        iter = 0
+        while max_curvature > max_curv:
+            ref_path = np.array(chaikins_corner_cutting(ref_path))
+            ref_path = resample_polyline(ref_path, resample_step)
+            abs_curvature = compute_curvature_from_polyline(ref_path)
+            max_curvature = max(abs_curvature)
+            iter += 1
+        return ref_path
 
 
 class RoutePlannerInterface:
@@ -36,7 +48,7 @@ class RoutePlannerInterface:
         """Getter for reference path"""
         return self._reference_path
 
-    def plan(self, planning_problem, spline_smooth_fac: float = 25.0):
+    def plan(self, planning_problem, curvature_limit: float = 0.195, spline_smooth_fac: float = 5.0):
         """Plan a route using commonroad route planner and the current scenario and planning problem."""
         self.reference_path_published = False
 
@@ -46,7 +58,10 @@ class RoutePlannerInterface:
         route_planner = RoutePlanner(self.scenario, planning_problem)
         reference_path = route_planner.plan_routes().retrieve_first_route().reference_path
 
-        # smooth reference path
+        # reduce curvature simple
+        reference_path = _simple_reduce_curvature(ref_path=reference_path, max_curv=curvature_limit)
+
+        # smooth reference path spline
         tck, u = splprep(reference_path.T, u=None, k=3, s=spline_smooth_fac)
         u_new = np.linspace(u.min(), u.max(), 200)
         x_new, y_new = splev(u_new, tck, der=0)

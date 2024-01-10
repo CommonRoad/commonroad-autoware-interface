@@ -550,8 +550,8 @@ class Cr2Auto(Node):
                         # when starting the route and the initial velocity is 0, the reactive planner would return zero velocity for
                         # it's first state and thus never start driving. As a result, we increase the velocity a little bit here
                         init_state = deepcopy(self.ego_vehicle_handler.ego_vehicle_state)
-                        if init_state.velocity < 0.1:
-                            init_state.velocity = 0.1
+                        if init_state.velocity < 0.01:
+                            init_state.velocity = 0.01
                         
                         # set reference velocity considering external limit
                         ref_vel = min(reference_velocity, self.external_velocity_limit)
