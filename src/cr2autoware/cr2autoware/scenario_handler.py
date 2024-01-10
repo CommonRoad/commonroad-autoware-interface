@@ -18,7 +18,6 @@ from commonroad.scenario.obstacle import DynamicObstacle
 from commonroad.scenario.obstacle import ObstacleType
 from commonroad.scenario.obstacle import StaticObstacle
 from commonroad.scenario.scenario import Scenario as CRScenario
-from commonroad.scenario.state import CustomState
 from commonroad.scenario.state import InitialState
 from commonroad.scenario.state import TraceState
 from crdesigner.common.config.lanelet2_config import lanelet2_config
@@ -355,7 +354,6 @@ class ScenarioHandler:
             width = box.shape.dimensions.y
             length = box.shape.dimensions.x
 
-            # TODO: Test this - changed from CustomState to InitialState
             obs_state = InitialState(
                 position=pos,
                 orientation=orientation,
@@ -450,11 +448,13 @@ class ScenarioHandler:
             object_id_aw: int = obstacle.object_id.uuid
             aw_id_list = [list(value) for value in self._dynamic_obstacles_map.values()]
             if list(object_id_aw) not in aw_id_list:
-                dynamic_obstacle_initial_state = CustomState(
+                dynamic_obstacle_initial_state = InitialState(
                     position=position,
                     orientation=orientation,
                     velocity=velocity,
+                    acceleration=0.0,
                     yaw_rate=yaw_rate,
+                    slip_angle=0.0,
                     time_step=time_step,
                 )
                 object_id_cr = self._scenario.generate_object_id()
@@ -467,11 +467,13 @@ class ScenarioHandler:
                     if np.array_equal(object_id_aw, value):
                         dynamic_obs = self._scenario.obstacle_by_id(key)
                         if dynamic_obs:
-                            dynamic_obs.initial_state = CustomState(
+                            dynamic_obs.initial_state = InitialState(
                                 position=position,
                                 orientation=orientation,
                                 velocity=velocity,
+                                acceleration=0.0,
                                 yaw_rate=yaw_rate,
+                                slip_angle=0.0,
                                 time_step=time_step,
                             )
                             dynamic_obs.obstacle_shape = Rectangle(width=width, length=length)
