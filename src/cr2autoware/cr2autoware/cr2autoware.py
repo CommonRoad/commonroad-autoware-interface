@@ -90,7 +90,6 @@ class Cr2Auto(Node):
     This node serves as a the main interface between CommonRoad and Autoware.Universe
     """
 
-    # TODO: Why are these defined as class attributes?
     scenario_handler: ScenarioHandler
     plan_prob_handler: PlanningProblemHandler
     spot_handler: Optional["SpotHandler"]  # May be None if Spot is not installed or disabled
@@ -547,8 +546,8 @@ class Cr2Auto(Node):
                         if self.verbose:
                             self._logger.info("Running trajectory planner")
 
-                        # when starting the route and the initial velocity is 0, the reactive planner would return zero velocity for
-                        # it's first state and thus never start driving. As a result, we increase the velocity a little bit here
+                        # The initial velocity needs to be increase here due to a hardcoded velocity threshold in
+                        # AW. Universe Shift_Decider Package (If velocity is below 0.01, the gear will remain in park)
                         init_state = deepcopy(self.ego_vehicle_handler.ego_vehicle_state)
                         if init_state.velocity < 0.01:
                             init_state.velocity = 0.01

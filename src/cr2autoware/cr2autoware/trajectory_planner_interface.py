@@ -81,6 +81,8 @@ class TrajectoryPlannerInterface(ABC):
             return aw_traj
 
         # Convert CR Trajectory to AW Trajectory message
+        # We publish the trajectory starting from the second state in the state list. The first state (index 0) is
+        # simply the current initial state
         position_list = []
         for i in range(1, len(self._cr_state_list)):
             cr_state = self._cr_state_list[i]
