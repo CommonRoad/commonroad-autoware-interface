@@ -12,6 +12,7 @@ import matplotlib
 if os.environ.get('DISPLAY') is not None:
     matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
+import time
 
 # Autoware.Auto message imports
 from autoware_auto_planning_msgs.msg import Trajectory as AWTrajectory  # type: ignore
@@ -234,6 +235,14 @@ class Cr2Auto(Node):
             VelocityLimit,
             "/planning/scenario_planning/max_velocity_default",
             self.velocity_limit_callback,
+            1,
+            callback_group=self.callback_group,
+        )
+        # subscribe routing state
+        self.routing_state_sub = self.create_subscription(
+            RouteState,
+            "/api/routing/state",
+            self.routing_state_callback,
             1,
             callback_group=self.callback_group,
         )
@@ -555,33 +564,33 @@ class Cr2Auto(Node):
                             ),
                         )
 
-                        if self.verbose:
-                            self._logger.info("Running reactive planner")
-                            self._logger.info(
-                                "Reactive planner init_state position: "
-                                + str(self.ego_vehicle_handler.ego_vehicle_state.position)
-                            )
-                            self._logger.info(
-                                "Reactive planner init_state velocity: "
-                                + str(max(self.ego_vehicle_handler.ego_vehicle_state.velocity, 0.1))
-                            )
-                            self._logger.info(
-                                "Reactive planner reference path velocity: "
-                                + str(reference_velocity)
-                            )
-                            self._logger.info(
-                                "Reactive planner reference path length: "
-                                + str(len(self.route_planner.reference_path))
-                            )
-                            if len(self.route_planner.reference_path > 1):
-                                self._logger.info(
-                                    "Reactive planner reference path: "
-                                    + str(self.route_planner.reference_path[0])
-                                    + "  --->  ["
-                                    + str(len(self.route_planner.reference_path) - 2)
-                                    + " states skipped]  --->  "
-                                    + str(self.route_planner.reference_path[-1])
-                                )
+                        # if self.verbose:
+                            # self._logger.info("Running reactive planner")
+                            # self._logger.info(
+                            #     "Reactive planner init_state position: "
+                            #     + str(self.ego_vehicle_handler.ego_vehicle_state.position)
+                            # )
+                            # self._logger.info(
+                            #     "Reactive planner init_state velocity: "
+                            #     + str(max(self.ego_vehicle_handler.ego_vehicle_state.velocity, 0.1))
+                            # )
+                            # self._logger.info(
+                            #     "Reactive planner reference path velocity: "
+                            #     + str(reference_velocity)
+                            # )
+                            # self._logger.info(
+                            #     "Reactive planner reference path length: "
+                            #     + str(len(self.route_planner.reference_path))
+                            # )
+                            # if len(self.route_planner.reference_path > 1):
+                            #     self._logger.info(
+                            #         "Reactive planner reference path: "
+                            #         + str(self.route_planner.reference_path[0])
+                            #         + "  --->  ["
+                            #         + str(len(self.route_planner.reference_path) - 2)
+                            #         + " states skipped]  --->  "
+                            #         + str(self.route_planner.reference_path[-1])
+                            #     )
 
                         # when starting the route and the initial velocity is 0, the reactive planner would return zero velocity for
                         # it's first state and thus never start driving. As a result, we increase the velocity a little bit here
@@ -604,23 +613,23 @@ class Cr2Auto(Node):
                         assert self.trajectory_planner.valid_states != []
                         assert max([s.velocity for s in self.trajectory_planner.valid_states]) > 0
 
-                        if self.verbose:
-                            self._logger.info(
-                                "Reactive planner trajectory: "
-                                + str([self.trajectory_planner.valid_states[0].position])
-                                + " -> ... -> "
-                                + str([self.trajectory_planner.valid_states[-1].position])
-                            )
-                            self._logger.info(
-                                "Reactive planner velocities: "
-                                + str([s.velocity for s in self.trajectory_planner.valid_states])
-                            )
-                            self._logger.info(
-                                "Reactive planner acc: "
-                                + str(
-                                    [s.acceleration for s in self.trajectory_planner.valid_states]
-                                )
-                            )
+                        # if self.verbose:
+                            # self._logger.info(
+                            #     "Reactive planner trajectory: "
+                            #     + str([self.trajectory_planner.valid_states[0].position])
+                            #     + " -> ... -> "
+                            #     + str([self.trajectory_planner.valid_states[-1].position])
+                            # )
+                            # self._logger.info(
+                            #     "Reactive planner velocities: "
+                            #     + str([s.velocity for s in self.trajectory_planner.valid_states])
+                            # )
+                            # self._logger.info(
+                            #     "Reactive planner acc: "
+                            #     + str(
+                            #         [s.acceleration for s in self.trajectory_planner.valid_states]
+                            #     )
+                            # )
 
                         # calculate velocities and accelerations of planner states
                         # self._calculate_velocities(self.planner.valid_states, self.ego_vehicle_handler.ego_vehicle_state.velocity)
@@ -781,6 +790,29 @@ class Cr2Auto(Node):
         self.new_initial_pose = True
         self.new_pose_received = False
 
+    def routing_state_callback(self, msg: RouteState) -> None:
+        """
+        Callback to routing state. If routing state is 1 clear route and set route planned to false.
+        """
+        # clear route if clear_route button is pressed in RVIZ 
+        # (routing state gets set to 1 when clear_route button is pressed)
+        # (AutowareState has to be WAITING_FOR_ENGAGE (get_state() == 4) so that clear_route button is enabled) 
+        if msg.state == 1: 
+            if self.get_state() == AutowareState.PLANNING or self.get_state() == AutowareState.WAITING_FOR_ENGAGE or self.get_state() == AutowareState.DRIVING:
+                self._logger.debug("Clearing route!")
+                self.clear_route()
+    
+    def clear_route(self):
+        """
+        Clear route and set route planned to false.
+        """
+        self.route_planned = False
+        self.planning_problem = None
+        self.set_state(AutowareState.WAITING_FOR_ROUTE)
+
+        # publish empty trajectory
+        self.route_planner._pub_route([], [])
+
     def goal_pose_callback(self, msg: PoseStamped) -> None:
         """
         Callback to goal pose. Safe message to goal message list and set as active goal if no goal is active.
@@ -832,16 +864,20 @@ class Cr2Auto(Node):
             self.engage_status = False
         elif new_aw_state == AutowareState.WAITING_FOR_ENGAGE and self.stop_button_status:
             self._logger.info("Stop button pressed!")
-            # call client for change to stop service
-            # change_to_stop_response = self.change_to_stop_client.call(self.change_to_stop_request)
-            # set /vehicle/engage to False when velocity of vehicle is zero
-            init_state = deepcopy(self.ego_vehicle_handler.ego_vehicle_state)
-            while init_state.velocity > 0.01:
-                init_state = deepcopy(self.ego_vehicle_handler.ego_vehicle_state)
-                self._logger.debug("Stop initiated! Velocity is not zero.")
-                self._logger.debug("Velocity: " + str(init_state.velocity))       
+            # wait until velocity is zero
+            init_state = self.ego_vehicle_handler.ego_vehicle_state
+            start_time = time.time()
+            while abs(init_state.velocity) > 0.01:
+                init_state = self.ego_vehicle_handler.ego_vehicle_state
+                # self._logger.debug("Stop initiated! Velocity is not zero.")
+                self._logger.debug("Velocity: " + str(init_state.velocity))
+                if time.time() - start_time > 15:
+                    self._logger.error("Stop initiated! Velocity is not zero. Timeout!")
+                    break
+                time.sleep(0.5)
+            # set /vehicle/engage to False if stop button is pressend and velocity of vehicle is zero
             self.engage_status = False
-            self._logger.debug("Vehicle stoped! Velocity is zero. Setting /vehicle/engage to False")
+            self._logger.debug("Vehicle stoped! Setting /vehicle/engage to False")
             self.stop_button_status = False    
         else:
             self.engage_status = False
