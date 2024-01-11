@@ -180,12 +180,13 @@ class Cr2Auto(Node):
         self.tf_buffer = Buffer(cache_time=rclpy.duration.Duration(seconds=10.0))
         self.tf_listener = TransformListener(self.tf_buffer, self)  # convert among frames
 
-        # initialize AutowareState and Engage Status and Auto Button Status and Stop Button Status
+        # initialize AutowareState and Engage Status and Auto Button Status and waiting_for_velocity_0 and Routing State
 
         self.aw_state = AutowareState()
         self.engage_status = False
         self.auto_button_status = False
-        self.stop_button_status = False
+        self.waiting_for_velocity_0 = False
+        self.routing_state = RouteState()
 
         # vars to save last messages
         # https://github.com/tier4/autoware_auto_msgs/blob/tier4/main/autoware_auto_system_msgs/msg/AutowareState.idl
@@ -795,16 +796,23 @@ class Cr2Auto(Node):
         Callback to routing state. If routing state is 1 clear route and set route planned to false.
         """
         # clear route if clear_route button is pressed in RVIZ 
-        # (routing state gets set to 1 when clear_route button is pressed)
-        # (AutowareState has to be WAITING_FOR_ENGAGE (get_state() == 4) so that clear_route button is enabled) 
-        if msg.state == 1: 
-            if self.get_state() == AutowareState.PLANNING or self.get_state() == AutowareState.WAITING_FOR_ENGAGE or self.get_state() == AutowareState.DRIVING:
+        # (routing state gets set to UNSET when clear_route button is pressed)
+        # (AutowareState has to be PLANNING or WAITING_FOR_ENGAGE so that clear_route button is enabled) 
+        # (if AutowareState is DRIVING, we first have to wait until velocity is zero and then clear route)
+        self.routing_state = msg.state
+
+        if msg.state == RouteState.UNSET: 
+            if self.get_state() == AutowareState.PLANNING or self.get_state() == AutowareState.WAITING_FOR_ENGAGE:
                 self._logger.debug("Clearing route!")
                 self.clear_route()
-    
+            elif self.get_state() == AutowareState.DRIVING:
+                self._logger.debug("Clear route while driving!")
+                self.waiting_for_velocity_0 = True
+                self.clear_route()
+        
     def clear_route(self):
         """
-        Clear route and set route planned to false.
+        Clear route and set AutowareState to WAITING_FOR_ROUTE.
         """
         self.route_planned = False
         self.planning_problem = None
@@ -862,8 +870,7 @@ class Cr2Auto(Node):
             change_to_stop_response = self.change_to_stop_client.call(self.change_to_stop_request)
             # set /vehicle/engage to False if goal arrived
             self.engage_status = False
-        elif new_aw_state == AutowareState.WAITING_FOR_ENGAGE and self.stop_button_status:
-            self._logger.info("Stop button pressed!")
+        elif self.waiting_for_velocity_0:
             # wait until velocity is zero
             init_state = self.ego_vehicle_handler.ego_vehicle_state
             start_time = time.time()
@@ -878,7 +885,7 @@ class Cr2Auto(Node):
             # set /vehicle/engage to False if stop button is pressend and velocity of vehicle is zero
             self.engage_status = False
             self._logger.debug("Vehicle stoped! Setting /vehicle/engage to False")
-            self.stop_button_status = False    
+            self.waiting_for_velocity_0 = False    
         else:
             self.engage_status = False
 
@@ -1000,7 +1007,7 @@ class Cr2Auto(Node):
         )
 
         # Update Autoware state panel
-        if self.auto_button_status and self.get_state() == AutowareState.WAITING_FOR_ENGAGE:
+        if self.auto_button_status and self.get_state() == AutowareState.WAITING_FOR_ENGAGE and self.routing_state != RouteState.UNSET:
             self.set_state(AutowareState.DRIVING)
             if self.PUBLISH_OBSTACLES:  # publish obstacle at once after engaged
                 self.scenario_handler.publish_initial_obstacles()
@@ -1009,8 +1016,9 @@ class Cr2Auto(Node):
         if not self.engage_status and self.get_state() == AutowareState.DRIVING:
             self.set_state(AutowareState.WAITING_FOR_ENGAGE)
 
-        if not self.auto_button_status and self.get_state() == AutowareState.DRIVING:
-            self.stop_button_status = True
+        if not self.auto_button_status and self.get_state() == AutowareState.DRIVING and self.routing_state == RouteState.SET:
+            self.waiting_for_velocity_0 = True
+            self._logger.info("Stop button pressed!")
             self.set_state(AutowareState.WAITING_FOR_ENGAGE)
                         
         """
