@@ -9,6 +9,7 @@ from dataclasses import asdict, fields
 import numpy as np
 import yaml
 import matplotlib
+
 if os.environ.get('DISPLAY') is not None:
     matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
@@ -918,109 +919,6 @@ class Cr2Auto(Node):
             # set /vehicle/engage to False if stop button is pressend and velocity of vehicle is zero
             self.engage_status = False
             self._logger.debug("Vehicle stoped! Setting /vehicle/engage to False")
-            
-        #     self.route_planner._pub_route([], [])
-
-        #     if self.trajectory_planner_type == 1:  # Reactive Planner
-        #         reference_velocity = max(
-        #         1,
-        #         self.velocity_planner.get_velocity_at_aw_position_with_lookahead(
-        #         self.ego_vehicle_handler.current_vehicle_state.pose.pose.position,
-        #         self.ego_vehicle_handler.ego_vehicle_state.velocity,
-        #         ),
-        #     )
-        #     ref_vel = min(reference_velocity, self.external_velocity_limit)
-
-        #     self.ego_vehicle_handler.ego_vehivle_state.acceleration = 0.0
-
-        #     # call the one-step plan function
-        #     self.trajectory_planner.plan(
-        #         init_state=self.ego_vehicle_handler.ego_vehicle_state,
-        #         goal=self.planning_problem.goal,
-        #         reference_path=self.route_planner.reference_path,
-        #         reference_velocity=ref_vel,
-        #    )
-
-
-            #self.set_state(AutowareState.PLANNING)
-
-            current_msg = self.goal_msgs.pop(0)
-            self.current_goal_msg = deepcopy(current_msg)
-
-            self._logger.info("Pose position: " + str(current_msg.pose.position))
-
-            position = utils.map2utm(self.origin_transformation, current_msg.pose.position)
-            pos_x = position[0]
-            pos_y = position[1]
-            self._logger.info("Pose position utm: " + str(position))
-            orientation = utils.quaternion2orientation(current_msg.pose.orientation)
-            if self.ego_vehicle_handler.ego_vehicle_state is None:
-                self._logger.error("ego vehicle state is None")
-                return
-
-            max_vel = self.get_parameter("vehicle.max_velocity").get_parameter_value().double_value
-            min_vel = self.get_parameter("vehicle.min_velocity").get_parameter_value().double_value
-            velocity_interval = Interval(min_vel, max_vel)
-
-            # get goal lanelet and its width
-            # subtract commonroad map origin
-            goal_lanelet_id = self.scenario.lanelet_network.find_lanelet_by_position(
-                [np.array([pos_x, pos_y])]
-            )
-
-            if self.verbose:
-                self._logger.info("goal pos_x: " + str(pos_x) + ", pos_y: " + str(pos_y))
-
-            if goal_lanelet_id == [[]]:
-                self._logger.error("No lanelet found at goal position!")
-                return
-
-            if goal_lanelet_id:
-                goal_lanelet = self.scenario.lanelet_network.find_lanelet_by_id(
-                    goal_lanelet_id[0][0]
-                )
-                left_vertices = goal_lanelet.left_vertices
-                right_vertices = goal_lanelet.right_vertices
-                goal_lanelet_width = np.linalg.norm(left_vertices[0] - right_vertices[0])
-            else:
-                goal_lanelet_width = 3.0
-
-            region = Rectangle(
-                length=self.ego_vehicle_handler.vehicle_length
-                + 0.25 * self.ego_vehicle_handler.vehicle_length,
-                width=goal_lanelet_width,
-                center=position,
-                orientation=orientation,
-            )
-            goal_state = CustomState(
-                position=region,
-                time_step=Interval(0, 1000),
-                velocity=velocity_interval,
-            )
-
-            goal_region = GoalRegion([goal_state])
-            self.planning_problem = PlanningProblem(
-                planning_problem_id=1,
-                initial_state=self.ego_vehicle_handler.ego_vehicle_state,
-                goal_region=goal_region,
-            )
-            self._logger.info("Set new goal active!")
-            self.route_planner.plan(self.planning_problem)
-            self.velocity_planner.send_reference_path(
-                [
-                    utils.utm2map(self.origin_transformation, point)
-                    for point in self.route_planner.reference_path
-                ],
-                self.current_goal_msg.pose.position,
-            )
-            self._pub_goals()
-            self.set_state(AutowareState.WAITING_FOR_ENGAGE)
-            self.route_planned = True
-
-
-
-
-
 
             self.waiting_for_velocity_0 = False    
         else:
@@ -1158,6 +1056,21 @@ class Cr2Auto(Node):
             self.waiting_for_velocity_0 = True
             self._logger.info("Stop button pressed!")
             self.set_state(AutowareState.WAITING_FOR_ENGAGE)
+            
+            self.route_planner.plan(self.planning_problem)
+            self.velocity_planner.send_reference_path(
+                [
+                    utils.utm2map(self.origin_transformation, point)
+                    for point in self.route_planner.reference_path
+                ],
+                self.current_goal_msg.pose.position,
+            )
+            # self._pub_goals()
+            # self.set_state(AutowareState.WAITING_FOR_ENGAGE)
+            # self.route_planned = True
+     
+
+
                         
         """
         # reset follow sultion trajectory simulation if interface is in trajectory follow mode and goal is reached
