@@ -552,7 +552,7 @@ class Cr2Auto(Node):
                     if not self.route_planner.reference_path_published:
                         # publish current reference path
                         point_list, reference_velocities = self.velocity_planner.get_reference_velocities()
-                        #Post process reference path z coordinate
+                        # post process reference path z coordinate
                         for point in point_list: 
                             point.z = self.scenario_handler.get_z_coordinate()
                         self.route_planner._pub_route(point_list, reference_velocities)
@@ -801,46 +801,45 @@ class Cr2Auto(Node):
 
     def routing_state_callback(self, msg: RouteState) -> None:
         """
-        Callback to routing state. If routing state is 1 clear route and set route planned to false.
+        Callback to routing state. Checks if clear route button was pressed.
         """
-        # clear route if clear_route button is pressed in RVIZ 
-        # (routing state gets set to UNSET when clear_route button is pressed)
-        # (AutowareState has to be PLANNING or WAITING_FOR_ENGAGE so that clear_route button is enabled) 
-        # (if AutowareState is DRIVING, we first have to wait until velocity is zero and then clear route)
-        self.routing_state = msg.state
 
+        self.routing_state = msg.state
+       
+        # clear route if clear_route button is pressed in RVIZ 
+        # routing state gets set to UNSET when clear_route button is pressed
         if msg.state == RouteState.UNSET:
+            # save last AutowareState and Time Stamp
             aw_stamp = self.last_msg_aw_stamp
             aw_state = self.last_msg_aw_state
-            self._logger.debug("AutowareState: " + str(aw_state) + " with Time Stamp: " + str(aw_stamp))
 
-            # !!! sleep is necessary because the AutowareState is not set correctly when the clear_route button is pressed !!!
+            # check for correct AutowareState:
             # set_state() method is setting a wrong AutowareState with Time Stamp 0.0, so we have to wait until a correct AutowareState is published
-            #autoware_state_stamp = autoware_state.stamp
-            #autoware_state_state = autoware_state.state
-            #self._logger.debug("AutowareState: " + str(autoware_state_state) + " with Time Stamp: " + str(autoware_state_stamp))
             if aw_stamp.sec == 0:
-                self._logger.info("set_state() published wrong AutowareState. Waiting for new AutowareState message!")
+                self._logger.info("set_state() published AutowareState with Time Stamp: 0. Waiting for new AutowareState message!")
+                # !!! Sleep time implemented to wait for correct AutowareState !!!
+                # !!! Waiting time is depending on the AutowareState publisher rate !!!
                 time.sleep(0.11)
                 aw_stamp = self.last_msg_aw_stamp
                 aw_state = self.last_msg_aw_state
-                self._logger.debug("AutowareState: " + str(aw_state) + " with Time Stamp: " + str(aw_stamp))
 
-
+                # check if AutowareState is still wrong and wait again
+                # wrong AutowareState with Time Stamp 0.0 is published in total 2 times. No further waiting is necessary.
                 if aw_stamp.sec == 0:
-                    self._logger.info("set_state() published wrong AutowareState. Waiting for new AutowareState message!")
+                    self._logger.info("set_state() published AutowareState with Time Stamp: 0. Waiting for new AutowareState message!")
+                    # !!! Sleep time implemented to wait for correct AutowareState !!!
+                    # !!! Waiting time is depending on the AutowareState publisher rate !!!
                     time.sleep(0.11)
-                    aw_state = self.last_msg_aw_state
-                    
                     aw_stamp = self.last_msg_aw_stamp
                     aw_state = self.last_msg_aw_state
-                    self._logger.debug("AutowareState: " + str(aw_state) + " with Time Stamp: " + str(aw_stamp))
 
+            # only clear route if AutowareState is PLANNING or WAITING_FOR_ENGAGE or DRIVING
+            # for DRIVING we have to wait until velocity is zero before clearing the route
             if aw_state == AutowareState.PLANNING or aw_state == AutowareState.WAITING_FOR_ENGAGE:
-                self._logger.debug("Clearing route!")
+                self._logger.info("Clearing route!")
                 self.clear_route()
             elif aw_state == AutowareState.DRIVING:
-                self._logger.debug("Clear route while driving!")
+                self._logger.info("Clear route while driving!")
                 self.waiting_for_velocity_0 = True
                 self.clear_route()
         
@@ -861,7 +860,7 @@ class Cr2Auto(Node):
         :param msg: Goal Pose message
         """
         self._logger.info("Received new goal pose!")
-        #Post process goal pose z coordinate
+        # post process goal pose z coordinate
         msg.pose.position.z = self.scenario_handler.get_z_coordinate()
 
         self.goal_msgs.append(msg)
@@ -873,7 +872,7 @@ class Cr2Auto(Node):
         # autoware requires that the reference path has to be published again when new goals are published
         if self.velocity_planner.get_is_velocity_planning_completed():
             point_list, reference_velocities = self.velocity_planner.get_reference_velocities()
-            #Post process reference path z coordinate
+            # post process reference path z coordinate
             for point in point_list: 
                 point.z = self.scenario_handler.get_z_coordinate()
             self.route_planner._pub_route(point_list, reference_velocities)
@@ -1098,7 +1097,7 @@ class Cr2Auto(Node):
         for i in range(0, len(states)):
             new_point = TrajectoryPoint()
             new_point.pose.position = utils.utm2map(self.origin_transformation, states[i].position)
-            #Post process trajectory z coordinate
+            # post process trajectory z coordinate
             new_point.pose.position.z = self.scenario_handler.get_z_coordinate()
             position_list.append([states[i].position[0], states[i].position[1], self.scenario_handler.get_z_coordinate()])
             new_point.pose.orientation = utils.orientation2quaternion(states[i].orientation)
