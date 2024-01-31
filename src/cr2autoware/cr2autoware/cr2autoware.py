@@ -1056,6 +1056,7 @@ class Cr2Auto(Node):
             self._logger.info("Stop button pressed!")
             self.set_state(AutowareState.WAITING_FOR_ENGAGE)
             
+            # Replan the route and update the velocity profile
             self.route_planner.plan(self.planning_problem)
             self.velocity_planner.send_reference_path(
                 [
@@ -1064,13 +1065,7 @@ class Cr2Auto(Node):
                 ],
                 self.current_goal_msg.pose.position,
             )
-            # self._pub_goals()
-            # self.set_state(AutowareState.WAITING_FOR_ENGAGE)
-            # self.route_planned = True
-     
-
-
-                        
+                  
         """
         # reset follow sultion trajectory simulation if interface is in trajectory follow mode and goal is reached
         if not self.interactive_mode and self.get_state() == AutowareState.ARRIVED_GOAL:
