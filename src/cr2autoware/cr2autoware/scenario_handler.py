@@ -265,7 +265,7 @@ class ScenarioHandler:
         road_boundary_collision_object = create_road_boundary_obstacle(self._scenario,
                                                                        method='obb_rectangles',
                                                                        width=2e-3,
-                                                                       return_scenario_obstacle=True)
+                                                                       return_scenario_obstacle=False)
 
         return road_boundary_collision_object
 
