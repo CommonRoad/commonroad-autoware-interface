@@ -6,6 +6,9 @@ from commonroad.scenario.scenario import Scenario
 from commonroad.planning.planning_problem import PlanningProblem
 from commonroad.scenario.state import CustomState
 
+# commonroad-dc
+import commonroad_dc.pycrcc as pycrcc
+
 # route planner
 from commonroad_route_planner.route_planner import Route
 
@@ -35,6 +38,7 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
                  verbose: bool,
                  scenario: Scenario,
                  planning_problem: PlanningProblem,
+                 road_boundary: pycrcc.CollisionObject,
                  dt: float,
                  horizon: float,
                  rp_interface_params: RPInterfaceParams,
@@ -48,6 +52,9 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
 
         # set scenario
         self.scenario = scenario
+
+        # set road boundary
+        self._road_boundary = road_boundary
 
         # create reactive planner config
         rp_config = ReactivePlannerConfiguration().load(rp_interface_params.path_rp_config)
@@ -87,7 +94,8 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
         self._planner.set_desired_velocity(desired_velocity=reference_velocity, current_speed=current_state.velocity)
 
         # update collision checker (self.scenario is updated continuously as it is a reference to the scenario handler)
-        self._planner.set_collision_checker(self.scenario)
+        # TODO split creation of road boundary
+        self._planner.set_collision_checker(self.scenario, road_boundary_obstacle=self._road_boundary)
 
         # reset planner state
         if not hasattr(current_state, "acceleration"):

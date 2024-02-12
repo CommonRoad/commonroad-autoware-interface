@@ -409,6 +409,7 @@ class Cr2Auto(Node):
                                             self.verbose,
                                             self.scenario,
                                             self.planning_problem,
+                                            self.scenario_handler.road_boundary,
                                             self.scenario.dt,
                                             self.params.trajectory_planner.planning_horizon,
                                             self.params.rp_interface,
