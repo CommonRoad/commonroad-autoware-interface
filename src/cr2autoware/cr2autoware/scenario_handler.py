@@ -1,3 +1,4 @@
+# standard imports
 from decimal import Decimal
 import glob
 import math
@@ -8,9 +9,27 @@ from typing import Dict
 from typing import List
 from typing import Union
 
+# third party
+import numpy as np
+from pyproj import Proj
+import utm
+import yaml
+
+# ROS msgs
+from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseWithCovarianceStamped
+from rcl_interfaces.msg import ParameterValue
+from rclpy.impl.rcutils_logger import RcutilsLogger
+from rclpy.publisher import Publisher
+from std_msgs.msg import Header
+
+# Autoware msgs
 from autoware_auto_perception_msgs.msg import DetectedObjects  # type: ignore
 from autoware_auto_perception_msgs.msg import PredictedObjects  # type: ignore
 from autoware_auto_planning_msgs.msg import TrajectoryPoint  # type: ignore
+from dummy_perception_publisher.msg import Object  # type: ignore
+
+# commonroad-io imports
 from commonroad.common.file_reader import CommonRoadFileReader
 from commonroad.geometry.shape import Rectangle
 from commonroad.prediction.prediction import TrajectoryPrediction
@@ -20,21 +39,17 @@ from commonroad.scenario.obstacle import StaticObstacle
 from commonroad.scenario.scenario import Scenario as CRScenario
 from commonroad.scenario.state import InitialState
 from commonroad.scenario.state import TraceState
+
+# commonroad-dc imports
+from commonroad_dc.boundary.boundary import create_road_boundary_obstacle
+
+# crdesigner imports
 from crdesigner.common.config.lanelet2_config import lanelet2_config
 from crdesigner.map_conversion.map_conversion_interface import lanelet_to_commonroad
-from dummy_perception_publisher.msg import Object  # type: ignore
-from geometry_msgs.msg import PoseStamped
-from geometry_msgs.msg import PoseWithCovarianceStamped
-import numpy as np
-from pyproj import Proj
-from rcl_interfaces.msg import ParameterValue
-from rclpy.impl.rcutils_logger import RcutilsLogger
-from rclpy.publisher import Publisher
-from std_msgs.msg import Header
-import utm
-import yaml
 
+# cr2autowar
 import cr2autoware.utils as utils
+
 
 # Avoid circular imports
 if typing.TYPE_CHECKING:
@@ -92,6 +107,7 @@ class ScenarioHandler:
         self._scenario = self._load_initial_scenario(
             self.MAP_PATH, projection_string, self.LEFT_DRIVING, self.ADJACENCIES, dt=dt
         )
+        self._road_boundary = self._create_initial_road_boundary()
         self._origin_transformation = self._get_origin_transformation(
             map_config, Proj(projection_string), self._scenario
         )
@@ -236,6 +252,22 @@ class ScenarioHandler:
         self._initial_obstacles.extend(scenario.dynamic_obstacles)
         return scenario
 
+    def _create_initial_road_boundary(self):
+        """
+        Creates road boundary collision obstacles for the lanelet network of the loaded scenario.
+        Currently, we assume that the lanelet network of the initial map is fixed.
+        """
+        if self._scenario is None:
+            self._logger.error("ScenarioHandler._create_initial_road_boundary(): No CR scenario given.")
+
+        # TODO: make method and params configurable
+        road_boundary_collision_object = create_road_boundary_obstacle(self._scenario,
+                                                                       method='obb_rectangles',
+                                                                       width=2e-3,
+                                                                       return_scenario_obstacle=True)
+
+        return road_boundary_collision_object
+
     def _build_scenario_from_commonroad(self, map_filename_cr: str) -> CRScenario:
         self._logger.info(
             "Found a CommonRoad scenario file inside the directory. "
@@ -308,6 +340,10 @@ class ScenarioHandler:
     @property
     def scenario(self) -> CRScenario:
         return self._scenario
+
+    @property
+    def road_boundary(self):
+        return self._road_boundary
 
     @property
     def origin_transformation(self) -> List[Union[float, Any]]:
