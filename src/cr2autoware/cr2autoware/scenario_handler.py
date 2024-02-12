@@ -41,6 +41,7 @@ from commonroad.scenario.state import InitialState
 from commonroad.scenario.state import TraceState
 
 # commonroad-dc imports
+import commonroad_dc.pycrcc as pycrcc
 from commonroad_dc.boundary.boundary import create_road_boundary_obstacle
 
 # crdesigner imports
@@ -252,7 +253,7 @@ class ScenarioHandler:
         self._initial_obstacles.extend(scenario.dynamic_obstacles)
         return scenario
 
-    def _create_initial_road_boundary(self):
+    def _create_initial_road_boundary(self) -> pycrcc.CollisionObject:
         """
         Creates road boundary collision obstacles for the lanelet network of the loaded scenario.
         Currently, we assume that the lanelet network of the initial map is fixed.
@@ -342,7 +343,7 @@ class ScenarioHandler:
         return self._scenario
 
     @property
-    def road_boundary(self):
+    def road_boundary(self) -> pycrcc.CollisionObject:
         return self._road_boundary
 
     @property

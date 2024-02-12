@@ -94,7 +94,6 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
         self._planner.set_desired_velocity(desired_velocity=reference_velocity, current_speed=current_state.velocity)
 
         # update collision checker (self.scenario is updated continuously as it is a reference to the scenario handler)
-        # TODO split creation of road boundary
         self._planner.set_collision_checker(self.scenario, road_boundary_obstacle=self._road_boundary)
 
         # reset planner state
