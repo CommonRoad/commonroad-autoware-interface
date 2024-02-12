@@ -37,6 +37,6 @@ sampling:
   d_max: 1.5
 
 debug:
-  multiproc: True
+  multiproc: False
   num_workers: 6
   logging_level: "INFO"
