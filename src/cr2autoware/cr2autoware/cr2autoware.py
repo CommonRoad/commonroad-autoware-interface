@@ -4,11 +4,13 @@ import os
 import traceback
 from typing import Optional
 from dataclasses import asdict, fields
+import time
 
 # third party imports
 import numpy as np
 import yaml
 import matplotlib
+
 if os.environ.get('DISPLAY') is not None:
     matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
@@ -176,10 +178,12 @@ class Cr2Auto(Node):
         self.tf_buffer = Buffer(cache_time=rclpy.duration.Duration(seconds=10.0))
         self.tf_listener = TransformListener(self.tf_buffer, self)  # convert among frames
 
-        # initialize AutowareState and Engage Status and Auto Button Status
+        # initialize AutowareState and Engage Status and Auto Button Status and waiting_for_velocity_0 and Routing State
         self.aw_state = AutowareState()
         self.engage_status = False
         self.auto_button_status = False
+        self.waiting_for_velocity_0 = False
+        self.routing_state = RouteState()
 
         # vars to save last messages
         # https://github.com/tier4/autoware_auto_msgs/blob/tier4/main/autoware_auto_system_msgs/msg/AutowareState.idl
@@ -224,7 +228,22 @@ class Cr2Auto(Node):
             1,
             callback_group=self.callback_group,
         )
-
+        # subscribe routing state
+        self.routing_state_sub = self.create_subscription(
+            RouteState,
+            "/api/routing/state",
+            self.routing_state_callback,
+            1,
+            callback_group=self.callback_group,
+        )
+        # subscribe autoware state
+        self.autoware_state_sub = self.create_subscription(
+            AutowareState,
+            "/autoware/state",
+            self.state_callback,
+            1,
+            callback_group=self.callback_group,
+        )
         # ========= Publishers =========
         # publish goal pose
         self.goal_pose_pub = self.create_publisher(
@@ -314,6 +333,7 @@ class Cr2Auto(Node):
 
         # ========= Service Clients =========
         # client for change to stop service call (only for publishing "stop" if goal arrived)
+
         self.change_to_stop_client = self.create_client(
             ChangeOperationMode, 
             "/api/operation_mode/change_to_stop"
@@ -523,7 +543,7 @@ class Cr2Auto(Node):
                     if not self.route_planner.reference_path_published:
                         # publish current reference path
                         point_list, reference_velocities = self.velocity_planner.get_reference_velocities()
-                        #Post process reference path z coordinate
+                        # post process reference path z coordinate
                         for point in point_list: 
                             point.z = self.scenario_handler.get_z_coordinate()
                         self.route_planner._pub_route(point_list, reference_velocities)
@@ -706,13 +726,68 @@ class Cr2Auto(Node):
         self.new_initial_pose = True
         self.ego_vehicle_handler.new_pose_received = False
 
+    def routing_state_callback(self, msg: RouteState) -> None:
+        """
+        Callback to routing state. Checks if clear route button was pressed.
+        """
+
+        self.routing_state = msg.state
+       
+        # clear route if clear_route button is pressed in RVIZ 
+        # routing state gets set to UNSET when clear_route button is pressed
+        if msg.state == RouteState.UNSET:
+            # save last AutowareState and Time Stamp
+            aw_stamp = self.last_msg_aw_stamp
+            aw_state = self.last_msg_aw_state
+
+            # check for correct AutowareState:
+            # set_state() method is setting a wrong AutowareState with Time Stamp 0.0, so we have to wait until a correct AutowareState is published
+            if aw_stamp.sec == 0:
+                self._logger.info("set_state() published AutowareState with Time Stamp: 0. Waiting for new AutowareState message!")
+                # !!! Sleep time implemented to wait for correct AutowareState !!!
+                # !!! Waiting time is depending on the AutowareState publisher rate !!!
+                time.sleep(0.11)
+                aw_stamp = self.last_msg_aw_stamp
+                aw_state = self.last_msg_aw_state
+
+                # check if AutowareState is still wrong and wait again
+                # wrong AutowareState with Time Stamp 0.0 is published in total 2 times. No further waiting is necessary.
+                if aw_stamp.sec == 0:
+                    self._logger.info("set_state() published AutowareState with Time Stamp: 0. Waiting for new AutowareState message!")
+                    # !!! Sleep time implemented to wait for correct AutowareState !!!
+                    # !!! Waiting time is depending on the AutowareState publisher rate !!!
+                    time.sleep(0.11)
+                    aw_stamp = self.last_msg_aw_stamp
+                    aw_state = self.last_msg_aw_state
+
+            # only clear route if AutowareState is PLANNING or WAITING_FOR_ENGAGE or DRIVING
+            # for DRIVING we have to wait until velocity is zero before clearing the route
+            if aw_state == AutowareState.PLANNING or aw_state == AutowareState.WAITING_FOR_ENGAGE:
+                self._logger.info("Clearing route!")
+                self.clear_route()
+            elif aw_state == AutowareState.DRIVING:
+                self._logger.info("Clear route while driving!")
+                self.waiting_for_velocity_0 = True
+                self.clear_route()
+        
+    def clear_route(self):
+        """
+        Clear route and set AutowareState to WAITING_FOR_ROUTE.
+        """
+        self.route_planned = False
+        self.planning_problem = None
+        self.set_state(AutowareState.WAITING_FOR_ROUTE)
+
+        # publish empty trajectory
+        self.route_planner._pub_route([], [])
+
     def goal_pose_callback(self, msg: PoseStamped) -> None:
         """
         Callback to goal pose. Safe message to goal message list and set as active goal if no goal is active.
         :param msg: Goal Pose message
         """
         self._logger.info("Received new goal pose!")
-        #Post process goal pose z coordinate
+        # post process goal pose z coordinate
         msg.pose.position.z = self.scenario_handler.get_z_coordinate()
 
         self.goal_msgs.append(msg)
@@ -724,7 +799,7 @@ class Cr2Auto(Node):
         # autoware requires that the reference path has to be published again when new goals are published
         if self.velocity_planner.get_is_velocity_planning_completed():
             point_list, reference_velocities = self.velocity_planner.get_reference_velocities()
-            #Post process reference path z coordinate
+            # post process reference path z coordinate
             for point in point_list: 
                 point.z = self.scenario_handler.get_z_coordinate()
             self.route_planner._pub_route(point_list, reference_velocities)
@@ -755,6 +830,23 @@ class Cr2Auto(Node):
             change_to_stop_response = self.change_to_stop_client.call(self.change_to_stop_request)
             # set /vehicle/engage to False if goal arrived
             self.engage_status = False
+        elif self.waiting_for_velocity_0:
+            # wait until velocity is zero
+            init_state = self.ego_vehicle_handler.ego_vehicle_state
+            start_time = time.time()
+            while abs(init_state.velocity) > 0.01:
+                init_state = self.ego_vehicle_handler.ego_vehicle_state
+                # self._logger.debug("Stop initiated! Velocity is not zero.")
+                self._logger.debug("Velocity: " + str(init_state.velocity))
+                if time.time() - start_time > 15:
+                    self._logger.error("Stop initiated! Velocity is not zero. Timeout!")
+                    break
+                time.sleep(0.5)
+            # set /vehicle/engage to False if stop button is pressend and velocity of vehicle is zero
+            self.engage_status = False
+            self._logger.debug("Vehicle stoped! Setting /vehicle/engage to False")
+
+            self.waiting_for_velocity_0 = False    
         else:
             self.engage_status = False
 
@@ -865,6 +957,7 @@ class Cr2Auto(Node):
         Callback to autoware state. Save the message for later processing.
         :param msg: autoware state message
         """
+        self.last_msg_aw_stamp = msg.stamp
         self.last_msg_aw_state = msg.state
 
     # The engage signal is sent by the tum_state_rviz_plugin
@@ -880,7 +973,7 @@ class Cr2Auto(Node):
         )
 
         # Update Autoware state panel
-        if self.auto_button_status and self.get_state() == AutowareState.WAITING_FOR_ENGAGE:
+        if self.auto_button_status and self.get_state() == AutowareState.WAITING_FOR_ENGAGE and self.routing_state != RouteState.UNSET:
             self.set_state(AutowareState.DRIVING)
             if self.PUBLISH_OBSTACLES:  # publish obstacle at once after engaged
                 self.scenario_handler.publish_initial_obstacles()
@@ -889,6 +982,21 @@ class Cr2Auto(Node):
         if not self.engage_status and self.get_state() == AutowareState.DRIVING:
             self.set_state(AutowareState.WAITING_FOR_ENGAGE)
 
+        if not self.auto_button_status and self.get_state() == AutowareState.DRIVING and self.routing_state == RouteState.SET:
+            self.waiting_for_velocity_0 = True
+            self._logger.info("Stop button pressed!")
+            self.set_state(AutowareState.WAITING_FOR_ENGAGE)
+            
+            # Replan the route and update the velocity profile
+            self.route_planner.plan(self.planning_problem)
+            self.velocity_planner.send_reference_path(
+                [
+                    utils.utm2map(self.origin_transformation, point)
+                    for point in self.route_planner.reference_path
+                ],
+                self.current_goal_msg.pose.position,
+            )
+                  
         """
         # reset follow sultion trajectory simulation if interface is in trajectory follow mode and goal is reached
         if not self.interactive_mode and self.get_state() == AutowareState.ARRIVED_GOAL:

@@ -121,8 +121,8 @@ class ScenarioHandler:
         self._init_publishers(self._node)
 
         # Initialize list of current z values
-        self._z_list = [None, None] #[initial_pose_z, goal_pose_z]
-        self._initialpose3d_z = 0.0 # z value of initialpose3d
+        self._z_list = [None, None]  # [initial_pose_z, goal_pose_z]
+        self._initialpose3d_z = 0.0  # z value of initialpose3d
 
     def _init_parameters(self) -> None:
         def _get_parameter(name: str) -> ParameterValue:
@@ -597,37 +597,37 @@ class ScenarioHandler:
             self._logger.debug(utils.log_obstacle(object_msg, isinstance(obstacle, StaticObstacle)))
 
     def get_z_coordinate(self):
-        """calculate the mean of the z coordinate from initial_pose and goal_pose"""
+        """Calculate the mean of the z coordinate from initial_pose and goal_pose."""
         new_initial_pose_z = None
         new_goal_pose_z = None
-        initial_pose_z = self._z_list[0]
         goal_pose_z = self._z_list[1]
 
         new_initial_pose = self._last_msg.get("initial_pose")
         new_goal_pose = self._last_msg.get("goal_pose")   
  
+        # only consider values if z is not None or 0.0
         if new_initial_pose is not None and new_initial_pose.pose.pose.position.z != 0.0:       
             new_initial_pose_z = new_initial_pose.pose.pose.position.z
 
         if new_goal_pose is not None and new_goal_pose.pose.position.z != 0.0:
             new_goal_pose_z = new_goal_pose.pose.position.z
 
-        #check if new goal_pose or initial_pose is published
+        # check if new goal_pose or initial_pose is published
         if new_goal_pose_z != goal_pose_z:
             if new_initial_pose_z != self._initialpose3d_z and new_initial_pose_z is not None:
-                #both initial_pose and goal_pose changed
+                # both initial_pose and goal_pose changed
                 self._initialpose3d_z = new_initial_pose_z
                 self._z_list[0] = new_initial_pose_z
                 self._z_list[1] = new_goal_pose_z
             elif goal_pose_z is None:
-                #goal_pose initially None and now changed
+                # goal_pose initially None and now changed (first GoalPose got published)
                 self._z_list[1] = new_goal_pose_z
             else:
-                #only goal_pose changed and goal_pose was not None before
+                # only goal_pose changed and goal_pose was not None before (new GoalPose got published)
                 self._z_list[0] = goal_pose_z
                 self._z_list[1] = new_goal_pose_z
         elif new_initial_pose_z != self._initialpose3d_z and new_initial_pose_z is not None:
-            #only initial_pose changed; set goal_pose to None
+            # only initial_pose changed; set goal_pose to None
             self._initialpose3d_z = new_initial_pose_z
             self._z_list[0] = new_initial_pose_z
             self._z_list[1] = None
