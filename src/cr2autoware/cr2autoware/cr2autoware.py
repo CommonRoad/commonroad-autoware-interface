@@ -345,7 +345,8 @@ class Cr2Auto(Node):
         self.set_state(AutowareState.WAITING_FOR_ROUTE)
 
         # get trajectory_planner_type
-        self.trajectory_planner_type = (self.get_parameter("trajectory_planner.trajectory_planner_type").get_parameter_value().integer_value)
+        self.trajectory_planner_type = \
+            self.get_parameter("trajectory_planner.trajectory_planner_type").get_parameter_value().integer_value
 
         # set route planner
         self.route_planner = self._set_route_planner()
@@ -475,7 +476,7 @@ class Cr2Auto(Node):
         (Can be removed if external_velocity_limit_selector node is used)
         """
         # set limit
-        self.external_velocity_limit = max(0, vel_limit)
+        self.external_velocity_limit = max(0.0, vel_limit)
 
         # publish velocity limit message
         vel_limit_msg = VelocityLimit()
@@ -507,7 +508,8 @@ class Cr2Auto(Node):
 
                 # check if initial pose was changed (if true: recalculate reference path)
                 if self.new_initial_pose:
-                    # check if the current_vehicle_state was already updated (=pose received by current state callback), otherwise wait one planning cycle
+                    # check if the current_vehicle_state was already updated (pose received by current state callback),
+                    # otherwise wait one planning cycle
                     if not self.ego_vehicle_handler.new_pose_received:
                         self.is_computing_trajectory = False
                         return
@@ -516,7 +518,8 @@ class Cr2Auto(Node):
                     self.ego_vehicle_handler.new_pose_received = False
                     self._logger.info("Replanning route to goal")
 
-                    # insert current goal into list of goal messages and set route_planned to false to trigger route planning
+                    # insert current goal into list of goal messages
+                    # set route_planned to false to trigger route planning
                     if self.current_goal_msg:
                         self.goal_msgs.insert(0, self.current_goal_msg)
                     self.route_planned = False
@@ -534,7 +537,8 @@ class Cr2Auto(Node):
                             "Can't run route planner because interface is still waiting for velocity planner"
                         )
                         self.velocity_planner.send_reference_path(
-                            [utils.utm2map(self.origin_transformation, point) for point in self.route_planner.reference_path],
+                            [utils.utm2map(self.origin_transformation, point)
+                             for point in self.route_planner.reference_path],
                             self.current_goal_msg.pose.position,
                         )
                         self.is_computing_trajectory = False
@@ -569,6 +573,7 @@ class Cr2Auto(Node):
 
                         # The initial velocity needs to be increase here due to a hardcoded velocity threshold in
                         # AW. Universe Shift_Decider Package (If velocity is below 0.01, the gear will remain in park)
+                        # TODO remove deepcopy from loop!
                         init_state = deepcopy(self.ego_vehicle_handler.ego_vehicle_state)
                         if init_state.velocity < 0.01:
                             init_state.velocity = 0.01

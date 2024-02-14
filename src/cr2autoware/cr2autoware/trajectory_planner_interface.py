@@ -18,10 +18,7 @@ from commonroad.planning.goal import GoalRegion
 
 # cr2autoware imports
 import cr2autoware.utils as utils
-
-# Avoid circular imports
-if typing.TYPE_CHECKING:
-    from cr2autoware.cr2autoware import Cr2Auto
+from cr2autoware.ego_vehicle_handler import EgoVehicleState
 
 
 class TrajectoryPlannerInterface(ABC):
@@ -61,7 +58,7 @@ class TrajectoryPlannerInterface(ABC):
         pass
 
     @abstractmethod
-    def plan(self, current_state: TraceState, goal: GoalRegion, **kwargs):
+    def plan(self, current_state: EgoVehicleState, goal: GoalRegion, **kwargs):
         """Plans a trajectory. The planning algorithm is implemented in the respective planner (self._planner)"""
         pass
 

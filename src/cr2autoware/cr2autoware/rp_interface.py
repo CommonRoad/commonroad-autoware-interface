@@ -4,7 +4,6 @@ import numpy as np
 # commonroad imports
 from commonroad.scenario.scenario import Scenario
 from commonroad.planning.planning_problem import PlanningProblem
-from commonroad.scenario.state import CustomState
 
 # commonroad-dc
 import commonroad_dc.pycrcc as pycrcc
@@ -21,7 +20,7 @@ from commonroad_rp.reactive_planner import ReactivePlanner
 
 # cr2autoware
 from cr2autoware.configuration import RPInterfaceParams
-from cr2autoware.ego_vehicle_handler import EgoVehicleHandler
+from cr2autoware.ego_vehicle_handler import EgoVehicleHandler, EgoVehicleState
 from cr2autoware.trajectory_planner_interface import TrajectoryPlannerInterface
 
 # ROS imports
@@ -88,7 +87,7 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
         # init trajectory planner
         self._planner: ReactivePlanner = reactive_planner
 
-    def plan(self, current_state: CustomState, goal, reference_velocity=None):
+    def plan(self, current_state: EgoVehicleState, goal, reference_velocity=None):
         """Overrides plan method from base class and calls the planning algorithm of the reactive planner"""
         # set reference velocity for planner
         self._planner.set_desired_velocity(desired_velocity=reference_velocity, current_speed=current_state.velocity)

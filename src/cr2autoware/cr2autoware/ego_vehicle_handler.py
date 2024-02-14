@@ -1,9 +1,7 @@
 # standard imports
-import os
 import typing
-from typing import Any
-from typing import Dict
 from typing import Optional
+from dataclasses import dataclass
 
 # third party imports
 import numpy as np
@@ -21,10 +19,9 @@ from rclpy.logging import LoggingSeverity
 
 # commonroad imports
 from commonroad.geometry.shape import Rectangle
-from commonroad.prediction.prediction import TrajectoryPrediction
 from commonroad.scenario.obstacle import DynamicObstacle
 from commonroad.scenario.obstacle import ObstacleType
-from commonroad.scenario.state import CustomState
+from commonroad.scenario.state import InitialState, FloatExactOrInterval
 
 # cr2autoware imports
 import cr2autoware.utils as utils
@@ -32,6 +29,15 @@ import cr2autoware.utils as utils
 # Avoid circular imports
 if typing.TYPE_CHECKING:
     from cr2autoware.cr2autoware import Cr2Auto
+
+
+@dataclass(eq=False)
+class EgoVehicleState(InitialState):
+    """
+    CommonRoad state class or the ego vehicle
+    Extends the default initial state class by attribute steering angle
+    """
+    steering_angle: FloatExactOrInterval = None
 
 
 class EgoVehicleHandler:
@@ -50,7 +56,7 @@ class EgoVehicleHandler:
 
     _logger: RcutilsLogger
 
-    _ego_vehicle_state: Optional[CustomState] = None
+    _ego_vehicle_state: Optional[EgoVehicleState] = None
     _current_vehicle_state = None
     _node: "Cr2Auto"
     _vehicle_length: Optional[float] = None
@@ -65,7 +71,7 @@ class EgoVehicleHandler:
     _OBSTACLE_PUBLISHER: Publisher
 
     @property
-    def ego_vehicle_state(self) -> Optional[CustomState]:
+    def ego_vehicle_state(self) -> Optional[EgoVehicleState]:
         return self._ego_vehicle_state
 
     @property
@@ -191,7 +197,7 @@ class EgoVehicleHandler:
 
             acceleration = self._current_vehicle_acc.accel.accel.linear.x
 
-            self._ego_vehicle_state = CustomState(
+            self._ego_vehicle_state = EgoVehicleState(
                 position=position,
                 orientation=orientation,
                 velocity=self._current_vehicle_state.twist.twist.linear.x,
