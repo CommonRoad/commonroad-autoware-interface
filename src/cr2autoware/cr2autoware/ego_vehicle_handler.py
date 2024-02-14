@@ -176,7 +176,7 @@ class EgoVehicleHandler:
                 temp_pose_stamped = PoseStamped()
                 temp_pose_stamped.header = self._current_vehicle_state.header
                 temp_pose_stamped.pose = self._current_vehicle_state.pose.pose
-                pose_transformed = self.transform_pose(temp_pose_stamped, "map")
+                pose_transformed = self._node.transform_pose(temp_pose_stamped, "map")
                 position = utils.map2utm(
                     self._node.origin_transformation, pose_transformed.pose.position
                 )
