@@ -178,7 +178,7 @@ class Cr2Auto(Node):
         self.tf_buffer = Buffer(cache_time=rclpy.duration.Duration(seconds=10.0))
         self.tf_listener = TransformListener(self.tf_buffer, self)  # convert among frames
 
-        # initialize AutowareState and Engage Status and Auto Button Status and waiting_for_velocity_0 and Routing State
+        # initialize AW API-related variables
         self.aw_state = AutowareState()
         self.engage_status = False
         self.auto_button_status = False
@@ -728,43 +728,48 @@ class Cr2Auto(Node):
 
     def routing_state_callback(self, msg: RouteState) -> None:
         """
-        Callback to routing state. Checks if clear route button was pressed.
+        Callback to routing state. Checks if "Clear route" button was pressed.
+        Pressing the "Clear Route" button in RVIZ sets the routing state to UNSET. Then the currently planned route and
+        reference path should be removed.
         """
-
         self.routing_state = msg.state
        
-        # clear route if clear_route button is pressed in RVIZ 
-        # routing state gets set to UNSET when clear_route button is pressed
+        # routing state = UNSET when"Clear route" button is pressed in RVIZ
         if msg.state == RouteState.UNSET:
             # save last AutowareState and Time Stamp
             aw_stamp = self.last_msg_aw_stamp
             aw_state = self.last_msg_aw_state
 
             # check for correct AutowareState:
-            # set_state() method is setting a wrong AutowareState with Time Stamp 0.0, so we have to wait until a correct AutowareState is published
+            # set_state() method sets a wrong AutowareState with Time Stamp 0.0
+            # We have to wait until a correct AutowareState is published
             if aw_stamp.sec == 0:
-                self._logger.info("set_state() published AutowareState with Time Stamp: 0. Waiting for new AutowareState message!")
-                # !!! Sleep time implemented to wait for correct AutowareState !!!
-                # !!! Waiting time is depending on the AutowareState publisher rate !!!
+                self._logger.info("set_state() published AutowareState with Time Stamp: 0. "
+                                  "Waiting for new AutowareState message!")
+                # Sleep time implemented to wait for correct AutowareState
+                # Waiting time is depending on the AutowareState publisher rate
                 time.sleep(0.11)
                 aw_stamp = self.last_msg_aw_stamp
                 aw_state = self.last_msg_aw_state
 
                 # check if AutowareState is still wrong and wait again
-                # wrong AutowareState with Time Stamp 0.0 is published in total 2 times. No further waiting is necessary.
+                # wrong AutowareState with Time Stamp 0.0 is published in total 2 times.
+                # No further waiting is necessary.
                 if aw_stamp.sec == 0:
-                    self._logger.info("set_state() published AutowareState with Time Stamp: 0. Waiting for new AutowareState message!")
-                    # !!! Sleep time implemented to wait for correct AutowareState !!!
-                    # !!! Waiting time is depending on the AutowareState publisher rate !!!
+                    self._logger.info("set_state() published AutowareState with Time Stamp: 0. "
+                                      "Waiting for new AutowareState message!")
+                    # Sleep time implemented to wait for correct AutowareState
+                    # Waiting time is depending on the AutowareState publisher rate
                     time.sleep(0.11)
                     aw_stamp = self.last_msg_aw_stamp
                     aw_state = self.last_msg_aw_state
 
-            # only clear route if AutowareState is PLANNING or WAITING_FOR_ENGAGE or DRIVING
-            # for DRIVING we have to wait until velocity is zero before clearing the route
+            # Clear route if AutowareState is PLANNING or WAITING_FOR_ENGAGE
             if aw_state == AutowareState.PLANNING or aw_state == AutowareState.WAITING_FOR_ENGAGE:
                 self._logger.info("Clearing route!")
                 self.clear_route()
+            # Clear route if AutowareState is DRIVING: This is equivalent to first pressing STOP button and then
+            # clearing the route
             elif aw_state == AutowareState.DRIVING:
                 self._logger.info("Clear route while driving!")
                 self.waiting_for_velocity_0 = True
@@ -774,6 +779,7 @@ class Cr2Auto(Node):
         """
         Clear route and set AutowareState to WAITING_FOR_ROUTE.
         """
+        # TODO: here we need a method in the RoutePlannerInterface which handles clearing the route properly
         self.route_planned = False
         self.planning_problem = None
         self.set_state(AutowareState.WAITING_FOR_ROUTE)
@@ -844,7 +850,7 @@ class Cr2Auto(Node):
                 time.sleep(0.5)
             # set /vehicle/engage to False if stop button is pressend and velocity of vehicle is zero
             self.engage_status = False
-            self._logger.debug("Vehicle stoped! Setting /vehicle/engage to False")
+            self._logger.debug("Vehicle stopped! Setting /vehicle/engage to False")
 
             self.waiting_for_velocity_0 = False    
         else:
@@ -963,18 +969,25 @@ class Cr2Auto(Node):
     # The engage signal is sent by the tum_state_rviz_plugin
     # msg.engage sent by tum_state_rviz_plugin will always be true
     def auto_button_callback(self, msg: Engage) -> None:
+        """
+        Method handles processing of AUTO Button
+        - AUTO Button pressed: AutowareState is set to DRIVING if route is set
+        - STOP Button pressed: Stopping in standstill is initiated
+        """
         self.auto_button_status = msg.engage
         
         self._logger.info(
-            "Auto Button message received! Auto Button Status: "
+            "AUTO Button message received! Auto Button Status: "
             + str(self.auto_button_status)
             + ", current AutowareState: "
-            + str(self.get_state())
-        )
+            + str(self.get_state()))
 
         # Update Autoware state panel
-        if self.auto_button_status and self.get_state() == AutowareState.WAITING_FOR_ENGAGE and self.routing_state != RouteState.UNSET:
+        if self.auto_button_status and self.get_state() == AutowareState.WAITING_FOR_ENGAGE and \
+                self.routing_state != RouteState.UNSET:
             self.set_state(AutowareState.DRIVING)
+
+            # TODO check if needed?
             if self.PUBLISH_OBSTACLES:  # publish obstacle at once after engaged
                 self.scenario_handler.publish_initial_obstacles()
                 self.PUBLISH_OBSTACLES = False
@@ -982,20 +995,22 @@ class Cr2Auto(Node):
         if not self.engage_status and self.get_state() == AutowareState.DRIVING:
             self.set_state(AutowareState.WAITING_FOR_ENGAGE)
 
-        if not self.auto_button_status and self.get_state() == AutowareState.DRIVING and self.routing_state == RouteState.SET:
+        # STOP button handling
+        if not self.auto_button_status and self.get_state() == AutowareState.DRIVING and \
+                self.routing_state == RouteState.SET:
             self.waiting_for_velocity_0 = True
-            self._logger.info("Stop button pressed!")
+            self._logger.info(
+                "STOP Button message received! Auto Button Status: "
+                + str(self.auto_button_status) + ", current AutowareState: " + str(self.get_state()))
+
+            # waiting for standstill loop is implemented in set_state()
             self.set_state(AutowareState.WAITING_FOR_ENGAGE)
             
-            # Replan the route and update the velocity profile
+            # Re-plan the route and update the velocity profile
             self.route_planner.plan(self.planning_problem)
             self.velocity_planner.send_reference_path(
-                [
-                    utils.utm2map(self.origin_transformation, point)
-                    for point in self.route_planner.reference_path
-                ],
-                self.current_goal_msg.pose.position,
-            )
+                [utils.utm2map(self.origin_transformation, point) for point in self.route_planner.reference_path],
+                self.current_goal_msg.pose.position)
                   
         """
         # reset follow sultion trajectory simulation if interface is in trajectory follow mode and goal is reached
