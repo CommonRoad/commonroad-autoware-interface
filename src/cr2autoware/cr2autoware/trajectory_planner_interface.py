@@ -1,8 +1,7 @@
 # standard imports
 import typing
 from typing import List, Optional, Any
-from abc import ABC
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 
 # ROS imports
 from rclpy.publisher import Publisher
@@ -31,16 +30,19 @@ class TrajectoryPlannerInterface(ABC):
     _traj_pub: Publisher
     # reference to ROS logger
     _logger: RcutilsLogger
+    # verbose logging
+    _verbose: bool
 
-    def __init__(self, traj_pub: Publisher, logger: RcutilsLogger):
+    def __init__(self, traj_pub: Publisher, logger: RcutilsLogger, verbose: bool):
         """
         :param traj_pub: The ROS2 publisher to use which publishes the planned trajectory to Autoware
         """
         # initialize trajectory publisher
         self._traj_pub = traj_pub
-
         # intialize ROS logger
         self._logger = logger
+        # set logging verbosity
+        self._verbose = verbose
 
         # initialize planner class (set in child class)
         self._planner: Any = None
@@ -62,10 +64,9 @@ class TrajectoryPlannerInterface(ABC):
         """Plans a trajectory. The planning algorithm is implemented in the respective planner (self._planner)"""
         pass
 
-    def _prepare_trajectory_msg(self, origin_transformation: List, elevation: float,
-                                verbose: bool = False) -> AWTrajectory:
+    def _prepare_trajectory_msg(self, origin_transformation: List, elevation: float) -> AWTrajectory:
         """Converts the CommonRoad state list into a AWTrajectory message type for publishing to Autoware"""
-        if verbose:
+        if self._verbose:
             self._logger.info("Preparing trajectory message!")
 
         # AW Trajectory message
@@ -101,11 +102,11 @@ class TrajectoryPlannerInterface(ABC):
 
         return aw_traj
 
-    def publish_trajectory_msg(self, origin_transformation: List, elevation: float, verbose):
+    def publish(self, origin_transformation: List, elevation: float):
         """Publishes the output trajectory as AWTrajectory message type"""
-        traj_msg = self._prepare_trajectory_msg(origin_transformation, elevation, verbose)
+        traj_msg = self._prepare_trajectory_msg(origin_transformation, elevation)
 
         self._traj_pub.publish(traj_msg)
 
-        if verbose:
+        if self._verbose:
             self._logger.info("New trajectory published !!!")

@@ -1,7 +1,15 @@
+# standard imports
+from typing import Optional, Any, List
+from abc import ABC, abstractmethod
+
 # third party imports
 import numpy as np
 from scipy.interpolate import splev
 from scipy.interpolate import splprep
+
+# ROS imports
+from rclpy.publisher import Publisher
+from rclpy.impl.rcutils_logger import RcutilsLogger
 
 # commonroad-dc imports
 from commonroad_dc.geometry.util import resample_polyline, chaikins_corner_cutting, compute_curvature_from_polyline
@@ -13,6 +21,7 @@ from commonroad_route_planner.route_planner import RoutePlanner
 import cr2autoware.utils as utils
 
 
+# TODO: move to util functions
 def _simple_reduce_curvature(ref_path: np.ndarray, max_curv: float, resample_step: float = 1.0):
         max_curvature = 0.5
         iter = 0
@@ -23,6 +32,38 @@ def _simple_reduce_curvature(ref_path: np.ndarray, max_curv: float, resample_ste
             max_curvature = max(abs_curvature)
             iter += 1
         return ref_path
+
+
+class RoutePlannerInterfaceABC(ABC):
+    """
+    Abstract base class for a route planner interface.
+    Defines basic attributes and abstract methods to be implemented by derived route planners.
+    """
+
+    # reference to route publisher
+    _route_pub: Publisher
+    # reference to ROS logger
+    _logger: RcutilsLogger
+    # verbose logging
+    _verbose: bool
+
+    def __init__(self, route_pub: Publisher, logger: RcutilsLogger, verbose: bool):
+        # initialize route publisher
+        self._route_pub = route_pub
+        # initialize ROS logger
+        self._logger = logger
+        # set logging verbosity
+        self._verbose = verbose
+
+        # initialize planner class (set in child class)
+        self._planner: Any = None
+
+        # reference path
+        self._reference_path: Optional[np.ndarray] = None
+        # list of route lanelet IDs
+        self._route_list_lanelet_ids: Optional[List[int]] = None
+        #
+
 
 
 class RoutePlannerInterface:
@@ -41,7 +82,7 @@ class RoutePlannerInterface:
         self.verbose = verbose
         self.get_logger = get_logger
         self.scenario = scenario
-        self.route_pub = route_pub
+        self._route_pub = route_pub
 
     @property
     def reference_path(self):
@@ -76,10 +117,10 @@ class RoutePlannerInterface:
         if self.verbose:
             self.get_logger.info("Route planning completed!")
 
-    def _pub_route(self, path, velocities):
+    def publish(self, path, velocities):
         """Publish planned route as marker to visualize in RVIZ."""
         self.reference_path_published = True
-        self.route_pub.publish(utils.create_route_marker_msg(path, velocities))
+        self._route_pub.publish(utils.create_route_marker_msg(path, velocities))
 
         if self.verbose:
             self.get_logger.info("Reference path published!")

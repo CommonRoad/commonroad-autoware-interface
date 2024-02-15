@@ -44,10 +44,7 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
                  ego_vehicle_handler: EgoVehicleHandler):
 
         # init parent class
-        super().__init__(traj_pub=traj_pub, logger=logger.get_child("rp_interface"))
-
-        # verbose
-        self._verbose = verbose
+        super().__init__(traj_pub=traj_pub, logger=logger.get_child("rp_interface"), verbose=verbose)
 
         # set scenario
         self.scenario = scenario

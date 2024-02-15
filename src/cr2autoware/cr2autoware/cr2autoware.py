@@ -550,7 +550,7 @@ class Cr2Auto(Node):
                         # post process reference path z coordinate
                         for point in point_list: 
                             point.z = self.scenario_handler.get_z_coordinate()
-                        self.route_planner._pub_route(point_list, reference_velocities)
+                        self.route_planner.publish(point_list, reference_velocities)
 
                     if self.get_state() == AutowareState.DRIVING:
                         # log current position
@@ -588,9 +588,8 @@ class Cr2Auto(Node):
                             reference_velocity=ref_vel)
 
                         # publish trajectory
-                        self.trajectory_planner.publish_trajectory_msg(self.origin_transformation,
-                                                                       self.scenario_handler.get_z_coordinate(),
-                                                                       self.verbose)
+                        self.trajectory_planner.publish(self.origin_transformation,
+                                                        self.scenario_handler.get_z_coordinate())
 
                     # check if goal is reached
                     self._is_goal_reached()
@@ -660,7 +659,7 @@ class Cr2Auto(Node):
                     self.set_state(AutowareState.ARRIVED_GOAL)
 
                     # publish empty trajectory
-                    self.route_planner._pub_route([], [])
+                    self.route_planner.publish([], [])
                 else:
                     self._set_new_goal()
 
@@ -790,7 +789,7 @@ class Cr2Auto(Node):
         self.set_state(AutowareState.WAITING_FOR_ROUTE)
 
         # publish empty trajectory
-        self.route_planner._pub_route([], [])
+        self.route_planner.publish([], [])
 
     def goal_pose_callback(self, msg: PoseStamped) -> None:
         """
@@ -813,7 +812,7 @@ class Cr2Auto(Node):
             # post process reference path z coordinate
             for point in point_list: 
                 point.z = self.scenario_handler.get_z_coordinate()
-            self.route_planner._pub_route(point_list, reference_velocities)
+            self.route_planner.publish(point_list, reference_velocities)
     
     def velocity_limit_callback(self, msg: VelocityLimit) -> None:
         """
