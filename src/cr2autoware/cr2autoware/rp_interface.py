@@ -84,7 +84,7 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
         # init trajectory planner
         self._planner: ReactivePlanner = reactive_planner
 
-    def plan(self, current_state: EgoVehicleState, goal, reference_velocity=None):
+    def plan(self, current_state: EgoVehicleState, goal, reference_velocity=None, **kwargs):
         """Overrides plan method from base class and calls the planning algorithm of the reactive planner"""
         # set reference velocity for planner
         self._planner.set_desired_velocity(desired_velocity=reference_velocity, current_speed=current_state.velocity)
@@ -96,7 +96,7 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
         if not hasattr(current_state, "acceleration"):
             # current_state uses acceleration localization (see ego_vehicle_handler)
             current_state.acceleration = 0.0
-        x0_planner_cart = ReactivePlannerState()
+        x0_planner_cart: ReactivePlannerState = ReactivePlannerState()
         x0_planner_cart = current_state.convert_state_to_state(x0_planner_cart)
         self._planner.reset(initial_state_cart=x0_planner_cart,
                             initial_state_curv=None,
