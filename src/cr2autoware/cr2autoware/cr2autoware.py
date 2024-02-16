@@ -72,7 +72,7 @@ from commonroad.visualization.mp_renderer import MPRenderer
 from cr2autoware.configuration import CR2AutowareParams
 from cr2autoware.ego_vehicle_handler import EgoVehicleHandler
 from cr2autoware.planning_problem_handler import PlanningProblemHandler
-from cr2autoware.route_planner import RoutePlannerInterface
+from cr2autoware.cr_route_planner import CommonRoadRoutePlanner
 from cr2autoware.rp_interface import ReactivePlannerInterface
 from cr2autoware.scenario_handler import ScenarioHandler
 from cr2autoware.tf2_geometry_msgs import do_transform_pose
@@ -166,7 +166,6 @@ class Cr2Auto(Node):
         
         # intiialize planning-specific attributes
         self.planning_problem_set = None
-        self.route_planned = False
         self.planner_state_list = None
         self.is_computing_trajectory = False  # stop update scenario when trajectory is being computed
         self.reference_path = None
@@ -348,8 +347,8 @@ class Cr2Auto(Node):
         self.trajectory_planner_type = \
             self.get_parameter("trajectory_planner.trajectory_planner_type").get_parameter_value().integer_value
 
-        # set route planner
-        self.route_planner = self._set_route_planner()
+        # set route planner using factory method
+        self.route_planner = self._route_planner_factory()
 
         # set velocity planner
         self._set_velocity_planner()
@@ -392,10 +391,6 @@ class Cr2Auto(Node):
     def planning_problem(self, planning_problem):
         """Set planning problem in the planning problem handler."""
         self.plan_prob_handler.planning_problem = planning_problem
-    
-    def _set_route_planner(self) -> RoutePlannerInterface:
-        """Initializes the route planner"""
-        return RoutePlannerInterface(self.verbose, self._logger, self.scenario, self.route_pub)
 
     def _set_velocity_planner(self):
         """Initializes the velocity planner"""
@@ -420,10 +415,9 @@ class Cr2Auto(Node):
             1)
         self.velocity_planner.set_publisher(self.velocity_pub)
 
+    # TODO move factory method to separate module
     def _trajectory_planner_factory(self):
-        """
-        Factory function to initialize trajectory planner according to specified type.
-        """
+        """Factory function to initialize trajectory planner according to specified type."""
         if self.trajectory_planner_type == 1:  # Reactive planner
             return ReactivePlannerInterface(self.traj_pub,
                                             self._logger,
@@ -436,7 +430,18 @@ class Cr2Auto(Node):
                                             self.params.rp_interface,
                                             self.ego_vehicle_handler)
         else:
-            self._logger.error("Planner type is not correctly specified!")
+            self._logger.error("<Trajectory Planner Factory> Planner type is invalid")
+
+    # TODO move factory method to separate module
+    def _route_planner_factory(self):
+        """Factory function to initialize route planner according to specified type."""
+        if self.route_planner_type == 1:   # CR Route planner
+            return CommonRoadRoutePlanner(self.route_pub,
+                                          self._logger,
+                                          self.verbose,
+                                          self.scenario_handler.lanelet_network)
+        else:
+            self._logger.error("<Route Planner Factory> Planner type is invalid")
 
     def _set_cr2auto_mode(self):
         """
@@ -519,19 +524,19 @@ class Cr2Auto(Node):
                     self._logger.info("Replanning route to goal")
 
                     # insert current goal into list of goal messages
-                    # set route_planned to false to trigger route planning
                     if self.current_goal_msg:
                         self.goal_msgs.insert(0, self.current_goal_msg)
-                    self.route_planned = False
+                    # TODO call reset function of route planner
+                    self.route_planner.reset()
 
-                if not self.route_planned:
+                if not self.route_planner.is_route_planned:
                     # if currently no active goal, set a new goal (if one exists)
                     try:
                         self._set_new_goal()
                     except Exception:
                         self._logger.error(traceback.format_exc())
 
-                if self.route_planned:
+                if self.route_planner.is_route_planned:
                     if not self.velocity_planner.get_is_velocity_planning_completed():
                         self._logger.info(
                             "Can't run route planner because interface is still waiting for velocity planner"
@@ -544,7 +549,7 @@ class Cr2Auto(Node):
                         self.is_computing_trajectory = False
                         return
 
-                    if not self.route_planner.reference_path_published:
+                    if not self.route_planner.is_ref_path_published:
                         # publish current reference path
                         point_list, reference_velocities = self.velocity_planner.get_reference_velocities()
                         # post process reference path z coordinate
@@ -615,7 +620,7 @@ class Cr2Auto(Node):
             self.scenario_handler.update_scenario()
             self.plot_save_scenario()
 
-            if not self.route_planned:
+            if not self.route_planner.is_route_planned:
                 # try to set a new goal position
                 self._set_new_goal()
             else:
@@ -654,12 +659,10 @@ class Cr2Auto(Node):
                     )
 
                 if not self.goal_msgs:
-                    self.route_planned = False
+                    # call reset function of route planner
+                    self.route_planner.reset()
                     self.planning_problem = None
                     self.set_state(AutowareState.ARRIVED_GOAL)
-
-                    # publish empty trajectory
-                    self.route_planner.publish([], [])
                 else:
                     self._set_new_goal()
 
@@ -783,13 +786,10 @@ class Cr2Auto(Node):
         """
         Clear route and set AutowareState to WAITING_FOR_ROUTE.
         """
-        # TODO: here we need a method in the RoutePlannerInterface which handles clearing the route properly
-        self.route_planned = False
+        # call reset function of route planner
+        self.route_planner.reset()
         self.planning_problem = None
         self.set_state(AutowareState.WAITING_FOR_ROUTE)
-
-        # publish empty trajectory
-        self.route_planner.publish([], [])
 
     def goal_pose_callback(self, msg: PoseStamped) -> None:
         """
@@ -953,7 +953,6 @@ class Cr2Auto(Node):
             )
             self._pub_goals()
             self.set_state(AutowareState.WAITING_FOR_ENGAGE)
-            self.route_planned = True
 
             # update reference path of trajectory planner
             self.trajectory_planner.update(reference_path=self.route_planner.reference_path)

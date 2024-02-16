@@ -39,6 +39,7 @@ from commonroad.scenario.obstacle import StaticObstacle
 from commonroad.scenario.scenario import Scenario as CRScenario
 from commonroad.scenario.state import InitialState
 from commonroad.scenario.state import TraceState
+from commonroad.scenario.lanelet import LaneletNetwork
 
 # commonroad-dc imports
 import commonroad_dc.pycrcc as pycrcc
@@ -343,6 +344,10 @@ class ScenarioHandler:
     @property
     def scenario(self) -> CRScenario:
         return self._scenario
+
+    @property
+    def lanelet_network(self) -> LaneletNetwork:
+        return self._scenario.lanelet_network
 
     @property
     def road_boundary(self) -> pycrcc.CollisionObject:

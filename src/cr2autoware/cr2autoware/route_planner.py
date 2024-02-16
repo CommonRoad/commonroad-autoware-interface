@@ -4,37 +4,20 @@ from abc import ABC, abstractmethod
 
 # third party imports
 import numpy as np
-from scipy.interpolate import splev
-from scipy.interpolate import splprep
 
 # ROS imports
 from rclpy.publisher import Publisher
 from rclpy.impl.rcutils_logger import RcutilsLogger
 
-# commonroad-dc imports
-from commonroad_dc.geometry.util import resample_polyline, chaikins_corner_cutting, compute_curvature_from_polyline
-
-# commonroad-route-planner imports
-from commonroad_route_planner.route_planner import RoutePlanner
+# commonroad-io imports
+from commonroad.scenario.lanelet import LaneletNetwork
+from commonroad.planning.planning_problem import PlanningProblem
 
 # cr2autoware imports
 import cr2autoware.utils as utils
 
 
-# TODO: move to util functions
-def _simple_reduce_curvature(ref_path: np.ndarray, max_curv: float, resample_step: float = 1.0):
-        max_curvature = 0.5
-        iter = 0
-        while max_curvature > max_curv:
-            ref_path = np.array(chaikins_corner_cutting(ref_path))
-            ref_path = resample_polyline(ref_path, resample_step)
-            abs_curvature = compute_curvature_from_polyline(ref_path)
-            max_curvature = max(abs_curvature)
-            iter += 1
-        return ref_path
-
-
-class RoutePlannerInterfaceABC(ABC):
+class RoutePlannerInterface(ABC):
     """
     Abstract base class for a route planner interface.
     Defines basic attributes and abstract methods to be implemented by derived route planners.
@@ -47,7 +30,13 @@ class RoutePlannerInterfaceABC(ABC):
     # verbose logging
     _verbose: bool
 
-    def __init__(self, route_pub: Publisher, logger: RcutilsLogger, verbose: bool):
+    def __init__(self, route_pub: Publisher, logger: RcutilsLogger, verbose: bool, lanelet_network: LaneletNetwork):
+        """
+        :param route_pub: ROS2 node publisher
+        :param logger: ROS2 node logger
+        :param verbose: verbose logging True/False
+        :param lanelet_network: lanelet network from CommonRoad scenario
+        """
         # initialize route publisher
         self._route_pub = route_pub
         # initialize ROS logger
@@ -55,74 +44,92 @@ class RoutePlannerInterfaceABC(ABC):
         # set logging verbosity
         self._verbose = verbose
 
+        # CR lanelet network
+        self.lanelet_network: LaneletNetwork = lanelet_network
+
         # initialize planner class (set in child class)
-        self._planner: Any = None
+        self._planner: Any = self._initialize_planner()
 
         # reference path
         self._reference_path: Optional[np.ndarray] = None
         # list of route lanelet IDs
         self._route_list_lanelet_ids: Optional[List[int]] = None
-        #
 
-
-
-class RoutePlannerInterface:
-    """RoutePlannerInterface class represent the route planner."""
-
-    def __init__(
-        self,
-        verbose,
-        get_logger,
-        scenario,
-        route_pub,
-    ):
-        # ROS functions
-        self.reference_path_published = False
-        self._reference_path = None
-        self.verbose = verbose
-        self.get_logger = get_logger
-        self.scenario = scenario
-        self._route_pub = route_pub
+        # bool route planned
+        self._is_route_planned = False
+        # bool published ref path
+        self._is_ref_path_published = False
 
     @property
-    def reference_path(self):
+    def reference_path(self) -> Optional[np.ndarray]:
         """Getter for reference path"""
         return self._reference_path
 
-    def plan(self, planning_problem, curvature_limit: float = 0.195, spline_smooth_fac: float = 5.0):
-        """Plan a route using commonroad route planner and the current scenario and planning problem."""
-        self.reference_path_published = False
+    @property
+    def is_route_planned(self) -> bool:
+        """Getter for route planned bool"""
+        return self._is_route_planned
 
-        if self.verbose:
-            self.get_logger.info("Planning route")
+    @property
+    def is_ref_path_published(self) -> bool:
+        """Getter for ref path published bool"""
+        return self._is_ref_path_published
 
-        route_planner = RoutePlanner(self.scenario, planning_problem)
-        reference_path = route_planner.plan_routes().retrieve_first_route().reference_path
+    @property
+    def lanelet_network(self):
+        """Getter for lanelet network"""
+        return self._lanelet_network
 
-        # reduce curvature simple
-        reference_path = _simple_reduce_curvature(ref_path=reference_path, max_curv=curvature_limit)
+    @lanelet_network.setter
+    def lanelet_network(self, lln):
+        """Setter for lanelet network"""
+        self._lanelet_network = lln
 
-        # smooth reference path spline
-        tck, u = splprep(reference_path.T, u=None, k=3, s=spline_smooth_fac)
-        u_new = np.linspace(u.min(), u.max(), 200)
-        x_new, y_new = splev(u_new, tck, der=0)
-        reference_path = np.array([x_new, y_new]).transpose()
-        reference_path = resample_polyline(reference_path, 1)
+    @abstractmethod
+    def _initialize_planner(self, **kwargs):
+        """Abstract method to initialize the self._planner."""
+        pass
 
-        # remove duplicated vertices in reference path
-        _, idx = np.unique(reference_path, axis=0, return_index=True)
-        reference_path = reference_path[np.sort(idx)]
-        self._reference_path = reference_path
+    @abstractmethod
+    def _plan(self, planning_problem: PlanningProblem, **kwargs):
+        """
+        Plans a route and a reference path for the given planning problem.
+        The planning algorithm is implemented in the respective planner (self._planner)
+        """
+        pass
 
-        if self.verbose:
-            self.get_logger.info("Route planning completed!")
+    def plan(self, planning_problem: PlanningProblem, **kwargs):
+        """
+        Calls the encapsulated _plan function. If planning result is valid, sets _is_route_planned to True.
+        """
+        self._plan(planning_problem, **kwargs)
 
-    def publish(self, path, velocities):
-        """Publish planned route as marker to visualize in RVIZ."""
-        self.reference_path_published = True
-        self._route_pub.publish(utils.create_route_marker_msg(path, velocities))
+        if self._reference_path is not None and self._route_list_lanelet_ids:
+            self._logger.info("<RoutePlannerInterface> valid route and reference path found")
+            self._is_route_planned = True
+        else:
+            self._logger.info("<RoutePlannerInterface> No valid route and reference path found")
+            self._is_route_planned = False
 
-        if self.verbose:
-            self.get_logger.info("Reference path published!")
-            self.get_logger.info("Path length: " + str(len(path)))
-            self.get_logger.info("Velocities length: " + str(len(velocities)))
+    def reset(self):
+        """Resets route and reference path when desired by the user (e.g., upon pressing Clear Route)"""
+        # reset reference path and route
+        self._reference_path = None
+        self._route_list_lanelet_ids = None
+
+        self._is_route_planned = False
+        # TODO publish empty reference path
+        self.publish()
+
+    def publish(self, **kwargs):
+        """Publish route markers of planned reference path to visualize in RVIZ."""
+        if self._reference_path is None:
+            # publish empty reference path
+            self._route_pub.publish([], [])
+
+        # TODO implement functionality for publishing empty reference path
+        self._route_pub.publish(utils.create_route_marker_msg(self._reference_path, **kwargs))
+        self._is_ref_path_published = True
+        if self._verbose:
+            self._logger.info("<RoutePlannerInterface> Reference path published!")
+            self._logger.info("<RoutePlannerInterface> Total reference path length: " + str(len(self._reference_path)))
