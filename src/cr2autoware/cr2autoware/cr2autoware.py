@@ -552,9 +552,7 @@ class Cr2Auto(Node):
                     if not self.route_planner.is_ref_path_published:
                         # publish current reference path
                         point_list, reference_velocities = self.velocity_planner.get_reference_velocities()
-                        # post process reference path z coordinate
-                        for point in point_list: 
-                            point.z = self.scenario_handler.get_z_coordinate()
+                        # call publisher
                         self.route_planner.publish(point_list, reference_velocities)
 
                     if self.get_state() == AutowareState.DRIVING:
@@ -809,9 +807,7 @@ class Cr2Auto(Node):
         # autoware requires that the reference path has to be published again when new goals are published
         if self.velocity_planner.get_is_velocity_planning_completed():
             point_list, reference_velocities = self.velocity_planner.get_reference_velocities()
-            # post process reference path z coordinate
-            for point in point_list: 
-                point.z = self.scenario_handler.get_z_coordinate()
+            # call publisher
             self.route_planner.publish(point_list, reference_velocities)
     
     def velocity_limit_callback(self, msg: VelocityLimit) -> None:

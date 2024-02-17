@@ -290,7 +290,7 @@ def create_goal_region_marker(shape, origin_transformation):
     return marker
 
 
-def create_route_marker_msg(path, velocities):
+def create_route_marker_msg(path, velocities) -> MarkerArray:
     """Create a message for a route in rviz Marker.LINE_STRIP format.
 
     :param path:

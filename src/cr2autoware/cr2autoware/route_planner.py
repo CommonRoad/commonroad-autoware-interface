@@ -9,6 +9,9 @@ import numpy as np
 from rclpy.publisher import Publisher
 from rclpy.impl.rcutils_logger import RcutilsLogger
 
+# ROS msgs
+from visualization_msgs.msg import MarkerArray
+
 # commonroad-io imports
 from commonroad.scenario.lanelet import LaneletNetwork
 from commonroad.planning.planning_problem import PlanningProblem
@@ -102,6 +105,7 @@ class RoutePlannerInterface(ABC):
         """
         Calls the encapsulated _plan function. If planning result is valid, sets _is_route_planned to True.
         """
+        self.reset()
         self._plan(planning_problem, **kwargs)
 
         if self._reference_path is not None and self._route_list_lanelet_ids:
@@ -112,23 +116,32 @@ class RoutePlannerInterface(ABC):
             self._is_route_planned = False
 
     def reset(self):
-        """Resets route and reference path when desired by the user (e.g., upon pressing Clear Route)"""
+        """Resets route and reference path (e.g., when desired by the user upon pressing Clear Route)"""
         # reset reference path and route
         self._reference_path = None
         self._route_list_lanelet_ids = None
 
         self._is_route_planned = False
-        # TODO publish empty reference path
+        # publish empty reference path
         self.publish()
 
-    def publish(self, **kwargs):
-        """Publish route markers of planned reference path to visualize in RVIZ."""
-        if self._reference_path is None:
-            # publish empty reference path
-            self._route_pub.publish([], [])
+    def _prepare_route_marker_msg(self, path: List = None, velocities: List = None, elevation: float = None) \
+            -> MarkerArray:
+        if path is None:
+            path = list()
+        if velocities is None:
+            velocities = list()
 
-        # TODO implement functionality for publishing empty reference path
-        self._route_pub.publish(utils.create_route_marker_msg(self._reference_path, **kwargs))
+        # postprocess elevation of reference path
+        for point in path:
+            point.z = elevation
+        return utils.create_route_marker_msg(path, velocities)
+
+    def publish(self, path: List = None, velocities: List = None, elevation: float = None):
+        """Publish route markers of planned reference path to visualize in RVIZ."""
+        route_marker_msg = self._prepare_route_marker_msg(path, velocities, elevation)
+
+        self._route_pub.publish(route_marker_msg)
         self._is_ref_path_published = True
         if self._verbose:
             self._logger.info("<RoutePlannerInterface> Reference path published!")
