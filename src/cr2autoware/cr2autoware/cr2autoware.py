@@ -435,13 +435,10 @@ class Cr2Auto(Node):
     # TODO move factory method to separate module
     def _route_planner_factory(self):
         """Factory function to initialize route planner according to specified type."""
-        if self.route_planner_type == 1:   # CR Route planner
-            return CommonRoadRoutePlanner(self.route_pub,
-                                          self._logger,
-                                          self.verbose,
-                                          self.scenario_handler.lanelet_network)
-        else:
-            self._logger.error("<Route Planner Factory> Planner type is invalid")
+        return CommonRoadRoutePlanner(self.route_pub,
+                                        self._logger,
+                                        self.verbose,
+                                        self.scenario_handler.lanelet_network)
 
     def _set_cr2auto_mode(self):
         """
@@ -553,7 +550,7 @@ class Cr2Auto(Node):
                         # publish current reference path
                         point_list, reference_velocities = self.velocity_planner.get_reference_velocities()
                         # call publisher
-                        self.route_planner.publish(point_list, reference_velocities)
+                        self.route_planner.publish(point_list, reference_velocities, self.scenario_handler.get_z_coordinate())
 
                     if self.get_state() == AutowareState.DRIVING:
                         # log current position
@@ -808,7 +805,7 @@ class Cr2Auto(Node):
         if self.velocity_planner.get_is_velocity_planning_completed():
             point_list, reference_velocities = self.velocity_planner.get_reference_velocities()
             # call publisher
-            self.route_planner.publish(point_list, reference_velocities)
+            self.route_planner.publish(point_list, reference_velocities, self.scenario_handler.get_z_coordinate())
     
     def velocity_limit_callback(self, msg: VelocityLimit) -> None:
         """

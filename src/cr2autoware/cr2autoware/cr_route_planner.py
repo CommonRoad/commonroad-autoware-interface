@@ -59,7 +59,7 @@ class CommonRoadRoutePlanner(RoutePlannerInterface):
             self._logger.info("<CommonRoadRoutePlanner>: No valid route could be found.")
             return
 
-        self._route_list_lanelet_ids = planned_route.list_ids_lanelets
+        self._route_list_lanelet_ids = planned_route.lanelet_ids
         self._reference_path = planned_route.reference_path
 
         # Postprocessing of reference path

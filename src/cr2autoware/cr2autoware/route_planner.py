@@ -125,7 +125,7 @@ class RoutePlannerInterface(ABC):
         # publish empty reference path
         self.publish()
 
-    def _prepare_route_marker_msg(self, path: List = None, velocities: List = None, elevation: float = None) \
+    def _prepare_route_marker_msg(self, path: List = None, velocities: List = None, elevation: Optional[float] = None) \
             -> MarkerArray:
         if path is None:
             path = list()
@@ -133,16 +133,23 @@ class RoutePlannerInterface(ABC):
             velocities = list()
 
         # postprocess elevation of reference path
+        elevation = elevation if elevation is not None else 0.0
         for point in path:
             point.z = elevation
         return utils.create_route_marker_msg(path, velocities)
 
     def publish(self, path: List = None, velocities: List = None, elevation: float = None):
         """Publish route markers of planned reference path to visualize in RVIZ."""
-        route_marker_msg = self._prepare_route_marker_msg(path, velocities, elevation)
 
+        route_marker_msg = self._prepare_route_marker_msg(path, velocities, elevation)
         self._route_pub.publish(route_marker_msg)
-        self._is_ref_path_published = True
-        if self._verbose:
-            self._logger.info("<RoutePlannerInterface> Reference path published!")
-            self._logger.info("<RoutePlannerInterface> Total reference path length: " + str(len(self._reference_path)))
+
+        if self.is_route_planned:
+            self._is_ref_path_published = True
+            if self._verbose:
+                self._logger.info("<RoutePlannerInterface> Reference path published!")
+                self._logger.info("<RoutePlannerInterface> Total reference path length: " + str(len(self._reference_path)))
+        else:
+            # publish empty reference path
+            if self._verbose:
+                self._logger.info("<RoutePlannerInterface> Empty reference path published!")
