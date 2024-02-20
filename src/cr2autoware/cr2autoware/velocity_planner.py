@@ -105,6 +105,10 @@ class VelocityPlanner:
         self._tail = reference_path[goal_idx + 1:]
         input_path = reference_path[:goal_idx + 1]
 
+        # transform points of tail to AW map coordinates
+        for i in range(len(self._tail)):
+            self._tail[i] = self._tail[i] - np.array(origin_transformation)
+
         # Call _pub_ref_path
         self._pub_ref_path(input_path, origin_transformation)
 
@@ -114,7 +118,7 @@ class VelocityPlanner:
             self._logger.info("<Velocity planner>: Preparing reference path message for motion velocity smoother")
 
         # AW Trajectory message
-        traj = AWTrajectory
+        traj = AWTrajectory()
         traj.header.frame_id = "map"
 
         # compute orientations
@@ -149,20 +153,19 @@ class VelocityPlanner:
         velocity_list = list()
         # get velocities for each point of the reference path
         for point in msg.points:
-            point_list.append(point.pose.position)
+            point_list.append([point.pose.position.x, point.pose.position.y])
             velocity_list.append(point.longitudinal_velocity_mps)
 
         # append tail of reference trajectory
         zeros = [0] * len(self._tail)
 
-        point_list = point_list + self._tail
-        velocity_list = velocity_list + zeros
+        positions_arr = np.concatenate((np.array(point_list), self._tail), axis=0)
+        velocities_arr = np.array(velocity_list + zeros)
 
-        positions_arr = np.array(point_list)
-        velocities_arr = np.array(velocity_list)
+        _len_vel_arr = len(velocities_arr)
 
         # get reference trajectory
-        self._reference_trajectory = np.concatenate((positions_arr, velocities_arr), axis=1)
+        self._reference_trajectory = np.concatenate((positions_arr, velocities_arr.reshape(_len_vel_arr, 1)), axis=1)
         self._is_velocity_planning_completed = True
 
     def get_lookahead_velocity_for_current_state(self, curr_position, curr_velocity) -> Optional[float]:
@@ -182,7 +185,7 @@ class VelocityPlanner:
             last_pos = self.reference_positions[vel_index]
             vel_index += 1
             new_pos = self.reference_positions[vel_index]
-            dist_to_last = math.sqrt((last_pos.x - new_pos.x)**2 + (last_pos.y - new_pos.y)**2)
+            dist_to_last = math.sqrt((last_pos[0] - new_pos[0])**2 + (last_pos[1] - new_pos[1])**2)
             total_dist += dist_to_last
             if total_dist >= lookahead_dist:
                 break

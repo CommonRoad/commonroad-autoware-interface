@@ -952,10 +952,12 @@ class Cr2Auto(Node):
             # publish reference path and velocity
             point_list = self.velocity_planner.reference_positions
             reference_velocities = self.velocity_planner.reference_velocities
-            self.route_planner.publish(point_list, reference_velocities, self.scenario_handler.get_z_coordinate())
+            
 
             # publish goal
             self._pub_goals()
+
+            # self.route_planner.publish(point_list, reference_velocities, self.scenario_handler.get_z_coordinate())
 
             # set AW state to Waiting for Engage
             self.set_state(AutowareState.WAITING_FOR_ENGAGE)

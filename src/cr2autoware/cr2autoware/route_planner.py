@@ -129,20 +129,19 @@ class RoutePlannerInterface(ABC):
         # publish empty reference path
         self.publish()
 
-    def _prepare_route_marker_msg(self, path: List = None, velocities: List = None, elevation: Optional[float] = None) \
+    def _prepare_route_marker_msg(self, path: np.ndarray = None, velocities: np.ndarray = None, elevation: Optional[float] = None) \
             -> MarkerArray:
         if path is None:
-            path = list()
+            path = np.array([])
         if velocities is None:
-            velocities = list()
+            velocities = np.array([])
 
         # postprocess elevation of reference path
         elevation = elevation if elevation is not None else 0.0
-        for point in path:
-            point.z = elevation
-        return utils.create_route_marker_msg(path, velocities)
+        
+        return utils.create_route_marker_msg(path, velocities, elevation)
 
-    def publish(self, path: List = None, velocities: List = None, elevation: float = None):
+    def publish(self, path: np.ndarray = None, velocities: np.ndarray = None, elevation: float = None):
         """Publish route markers of planned reference path to visualize in RVIZ."""
 
         route_marker_msg = self._prepare_route_marker_msg(path, velocities, elevation)
