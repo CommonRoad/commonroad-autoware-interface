@@ -562,6 +562,13 @@ class Cr2Auto(Node):
                     if self.verbose:
                         self._logger.info("Solving planning problem!")
 
+                    # Get current initial state for planning
+                    # The initial velocity needs to be increase here due to a hardcoded velocity threshold in
+                    # AW. Universe Shift_Decider Package (If velocity is below 0.01, the gear will remain in park)
+                    init_state = self.ego_vehicle_handler.ego_vehicle_state
+                    if init_state.velocity < 0.01:
+                        init_state.velocity = 0.01
+
                     if self.trajectory_planner_type == 1:  # Reactive Planner
                         reference_velocity = max(
                             1.0,
@@ -572,13 +579,6 @@ class Cr2Auto(Node):
 
                         if self.verbose:
                             self._logger.info("Running trajectory planner")
-
-                        # The initial velocity needs to be increase here due to a hardcoded velocity threshold in
-                        # AW. Universe Shift_Decider Package (If velocity is below 0.01, the gear will remain in park)
-                        # TODO remove deepcopy from loop!
-                        init_state = deepcopy(self.ego_vehicle_handler.ego_vehicle_state)
-                        if init_state.velocity < 0.01:
-                            init_state.velocity = 0.01
                         
                         # set reference velocity considering external limit
                         ref_vel = min(reference_velocity, self.external_velocity_limit)
@@ -879,17 +879,16 @@ class Cr2Auto(Node):
 
             self.set_state(AutowareState.PLANNING)
 
-            current_msg = self.goal_msgs.pop(0)
-            # TODO remove deeopcopy
-            self.current_goal_msg = deepcopy(current_msg)
+            # get current goal messages
+            self.current_goal_msg = self.goal_msgs.pop(0)
 
-            self._logger.info("Pose position: " + str(current_msg.pose.position))
+            self._logger.info("Pose position: " + str(self.current_goal_msg.pose.position))
 
-            position = utils.map2utm(self.origin_transformation, current_msg.pose.position)
+            position = utils.map2utm(self.origin_transformation, self.current_goal_msg.pose.position)
             pos_x = position[0]
             pos_y = position[1]
             self._logger.info("Pose position utm: " + str(position))
-            orientation = utils.quaternion2orientation(current_msg.pose.orientation)
+            orientation = utils.quaternion2orientation(self.current_goal_msg.pose.orientation)
             if self.ego_vehicle_handler.ego_vehicle_state is None:
                 self._logger.error("ego vehicle state is None")
                 return
@@ -957,6 +956,7 @@ class Cr2Auto(Node):
 
             # publish goal
             self._pub_goals()
+
             # set AW state to Waiting for Engage
             self.set_state(AutowareState.WAITING_FOR_ENGAGE)
 
