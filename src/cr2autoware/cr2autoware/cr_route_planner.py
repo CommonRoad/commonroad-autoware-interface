@@ -51,7 +51,7 @@ class CommonRoadRoutePlanner(RoutePlannerInterface):
         # self._planner.set_planning_problem(planning_problem)
 
         if self._verbose:
-            self._logger.info("<CommonRoadRoutePlanner>: Planning route")
+            self._logger.info("<CommonRoadRoutePlanner>: Starting to plan route ...")
 
         try:
             planned_route = self._planner.plan_routes().retrieve_first_route()

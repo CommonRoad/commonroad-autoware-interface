@@ -436,9 +436,9 @@ class Cr2Auto(Node):
     def _route_planner_factory(self):
         """Factory function to initialize route planner according to specified type."""
         return CommonRoadRoutePlanner(self.route_pub,
-                                        self._logger,
-                                        self.verbose,
-                                        self.scenario_handler.lanelet_network)
+                                      self._logger,
+                                      self.verbose,
+                                      self.scenario_handler.lanelet_network)
 
     def _set_cr2auto_mode(self):
         """
@@ -523,7 +523,7 @@ class Cr2Auto(Node):
                     # insert current goal into list of goal messages
                     if self.current_goal_msg:
                         self.goal_msgs.insert(0, self.current_goal_msg)
-                    # TODO call reset function of route planner
+                    # call reset function of route planner
                     self.route_planner.reset()
 
                 if not self.route_planner.is_route_planned:
@@ -534,7 +534,7 @@ class Cr2Auto(Node):
                         self._logger.error(traceback.format_exc())
 
                 if self.route_planner.is_route_planned:
-                    if not self.velocity_planner.get_is_velocity_planning_completed():
+                    if not self.velocity_planner.is_velocity_planning_completed:
                         self._logger.info(
                             "Can't run route planner because interface is still waiting for velocity planner"
                         )
@@ -554,6 +554,7 @@ class Cr2Auto(Node):
 
                     if self.get_state() == AutowareState.DRIVING:
                         # log current position
+                        # TODO use DataGeneration module instead
                         self.trajectory_logger.log_state(self.ego_vehicle_handler.ego_vehicle_state)
 
                     if self.verbose:
@@ -638,9 +639,10 @@ class Cr2Auto(Node):
                 self.planning_problem.goal.is_reached(self.ego_vehicle_handler.ego_vehicle_state)
                 and (self.get_clock().now() - self.last_goal_reached).nanoseconds > 5e8
             ):
-                self._logger.info("Car arrived at goal!")
+                self._logger.info("Vehicle arrived at goal!")
                 self.last_goal_reached = self.get_clock().now()
 
+                # TODO use DataGeneration module instead
                 if (
                     self.interactive_mode
                     and self.get_parameter("general.store_trajectory").get_parameter_value().bool_value
@@ -802,7 +804,7 @@ class Cr2Auto(Node):
 
         self._pub_goals()
         # autoware requires that the reference path has to be published again when new goals are published
-        if self.velocity_planner.get_is_velocity_planning_completed():
+        if self.velocity_planner.is_velocity_planning_completed:
             point_list, reference_velocities = self.velocity_planner.get_reference_velocities()
             # call publisher
             self.route_planner.publish(point_list, reference_velocities, self.scenario_handler.get_z_coordinate())
@@ -876,6 +878,7 @@ class Cr2Auto(Node):
             self.set_state(AutowareState.PLANNING)
 
             current_msg = self.goal_msgs.pop(0)
+            # TODO remove deeopcopy
             self.current_goal_msg = deepcopy(current_msg)
 
             self._logger.info("Pose position: " + str(current_msg.pose.position))
@@ -944,7 +947,14 @@ class Cr2Auto(Node):
                 ],
                 self.current_goal_msg.pose.position,
             )
+
+            # publish reference path and velocity
+            point_list, reference_velocities = self.velocity_planner.get_reference_velocities()
+            self.route_planner.publish(point_list, reference_velocities, self.scenario_handler.get_z_coordinate())
+
+            # publish goal
             self._pub_goals()
+            # set AW state to Waiting for Engage
             self.set_state(AutowareState.WAITING_FOR_ENGAGE)
 
             # update reference path of trajectory planner
@@ -1017,6 +1027,7 @@ class Cr2Auto(Node):
         """
         Publish the goals as markers to visualize in RVIZ.
         """
+        # TODO move this function to Planning Problem Handler??
         goals_msg = MarkerArray()
 
         # first delete all marker
@@ -1040,6 +1051,7 @@ class Cr2Auto(Node):
                 marker.ns = "goals"
                 goals_msg.markers.append(marker)
 
+        # TODO why is the route pub used here?? Should be the goal publisher
         self.route_pub.publish(goals_msg)
 
     def _plot_scenario(self):

@@ -16,6 +16,9 @@ from visualization_msgs.msg import MarkerArray
 from commonroad.scenario.lanelet import LaneletNetwork
 from commonroad.planning.planning_problem import PlanningProblem
 
+# commonroad-dc imports
+from commonroad_dc.geometry.util import compute_pathlength_from_polyline
+
 # cr2autoware imports
 import cr2autoware.utils as utils
 
@@ -106,6 +109,7 @@ class RoutePlannerInterface(ABC):
         Calls the encapsulated _plan function. If planning result is valid, sets _is_route_planned to True.
         """
         self.reset()
+        self._logger.info("<RoutePlannerInterface>: Planning route")
         self._plan(planning_problem, **kwargs)
 
         if self._reference_path is not None and self._route_list_lanelet_ids:
@@ -148,7 +152,8 @@ class RoutePlannerInterface(ABC):
             self._is_ref_path_published = True
             if self._verbose:
                 self._logger.info("<RoutePlannerInterface> Reference path published!")
-                self._logger.info("<RoutePlannerInterface> Total reference path length: " + str(len(self._reference_path)))
+                self._logger.info("<RoutePlannerInterface> Total reference path length: " +
+                                  str(compute_pathlength_from_polyline(self._reference_path)))
         else:
             # publish empty reference path
             if self._verbose:

@@ -38,7 +38,7 @@ class VelocityPlanner:
                              " and lookahead time " + str(lookahead_time))
 
         # variable indicates if velocity planning for latest published route is completed
-        self.velocity_planning_completed = False
+        self._is_velocity_planning_completed = False
         self.point_list = None
         self.velocities = None
         self.tail = None
@@ -55,7 +55,7 @@ class VelocityPlanner:
         if self.verbose:
             self.logger.info("Preparing velocity planner message...")
 
-        self.velocity_planning_completed = False
+        self._is_velocity_planning_completed = False
 
         # Shorten reference path so that it ends at the goal position
         goal_id = self._get_pathpoint_near_aw_position(input_point_list, goal_pos)
@@ -100,7 +100,7 @@ class VelocityPlanner:
 
         self.point_list = point_list + self.tail
         self.velocities = velocity_list + zeros
-        self.velocity_planning_completed = True
+        self._is_velocity_planning_completed = True
 
     # get the velocities belonging to the current reference path
     def get_reference_velocities(self):
@@ -142,6 +142,7 @@ class VelocityPlanner:
                 min_i = i
         return min_i
 
-    # indicates if velocity planning for latest published route is completed
-    def get_is_velocity_planning_completed(self):
-        return self.velocity_planning_completed
+    @property
+    def is_velocity_planning_completed(self):
+        """indicates if velocity planning for latest published route is completed"""
+        return self._is_velocity_planning_completed
