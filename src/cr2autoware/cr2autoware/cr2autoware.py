@@ -880,15 +880,18 @@ class Cr2Auto(Node):
             self.set_state(AutowareState.PLANNING)
 
             # get current goal messages
-            self.current_goal_msg = self.goal_msgs.pop(0)
+            current_msg = self.goal_msgs.pop(0)
+            # TODO remove deeopcopy
+            self.current_goal_msg = deepcopy(current_msg)
 
-            self._logger.info("Pose position: " + str(self.current_goal_msg.pose.position))
 
-            position = utils.map2utm(self.origin_transformation, self.current_goal_msg.pose.position)
+            self._logger.info("Pose position: " + str(current_msg.pose.position))
+
+            position = utils.map2utm(self.origin_transformation, current_msg.pose.position)
             pos_x = position[0]
             pos_y = position[1]
             self._logger.info("Pose position utm: " + str(position))
-            orientation = utils.quaternion2orientation(self.current_goal_msg.pose.orientation)
+            orientation = utils.quaternion2orientation(current_msg.pose.orientation)
             if self.ego_vehicle_handler.ego_vehicle_state is None:
                 self._logger.error("ego vehicle state is None")
                 return

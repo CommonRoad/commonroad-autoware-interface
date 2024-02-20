@@ -102,12 +102,21 @@ class VelocityPlanner:
 
         # Clip original reference path so that it ends at the goal position
         goal_idx = self._get_closest_point_idx_on_path(reference_path, goal_pos)
-        self._tail = reference_path[goal_idx + 1:]
+        tail_orig = reference_path[goal_idx + 1:]
         input_path = reference_path[:goal_idx + 1]
 
         # transform points of tail to AW map coordinates
-        for i in range(len(self._tail)):
-            self._tail[i] = self._tail[i] - np.array(origin_transformation)
+        tail_mod = list()
+        for i in range(len(tail_orig)):
+            _tmp = tail_orig[i] - np.array(origin_transformation)
+            tail_mod.append(_tmp)
+        self._tail = np.array(tail_mod)
+        
+        if self._verbose:
+            self._logger.info("<Velocity planner>: Goal coordinates: " + str(goal_pos))
+        
+        if self._verbose:
+            self._logger.info("<Velocity planner>: Tail coordinates: " + str(self._tail))
 
         # Call _pub_ref_path
         self._pub_ref_path(input_path, origin_transformation)
