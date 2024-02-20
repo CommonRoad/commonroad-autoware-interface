@@ -1,6 +1,13 @@
+# standard imports
+import math
+from typing import List, Optional
+
 # third party imports
 import numpy as np
-import math
+
+# ROS imports
+from rclpy.publisher import Publisher
+from rclpy.impl.rcutils_logger import RcutilsLogger
 
 # ROS message imports
 from builtin_interfaces.msg import Duration
@@ -13,7 +20,7 @@ from autoware_auto_planning_msgs.msg import Trajectory as AWTrajectory
 from commonroad_dc.geometry.util import compute_orientation_from_polyline
 
 # cr2autoware imports
-from cr2autoware.utils import orientation2quaternion
+import cr2autoware.utils as utils
 
 
 class VelocityPlanner:
@@ -28,121 +35,170 @@ class VelocityPlanner:
     ======== Subscribers
     From motion velocity smoother (output): /planning/scenario_planning/trajectory_smoothed
     """
-    def __init__(self, verbose, logger, lookahead_dist, lookahead_time):
+    def __init__(self, ref_path_pub: Publisher, logger: RcutilsLogger, verbose: bool,
+                 lookahead_dist: float, lookahead_time: float):
 
-        self.verbose = verbose
-        self.logger = logger
+        # initialize publisher to velocity planner
+        self._ref_path_pub = ref_path_pub
 
-        if self.verbose:
-            self.logger.info("Initializing velocity planner with lookahead distance " + str(lookahead_dist) +
-                             " and lookahead time " + str(lookahead_time))
+        self._verbose = verbose
+        self._logger = logger
+
+        if self._verbose:
+            self._logger.info("<Velocity Planner>: Initializing velocity planner with lookahead distance "
+                              + str(lookahead_dist) + " and lookahead time " + str(lookahead_time))
 
         # variable indicates if velocity planning for latest published route is completed
         self._is_velocity_planning_completed = False
-        self.point_list = None
-        self.velocities = None
-        self.tail = None
 
-        self.lookahead_dist = lookahead_dist
-        self.lookahead_time = lookahead_time
+        # init reference trajectory (ref path with velocity)
+        # reference trajectory is a (n x 3) numpy array, where each row contains x, y, v for a certain
+        # point on the reference trajectory
+        self._reference_trajectory: Optional[np.ndarray] = None
 
-    def set_publisher(self, pub):
-        self.pub = pub
+        # init tail (part of ref path behind goal position)
+        self._tail = None
 
-    # convert reference path to a trajectory and publish it to the motion velocity smoother module
-    def send_reference_path(self, input_point_list, goal_pos):
+        # lookahead distance and time
+        self._lookahead_dist: float = lookahead_dist
+        self._lookahead_time: float = lookahead_time
 
-        if self.verbose:
-            self.logger.info("Preparing velocity planner message...")
+    @property
+    def reference_trajectory(self) -> Optional[np.ndarray]:
+        return self._reference_trajectory
 
+    @property
+    def reference_positions(self) -> Optional[np.ndarray]:
+        if self._reference_trajectory is None:
+            return None
+        else:
+            return self._reference_trajectory[:, 0:2]
+
+    @property
+    def reference_velocities(self) -> Optional[np.ndarray]:
+        if self._reference_trajectory is None:
+            return None
+        else:
+            return self._reference_trajectory[:, 2]
+
+    @property
+    def is_velocity_planning_completed(self):
+        """indicates if velocity planning for latest published route is completed"""
+        return self._is_velocity_planning_completed
+
+    def plan(self, reference_path: np.ndarray, goal_pos: np.ndarray, origin_transformation: List):
+        """
+        Call velocity planner
+        Computes a velocity profile for a given reference path
+        Resulting reference trajectory (i.e., path with velocity information) is stored
+        :param reference_path in CR coordinates
+        :param goal_pos in CR coordinates
+        :param origin_transformation translation of origin between CR and AW map coordinates
+        """
         self._is_velocity_planning_completed = False
 
-        # Shorten reference path so that it ends at the goal position
-        goal_id = self._get_pathpoint_near_aw_position(input_point_list, goal_pos)
-        self.tail = input_point_list[goal_id+1:]
-        point_list = input_point_list[:goal_id+1]
+        if self._verbose:
+            self._logger.info("<Velocity planner>: Planning velocity profile")
 
-        # compute orientations
-        polyline = np.array([(p.x, p.y) for p in point_list])
-        orientations = compute_orientation_from_polyline(polyline)
+        # Clip original reference path so that it ends at the goal position
+        goal_idx = self._get_closest_point_idx_on_path(reference_path, goal_pos)
+        self._tail = reference_path[goal_idx + 1:]
+        input_path = reference_path[:goal_idx + 1]
 
-        traj = AWTrajectory()
+        # Call _pub_ref_path
+        self._pub_ref_path(input_path, origin_transformation)
+
+    def _prepare_traj_msg(self, input_path: np.ndarray, origin_transformation: List) -> AWTrajectory:
+        """converts reference path to AWTrajectory message type for publishing to Motion Velocity Smoother"""
+        if self._verbose:
+            self._logger.info("<Velocity planner>: Preparing reference path message for motion velocity smoother")
+
+        # AW Trajectory message
+        traj = AWTrajectory
         traj.header.frame_id = "map"
 
-        for i in range(0, len(point_list)):
+        # compute orientations
+        orientations = compute_orientation_from_polyline(input_path)
+
+        for i in range(0, len(input_path)):
             new_point = TrajectoryPoint()
             new_point.time_from_start = Duration(sec=0, nanosec=i)
-            new_point.pose.orientation = orientation2quaternion(orientations[i])
-            new_point.pose.position = point_list[i]
+            new_point.pose.position = utils.utm2map(origin_transformation, input_path[i])
+            new_point.pose.orientation = utils.orientation2quaternion(orientations[i])
             new_point.longitudinal_velocity_mps = 20.0
             new_point.acceleration_mps2 = 0.0
             traj.points.append(new_point)
 
-        self.pub.publish(traj)
+        return traj
 
-        if self.verbose:
-            self.logger.info("Velocity planner message published!")
+    def _pub_ref_path(self, input_path: np.ndarray, origin_transformation: List):
+        """Publishes reference path to Motion Velocity Smoother"""
+        traj_msg = self._prepare_traj_msg(input_path, origin_transformation)
+
+        self._ref_path_pub.publish(traj_msg)
+
+        if self._verbose:
+            self._logger.info("<Velocity planner>: Reference path published to motion velocity smoother.")
 
     def smoothed_trajectory_callback(self, msg: AWTrajectory):
+        """Call back function which subscribes to output of motion velocity smoother"""
+        if self._verbose:
+            self._logger.info("<Velocity Planner>: Path with velocity profile received from motion velocity smoother")
 
-        if self.verbose:
-            self.logger.info("Smoothed AW Trajectory received!")
-
-        point_list = []
-        velocity_list = []
+        point_list = list()
+        velocity_list = list()
         # get velocities for each point of the reference path
         for point in msg.points:
             point_list.append(point.pose.position)
             velocity_list.append(point.longitudinal_velocity_mps)
 
         # append tail of reference trajectory
-        zeros = [0] * len(self.tail)
+        zeros = [0] * len(self._tail)
 
-        self.point_list = point_list + self.tail
-        self.velocities = velocity_list + zeros
+        point_list = point_list + self._tail
+        velocity_list = velocity_list + zeros
+
+        positions_arr = np.array(point_list)
+        velocities_arr = np.array(velocity_list)
+
+        # get reference trajectory
+        self._reference_trajectory = np.concatenate((positions_arr, velocities_arr), axis=1)
         self._is_velocity_planning_completed = True
 
-    # get the velocities belonging to the current reference path
-    def get_reference_velocities(self):
-        return self.point_list, self.velocities
+    def get_lookahead_velocity_for_current_state(self, curr_position, curr_velocity) -> Optional[float]:
+        """Gets velocity from velocity profile with lookahead for a given position and velocity"""
+        if not self._is_velocity_planning_completed:
+            self._logger.error("<Velocity Planner>: Velocity planning not completed: No velocity can be returned")
+            return None
 
-    # find the closest reference path point for a given position and return it's velocity
-    def get_velocity_at_aw_position(self, position):
-        v = self.velocities[self._get_pathpoint_near_aw_position(self.point_list, position)]
-        return v
+        curr_position_arr = np.array([curr_position.x, curr_position.y])
 
-    # get velocity with lookahead: lookahead_dist + lookahead_time * current_speed
-    def get_velocity_at_aw_position_with_lookahead(self, position, vehicle_speed):
-        nearest_index = self._get_pathpoint_near_aw_position(self.point_list, position)
-        lookahead_dist = self.lookahead_dist + self.lookahead_time * vehicle_speed
+        closest_idx = self._get_closest_point_idx_on_path(self.reference_positions, curr_position_arr)
+        lookahead_dist = self._lookahead_dist + self._lookahead_time * curr_velocity
 
-        vel_index = nearest_index
+        vel_index = closest_idx
         total_dist = 0
-        while vel_index < len(self.point_list)-1:
-            last_pos = self.point_list[vel_index]
+        while vel_index < len(self.reference_positions)-1:
+            last_pos = self.reference_positions[vel_index]
             vel_index += 1
-            new_pos = self.point_list[vel_index]
+            new_pos = self.reference_positions[vel_index]
             dist_to_last = math.sqrt((last_pos.x - new_pos.x)**2 + (last_pos.y - new_pos.y)**2)
             total_dist += dist_to_last
             if total_dist >= lookahead_dist:
                 break
 
-        self.logger.info("Nearest index: " + str(nearest_index) + ", lookahead index: " + str(vel_index))
+        if self._verbose:
+            self._logger.info("Nearest index: " + str(closest_idx) + ", lookahead index: " + str(vel_index))
         
-        return self.velocities[vel_index]
+        return self.reference_velocities[vel_index]
 
-    # get closest pathpoint to a given position (in Autoware coordinate system)
-    def _get_pathpoint_near_aw_position(self, list, position):
-        min_dist = None
-        min_i = 0
-        for i, point in enumerate(list):
-            dist = math.sqrt((point.x - position.x)**2 + (point.y - position.y)**2)
-            if min_dist == None or dist <= min_dist:
-                min_dist = dist
-                min_i = i
-        return min_i
-
-    @property
-    def is_velocity_planning_completed(self):
-        """indicates if velocity planning for latest published route is completed"""
-        return self._is_velocity_planning_completed
+    @staticmethod
+    def _get_closest_point_idx_on_path(path: np.ndarray, position: np.ndarray) -> int:
+        """
+        :param path 2D ndarray with Euclidean (x, y) positions of a path
+        :param single Euclidean point (x, y) given as a ndarray
+        :return idx of closest point on path
+        """
+        dist = np.linalg.norm(path-position, axis=1)
+        closest_idx = np.argmin(dist)
+        return closest_idx

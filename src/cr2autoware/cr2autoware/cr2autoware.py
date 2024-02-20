@@ -298,6 +298,12 @@ class Cr2Auto(Node):
             "/planning/mission_planning/route_marker",
             qos_route_pub,
         )
+        # publish reference trajectory to motion velocity smoother
+        self.velocity_pub = self.create_publisher(
+            AWTrajectory,
+            "/planning/scenario_planning/scenario_selector/trajectory",
+            1
+        )
         # publish initial state of the scenario (replay solution trajectory mode)
         self.initial_pose_pub = self.create_publisher(
             PoseWithCovarianceStamped, 
@@ -395,8 +401,9 @@ class Cr2Auto(Node):
     def _set_velocity_planner(self):
         """Initializes the velocity planner"""
         self.velocity_planner = VelocityPlanner(
-            self.verbose,
+            self.velocity_pub,
             self._logger,
+            self.verbose,
             self.get_parameter("velocity_planner.lookahead_dist").get_parameter_value().double_value,
             self.get_parameter("velocity_planner.lookahead_time").get_parameter_value().double_value,
         )
@@ -407,13 +414,8 @@ class Cr2Auto(Node):
             "/planning/scenario_planning/trajectory_smoothed",
             self.velocity_planner.smoothed_trajectory_callback,
             1,
-            callback_group=self.callback_group)
-        # publish reference trajectory to motion velocity smoother
-        self.velocity_pub = self.create_publisher(
-            AWTrajectory,
-            "/planning/scenario_planning/scenario_selector/trajectory",
-            1)
-        self.velocity_planner.set_publisher(self.velocity_pub)
+            callback_group=self.callback_group
+        )
 
     # TODO move factory method to separate module
     def _trajectory_planner_factory(self):
@@ -538,19 +540,19 @@ class Cr2Auto(Node):
                         self._logger.info(
                             "Can't run route planner because interface is still waiting for velocity planner"
                         )
-                        self.velocity_planner.send_reference_path(
-                            [utils.utm2map(self.origin_transformation, point)
-                             for point in self.route_planner.reference_path],
-                            self.current_goal_msg.pose.position,
-                        )
+                        _goal_pos_cr = utils.map2utm(self.origin_transformation, self.current_goal_msg.pose.position)
+                        self.velocity_planner.plan(self.route_planner.reference_path, _goal_pos_cr,
+                                                   self.origin_transformation)
                         self.is_computing_trajectory = False
                         return
 
                     if not self.route_planner.is_ref_path_published:
                         # publish current reference path
-                        point_list, reference_velocities = self.velocity_planner.get_reference_velocities()
+                        point_list = self.velocity_planner.reference_positions
+                        reference_velocities = self.velocity_planner.reference_velocities
                         # call publisher
-                        self.route_planner.publish(point_list, reference_velocities, self.scenario_handler.get_z_coordinate())
+                        self.route_planner.publish(point_list, reference_velocities,
+                                                   self.scenario_handler.get_z_coordinate())
 
                     if self.get_state() == AutowareState.DRIVING:
                         # log current position
@@ -562,11 +564,10 @@ class Cr2Auto(Node):
 
                     if self.trajectory_planner_type == 1:  # Reactive Planner
                         reference_velocity = max(
-                            1,
-                            self.velocity_planner.get_velocity_at_aw_position_with_lookahead(
+                            1.0,
+                            self.velocity_planner.get_lookahead_velocity_for_current_state(
                                 self.ego_vehicle_handler.current_vehicle_state.pose.pose.position,
-                                self.ego_vehicle_handler.ego_vehicle_state.velocity,
-                            ),
+                                self.ego_vehicle_handler.ego_vehicle_state.velocity),
                         )
 
                         if self.verbose:
@@ -658,7 +659,7 @@ class Cr2Auto(Node):
                 if not self.goal_msgs:
                     # call reset function of route planner
                     self.route_planner.reset()
-                    self.planning_problem = None
+                    self.plan_prob_handler.planning_problem = None
                     self.set_state(AutowareState.ARRIVED_GOAL)
                 else:
                     self._set_new_goal()
@@ -785,7 +786,7 @@ class Cr2Auto(Node):
         """
         # call reset function of route planner
         self.route_planner.reset()
-        self.planning_problem = None
+        self.plan_prob_handler.planning_problem = None
         self.set_state(AutowareState.WAITING_FOR_ROUTE)
 
     def goal_pose_callback(self, msg: PoseStamped) -> None:
@@ -805,7 +806,8 @@ class Cr2Auto(Node):
         self._pub_goals()
         # autoware requires that the reference path has to be published again when new goals are published
         if self.velocity_planner.is_velocity_planning_completed:
-            point_list, reference_velocities = self.velocity_planner.get_reference_velocities()
+            point_list = self.velocity_planner.reference_positions
+            reference_velocities = self.velocity_planner.reference_velocities
             # call publisher
             self.route_planner.publish(point_list, reference_velocities, self.scenario_handler.get_z_coordinate())
     
@@ -933,23 +935,24 @@ class Cr2Auto(Node):
             )
 
             goal_region = GoalRegion([goal_state])
-            self.planning_problem = PlanningProblem(
+            self.plan_prob_handler.planning_problem = PlanningProblem(
                 planning_problem_id=1,
                 initial_state=self.ego_vehicle_handler.ego_vehicle_state,
                 goal_region=goal_region,
             )
             self._logger.info("Set new goal active!")
+
+            # plan route and reference path
             self.route_planner.plan(self.planning_problem)
-            self.velocity_planner.send_reference_path(
-                [
-                    utils.utm2map(self.origin_transformation, point)
-                    for point in self.route_planner.reference_path
-                ],
-                self.current_goal_msg.pose.position,
-            )
+
+            # plan velocity profile (-> reference trajectory)
+            _goal_pos_cr = utils.map2utm(self.origin_transformation, self.current_goal_msg.pose.position)
+            self.velocity_planner.plan(self.route_planner.reference_path, _goal_pos_cr,
+                                       self.origin_transformation)
 
             # publish reference path and velocity
-            point_list, reference_velocities = self.velocity_planner.get_reference_velocities()
+            point_list = self.velocity_planner.reference_positions
+            reference_velocities = self.velocity_planner.reference_velocities
             self.route_planner.publish(point_list, reference_velocities, self.scenario_handler.get_z_coordinate())
 
             # publish goal
@@ -1012,11 +1015,12 @@ class Cr2Auto(Node):
             # waiting for standstill loop is implemented in set_state()
             self.set_state(AutowareState.WAITING_FOR_ENGAGE)
             
-            # Re-plan the route and update the velocity profile
+            # Re-plan the route and reference path
             self.route_planner.plan(self.planning_problem)
-            self.velocity_planner.send_reference_path(
-                [utils.utm2map(self.origin_transformation, point) for point in self.route_planner.reference_path],
-                self.current_goal_msg.pose.position)
+            # Re-plan the velocity profile
+            _goal_pos_cr = utils.map2utm(self.origin_transformation, self.current_goal_msg.pose.position)
+            self.velocity_planner.plan(self.route_planner.reference_path, _goal_pos_cr,
+                                       self.origin_transformation)
                   
         """
         # reset follow sultion trajectory simulation if interface is in trajectory follow mode and goal is reached
