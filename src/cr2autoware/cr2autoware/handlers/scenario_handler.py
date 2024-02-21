@@ -54,7 +54,8 @@ from ..common.utils.transform import quaternion2orientation
 from ..common.utils.transform import map2utm
 from ..common.utils.message import create_object_base_msg
 from ..common.utils.message import log_obstacle
-import cr2autoware.common.utils.utils as utils
+from ..common.utils.geometry import upsample_trajectory
+from ..common.utils.geometry import traj_linear_interpolate
 
 # Avoid circular imports
 if typing.TYPE_CHECKING:
@@ -455,7 +456,7 @@ class ScenarioHandler(BaseHandler):
                 for point in obstacle.kinematics.predicted_paths[highest_conf_idx].path:
                     traj.append(point)
                     if len(traj) >= 2:
-                        utils.upsample_trajectory(traj, dt_ratio)
+                        upsample_trajectory(traj, dt_ratio)
 
             elif obj_traj_dt < self.scenario.dt * 1e9:
                 # downsample predicted path of obstacles to match dt.
@@ -479,7 +480,7 @@ class ScenarioHandler(BaseHandler):
                                 idx - 1
                             ]
                             point_2 = point
-                            new_point = utils.traj_linear_interpolate(
+                            new_point = traj_linear_interpolate(
                                 point_1, point_2, obj_traj_dt, self.scenario.dt * 1e9
                             )
                             traj.append(new_point)
