@@ -72,10 +72,12 @@ class EgoVehicleHandler:
 
     @property
     def ego_vehicle_state(self) -> Optional[EgoVehicleState]:
+        """CommonRoad ego vehicle state. Coordinates in CR frame"""
         return self._ego_vehicle_state
 
     @property
     def current_vehicle_state(self):
+        """Autoware ego vehicle state msg. Coordinates in AW map frame"""
         return self._current_vehicle_state
 
     @property

@@ -54,9 +54,11 @@ class VelocityPlanner:
         # init reference trajectory (ref path with velocity)
         # reference trajectory is a (n x 3) numpy array, where each row contains x, y, v for a certain
         # point on the reference trajectory
+        # Coordinates in AW map frame
         self._reference_trajectory: Optional[np.ndarray] = None
 
         # init tail (part of ref path behind goal position)
+        # Coordinates in AW map frame
         self._tail = None
 
         # lookahead distance and time
@@ -65,10 +67,18 @@ class VelocityPlanner:
 
     @property
     def reference_trajectory(self) -> Optional[np.ndarray]:
+        """
+        Computed reference trajectory after velocity planning
+        Coordinates in AW map frame
+        """
         return self._reference_trajectory
 
     @property
     def reference_positions(self) -> Optional[np.ndarray]:
+        """
+        Reference trajectory positions
+        Coordinates in AW map frame
+        """
         if self._reference_trajectory is None:
             return None
         else:
@@ -76,6 +86,7 @@ class VelocityPlanner:
 
     @property
     def reference_velocities(self) -> Optional[np.ndarray]:
+        """Reference trajectory velocities"""
         if self._reference_trajectory is None:
             return None
         else:

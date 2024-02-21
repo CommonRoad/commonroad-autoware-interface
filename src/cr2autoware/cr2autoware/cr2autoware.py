@@ -310,7 +310,7 @@ class Cr2Auto(Node):
             "/initialpose3d", 
             1
         )
-        # publish goal region(s) of the scenario (TODO: check, currently not used)
+        # publish goal region(s) of the scenario (TODO: use correct topic)
         self.goal_region_pub = self.create_publisher(
             MarkerArray, 
             "/goal_region_marker_array", 
@@ -887,6 +887,7 @@ class Cr2Auto(Node):
 
             self._logger.info("Pose position: " + str(current_msg.pose.position))
 
+            # TODO move goal creation to PlanningProbHandler
             position = utils.map2utm(self.origin_transformation, current_msg.pose.position)
             pos_x = position[0]
             pos_y = position[1]
@@ -955,12 +956,11 @@ class Cr2Auto(Node):
             # publish reference path and velocity
             point_list = self.velocity_planner.reference_positions
             reference_velocities = self.velocity_planner.reference_velocities
-            
+            # TODO Uncomment after Route Pub QOS is fixed
+            # self.route_planner.publish(point_list, reference_velocities, self.scenario_handler.get_z_coordinate())
 
             # publish goal
             self._pub_goals()
-
-            # self.route_planner.publish(point_list, reference_velocities, self.scenario_handler.get_z_coordinate())
 
             # set AW state to Waiting for Engage
             self.set_state(AutowareState.WAITING_FOR_ENGAGE)
