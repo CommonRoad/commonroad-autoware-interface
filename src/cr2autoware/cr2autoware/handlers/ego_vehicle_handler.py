@@ -22,7 +22,8 @@ from commonroad.scenario.state import InitialState, FloatExactOrInterval
 
 # cr2autoware imports
 from .base import BaseHandler
-import cr2autoware.common.utils.utils as utils
+from ..common.utils.transform import quaternion2orientation
+from ..common.utils.transform import map2utm
 
 # Avoid circular imports
 if typing.TYPE_CHECKING:
@@ -196,16 +197,16 @@ class EgoVehicleHandler(BaseHandler):
                 temp_pose_stamped.header = self._current_vehicle_state.header
                 temp_pose_stamped.pose = self._current_vehicle_state.pose.pose
                 pose_transformed = self._node.transform_pose(temp_pose_stamped, "map")
-                position = utils.map2utm(
+                position = map2utm(
                     self._node.origin_transformation, pose_transformed.pose.position
                 )
-                orientation = utils.quaternion2orientation(pose_transformed.pose.orientation)
+                orientation = quaternion2orientation(pose_transformed.pose.orientation)
             else:
-                position = utils.map2utm(
+                position = map2utm(
                     self._node.origin_transformation,
                     self._current_vehicle_state.pose.pose.position,
                 )
-                orientation = utils.quaternion2orientation(
+                orientation = quaternion2orientation(
                     self._current_vehicle_state.pose.pose.orientation
                 )
             # steering_angle=  arctan2(wheelbase * yaw_rate, velocity)

@@ -72,6 +72,11 @@ from .interfaces.implementation.velocity_planner import VelocityPlanner
 from .interfaces.implementation.rp_interface import ReactivePlannerInterface
 from cr2autoware.common.utils.tf2_geometry_msgs import do_transform_pose
 from cr2autoware.common.utils.trajectory_logger import TrajectoryLogger
+from .common.utils.transform import orientation2quaternion
+from .common.utils.transform import quaternion2orientation
+from .common.utils.transform import map2utm
+from .common.utils.transform import utm2map
+
 import cr2autoware.common.utils.utils as utils
 
 
@@ -510,7 +515,7 @@ class Cr2Auto(Node):
                         self._logger.info(
                             "Can't run route planner because interface is still waiting for velocity planner"
                         )
-                        _goal_pos_cr = utils.map2utm(self.origin_transformation, self.current_goal_msg.pose.position)
+                        _goal_pos_cr = map2utm(self.origin_transformation, self.current_goal_msg.pose.position)
                         self.velocity_planner.plan(self.route_planner.reference_path, _goal_pos_cr,
                                                    self.origin_transformation)
                         self.is_computing_trajectory = False
@@ -647,8 +652,8 @@ class Cr2Auto(Node):
         header.frame_id = "map"
         initial_pose_msg.header = header
         pose = Pose()
-        pose.position = utils.utm2map(self.origin_transformation, states[0].position)
-        pose.orientation = utils.orientation2quaternion(states[0].orientation)
+        pose.position = utm2map(self.origin_transformation, states[0].position)
+        pose.orientation = orientation2quaternion(states[0].orientation)
         initial_pose_msg.pose.pose = pose
         self.initial_pose_pub.publish(initial_pose_msg)
 
@@ -656,8 +661,8 @@ class Cr2Auto(Node):
         goal_msg = PoseStamped()
         goal_msg.header = header
         pose = Pose()
-        pose.position = utils.utm2map(self.origin_transformation, states[-1].position)
-        pose.orientation = utils.orientation2quaternion(states[-1].orientation)
+        pose.position = utm2map(self.origin_transformation, states[-1].position)
+        pose.orientation = orientation2quaternion(states[-1].orientation)
         goal_msg.pose = pose
         self.goal_pose_pub.publish(goal_msg)
 
@@ -683,8 +688,8 @@ class Cr2Auto(Node):
             work_traj = traj
         for i in range(len(work_traj)):
             # compute new position
-            position = utils.map2utm(self.origin_transformation, work_traj[i].position)
-            orientation = utils.quaternion2orientation(work_traj[i].orientation)
+            position = map2utm(self.origin_transformation, work_traj[i].position)
+            orientation = quaternion2orientation(work_traj[i].orientation)
             new_state = CustomState(position=position, orientation=orientation, time_step=i)
             state_list.append(new_state)
 
@@ -858,11 +863,11 @@ class Cr2Auto(Node):
             self._logger.info("Pose position: " + str(current_msg.pose.position))
 
             # TODO move goal creation to PlanningProbHandler
-            position = utils.map2utm(self.origin_transformation, current_msg.pose.position)
+            position = map2utm(self.origin_transformation, current_msg.pose.position)
             pos_x = position[0]
             pos_y = position[1]
             self._logger.info("Pose position utm: " + str(position))
-            orientation = utils.quaternion2orientation(current_msg.pose.orientation)
+            orientation = quaternion2orientation(current_msg.pose.orientation)
             if self.ego_vehicle_handler.ego_vehicle_state is None:
                 self._logger.error("ego vehicle state is None")
                 return
@@ -919,7 +924,7 @@ class Cr2Auto(Node):
             self.route_planner.plan(self.planning_problem)
 
             # plan velocity profile (-> reference trajectory)
-            _goal_pos_cr = utils.map2utm(self.origin_transformation, self.current_goal_msg.pose.position)
+            _goal_pos_cr = map2utm(self.origin_transformation, self.current_goal_msg.pose.position)
             self.velocity_planner.plan(self.route_planner.reference_path, _goal_pos_cr,
                                        self.origin_transformation)
 
@@ -993,7 +998,7 @@ class Cr2Auto(Node):
             # Re-plan the route and reference path
             self.route_planner.plan(self.planning_problem)
             # Re-plan the velocity profile
-            _goal_pos_cr = utils.map2utm(self.origin_transformation, self.current_goal_msg.pose.position)
+            _goal_pos_cr = map2utm(self.origin_transformation, self.current_goal_msg.pose.position)
             self.velocity_planner.plan(self.route_planner.reference_path, _goal_pos_cr,
                                        self.origin_transformation)
                   

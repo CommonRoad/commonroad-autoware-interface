@@ -31,6 +31,8 @@ from commonroad.scenario.scenario import Scenario
 
 # cr2autoware imports
 from .base import BaseHandler
+from ..common.utils.transform import orientation2quaternion
+from ..common.utils.transform import utm2map
 import cr2autoware.common.utils.utils as utils
 
 # Avoid circular imports
@@ -165,8 +167,8 @@ class PlanningProblemHandler(BaseHandler):
         header.frame_id = "map"
         initial_pose_msg.header = header
         pose = Pose()
-        pose.position = utils.utm2map(origin_transformation, initial_state.position)
-        pose.orientation = utils.orientation2quaternion(initial_state.orientation)
+        pose.position = utm2map(origin_transformation, initial_state.position)
+        pose.orientation = orientation2quaternion(initial_state.orientation)
         initial_pose_msg.pose.pose = pose
         self._INITIAL_POSE_PUBLISHER.publish(initial_pose_msg)
         self._logger.info(
@@ -205,7 +207,7 @@ class PlanningProblemHandler(BaseHandler):
         # If orientation cannot be inferred from the lanelet, try to get it from the goal state
         if orientation is None:
             try:
-                orientation = utils.orientation2quaternion(goal_state.orientation)  # type: ignore
+                orientation = orientation2quaternion(goal_state.orientation)  # type: ignore
             except AttributeError as e:
                 self._logger.warning(f"Goal state of type {type(goal_state)} has no orientation.")
                 self._logger.debug(str(e))
@@ -227,7 +229,7 @@ class PlanningProblemHandler(BaseHandler):
         header.frame_id = "map"
         goal_msg.header = header
         pose = Pose()
-        pose.position = utils.utm2map(origin_transformation, position)
+        pose.position = utm2map(origin_transformation, position)
         pose.orientation = orientation
         goal_msg.pose = pose
         self._GOAL_POSE_PUBLISHER.publish(goal_msg)
@@ -270,7 +272,7 @@ class PlanningProblemHandler(BaseHandler):
         possible_lanelets = scenario.lanelet_network.find_lanelet_by_shape(shape)
         for pl in possible_lanelets:  # find an appropriate lanelet
             try:
-                orientation = utils.orientation2quaternion(
+                orientation = orientation2quaternion(
                     scenario.lanelet_network.find_lanelet_by_id(pl).orientation_by_position(
                         position
                     )

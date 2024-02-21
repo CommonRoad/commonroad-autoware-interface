@@ -21,6 +21,8 @@ from commonroad_dc.geometry.util import compute_orientation_from_polyline
 
 # cr2autoware imports
 import cr2autoware.common.utils.utils as utils
+from cr2autoware.common.utils.transform import orientation2quaternion
+from cr2autoware.common.utils.transform import utm2map
 
 
 class VelocityPlanner:
@@ -147,8 +149,8 @@ class VelocityPlanner:
         for i in range(0, len(input_path)):
             new_point = TrajectoryPoint()
             new_point.time_from_start = Duration(sec=0, nanosec=i)
-            new_point.pose.position = utils.utm2map(origin_transformation, input_path[i])
-            new_point.pose.orientation = utils.orientation2quaternion(orientations[i])
+            new_point.pose.position = utm2map(origin_transformation, input_path[i])
+            new_point.pose.orientation = orientation2quaternion(orientations[i])
             new_point.longitudinal_velocity_mps = 20.0
             new_point.acceleration_mps2 = 0.0
             traj.points.append(new_point)

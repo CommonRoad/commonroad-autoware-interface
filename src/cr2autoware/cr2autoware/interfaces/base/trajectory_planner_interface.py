@@ -15,8 +15,9 @@ from commonroad.scenario.state import TraceState
 from commonroad.planning.goal import GoalRegion
 
 # cr2autoware imports
-import cr2autoware.common.utils.utils as utils
 from cr2autoware.handlers.ego_vehicle_handler import EgoVehicleState
+from cr2autoware.common.utils.transform import orientation2quaternion
+from cr2autoware.common.utils.transform import utm2map
 
 
 class TrajectoryPlannerInterface(ABC):
@@ -86,12 +87,12 @@ class TrajectoryPlannerInterface(ABC):
 
             # transform position
             new_point = TrajectoryPoint()
-            new_point.pose.position = utils.utm2map(origin_transformation, cr_state.position)
+            new_point.pose.position = utm2map(origin_transformation, cr_state.position)
 
             # Post process trajectory elevation (z coordinate)
             new_point.pose.position.z = elevation
             position_list.append([cr_state.position[0], cr_state.position[1], elevation])
-            new_point.pose.orientation = utils.orientation2quaternion(cr_state.orientation)
+            new_point.pose.orientation = orientation2quaternion(cr_state.orientation)
             new_point.longitudinal_velocity_mps = float(cr_state.velocity)
 
             # front_wheel_angle_rad not given by Autoware planner

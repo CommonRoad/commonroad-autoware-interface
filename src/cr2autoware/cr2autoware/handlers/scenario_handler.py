@@ -50,6 +50,8 @@ from crdesigner.map_conversion.map_conversion_interface import lanelet_to_common
 
 # cr2autoware
 from .base import BaseHandler
+from ..common.utils.transform import quaternion2orientation
+from ..common.utils.transform import map2utm
 import cr2autoware.common.utils.utils as utils
 
 # Avoid circular imports
@@ -388,8 +390,8 @@ class ScenarioHandler(BaseHandler):
             if pose_map is None:
                 continue
 
-            pos = utils.map2utm(self.origin_transformation, pose_map.pose.position)
-            orientation = utils.quaternion2orientation(pose_map.pose.orientation)
+            pos = map2utm(self.origin_transformation, pose_map.pose.position)
+            orientation = quaternion2orientation(pose_map.pose.orientation)
             width = box.shape.dimensions.y
             length = box.shape.dimensions.x
 
@@ -418,11 +420,11 @@ class ScenarioHandler(BaseHandler):
             return
 
         for obstacle in last_message.objects:
-            position = utils.map2utm(
+            position = map2utm(
                 self._origin_transformation,
                 obstacle.kinematics.initial_pose_with_covariance.pose.position,
             )
-            orientation = utils.quaternion2orientation(
+            orientation = quaternion2orientation(
                 obstacle.kinematics.initial_pose_with_covariance.pose.orientation
             )
             velocity = obstacle.kinematics.initial_twist_with_covariance.twist.linear.x
