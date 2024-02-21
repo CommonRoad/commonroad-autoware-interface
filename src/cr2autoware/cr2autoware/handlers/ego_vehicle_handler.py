@@ -13,9 +13,6 @@ from nav_msgs.msg import Odometry
 
 # ROS imports
 import rclpy
-from rclpy.impl.rcutils_logger import RcutilsLogger
-from rclpy.publisher import Publisher
-from rclpy.logging import LoggingSeverity
 
 # commonroad imports
 from commonroad.geometry.shape import Rectangle
@@ -24,6 +21,7 @@ from commonroad.scenario.obstacle import ObstacleType
 from commonroad.scenario.state import InitialState, FloatExactOrInterval
 
 # cr2autoware imports
+from .base import BaseHandler
 import cr2autoware.common.utils.utils as utils
 
 # Avoid circular imports
@@ -40,7 +38,7 @@ class EgoVehicleState(InitialState):
     steering_angle: FloatExactOrInterval = None
 
 
-class EgoVehicleHandler:
+class EgoVehicleHandler(BaseHandler):
     """
     # Update of the CR Ego vehicle with current vehicle state from Autoware.
 
@@ -51,14 +49,6 @@ class EgoVehicleHandler:
     # outward interface to retrieve current ego vehicle: e.g., EgoVehicleHandler.get_ego_vehicle().
     """
 
-    # Constants and parameters
-    VERBOSE: bool = False
-
-    _logger: RcutilsLogger
-
-    _ego_vehicle_state: Optional[EgoVehicleState] = None
-    _current_vehicle_state = None
-    _node: "Cr2Auto"
     _vehicle_length: Optional[float] = None
     _vehicle_width: Optional[float] = None
     _vehicle_wheelbase: Optional[float] = None
@@ -67,8 +57,65 @@ class EgoVehicleHandler:
     _vehicle_max_steer_angle: Optional[float] = None
     _vehicle_max_acceleration: Optional[float] = None
 
-    # Publishers
-    _OBSTACLE_PUBLISHER: Publisher
+    def __init__(self, node: "Cr2Auto"):
+        # init base class
+        super().__init__(node=node,
+                         logger=node.get_logger().get_child("ego_vehicle_handler"),
+                         verbose=node.verbose)
+
+        # initialize subscriptions
+        self._init_subscriptions()
+
+        # init parameters: create ego vehicle dimension infos
+        self._init_parameters()
+
+        self._ego_vehicle_state: Optional[EgoVehicleState] = None
+        self._current_vehicle_state: Odometry = None
+        self._current_vehicle_acc: AccelWithCovarianceStamped = None
+        self.new_pose_received: bool = False
+
+    def _init_parameters(self):
+        """Set the dimensions and kinematic parameters of the ego vehicle."""
+        # get parameters from node
+        wheel_base = self._get_param("vehicle.wheel_base").double_value
+        wheel_tread = self._get_param("vehicle.wheel_tread").double_value
+        wb_front_axle = self._get_param("vehicle.wb_front_axle").double_value
+        wb_rear_axle = self._get_param("vehicle.wb_rear_axle").double_value
+        front_overhang = self._get_param("vehicle.front_overhang").double_value
+        rear_overhang = self._get_param("vehicle.rear_overhang").double_value
+        left_overhang = self._get_param("vehicle.left_overhang").double_value
+        right_overhang = self._get_param("vehicle.right_overhang").double_value
+        max_steer_angle = self._get_param("vehicle.max_steer_angle").double_value
+        max_acceleration = self._get_param("vehicle.max_acceleration").double_value
+
+        # set base and derived params from vehicle base params (see AW.Universe: vehicle_info.cpp)
+        self._vehicle_length = front_overhang + wheel_base + rear_overhang
+        self._vehicle_width = left_overhang + wheel_tread + right_overhang
+        self._vehicle_wheelbase = wheel_base
+        self._vehicle_wb_front_axle = wb_front_axle
+        self._vehicle_wb_rear_axle = wb_rear_axle
+        self._vehicle_max_steer_angle = max_steer_angle
+        self._vehicle_max_acceleration = max_acceleration
+
+    def _init_subscriptions(self):
+        # subscribe current state from odometry
+        self._node.create_subscription(
+            Odometry,
+            "/localization/kinematic_state",
+            self.current_state_callback,
+            1,
+            callback_group=self._node.callback_group)
+
+        # subscribe current acceleration (separate topic, currently not in /localization/kinematic_state)
+        self._node.create_subscription(
+            AccelWithCovarianceStamped,
+            "/localization/acceleration",
+            self.current_acc_callback,
+            1,
+            callback_group=self._node.callback_group)
+
+    def _init_publishers(self):
+        pass
 
     @property
     def ego_vehicle_state(self) -> Optional[EgoVehicleState]:
@@ -107,40 +154,6 @@ class EgoVehicleHandler:
     @property
     def vehicle_max_acceleration(self):
         return self._vehicle_max_acceleration
-
-    def __init__(self, node: "Cr2Auto"):
-        self._node = node
-        self._logger = node.get_logger().get_child("ego_vehicle_handler")
-
-        # initialize subscriptions
-        # subscribe current state from odometry
-        self.current_state_sub = self._node.create_subscription(
-            Odometry,
-            "/localization/kinematic_state",
-            self.current_state_callback,
-            1,
-            callback_group=self._node.callback_group)
-
-        # subscribe current acceleration (separate topic, currently not in /localization/kinematic_state)
-        self.current_acc_sub = self._node.create_subscription(
-            AccelWithCovarianceStamped,
-            "/localization/acceleration",
-            self.current_acc_callback,
-            1,
-            callback_group=self._node.callback_group)
-
-        self._ego_vehicle_state = None
-        self._current_vehicle_state = None
-        self._current_vehicle_acc = None
-        self.new_pose_received = False
-
-        # set logging verbosity
-        self.VERBOSE = self._node.get_parameter("general.detailed_log").get_parameter_value().bool_value
-        if self.VERBOSE:
-            self._logger.set_level(LoggingSeverity.DEBUG)
-
-        # create ego vehicle dimension infos
-        self._create_ego_vehicle_info()
 
     def current_state_callback(self, msg: Odometry) -> None:
         """
@@ -216,43 +229,9 @@ class EgoVehicleHandler:
         if self._current_vehicle_state is not None:
             self.process_current_state()
         else:
-            if self._node.get_parameter("general.detailed_log").get_parameter_value().bool_value:
-                self._node.get_logger().info("has not received a vehicle state yet!")
+            if self._VERBOSE:
+                self._logger.info("has not received a vehicle state yet!")
             return
-
-    def _create_ego_vehicle_info(self):
-        """Set the dimensions and kinematic parameters of the ego vehicle."""
-        # get parameters from node
-        wheel_base = (
-            self._node.get_parameter("vehicle.wheel_base").get_parameter_value().double_value)
-        wheel_tread = (
-            self._node.get_parameter("vehicle.wheel_tread").get_parameter_value().double_value)
-        wb_front_axle = (
-            self._node.get_parameter("vehicle.wb_front_axle").get_parameter_value().double_value)
-        wb_rear_axle = (
-            self._node.get_parameter("vehicle.wb_rear_axle").get_parameter_value().double_value)
-        front_overhang = (
-            self._node.get_parameter("vehicle.front_overhang").get_parameter_value().double_value)
-        rear_overhang = (
-            self._node.get_parameter("vehicle.rear_overhang").get_parameter_value().double_value)
-        left_overhang = (
-            self._node.get_parameter("vehicle.left_overhang").get_parameter_value().double_value)
-        right_overhang = (
-            self._node.get_parameter("vehicle.right_overhang").get_parameter_value().double_value)
-        max_steer_angle = (
-            self._node.get_parameter("vehicle.max_steer_angle").get_parameter_value().double_value)
-        max_acceleration = (
-            self._node.get_parameter("vehicle.max_acceleration").get_parameter_value().double_value
-    )
-
-        # set base and derived params from vehicle base params (see AW.Universe: vehicle_info.cpp)
-        self._vehicle_length = front_overhang + wheel_base + rear_overhang
-        self._vehicle_width = left_overhang + wheel_tread + right_overhang
-        self._vehicle_wheelbase = wheel_base
-        self._vehicle_wb_front_axle = wb_front_axle
-        self._vehicle_wb_rear_axle = wb_rear_axle
-        self._vehicle_max_steer_angle = max_steer_angle
-        self._vehicle_max_acceleration = max_acceleration
 
     def get_cr_ego_vehicle(self):
         """Create a new ego vehicle with current position for visualization."""

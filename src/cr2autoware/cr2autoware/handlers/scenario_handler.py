@@ -18,8 +18,6 @@ import yaml
 # ROS msgs
 from geometry_msgs.msg import PoseStamped
 from geometry_msgs.msg import PoseWithCovarianceStamped
-from rcl_interfaces.msg import ParameterValue
-from rclpy.impl.rcutils_logger import RcutilsLogger
 from rclpy.publisher import Publisher
 from std_msgs.msg import Header
 
@@ -50,9 +48,9 @@ from crdesigner.common.config.lanelet2_config import lanelet2_config
 from crdesigner.common.config.general_config import general_config
 from crdesigner.map_conversion.map_conversion_interface import lanelet_to_commonroad
 
-# cr2autowar
+# cr2autoware
+from .base import BaseHandler
 import cr2autoware.common.utils.utils as utils
-
 
 # Avoid circular imports
 if typing.TYPE_CHECKING:
@@ -61,7 +59,7 @@ if typing.TYPE_CHECKING:
 # TODO: Figure out how to load from CR xml file
 
 
-class ScenarioHandler:
+class ScenarioHandler(BaseHandler):
     """
     Handles communication with Autoware for CommonRoad Scenario relevant data.
     Keeps an up to date state of the current scenario in CommonRoad format.
@@ -78,13 +76,10 @@ class ScenarioHandler:
     MAP_PATH: str
     LEFT_DRIVING: bool
     ADJACENCIES: bool
-    VERBOSE: bool = False
-
-    _logger: RcutilsLogger
 
     _scenario: CRScenario
+    _dt: float
     _origin_transformation: List[float]
-    _node: "Cr2Auto"
     _last_msg: Dict[str, Any] = {}
     _dynamic_obstacles_map: Dict[int, int] = {}
     # We update obstacles in the scenario with every msg
@@ -95,51 +90,47 @@ class ScenarioHandler:
     _OBSTACLE_PUBLISHER: Publisher
 
     def __init__(self, node: "Cr2Auto"):
-        self._node = node
-        self._logger = node.get_logger().get_child("scenario_handler")
+        # init base class
+        super().__init__(node=node,
+                         logger=node.get_logger().get_child("scenario_handler"),
+                         verbose=node.verbose)
 
         # Get parameters from the node
         self._init_parameters()
+
+        # initialize subscriptions to relevant topics
+        self._init_subscriptions()
+
+        # initialize publishers
+        self._init_publishers()
 
         # Loading the map_config.yaml file
         map_config = self._read_map_config(self.MAP_PATH)
         projection_string = self._get_projection_string(map_config)
 
         # Loading the map from file
-        dt = self._node.get_parameter("scenario.dt").get_parameter_value().double_value
         self._scenario = self._load_initial_scenario(
-            self.MAP_PATH, projection_string, self.LEFT_DRIVING, self.ADJACENCIES, dt=dt
+            self.MAP_PATH, projection_string, self.LEFT_DRIVING, self.ADJACENCIES, dt=self._dt
         )
+        # Create static road boundary
         self._road_boundary = self._create_initial_road_boundary()
+        # create origin transformation
         self._origin_transformation = self._get_origin_transformation(
-            map_config, Proj(projection_string), self._scenario
-        )
-
-        # Subscribing to relevant topics
-        self._init_subscriptions(self._node)
-
-        # Creating publishers
-        self._init_publishers(self._node)
+            map_config, Proj(projection_string), self._scenario)
 
         # Initialize list of current z values
         self._z_list = [None, None]  # [initial_pose_z, goal_pose_z]
         self._initialpose3d_z = 0.0  # z value of initialpose3d
 
     def _init_parameters(self) -> None:
-        def _get_parameter(name: str) -> ParameterValue:
-            return self._node.get_parameter(name).get_parameter_value()
-
-        self.MAP_PATH = _get_parameter("general.map_path").string_value
+        """Init scenario handler specific parameters from self._node"""
+        self.MAP_PATH = self._get_param("general.map_path").string_value
         if not os.path.exists(self.MAP_PATH):
             raise ValueError("Can't find given map path: %s" % self.MAP_PATH)
 
-        self.LEFT_DRIVING = _get_parameter("scenario.left_driving").bool_value
-        self.ADJACENCIES = _get_parameter("scenario.adjacencies").bool_value
-        self.VERBOSE = _get_parameter("general.detailed_log").bool_value
-        if self.VERBOSE:
-            from rclpy.logging import LoggingSeverity
-
-            self._logger.set_level(LoggingSeverity.DEBUG)
+        self.LEFT_DRIVING = self._get_param("scenario.left_driving").bool_value
+        self.ADJACENCIES = self._get_param("scenario.adjacencies").bool_value
+        self._dt = self._get_param("scenario.dt").double_value
 
     def _read_map_config(self, map_path: str) -> Dict[str, Any]:
         map_config = {}
@@ -303,39 +294,43 @@ class ScenarioHandler:
         scenario.dt = dt
         return scenario
 
-    def _init_subscriptions(self, node: "Cr2Auto") -> None:
-        # Callbacks to save the latest messages for later processing
-        node.create_subscription(
+    def _init_subscriptions(self) -> None:
+        # subscribe objects from perception
+        self._node.create_subscription(
             DetectedObjects,
             "/perception/object_recognition/detection/objects",
             lambda msg: self._last_msg.update({"static_obstacle": msg}),
             1,
-            callback_group=node.callback_group,
+            callback_group=self._node.callback_group,
         )
-        node.create_subscription(
+        # subscribe predicted objects from perception
+        self._node.create_subscription(
             PredictedObjects,
             "/perception/object_recognition/objects",
             lambda msg: self._last_msg.update({"dynamic_obstacle": msg}),
             1,
-            callback_group=node.callback_group,
+            callback_group=self._node.callback_group,
         )
-        node.create_subscription(
+        # subscribe initialpose 3d from localization
+        self._node.create_subscription(
             PoseWithCovarianceStamped,
             "/initialpose3d",
             lambda msg: self._last_msg.update({"initial_pose": msg}),
             1,
-            callback_group=node.callback_group,
+            callback_group=self._node.callback_group,
         )
-        node.create_subscription(
+        # subscribe goal pose
+        self._node.create_subscription(
             PoseStamped,
             "/planning/mission_planning/echo_back_goal_pose",
             lambda msg: self._last_msg.update({"goal_pose": msg}),
             1,
-            callback_group=node.callback_group,
+            callback_group=self._node.callback_group,
         )
 
-    def _init_publishers(self, node: "Cr2Auto") -> None:
-        self._OBSTACLE_PUBLISHER = node.create_publisher(
+    def _init_publishers(self) -> None:
+        # obstacle publisher for dynamic obstacle in CR scenario
+        self._OBSTACLE_PUBLISHER = self._node.create_publisher(
             Object,
             "/simulation/dummy_perception_publisher/object_info",
             1,

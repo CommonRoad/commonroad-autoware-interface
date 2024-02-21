@@ -1,3 +1,4 @@
+# standard imports
 import glob
 from pathlib import Path
 import typing
@@ -5,6 +6,21 @@ from typing import List
 from typing import Optional
 from typing import Tuple
 
+# third party imports
+import numpy as np
+
+# ROS message imports
+from geometry_msgs.msg import Pose
+from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseWithCovarianceStamped
+from geometry_msgs.msg import Quaternion
+from std_msgs.msg import Header
+from visualization_msgs.msg import MarkerArray
+
+# ROS imports
+from rclpy.publisher import Publisher
+
+# commonroad imports
 from commonroad.common.file_reader import CommonRoadFileReader
 from commonroad.geometry.shape import Circle
 from commonroad.geometry.shape import Polygon
@@ -12,17 +28,9 @@ from commonroad.geometry.shape import Rectangle
 from commonroad.geometry.shape import ShapeGroup
 from commonroad.planning.planning_problem import PlanningProblem
 from commonroad.scenario.scenario import Scenario
-from geometry_msgs.msg import Pose
-from geometry_msgs.msg import PoseStamped
-from geometry_msgs.msg import PoseWithCovarianceStamped
-from geometry_msgs.msg import Quaternion
-import numpy as np
-from rcl_interfaces.msg import ParameterValue
-from rclpy.impl.rcutils_logger import RcutilsLogger
-from rclpy.publisher import Publisher
-from std_msgs.msg import Header
-from visualization_msgs.msg import MarkerArray
 
+# cr2autoware imports
+from .base import BaseHandler
 import cr2autoware.common.utils.utils as utils
 
 # Avoid circular imports
@@ -33,7 +41,7 @@ if typing.TYPE_CHECKING:
 # TODO: At the moment this class will only load the first planning problem from the CommonRoad file.
 # It does not handle updates to the planning problem triggered by new goal state msgs from Autoware yet.
 # -> Migrate this functionality from cr2autoware.py
-class PlanningProblemHandler:
+class PlanningProblemHandler(BaseHandler):
     """Handles communication with autoware for CommonRoad PlanningProblem relevant data.
 
     Keeps an up to date state of the current planning problem in CommonRoad format.
@@ -41,10 +49,7 @@ class PlanningProblemHandler:
 
     # Constants and parameters
     MAP_PATH: str
-    VERBOSE: bool = False
 
-    _node: "Cr2Auto"
-    _logger: RcutilsLogger
     _planning_problem: Optional[PlanningProblem]
 
     # Publishers
@@ -53,17 +58,19 @@ class PlanningProblemHandler:
     _GOAL_REGION_PUBLISHER: Publisher
 
     def __init__(self, node: "Cr2Auto", scenario: Scenario, origin_transformation: List[float]):
-        self._node = node
-        self._logger = node.get_logger().get_child("planning_problem_handler")
+        # init base class
+        super().__init__(node=node,
+                         logger=node.get_logger().get_child("planning_problem_handler"),
+                         verbose=node.verbose)
 
         # Get parameters from the node
         self._init_parameters()
 
-        # Subscribing to relevant topics
-        self._init_subscriptions(self._node)
+        # initialize subscriptions to relevant topics
+        self._init_subscriptions()
 
-        # Creating publishers
-        self._init_publishers(self._node)
+        # initialize publishers
+        self._init_publishers()
 
         # Loading the planning problem from CommonRoad file (if available)
         self._planning_problem = self._load_planning_problem(self.MAP_PATH)
@@ -73,32 +80,26 @@ class PlanningProblemHandler:
             self.publish_initial_states(self._planning_problem, scenario, origin_transformation)
 
     def _init_parameters(self):
-        def _get_parameter(name: str) -> ParameterValue:
-            return self._node.get_parameter(name).get_parameter_value()
-
-        self.MAP_PATH = _get_parameter("general.map_path").string_value
+        self.MAP_PATH = self._get_param("general.map_path").string_value
         if not Path(self.MAP_PATH).exists():
             raise ValueError("Can't find given map path: %s" % self.MAP_PATH)
 
-        self.VERBOSE = _get_parameter("general.detailed_log").bool_value
-        if self.VERBOSE:
-            from rclpy.logging import LoggingSeverity
-
-            self._logger.set_level(LoggingSeverity.DEBUG)
-
-    def _init_subscriptions(self, node: "Cr2Auto"):
+    def _init_subscriptions(self):
         pass
 
-    def _init_publishers(self, node: "Cr2Auto"):
-        self._INITIAL_POSE_PUBLISHER = node.create_publisher(
+    def _init_publishers(self):
+        # publish initial pose
+        self._INITIAL_POSE_PUBLISHER = self._node.create_publisher(
             PoseWithCovarianceStamped, "/initialpose", 1
         )
-        self._GOAL_POSE_PUBLISHER = node.create_publisher(
+        # publish goal pose
+        self._GOAL_POSE_PUBLISHER = self._node.create_publisher(
             PoseStamped,
             "/planning/mission_planning/goal",
             1,
         )
-        self._GOAL_REGION_PUBLISHER = node.create_publisher(
+        # publish goal marker
+        self._GOAL_REGION_PUBLISHER = self._node.create_publisher(
             MarkerArray, "/goal_region_marker_array", 1
         )
 
