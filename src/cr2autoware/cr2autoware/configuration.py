@@ -65,9 +65,6 @@ class GeneralParams(BaseParams):
     # path to CR solution file (Launch arg)
     solution_file: str = ""
 
-    # use spot prediction
-    enable_spot: bool = False
-
     # verbose ROS logging
     detailed_log: bool = True
     # write scenario to XML file

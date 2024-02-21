@@ -3,7 +3,6 @@
     general:
       map_path: ""
       solution_file: ""
-      enable_spot: False # enable spot
       detailed_log: True
       write_scenario: True # write generated scenario as xml file after map is converted
       plot_scenario: False

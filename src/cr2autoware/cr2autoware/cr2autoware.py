@@ -80,11 +80,6 @@ from cr2autoware.trajectory_logger import TrajectoryLogger
 import cr2autoware.utils as utils
 from cr2autoware.velocity_planner import VelocityPlanner
 
-try:
-    from cr2autoware.spot_handler import SpotHandler
-except ImportError:
-    SpotHandler = None
-
 
 class Cr2Auto(Node):
     """
@@ -94,7 +89,6 @@ class Cr2Auto(Node):
 
     scenario_handler: ScenarioHandler
     plan_prob_handler: PlanningProblemHandler
-    spot_handler: Optional["SpotHandler"]  # May be None if Spot is not installed or disabled
 
     def __init__(self):
         """
@@ -147,18 +141,6 @@ class Cr2Auto(Node):
         self.plan_prob_handler: PlanningProblemHandler = PlanningProblemHandler(self, 
                                                                                 self.scenario, 
                                                                                 self.origin_transformation)
-        # SPOT handler (optional)
-        if self.get_parameter("general.enable_spot").get_parameter_value().bool_value:
-            if SpotHandler is None:
-                self._logger.error(
-                    "The Spot module has been enabled but wasn't imported! "
-                    "Have you installed SPOT into your Python environment? "
-                    "Continuing without SPOT.")
-                self.spot_handler = None
-            else:
-                self.spot_handler = SpotHandler(self)
-        else:
-            self.spot_handler = None
         
         # write CommonRoad scenario to xml file
         if self.write_scenario:
@@ -503,12 +485,6 @@ class Cr2Auto(Node):
                 self.ego_vehicle_handler.update_ego_vehicle()
                 self.scenario_handler.update_scenario()
                 self.plot_save_scenario()
-                if self.planning_problem and self.spot_handler is not None:
-                    self.spot_handler.update(
-                        self.scenario,
-                        self.origin_transformation,
-                        self.planning_problem,
-                    )
 
                 # check if initial pose was changed (if true: recalculate reference path)
                 if self.new_initial_pose:
