@@ -51,7 +51,7 @@ from crdesigner.common.config.general_config import general_config
 from crdesigner.map_conversion.map_conversion_interface import lanelet_to_commonroad
 
 # cr2autowar
-import cr2autoware.utils as utils
+import cr2autoware.common.utils.utils as utils
 
 
 # Avoid circular imports

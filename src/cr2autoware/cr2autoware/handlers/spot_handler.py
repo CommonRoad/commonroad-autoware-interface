@@ -18,7 +18,7 @@ from rclpy.publisher import Publisher
 import spot
 from visualization_msgs.msg import MarkerArray
 
-import cr2autoware.utils as utils
+import cr2autoware.common.utils.utils as utils
 
 # Avoid circular imports
 if typing.TYPE_CHECKING:

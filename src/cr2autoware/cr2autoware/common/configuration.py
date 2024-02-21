@@ -16,7 +16,7 @@ import yaml
 from rclpy.parameter import Parameter
 
 # cr2autoware imports
-from cr2autoware.utils import get_absolute_path_from_package
+from cr2autoware.common.utils.utils import get_absolute_path_from_package
 
 # Avoid circular imports
 if typing.TYPE_CHECKING:

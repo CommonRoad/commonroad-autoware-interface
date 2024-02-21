@@ -63,16 +63,16 @@ from commonroad.scenario.trajectory import Trajectory as CRTrajectory
 from commonroad.visualization.mp_renderer import MPRenderer
 
 # cr2autoware imports
-from cr2autoware.configuration import CR2AutowareParams
-from cr2autoware.handlers.ego_vehicle_handler import EgoVehicleHandler
-from cr2autoware.handlers.planning_problem_handler import PlanningProblemHandler
-from cr2autoware.interfaces.implementation.cr_route_planner import CommonRoadRoutePlanner
-from cr2autoware.interfaces.implementation.rp_interface import ReactivePlannerInterface
-from cr2autoware.handlers.scenario_handler import ScenarioHandler
-from cr2autoware.tf2_geometry_msgs import do_transform_pose
-from cr2autoware.trajectory_logger import TrajectoryLogger
-import cr2autoware.utils as utils
-from cr2autoware.interfaces.implementation.velocity_planner import VelocityPlanner
+from cr2autoware.common.configuration import CR2AutowareParams
+from .handlers.scenario_handler import ScenarioHandler
+from .handlers.ego_vehicle_handler import EgoVehicleHandler
+from .handlers.planning_problem_handler import PlanningProblemHandler
+from .interfaces.implementation.cr_route_planner import CommonRoadRoutePlanner
+from .interfaces.implementation.velocity_planner import VelocityPlanner
+from .interfaces.implementation.rp_interface import ReactivePlannerInterface
+from cr2autoware.common.utils.tf2_geometry_msgs import do_transform_pose
+from cr2autoware.common.utils.trajectory_logger import TrajectoryLogger
+import cr2autoware.common.utils.utils as utils
 
 
 class Cr2Auto(Node):

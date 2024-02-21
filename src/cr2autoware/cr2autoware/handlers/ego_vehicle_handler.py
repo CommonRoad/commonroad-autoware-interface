@@ -24,7 +24,7 @@ from commonroad.scenario.obstacle import ObstacleType
 from commonroad.scenario.state import InitialState, FloatExactOrInterval
 
 # cr2autoware imports
-import cr2autoware.utils as utils
+import cr2autoware.common.utils.utils as utils
 
 # Avoid circular imports
 if typing.TYPE_CHECKING:

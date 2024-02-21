@@ -20,7 +20,7 @@ from commonroad.planning.planning_problem import PlanningProblem
 from commonroad_dc.geometry.util import compute_pathlength_from_polyline
 
 # cr2autoware imports
-import cr2autoware.utils as utils
+import cr2autoware.common.utils.utils as utils
 
 
 class RoutePlannerInterface(ABC):

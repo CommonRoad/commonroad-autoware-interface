@@ -15,7 +15,7 @@ from commonroad.scenario.state import TraceState
 from commonroad.planning.goal import GoalRegion
 
 # cr2autoware imports
-import cr2autoware.utils as utils
+import cr2autoware.common.utils.utils as utils
 from cr2autoware.handlers.ego_vehicle_handler import EgoVehicleState
 
 
