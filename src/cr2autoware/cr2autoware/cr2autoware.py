@@ -77,8 +77,7 @@ from .common.utils.transform import quaternion2orientation
 from .common.utils.transform import map2utm
 from .common.utils.transform import utm2map
 from .common.utils.message import create_goal_marker
-
-import cr2autoware.common.utils.utils as utils
+from .common.ros_interface.helpers import create_qos_profile
 
 
 class Cr2Auto(Node):
@@ -261,20 +260,20 @@ class Cr2Auto(Node):
             1
         )
         # publish routing state
-        qos_routing_state_pub = utils.create_qos_profile(QoSHistoryPolicy.KEEP_LAST,
-                                                         QoSReliabilityPolicy.RELIABLE,
-                                                         QoSDurabilityPolicy.TRANSIENT_LOCAL,
-                                                         depth=1)
+        qos_routing_state_pub = create_qos_profile(QoSHistoryPolicy.KEEP_LAST,
+                                                   QoSReliabilityPolicy.RELIABLE,
+                                                   QoSDurabilityPolicy.TRANSIENT_LOCAL,
+                                                   depth=1)
         self.routing_state_pub = self.create_publisher(
             RouteState, 
             "/api/routing/state", 
             qos_routing_state_pub
         )
         # publish route marker
-        qos_route_pub = utils.create_qos_profile(QoSHistoryPolicy.KEEP_LAST,
-                                                 QoSReliabilityPolicy.RELIABLE,
-                                                 QoSDurabilityPolicy.TRANSIENT_LOCAL,
-                                                 depth=1)
+        qos_route_pub = create_qos_profile(QoSHistoryPolicy.KEEP_LAST,
+                                           QoSReliabilityPolicy.RELIABLE,
+                                           QoSDurabilityPolicy.TRANSIENT_LOCAL,
+                                           depth=1)
         self.route_pub = self.create_publisher(
             MarkerArray,
             "/planning/mission_planning/route_marker",
@@ -308,10 +307,10 @@ class Cr2Auto(Node):
         )
         # publish current velocity limit for display in RVIZ
         # (this separate topic is currently only subscribed by RVIZ)
-        qos_velocity_limit_pub_vis = utils.create_qos_profile(QoSHistoryPolicy.KEEP_LAST,
-                                                              QoSReliabilityPolicy.RELIABLE,
-                                                              QoSDurabilityPolicy.TRANSIENT_LOCAL,
-                                                              depth=1)
+        qos_velocity_limit_pub_vis = create_qos_profile(QoSHistoryPolicy.KEEP_LAST,
+                                                        QoSReliabilityPolicy.RELIABLE,
+                                                        QoSDurabilityPolicy.TRANSIENT_LOCAL,
+                                                        depth=1)
         self.velocity_limit_pub_vis = self.create_publisher(
             VelocityLimit,
             "/planning/scenario_planning/current_max_velocity",
