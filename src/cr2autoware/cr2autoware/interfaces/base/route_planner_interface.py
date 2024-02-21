@@ -20,7 +20,7 @@ from commonroad.planning.planning_problem import PlanningProblem
 from commonroad_dc.geometry.util import compute_pathlength_from_polyline
 
 # cr2autoware imports
-import cr2autoware.common.utils.utils as utils
+from cr2autoware.common.utils.message import create_route_marker_msg
 
 
 class RoutePlannerInterface(ABC):
@@ -139,7 +139,7 @@ class RoutePlannerInterface(ABC):
         # postprocess elevation of reference path
         elevation = elevation if elevation is not None else 0.0
         
-        return utils.create_route_marker_msg(path, velocities, elevation)
+        return create_route_marker_msg(path, velocities, elevation)
 
     def publish(self, path: np.ndarray = None, velocities: np.ndarray = None, elevation: float = None):
         """Publish route markers of planned reference path to visualize in RVIZ."""

@@ -76,6 +76,7 @@ from .common.utils.transform import orientation2quaternion
 from .common.utils.transform import quaternion2orientation
 from .common.utils.transform import map2utm
 from .common.utils.transform import utm2map
+from .common.utils.message import create_goal_marker
 
 import cr2autoware.common.utils.utils as utils
 
@@ -1023,14 +1024,14 @@ class Cr2Auto(Node):
         goals_msg.markers.append(marker)
 
         if self.current_goal_msg is not None:
-            marker = utils.create_goal_marker(self.current_goal_msg.pose.position)
+            marker = create_goal_marker(self.current_goal_msg.pose.position)
             marker.id = 1
             marker.ns = "goals"
             goals_msg.markers.append(marker)
 
         if len(self.goal_msgs) > 0:
             for i in range(len(self.goal_msgs)):
-                marker = utils.create_goal_marker(self.goal_msgs[i].pose.position)
+                marker = create_goal_marker(self.goal_msgs[i].pose.position)
                 marker.id = i + 2
                 marker.ns = "goals"
                 goals_msg.markers.append(marker)

@@ -20,7 +20,6 @@ from autoware_auto_planning_msgs.msg import Trajectory as AWTrajectory
 from commonroad_dc.geometry.util import compute_orientation_from_polyline
 
 # cr2autoware imports
-import cr2autoware.common.utils.utils as utils
 from cr2autoware.common.utils.transform import orientation2quaternion
 from cr2autoware.common.utils.transform import utm2map
 

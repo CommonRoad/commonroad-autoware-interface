@@ -33,7 +33,7 @@ from commonroad.scenario.scenario import Scenario
 from .base import BaseHandler
 from ..common.utils.transform import orientation2quaternion
 from ..common.utils.transform import utm2map
-import cr2autoware.common.utils.utils as utils
+from ..common.utils.message import create_goal_region_marker
 
 # Avoid circular imports
 if typing.TYPE_CHECKING:
@@ -253,7 +253,7 @@ class PlanningProblemHandler(BaseHandler):
                 shapes = [goal_position]
 
             for shape in shapes:
-                marker = utils.create_goal_region_marker(shape, origin_transformation)
+                marker = create_goal_region_marker(shape, origin_transformation)
                 marker.id = marker_id
                 goal_region_msgs.markers.append(marker)  # type: ignore
                 marker_id += 1

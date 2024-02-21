@@ -52,6 +52,8 @@ from crdesigner.map_conversion.map_conversion_interface import lanelet_to_common
 from .base import BaseHandler
 from ..common.utils.transform import quaternion2orientation
 from ..common.utils.transform import map2utm
+from ..common.utils.message import create_object_base_msg
+from ..common.utils.message import log_obstacle
 import cr2autoware.common.utils.utils as utils
 
 # Avoid circular imports
@@ -580,7 +582,7 @@ class ScenarioHandler(BaseHandler):
         header.frame_id = "map"
 
         for obstacle in self._initial_obstacles:
-            object_msg = utils.create_object_base_msg(header, self.origin_transformation, obstacle)
+            object_msg = create_object_base_msg(header, self.origin_transformation, obstacle)
             if isinstance(obstacle, DynamicObstacle):
                 try:
                     # Bug in CommonRoad?: initial_state is not of type InitialState (warumauchimmer)
@@ -596,7 +598,7 @@ class ScenarioHandler(BaseHandler):
                 object_msg.max_velocity = 20.0
                 object_msg.min_velocity = -10.0
             self._OBSTACLE_PUBLISHER.publish(object_msg)
-            self._logger.debug(utils.log_obstacle(object_msg, isinstance(obstacle, StaticObstacle)))
+            self._logger.debug(log_obstacle(object_msg, isinstance(obstacle, StaticObstacle)))
 
     def get_z_coordinate(self):
         """Calculate the mean of the z coordinate from initial_pose and goal_pose."""
