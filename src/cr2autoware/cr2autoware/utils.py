@@ -290,7 +290,7 @@ def create_goal_region_marker(shape, origin_transformation):
     return marker
 
 
-def create_route_marker_msg(path, velocities):
+def create_route_marker_msg(path: np.ndarray, velocities: np.ndarray, elevation: float) -> MarkerArray:
     """Create a message for a route in rviz Marker.LINE_STRIP format.
 
     :param path:
@@ -311,22 +311,24 @@ def create_route_marker_msg(path, velocities):
     route.color.b = 1.0
     route.color.a = 0.3
 
-    if path != []:
-        max_velocity = max(velocities)
+    if len(velocities) > 0:
+        max_velocity = np.max(velocities)
         if max_velocity < 0.1:
             max_velocity = 0.1
 
     for i in range(0, len(path)):
-        point = path[i]
+        _pt = path[i]
+        p = Point()
+        p.x = _pt[0]
+        p.y = _pt[1]
+        p.z = elevation
+
         if i < len(velocities):
             vel = velocities[i]
         else:
             # change config parameters of velocity smoother if whole path not calculated
             vel = 0
 
-        # p = utm2map(self.origin_transformation, point)
-        # p.z = 0
-        p = point
         route.points.append(p)
 
         c = ColorRGBA()

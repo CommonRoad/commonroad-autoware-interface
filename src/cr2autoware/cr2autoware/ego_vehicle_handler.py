@@ -1,25 +1,43 @@
-import os
+# standard imports
 import typing
-from typing import Any
-from typing import Dict
 from typing import Optional
+from dataclasses import dataclass
 
-from commonroad.geometry.shape import Rectangle
-from commonroad.prediction.prediction import TrajectoryPrediction
-from commonroad.scenario.obstacle import DynamicObstacle
-from commonroad.scenario.obstacle import ObstacleType
-from commonroad.scenario.state import CustomState
-from geometry_msgs.msg import PoseStamped
+# third party imports
 import numpy as np
+
+# ROS message imports
+from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import AccelWithCovarianceStamped
+from nav_msgs.msg import Odometry
+
+# ROS imports
 import rclpy
 from rclpy.impl.rcutils_logger import RcutilsLogger
 from rclpy.publisher import Publisher
+from rclpy.logging import LoggingSeverity
 
+# commonroad imports
+from commonroad.geometry.shape import Rectangle
+from commonroad.scenario.obstacle import DynamicObstacle
+from commonroad.scenario.obstacle import ObstacleType
+from commonroad.scenario.state import InitialState, FloatExactOrInterval
+
+# cr2autoware imports
 import cr2autoware.utils as utils
 
 # Avoid circular imports
 if typing.TYPE_CHECKING:
     from cr2autoware.cr2autoware import Cr2Auto
+
+
+@dataclass(eq=False)
+class EgoVehicleState(InitialState):
+    """
+    CommonRoad state class or the ego vehicle
+    Extends the default initial state class by attribute steering angle
+    """
+    steering_angle: FloatExactOrInterval = None
 
 
 class EgoVehicleHandler:
@@ -38,11 +56,9 @@ class EgoVehicleHandler:
 
     _logger: RcutilsLogger
 
-    _ego_vehicle = None
-    _ego_vehicle_state: Optional[CustomState] = None
+    _ego_vehicle_state: Optional[EgoVehicleState] = None
     _current_vehicle_state = None
     _node: "Cr2Auto"
-    _last_msg: Dict[str, Any] = {}
     _vehicle_length: Optional[float] = None
     _vehicle_width: Optional[float] = None
     _vehicle_wheelbase: Optional[float] = None
@@ -55,28 +71,14 @@ class EgoVehicleHandler:
     _OBSTACLE_PUBLISHER: Publisher
 
     @property
-    def ego_vehicle(self):
-        return self._ego_vehicle
-
-    @ego_vehicle.setter
-    def ego_vehicle(self, ego_vehicle) -> None:
-        self._ego_vehicle = ego_vehicle
-
-    @property
-    def ego_vehicle_state(self) -> Optional[CustomState]:
+    def ego_vehicle_state(self) -> Optional[EgoVehicleState]:
+        """CommonRoad ego vehicle state. Coordinates in CR frame"""
         return self._ego_vehicle_state
-
-    @ego_vehicle_state.setter
-    def ego_vehicle_state(self, ego_vehicle_state: Optional[CustomState]) -> None:
-        self._ego_vehicle_state = ego_vehicle_state
 
     @property
     def current_vehicle_state(self):
+        """Autoware ego vehicle state msg. Coordinates in AW map frame"""
         return self._current_vehicle_state
-
-    @current_vehicle_state.setter
-    def current_vehicle_state(self, current_vehicle_state) -> None:
-        self._current_vehicle_state = current_vehicle_state
 
     @property
     def vehicle_length(self):
@@ -110,27 +112,52 @@ class EgoVehicleHandler:
         self._node = node
         self._logger = node.get_logger().get_child("ego_vehicle_handler")
 
-        self._ego_vehicle = None
+        # initialize subscriptions
+        # subscribe current state from odometry
+        self.current_state_sub = self._node.create_subscription(
+            Odometry,
+            "/localization/kinematic_state",
+            self.current_state_callback,
+            1,
+            callback_group=self._node.callback_group)
+
+        # subscribe current acceleration (separate topic, currently not in /localization/kinematic_state)
+        self.current_acc_sub = self._node.create_subscription(
+            AccelWithCovarianceStamped,
+            "/localization/acceleration",
+            self.current_acc_callback,
+            1,
+            callback_group=self._node.callback_group)
+
         self._ego_vehicle_state = None
         self._current_vehicle_state = None
-        self._last_msg = {}
+        self._current_vehicle_acc = None
+        self.new_pose_received = False
 
-        # Get parameters from the node
-        self._init_parameters()
+        # set logging verbosity
+        self.VERBOSE = self._node.get_parameter("general.detailed_log").get_parameter_value().bool_value
+        if self.VERBOSE:
+            self._logger.set_level(LoggingSeverity.DEBUG)
 
         # create ego vehicle dimension infos
         self._create_ego_vehicle_info()
 
-    def _init_parameters(self) -> None:
-        self.MAP_PATH = self._node.get_parameter("general.map_path").get_parameter_value().string_value
-        if not os.path.exists(self.MAP_PATH):
-            raise ValueError("Can't find given map path: %s" % self.MAP_PATH)
+    def current_state_callback(self, msg: Odometry) -> None:
+        """
+        Callback to current kinematic state of the ego vehicle.
+        :param msg: current kinematic state message
+        """
+        self._current_vehicle_state = msg
+        self.new_pose_received = True
 
-        self.VERBOSE = self._node.get_parameter("general.detailed_log").get_parameter_value().bool_value
-        if self.VERBOSE:
-            from rclpy.logging import LoggingSeverity
-
-            self._logger.set_level(LoggingSeverity.DEBUG)
+    def current_acc_callback(self, msg: AccelWithCovarianceStamped) -> None:
+        """
+        Callback to current acceleration of the ego vehicle.
+        NOTE: acceleration is currently not part of kinematic state message, that's why separate callback is required
+        :param msg: current acceleration message
+        """
+        # store acceleration message
+        self._current_vehicle_acc = msg
 
     def process_current_state(self) -> None:
         """Calculate the current commonroad state from the autoware latest state message."""
@@ -151,7 +178,7 @@ class EgoVehicleHandler:
                 temp_pose_stamped = PoseStamped()
                 temp_pose_stamped.header = self._current_vehicle_state.header
                 temp_pose_stamped.pose = self._current_vehicle_state.pose.pose
-                pose_transformed = self.transform_pose(temp_pose_stamped, "map")
+                pose_transformed = self._node.transform_pose(temp_pose_stamped, "map")
                 position = utils.map2utm(
                     self._node.origin_transformation, pose_transformed.pose.position
                 )
@@ -170,11 +197,14 @@ class EgoVehicleHandler:
                 self._current_vehicle_state.twist.twist.linear.x,
             )
 
-            self._ego_vehicle_state = CustomState(
+            acceleration = self._current_vehicle_acc.accel.accel.linear.x
+
+            self._ego_vehicle_state = EgoVehicleState(
                 position=position,
                 orientation=orientation,
                 velocity=self._current_vehicle_state.twist.twist.linear.x,
                 yaw_rate=self._current_vehicle_state.twist.twist.angular.z,
+                acceleration=acceleration,
                 slip_angle=0.0,
                 time_step=time_step,
                 steering_angle=steering_angle,
@@ -224,26 +254,9 @@ class EgoVehicleHandler:
         self._vehicle_max_steer_angle = max_steer_angle
         self._vehicle_max_acceleration = max_acceleration
 
-    def create_ego_with_cur_location(self):
+    def get_cr_ego_vehicle(self):
         """Create a new ego vehicle with current position for visualization."""
         ego_vehicle_id = self._node.scenario_handler.scenario.generate_object_id()
         ego_vehicle_type = ObstacleType.CAR
         ego_vehicle_shape = Rectangle(width=self.vehicle_width, length=self.vehicle_length)
-        if self.last_trajectory is None:
-            return DynamicObstacle(
-                ego_vehicle_id, ego_vehicle_type, ego_vehicle_shape, self.ego_vehicle_state
-            )
-        else:
-            pred_traj = TrajectoryPrediction(
-                self._node._awtrajectory_to_crtrajectory(
-                    1, self.ego_vehicle_state.time_step, self._node.last_trajectory.points
-                ),
-                ego_vehicle_shape,
-            )
-            return DynamicObstacle(
-                ego_vehicle_id,
-                ego_vehicle_type,
-                ego_vehicle_shape,
-                self.ego_vehicle_state,
-                prediction=pred_traj,
-            )
+        return DynamicObstacle(ego_vehicle_id, ego_vehicle_type, ego_vehicle_shape, self.ego_vehicle_state)

@@ -1,3 +1,4 @@
+# standard imports
 from decimal import Decimal
 import glob
 import math
@@ -8,9 +9,27 @@ from typing import Dict
 from typing import List
 from typing import Union
 
+# third party
+import numpy as np
+from pyproj import Proj
+import utm
+import yaml
+
+# ROS msgs
+from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseWithCovarianceStamped
+from rcl_interfaces.msg import ParameterValue
+from rclpy.impl.rcutils_logger import RcutilsLogger
+from rclpy.publisher import Publisher
+from std_msgs.msg import Header
+
+# Autoware msgs
 from autoware_auto_perception_msgs.msg import DetectedObjects  # type: ignore
 from autoware_auto_perception_msgs.msg import PredictedObjects  # type: ignore
 from autoware_auto_planning_msgs.msg import TrajectoryPoint  # type: ignore
+from dummy_perception_publisher.msg import Object  # type: ignore
+
+# commonroad-io imports
 from commonroad.common.file_reader import CommonRoadFileReader
 from commonroad.geometry.shape import Rectangle
 from commonroad.prediction.prediction import TrajectoryPrediction
@@ -18,25 +37,22 @@ from commonroad.scenario.obstacle import DynamicObstacle
 from commonroad.scenario.obstacle import ObstacleType
 from commonroad.scenario.obstacle import StaticObstacle
 from commonroad.scenario.scenario import Scenario as CRScenario
-from commonroad.scenario.state import CustomState
 from commonroad.scenario.state import InitialState
 from commonroad.scenario.state import TraceState
+from commonroad.scenario.lanelet import LaneletNetwork
+
+# commonroad-dc imports
+import commonroad_dc.pycrcc as pycrcc
+from commonroad_dc.boundary.boundary import create_road_boundary_obstacle
+
+# crdesigner imports
 from crdesigner.common.config.lanelet2_config import lanelet2_config
 from crdesigner.common.config.general_config import general_config
 from crdesigner.map_conversion.map_conversion_interface import lanelet_to_commonroad
-from dummy_perception_publisher.msg import Object  # type: ignore
-from geometry_msgs.msg import PoseStamped
-from geometry_msgs.msg import PoseWithCovarianceStamped
-import numpy as np
-from pyproj import Proj
-from rcl_interfaces.msg import ParameterValue
-from rclpy.impl.rcutils_logger import RcutilsLogger
-from rclpy.publisher import Publisher
-from std_msgs.msg import Header
-import utm
-import yaml
 
+# cr2autowar
 import cr2autoware.utils as utils
+
 
 # Avoid circular imports
 if typing.TYPE_CHECKING:
@@ -94,6 +110,7 @@ class ScenarioHandler:
         self._scenario = self._load_initial_scenario(
             self.MAP_PATH, projection_string, self.LEFT_DRIVING, self.ADJACENCIES, dt=dt
         )
+        self._road_boundary = self._create_initial_road_boundary()
         self._origin_transformation = self._get_origin_transformation(
             map_config, Proj(projection_string), self._scenario
         )
@@ -105,8 +122,8 @@ class ScenarioHandler:
         self._init_publishers(self._node)
 
         # Initialize list of current z values
-        self._z_list = [None, None] #[initial_pose_z, goal_pose_z]
-        self._initialpose3d_z = 0.0 # z value of initialpose3d
+        self._z_list = [None, None]  # [initial_pose_z, goal_pose_z]
+        self._initialpose3d_z = 0.0  # z value of initialpose3d
 
     def _init_parameters(self) -> None:
         def _get_parameter(name: str) -> ParameterValue:
@@ -238,6 +255,22 @@ class ScenarioHandler:
         self._initial_obstacles.extend(scenario.dynamic_obstacles)
         return scenario
 
+    def _create_initial_road_boundary(self) -> pycrcc.CollisionObject:
+        """
+        Creates road boundary collision obstacles for the lanelet network of the loaded scenario.
+        Currently, we assume that the lanelet network of the initial map is fixed.
+        """
+        if self._scenario is None:
+            self._logger.error("ScenarioHandler._create_initial_road_boundary(): No CR scenario given.")
+
+        # TODO: make method and params configurable
+        road_boundary_collision_object = create_road_boundary_obstacle(self._scenario,
+                                                                       method='obb_rectangles',
+                                                                       width=2e-3,
+                                                                       return_scenario_obstacle=False)
+
+        return road_boundary_collision_object
+
     def _build_scenario_from_commonroad(self, map_filename_cr: str) -> CRScenario:
         self._logger.info(
             "Found a CommonRoad scenario file inside the directory. "
@@ -313,6 +346,14 @@ class ScenarioHandler:
         return self._scenario
 
     @property
+    def lanelet_network(self) -> LaneletNetwork:
+        return self._scenario.lanelet_network
+
+    @property
+    def road_boundary(self) -> pycrcc.CollisionObject:
+        return self._road_boundary
+
+    @property
     def origin_transformation(self) -> List[Union[float, Any]]:
         return self._origin_transformation
 
@@ -357,7 +398,6 @@ class ScenarioHandler:
             width = box.shape.dimensions.y
             length = box.shape.dimensions.x
 
-            # TODO: Test this - changed from CustomState to InitialState
             obs_state = InitialState(
                 position=pos,
                 orientation=orientation,
@@ -452,11 +492,13 @@ class ScenarioHandler:
             object_id_aw: int = obstacle.object_id.uuid
             aw_id_list = [list(value) for value in self._dynamic_obstacles_map.values()]
             if list(object_id_aw) not in aw_id_list:
-                dynamic_obstacle_initial_state = CustomState(
+                dynamic_obstacle_initial_state = InitialState(
                     position=position,
                     orientation=orientation,
                     velocity=velocity,
+                    acceleration=0.0,
                     yaw_rate=yaw_rate,
+                    slip_angle=0.0,
                     time_step=time_step,
                 )
                 object_id_cr = self._scenario.generate_object_id()
@@ -469,11 +511,13 @@ class ScenarioHandler:
                     if np.array_equal(object_id_aw, value):
                         dynamic_obs = self._scenario.obstacle_by_id(key)
                         if dynamic_obs:
-                            dynamic_obs.initial_state = CustomState(
+                            dynamic_obs.initial_state = InitialState(
                                 position=position,
                                 orientation=orientation,
                                 velocity=velocity,
+                                acceleration=0.0,
                                 yaw_rate=yaw_rate,
+                                slip_angle=0.0,
                                 time_step=time_step,
                             )
                             dynamic_obs.obstacle_shape = Rectangle(width=width, length=length)
@@ -558,37 +602,37 @@ class ScenarioHandler:
             self._logger.debug(utils.log_obstacle(object_msg, isinstance(obstacle, StaticObstacle)))
 
     def get_z_coordinate(self):
-        """calculate the mean of the z coordinate from initial_pose and goal_pose"""
+        """Calculate the mean of the z coordinate from initial_pose and goal_pose."""
         new_initial_pose_z = None
         new_goal_pose_z = None
-        initial_pose_z = self._z_list[0]
         goal_pose_z = self._z_list[1]
 
         new_initial_pose = self._last_msg.get("initial_pose")
         new_goal_pose = self._last_msg.get("goal_pose")   
  
+        # only consider values if z is not None or 0.0
         if new_initial_pose is not None and new_initial_pose.pose.pose.position.z != 0.0:       
             new_initial_pose_z = new_initial_pose.pose.pose.position.z
 
         if new_goal_pose is not None and new_goal_pose.pose.position.z != 0.0:
             new_goal_pose_z = new_goal_pose.pose.position.z
 
-        #check if new goal_pose or initial_pose is published
+        # check if new goal_pose or initial_pose is published
         if new_goal_pose_z != goal_pose_z:
             if new_initial_pose_z != self._initialpose3d_z and new_initial_pose_z is not None:
-                #both initial_pose and goal_pose changed
+                # both initial_pose and goal_pose changed
                 self._initialpose3d_z = new_initial_pose_z
                 self._z_list[0] = new_initial_pose_z
                 self._z_list[1] = new_goal_pose_z
             elif goal_pose_z is None:
-                #goal_pose initially None and now changed
+                # goal_pose initially None and now changed (first GoalPose got published)
                 self._z_list[1] = new_goal_pose_z
             else:
-                #only goal_pose changed and goal_pose was not None before
+                # only goal_pose changed and goal_pose was not None before (new GoalPose got published)
                 self._z_list[0] = goal_pose_z
                 self._z_list[1] = new_goal_pose_z
         elif new_initial_pose_z != self._initialpose3d_z and new_initial_pose_z is not None:
-            #only initial_pose changed; set goal_pose to None
+            # only initial_pose changed; set goal_pose to None
             self._initialpose3d_z = new_initial_pose_z
             self._z_list[0] = new_initial_pose_z
             self._z_list[1] = None

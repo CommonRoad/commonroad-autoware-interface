@@ -35,12 +35,12 @@
 
     trajectory_planner:
       trajectory_planner_type: 1 # 1: reactive planner
-      planner_update_time: 0.5 # run each x.x seconds
+      planner_update_time: 0.2 # run each x.x seconds
       planning_horizon: 5.0
 
     rp_interface:
-      default_yaml_folder: "../../../../src/universe/autoware.universe/planning/tum_commonroad_planning/reactive-planner/configurations/defaults/"
-      d_min: -3.0
-      d_max: 3.0
+      rp_config_yaml: "../../../../src/universe/autoware.universe/planning/tum_commonroad_planning/dfg-car/src/cr2autoware/param/edgar_rp_config.yaml"
+      d_min: -1.5
+      d_max: 1.5
       # minimum time sampling in s (t_max is given by planning horizon)
-      t_min: 0.4
+      t_min: 5.0
