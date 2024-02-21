@@ -1,5 +1,4 @@
 # standard imports
-import typing
 from typing import List, Optional, Any
 from abc import ABC, abstractmethod
 
@@ -17,7 +16,7 @@ from commonroad.planning.goal import GoalRegion
 
 # cr2autoware imports
 import cr2autoware.utils as utils
-from cr2autoware.ego_vehicle_handler import EgoVehicleState
+from cr2autoware.handlers.ego_vehicle_handler import EgoVehicleState
 
 
 class TrajectoryPlannerInterface(ABC):

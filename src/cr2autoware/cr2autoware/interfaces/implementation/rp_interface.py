@@ -20,8 +20,8 @@ from commonroad_rp.reactive_planner import ReactivePlanner
 
 # cr2autoware
 from cr2autoware.configuration import RPInterfaceParams
-from cr2autoware.ego_vehicle_handler import EgoVehicleHandler, EgoVehicleState
-from cr2autoware.trajectory_planner_interface import TrajectoryPlannerInterface
+from cr2autoware.handlers.ego_vehicle_handler import EgoVehicleHandler, EgoVehicleState
+from cr2autoware.interfaces.base.trajectory_planner_interface import TrajectoryPlannerInterface
 
 # ROS imports
 from rclpy.publisher import Publisher

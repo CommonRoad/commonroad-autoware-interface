@@ -1,6 +1,3 @@
-from asyncore import read
-from difflib import unified_diff
-from lib2to3.refactor import RefactoringTool
 from matplotlib import pyplot as plt
 from pprint import pprint
 import unittest
@@ -8,8 +5,7 @@ import pickle
 import os
 import math
 
-from cr2autoware.rp_interface import RP2Interface
-from crdesigner.map_conversion.map_conversion_interface import lanelet_to_commonroad
+from cr2autoware.interfaces.implementation.rp_interface import RP2Interface
 from commonroad.common.file_reader import CommonRoadFileReader
 
 """

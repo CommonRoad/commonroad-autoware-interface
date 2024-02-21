@@ -3,12 +3,10 @@ from copy import deepcopy
 import os
 import traceback
 from typing import Optional
-from dataclasses import asdict, fields
 import time
 
 # third party imports
 import numpy as np
-import yaml
 import matplotlib
 
 if os.environ.get('DISPLAY') is not None:
@@ -17,7 +15,6 @@ import matplotlib.pyplot as plt
 
 # Autoware.Auto message imports
 from autoware_auto_planning_msgs.msg import Trajectory as AWTrajectory  # type: ignore
-from autoware_auto_planning_msgs.msg import TrajectoryPoint  # type: ignore
 from autoware_auto_system_msgs.msg import AutowareState  # type: ignore
 from autoware_auto_vehicle_msgs.msg import Engage  # type: ignore
 
@@ -30,10 +27,8 @@ from tier4_planning_msgs.msg import VelocityLimit   # type: ignore
 
 # ROS message imports
 from geometry_msgs.msg import Pose
-from geometry_msgs.msg import Point
 from geometry_msgs.msg import PoseStamped
 from geometry_msgs.msg import PoseWithCovarianceStamped
-from nav_msgs.msg import Odometry
 from std_msgs.msg import Header
 from visualization_msgs.msg import Marker
 from visualization_msgs.msg import MarkerArray
@@ -47,7 +42,6 @@ from rclpy.logging import LoggingSeverity
 from rclpy.node import Node
 from rclpy.qos import QoSDurabilityPolicy
 from rclpy.qos import QoSHistoryPolicy
-from rclpy.qos import QoSProfile
 from rclpy.qos import QoSReliabilityPolicy
 # tf2
 import tf2_ros
@@ -70,15 +64,15 @@ from commonroad.visualization.mp_renderer import MPRenderer
 
 # cr2autoware imports
 from cr2autoware.configuration import CR2AutowareParams
-from cr2autoware.ego_vehicle_handler import EgoVehicleHandler
-from cr2autoware.planning_problem_handler import PlanningProblemHandler
-from cr2autoware.cr_route_planner import CommonRoadRoutePlanner
-from cr2autoware.rp_interface import ReactivePlannerInterface
-from cr2autoware.scenario_handler import ScenarioHandler
+from cr2autoware.handlers.ego_vehicle_handler import EgoVehicleHandler
+from cr2autoware.handlers.planning_problem_handler import PlanningProblemHandler
+from cr2autoware.interfaces.implementation.cr_route_planner import CommonRoadRoutePlanner
+from cr2autoware.interfaces.implementation.rp_interface import ReactivePlannerInterface
+from cr2autoware.handlers.scenario_handler import ScenarioHandler
 from cr2autoware.tf2_geometry_msgs import do_transform_pose
 from cr2autoware.trajectory_logger import TrajectoryLogger
 import cr2autoware.utils as utils
-from cr2autoware.velocity_planner import VelocityPlanner
+from cr2autoware.interfaces.implementation.velocity_planner import VelocityPlanner
 
 
 class Cr2Auto(Node):
