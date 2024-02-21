@@ -42,9 +42,17 @@ if typing.TYPE_CHECKING:
 # It does not handle updates to the planning problem triggered by new goal state msgs from Autoware yet.
 # -> Migrate this functionality from cr2autoware.py
 class PlanningProblemHandler(BaseHandler):
-    """Handles communication with autoware for CommonRoad PlanningProblem relevant data.
-
+    """
+    Handles communication with Autoware for CommonRoad PlanningProblem relevant data.
     Keeps an up to date state of the current planning problem in CommonRoad format.
+
+    ======== Publishers:
+    _INITIAL_POSE_PUBLISHER: "/initialpose"
+    _GOAL_POSE_PUBLISHER: "/planning/mission_planning/goal"
+    _GOAL_REGION_PUBLISHER: "/goal_region_marker_array"
+
+    ======== Subscribers:
+
     """
 
     # Constants and parameters

@@ -43,10 +43,14 @@ class EgoVehicleHandler(BaseHandler):
     # Update of the CR Ego vehicle with current vehicle state from Autoware.
 
     # This class should contain all methods related to updating the CommonRoad Ego Vehicle object with the current ego state from Autoware
-    # current ego vehicle is a class attribute (e.g., self.ego_vehicle)
     # contains subscription/callbacks to current ego vehicle state from AW
     # contains all associated methods necessary for transformations etc...
-    # outward interface to retrieve current ego vehicle: e.g., EgoVehicleHandler.get_ego_vehicle().
+
+    ======== Publishers:
+
+    ======== Subscribers:
+    "/localization/kinematic_state" (subscribes to Odometry message)
+    "/localization/acceleration" (subscribes to AccelWithCovarianceStamped message)
     """
 
     _vehicle_length: Optional[float] = None
