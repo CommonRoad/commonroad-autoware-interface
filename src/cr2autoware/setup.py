@@ -1,4 +1,4 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 from glob import glob
 
 package_name = 'cr2autoware'
@@ -14,7 +14,7 @@ setup(
     license='TODO: License declaration',
 
     # Source
-    packages=[package_name],
+    packages=find_packages(),
     data_files=[
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
