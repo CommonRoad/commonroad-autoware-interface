@@ -1,6 +1,12 @@
 # standard imports
-from typing import Any
+from typing import Any, Optional
 from dataclasses import dataclass, field
+
+# ROS imports
+from rclpy.qos import QoSDurabilityPolicy
+from rclpy.qos import QoSHistoryPolicy
+from rclpy.qos import QoSProfile
+from rclpy.qos import QoSReliabilityPolicy
 
 
 @dataclass
@@ -8,7 +14,7 @@ class BaseSpec:
     """Base class for ROS interface specification"""
 
     # name (i.e., ROS topic) of the interface
-    name: str
+    name: str = ""
 
     def __getitem__(self, item: str) -> Any:
         """Getter for base parameter value."""
@@ -27,18 +33,40 @@ class BaseSpec:
 
 
 @dataclass
+class QosSpec:
+    """Class for ROS quality-of-service (QOS) specifications"""
+    # history policy
+    history: QoSHistoryPolicy
+    # reliability policy
+    reliability: QoSReliabilityPolicy
+    # durability_policy
+    durability: QoSDurabilityPolicy
+
+
+@dataclass
 class PublisherSpec(BaseSpec):
     """Class for topic publisher specification"""
-    pass
+    # ROS/Autoware message type
+    msg_type: Any = None
+    # depth
+    depth: int = 1
+    # QOS profile
+    qos_profile: Optional[QosSpec] = field(init=False)
 
 
 @dataclass
 class SubscriptionSpec(BaseSpec):
     """Class for topic subscription specification"""
-    pass
+    # ROS/Autoware message type
+    msg_type: Any = None
+    # depth
+    depth: int = 1
+    # QOS profile
+    qos_profile: QosSpec = field(init=False)
 
 
 @dataclass
 class SrvClientSpec(BaseSpec):
     """Class for service client specification"""
-    pass
+    # ROS/Autoware service type
+    srv_type: Any = None
