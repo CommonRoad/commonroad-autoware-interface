@@ -16,7 +16,7 @@ import yaml
 from rclpy.parameter import Parameter
 
 # cr2autoware imports
-from cr2autoware.utils import get_absolute_path_from_package
+from cr2autoware.common.utils.general import get_absolute_path_from_package
 
 # Avoid circular imports
 if typing.TYPE_CHECKING:
@@ -64,9 +64,6 @@ class GeneralParams(BaseParams):
     map_path: str = ""
     # path to CR solution file (Launch arg)
     solution_file: str = ""
-
-    # use spot prediction
-    enable_spot: bool = False
 
     # verbose ROS logging
     detailed_log: bool = True

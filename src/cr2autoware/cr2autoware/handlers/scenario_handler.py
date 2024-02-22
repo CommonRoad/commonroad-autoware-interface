@@ -18,8 +18,6 @@ import yaml
 # ROS msgs
 from geometry_msgs.msg import PoseStamped
 from geometry_msgs.msg import PoseWithCovarianceStamped
-from rcl_interfaces.msg import ParameterValue
-from rclpy.impl.rcutils_logger import RcutilsLogger
 from rclpy.publisher import Publisher
 from std_msgs.msg import Header
 
@@ -50,9 +48,14 @@ from crdesigner.common.config.lanelet2_config import lanelet2_config
 from crdesigner.common.config.general_config import general_config
 from crdesigner.map_conversion.map_conversion_interface import lanelet_to_commonroad
 
-# cr2autowar
-import cr2autoware.utils as utils
-
+# cr2autoware
+from .base import BaseHandler
+from ..common.utils.transform import quaternion2orientation
+from ..common.utils.transform import map2utm
+from ..common.utils.message import create_object_base_msg
+from ..common.utils.message import log_obstacle
+from ..common.utils.geometry import upsample_trajectory
+from ..common.utils.geometry import traj_linear_interpolate
 
 # Avoid circular imports
 if typing.TYPE_CHECKING:
@@ -61,7 +64,7 @@ if typing.TYPE_CHECKING:
 # TODO: Figure out how to load from CR xml file
 
 
-class ScenarioHandler:
+class ScenarioHandler(BaseHandler):
     """
     Handles communication with Autoware for CommonRoad Scenario relevant data.
     Keeps an up to date state of the current scenario in CommonRoad format.
@@ -78,13 +81,10 @@ class ScenarioHandler:
     MAP_PATH: str
     LEFT_DRIVING: bool
     ADJACENCIES: bool
-    VERBOSE: bool = False
-
-    _logger: RcutilsLogger
 
     _scenario: CRScenario
+    _dt: float
     _origin_transformation: List[float]
-    _node: "Cr2Auto"
     _last_msg: Dict[str, Any] = {}
     _dynamic_obstacles_map: Dict[int, int] = {}
     # We update obstacles in the scenario with every msg
@@ -95,51 +95,47 @@ class ScenarioHandler:
     _OBSTACLE_PUBLISHER: Publisher
 
     def __init__(self, node: "Cr2Auto"):
-        self._node = node
-        self._logger = node.get_logger().get_child("scenario_handler")
+        # init base class
+        super().__init__(node=node,
+                         logger=node.get_logger().get_child("scenario_handler"),
+                         verbose=node.verbose)
 
         # Get parameters from the node
         self._init_parameters()
+
+        # initialize subscriptions to relevant topics
+        self._init_subscriptions()
+
+        # initialize publishers
+        self._init_publishers()
 
         # Loading the map_config.yaml file
         map_config = self._read_map_config(self.MAP_PATH)
         projection_string = self._get_projection_string(map_config)
 
         # Loading the map from file
-        dt = self._node.get_parameter("scenario.dt").get_parameter_value().double_value
         self._scenario = self._load_initial_scenario(
-            self.MAP_PATH, projection_string, self.LEFT_DRIVING, self.ADJACENCIES, dt=dt
+            self.MAP_PATH, projection_string, self.LEFT_DRIVING, self.ADJACENCIES, dt=self._dt
         )
+        # Create static road boundary
         self._road_boundary = self._create_initial_road_boundary()
+        # create origin transformation
         self._origin_transformation = self._get_origin_transformation(
-            map_config, Proj(projection_string), self._scenario
-        )
-
-        # Subscribing to relevant topics
-        self._init_subscriptions(self._node)
-
-        # Creating publishers
-        self._init_publishers(self._node)
+            map_config, Proj(projection_string), self._scenario)
 
         # Initialize list of current z values
         self._z_list = [None, None]  # [initial_pose_z, goal_pose_z]
         self._initialpose3d_z = 0.0  # z value of initialpose3d
 
     def _init_parameters(self) -> None:
-        def _get_parameter(name: str) -> ParameterValue:
-            return self._node.get_parameter(name).get_parameter_value()
-
-        self.MAP_PATH = _get_parameter("general.map_path").string_value
+        """Init scenario handler specific parameters from self._node"""
+        self.MAP_PATH = self._get_param("general.map_path").string_value
         if not os.path.exists(self.MAP_PATH):
             raise ValueError("Can't find given map path: %s" % self.MAP_PATH)
 
-        self.LEFT_DRIVING = _get_parameter("scenario.left_driving").bool_value
-        self.ADJACENCIES = _get_parameter("scenario.adjacencies").bool_value
-        self.VERBOSE = _get_parameter("general.detailed_log").bool_value
-        if self.VERBOSE:
-            from rclpy.logging import LoggingSeverity
-
-            self._logger.set_level(LoggingSeverity.DEBUG)
+        self.LEFT_DRIVING = self._get_param("scenario.left_driving").bool_value
+        self.ADJACENCIES = self._get_param("scenario.adjacencies").bool_value
+        self._dt = self._get_param("scenario.dt").double_value
 
     def _read_map_config(self, map_path: str) -> Dict[str, Any]:
         map_config = {}
@@ -303,39 +299,43 @@ class ScenarioHandler:
         scenario.dt = dt
         return scenario
 
-    def _init_subscriptions(self, node: "Cr2Auto") -> None:
-        # Callbacks to save the latest messages for later processing
-        node.create_subscription(
+    def _init_subscriptions(self) -> None:
+        # subscribe objects from perception
+        self._node.create_subscription(
             DetectedObjects,
             "/perception/object_recognition/detection/objects",
             lambda msg: self._last_msg.update({"static_obstacle": msg}),
             1,
-            callback_group=node.callback_group,
+            callback_group=self._node.callback_group,
         )
-        node.create_subscription(
+        # subscribe predicted objects from perception
+        self._node.create_subscription(
             PredictedObjects,
             "/perception/object_recognition/objects",
             lambda msg: self._last_msg.update({"dynamic_obstacle": msg}),
             1,
-            callback_group=node.callback_group,
+            callback_group=self._node.callback_group,
         )
-        node.create_subscription(
+        # subscribe initialpose 3d from localization
+        self._node.create_subscription(
             PoseWithCovarianceStamped,
             "/initialpose3d",
             lambda msg: self._last_msg.update({"initial_pose": msg}),
             1,
-            callback_group=node.callback_group,
+            callback_group=self._node.callback_group,
         )
-        node.create_subscription(
+        # subscribe goal pose
+        self._node.create_subscription(
             PoseStamped,
             "/planning/mission_planning/echo_back_goal_pose",
             lambda msg: self._last_msg.update({"goal_pose": msg}),
             1,
-            callback_group=node.callback_group,
+            callback_group=self._node.callback_group,
         )
 
-    def _init_publishers(self, node: "Cr2Auto") -> None:
-        self._OBSTACLE_PUBLISHER = node.create_publisher(
+    def _init_publishers(self) -> None:
+        # obstacle publisher for dynamic obstacle in CR scenario
+        self._OBSTACLE_PUBLISHER = self._node.create_publisher(
             Object,
             "/simulation/dummy_perception_publisher/object_info",
             1,
@@ -393,8 +393,8 @@ class ScenarioHandler:
             if pose_map is None:
                 continue
 
-            pos = utils.map2utm(self.origin_transformation, pose_map.pose.position)
-            orientation = utils.quaternion2orientation(pose_map.pose.orientation)
+            pos = map2utm(self.origin_transformation, pose_map.pose.position)
+            orientation = quaternion2orientation(pose_map.pose.orientation)
             width = box.shape.dimensions.y
             length = box.shape.dimensions.x
 
@@ -423,11 +423,11 @@ class ScenarioHandler:
             return
 
         for obstacle in last_message.objects:
-            position = utils.map2utm(
+            position = map2utm(
                 self._origin_transformation,
                 obstacle.kinematics.initial_pose_with_covariance.pose.position,
             )
-            orientation = utils.quaternion2orientation(
+            orientation = quaternion2orientation(
                 obstacle.kinematics.initial_pose_with_covariance.pose.orientation
             )
             velocity = obstacle.kinematics.initial_twist_with_covariance.twist.linear.x
@@ -456,7 +456,7 @@ class ScenarioHandler:
                 for point in obstacle.kinematics.predicted_paths[highest_conf_idx].path:
                     traj.append(point)
                     if len(traj) >= 2:
-                        utils.upsample_trajectory(traj, dt_ratio)
+                        upsample_trajectory(traj, dt_ratio)
 
             elif obj_traj_dt < self.scenario.dt * 1e9:
                 # downsample predicted path of obstacles to match dt.
@@ -480,7 +480,7 @@ class ScenarioHandler:
                                 idx - 1
                             ]
                             point_2 = point
-                            new_point = utils.traj_linear_interpolate(
+                            new_point = traj_linear_interpolate(
                                 point_1, point_2, obj_traj_dt, self.scenario.dt * 1e9
                             )
                             traj.append(new_point)
@@ -583,7 +583,7 @@ class ScenarioHandler:
         header.frame_id = "map"
 
         for obstacle in self._initial_obstacles:
-            object_msg = utils.create_object_base_msg(header, self.origin_transformation, obstacle)
+            object_msg = create_object_base_msg(header, self.origin_transformation, obstacle)
             if isinstance(obstacle, DynamicObstacle):
                 try:
                     # Bug in CommonRoad?: initial_state is not of type InitialState (warumauchimmer)
@@ -599,7 +599,7 @@ class ScenarioHandler:
                 object_msg.max_velocity = 20.0
                 object_msg.min_velocity = -10.0
             self._OBSTACLE_PUBLISHER.publish(object_msg)
-            self._logger.debug(utils.log_obstacle(object_msg, isinstance(obstacle, StaticObstacle)))
+            self._logger.debug(log_obstacle(object_msg, isinstance(obstacle, StaticObstacle)))
 
     def get_z_coordinate(self):
         """Calculate the mean of the z coordinate from initial_pose and goal_pose."""

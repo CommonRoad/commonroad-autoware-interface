@@ -18,7 +18,7 @@ from rclpy.publisher import Publisher
 import spot
 from visualization_msgs.msg import MarkerArray
 
-import cr2autoware.utils as utils
+from cr2autoware.common.utils.message import create_goal_region_marker
 
 # Avoid circular imports
 if typing.TYPE_CHECKING:
@@ -304,7 +304,7 @@ class SpotHandler:
         for obstacle in obstacles:
             for time_step, prediction in enumerate(obstacle.predictions):
                 for occupancy in prediction.occupied_polygons:
-                    marker = utils.create_goal_region_marker(occupancy, origin_transformation)
+                    marker = create_goal_region_marker(occupancy, origin_transformation)
                     marker.ns = "spot"
                     marker.id = marker_id
                     marker.color.r = 68 / 255

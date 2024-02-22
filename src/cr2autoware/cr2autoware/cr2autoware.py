@@ -3,12 +3,10 @@ from copy import deepcopy
 import os
 import traceback
 from typing import Optional
-from dataclasses import asdict, fields
 import time
 
 # third party imports
 import numpy as np
-import yaml
 import matplotlib
 
 if os.environ.get('DISPLAY') is not None:
@@ -17,7 +15,6 @@ import matplotlib.pyplot as plt
 
 # Autoware.Auto message imports
 from autoware_auto_planning_msgs.msg import Trajectory as AWTrajectory  # type: ignore
-from autoware_auto_planning_msgs.msg import TrajectoryPoint  # type: ignore
 from autoware_auto_system_msgs.msg import AutowareState  # type: ignore
 from autoware_auto_vehicle_msgs.msg import Engage  # type: ignore
 
@@ -30,10 +27,8 @@ from tier4_planning_msgs.msg import VelocityLimit   # type: ignore
 
 # ROS message imports
 from geometry_msgs.msg import Pose
-from geometry_msgs.msg import Point
 from geometry_msgs.msg import PoseStamped
 from geometry_msgs.msg import PoseWithCovarianceStamped
-from nav_msgs.msg import Odometry
 from std_msgs.msg import Header
 from visualization_msgs.msg import Marker
 from visualization_msgs.msg import MarkerArray
@@ -47,7 +42,6 @@ from rclpy.logging import LoggingSeverity
 from rclpy.node import Node
 from rclpy.qos import QoSDurabilityPolicy
 from rclpy.qos import QoSHistoryPolicy
-from rclpy.qos import QoSProfile
 from rclpy.qos import QoSReliabilityPolicy
 # tf2
 import tf2_ros
@@ -69,21 +63,22 @@ from commonroad.scenario.trajectory import Trajectory as CRTrajectory
 from commonroad.visualization.mp_renderer import MPRenderer
 
 # cr2autoware imports
-from cr2autoware.configuration import CR2AutowareParams
-from cr2autoware.ego_vehicle_handler import EgoVehicleHandler
-from cr2autoware.planning_problem_handler import PlanningProblemHandler
-from cr2autoware.cr_route_planner import CommonRoadRoutePlanner
-from cr2autoware.rp_interface import ReactivePlannerInterface
-from cr2autoware.scenario_handler import ScenarioHandler
-from cr2autoware.tf2_geometry_msgs import do_transform_pose
-from cr2autoware.trajectory_logger import TrajectoryLogger
-import cr2autoware.utils as utils
-from cr2autoware.velocity_planner import VelocityPlanner
+from cr2autoware.common.configuration import CR2AutowareParams
+from .handlers.scenario_handler import ScenarioHandler
+from .handlers.ego_vehicle_handler import EgoVehicleHandler
+from .handlers.planning_problem_handler import PlanningProblemHandler
+from .interfaces.implementation.cr_route_planner import CommonRoadRoutePlanner
+from .interfaces.implementation.velocity_planner import VelocityPlanner
+from .interfaces.implementation.rp_interface import ReactivePlannerInterface
+from cr2autoware.common.utils.tf2_geometry_msgs import do_transform_pose
+from cr2autoware.common.utils.trajectory_logger import TrajectoryLogger
+from .common.utils.transform import orientation2quaternion
+from .common.utils.transform import quaternion2orientation
+from .common.utils.transform import map2utm
+from .common.utils.transform import utm2map
+from .common.utils.message import create_goal_marker
 
-try:
-    from cr2autoware.spot_handler import SpotHandler
-except ImportError:
-    SpotHandler = None
+import cr2autoware.common.utils.utils as utils
 
 
 class Cr2Auto(Node):
@@ -94,7 +89,6 @@ class Cr2Auto(Node):
 
     scenario_handler: ScenarioHandler
     plan_prob_handler: PlanningProblemHandler
-    spot_handler: Optional["SpotHandler"]  # May be None if Spot is not installed or disabled
 
     def __init__(self):
         """
@@ -147,18 +141,6 @@ class Cr2Auto(Node):
         self.plan_prob_handler: PlanningProblemHandler = PlanningProblemHandler(self, 
                                                                                 self.scenario, 
                                                                                 self.origin_transformation)
-        # SPOT handler (optional)
-        if self.get_parameter("general.enable_spot").get_parameter_value().bool_value:
-            if SpotHandler is None:
-                self._logger.error(
-                    "The Spot module has been enabled but wasn't imported! "
-                    "Have you installed SPOT into your Python environment? "
-                    "Continuing without SPOT.")
-                self.spot_handler = None
-            else:
-                self.spot_handler = SpotHandler(self)
-        else:
-            self.spot_handler = None
         
         # write CommonRoad scenario to xml file
         if self.write_scenario:
@@ -503,12 +485,6 @@ class Cr2Auto(Node):
                 self.ego_vehicle_handler.update_ego_vehicle()
                 self.scenario_handler.update_scenario()
                 self.plot_save_scenario()
-                if self.planning_problem and self.spot_handler is not None:
-                    self.spot_handler.update(
-                        self.scenario,
-                        self.origin_transformation,
-                        self.planning_problem,
-                    )
 
                 # check if initial pose was changed (if true: recalculate reference path)
                 if self.new_initial_pose:
@@ -540,7 +516,7 @@ class Cr2Auto(Node):
                         self._logger.info(
                             "Can't run route planner because interface is still waiting for velocity planner"
                         )
-                        _goal_pos_cr = utils.map2utm(self.origin_transformation, self.current_goal_msg.pose.position)
+                        _goal_pos_cr = map2utm(self.origin_transformation, self.current_goal_msg.pose.position)
                         self.velocity_planner.plan(self.route_planner.reference_path, _goal_pos_cr,
                                                    self.origin_transformation)
                         self.is_computing_trajectory = False
@@ -677,8 +653,8 @@ class Cr2Auto(Node):
         header.frame_id = "map"
         initial_pose_msg.header = header
         pose = Pose()
-        pose.position = utils.utm2map(self.origin_transformation, states[0].position)
-        pose.orientation = utils.orientation2quaternion(states[0].orientation)
+        pose.position = utm2map(self.origin_transformation, states[0].position)
+        pose.orientation = orientation2quaternion(states[0].orientation)
         initial_pose_msg.pose.pose = pose
         self.initial_pose_pub.publish(initial_pose_msg)
 
@@ -686,8 +662,8 @@ class Cr2Auto(Node):
         goal_msg = PoseStamped()
         goal_msg.header = header
         pose = Pose()
-        pose.position = utils.utm2map(self.origin_transformation, states[-1].position)
-        pose.orientation = utils.orientation2quaternion(states[-1].orientation)
+        pose.position = utm2map(self.origin_transformation, states[-1].position)
+        pose.orientation = orientation2quaternion(states[-1].orientation)
         goal_msg.pose = pose
         self.goal_pose_pub.publish(goal_msg)
 
@@ -713,8 +689,8 @@ class Cr2Auto(Node):
             work_traj = traj
         for i in range(len(work_traj)):
             # compute new position
-            position = utils.map2utm(self.origin_transformation, work_traj[i].position)
-            orientation = utils.quaternion2orientation(work_traj[i].orientation)
+            position = map2utm(self.origin_transformation, work_traj[i].position)
+            orientation = quaternion2orientation(work_traj[i].orientation)
             new_state = CustomState(position=position, orientation=orientation, time_step=i)
             state_list.append(new_state)
 
@@ -888,11 +864,11 @@ class Cr2Auto(Node):
             self._logger.info("Pose position: " + str(current_msg.pose.position))
 
             # TODO move goal creation to PlanningProbHandler
-            position = utils.map2utm(self.origin_transformation, current_msg.pose.position)
+            position = map2utm(self.origin_transformation, current_msg.pose.position)
             pos_x = position[0]
             pos_y = position[1]
             self._logger.info("Pose position utm: " + str(position))
-            orientation = utils.quaternion2orientation(current_msg.pose.orientation)
+            orientation = quaternion2orientation(current_msg.pose.orientation)
             if self.ego_vehicle_handler.ego_vehicle_state is None:
                 self._logger.error("ego vehicle state is None")
                 return
@@ -949,7 +925,7 @@ class Cr2Auto(Node):
             self.route_planner.plan(self.planning_problem)
 
             # plan velocity profile (-> reference trajectory)
-            _goal_pos_cr = utils.map2utm(self.origin_transformation, self.current_goal_msg.pose.position)
+            _goal_pos_cr = map2utm(self.origin_transformation, self.current_goal_msg.pose.position)
             self.velocity_planner.plan(self.route_planner.reference_path, _goal_pos_cr,
                                        self.origin_transformation)
 
@@ -1023,7 +999,7 @@ class Cr2Auto(Node):
             # Re-plan the route and reference path
             self.route_planner.plan(self.planning_problem)
             # Re-plan the velocity profile
-            _goal_pos_cr = utils.map2utm(self.origin_transformation, self.current_goal_msg.pose.position)
+            _goal_pos_cr = map2utm(self.origin_transformation, self.current_goal_msg.pose.position)
             self.velocity_planner.plan(self.route_planner.reference_path, _goal_pos_cr,
                                        self.origin_transformation)
                   
@@ -1048,14 +1024,14 @@ class Cr2Auto(Node):
         goals_msg.markers.append(marker)
 
         if self.current_goal_msg is not None:
-            marker = utils.create_goal_marker(self.current_goal_msg.pose.position)
+            marker = create_goal_marker(self.current_goal_msg.pose.position)
             marker.id = 1
             marker.ns = "goals"
             goals_msg.markers.append(marker)
 
         if len(self.goal_msgs) > 0:
             for i in range(len(self.goal_msgs)):
-                marker = utils.create_goal_marker(self.goal_msgs[i].pose.position)
+                marker = create_goal_marker(self.goal_msgs[i].pose.position)
                 marker.id = i + 2
                 marker.ns = "goals"
                 goals_msg.markers.append(marker)

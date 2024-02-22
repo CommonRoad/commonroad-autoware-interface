@@ -18,7 +18,7 @@ from commonroad_dc.geometry.util import resample_polyline, chaikins_corner_cutti
 from commonroad_route_planner.route_planner import RoutePlanner as CRRoutePlanner
 
 # cr2autoware imports
-from cr2autoware.route_planner import RoutePlannerInterface
+from cr2autoware.interfaces.base.route_planner_interface import RoutePlannerInterface
 
 
 class CommonRoadRoutePlanner(RoutePlannerInterface):
