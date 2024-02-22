@@ -24,10 +24,15 @@ from commonroad.scenario.state import InitialState, FloatExactOrInterval
 from .base import BaseHandler
 from ..common.utils.transform import quaternion2orientation
 from ..common.utils.transform import map2utm
+from ..common.ros_interface.create import create_subscription
 
 # Avoid circular imports
 if typing.TYPE_CHECKING:
     from cr2autoware.cr2autoware import Cr2Auto
+
+# subscriber specifications
+from ..common.ros_interface.specs_subscriptions import \
+    spec_odometry, spec_curr_acc
 
 
 @dataclass(eq=False)
@@ -104,20 +109,10 @@ class EgoVehicleHandler(BaseHandler):
 
     def _init_subscriptions(self):
         # subscribe current state from odometry
-        self._node.create_subscription(
-            Odometry,
-            "/localization/kinematic_state",
-            self._current_state_callback,
-            1,
-            callback_group=self._node.callback_group)
+        _ = create_subscription(self._node, spec_odometry, self._current_state_callback, self._node.callback_group)
 
         # subscribe current acceleration (separate topic, currently not in /localization/kinematic_state)
-        self._node.create_subscription(
-            AccelWithCovarianceStamped,
-            "/localization/acceleration",
-            self._current_acc_callback,
-            1,
-            callback_group=self._node.callback_group)
+        _ = create_subscription(self._node, spec_curr_acc, self._current_acc_callback, self._node.callback_group)
 
     def _init_publishers(self):
         pass

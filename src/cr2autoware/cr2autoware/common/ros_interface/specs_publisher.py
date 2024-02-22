@@ -91,3 +91,8 @@ spec_velocity_limit_pub_vis = PublisherSpec(name="/planning/scenario_planning/cu
                                             msg_type=VelocityLimit,
                                             depth=1,
                                             qos_profile=QosSpec(QoSDurabilityPolicy.TRANSIENT_LOCAL))
+
+# publish initial pose (when loading scenario from a CR file)
+spec_initial_pose_2d_pub = PublisherSpec(name="/initialpose",
+                                         msg_type=PoseWithCovarianceStamped,
+                                         depth=1)

@@ -6,6 +6,8 @@ To add a new topic subscription, add the specification here first.
 # ROS messages
 from geometry_msgs.msg import PoseStamped
 from geometry_msgs.msg import PoseWithCovarianceStamped
+from geometry_msgs.msg import AccelWithCovarianceStamped
+from nav_msgs.msg import Odometry
 
 # Autoware messages
 from autoware_auto_vehicle_msgs.msg import Engage  # type: ignore
@@ -51,3 +53,13 @@ spec_routing_state_sub = SubscriptionSpec(name="/api/routing/state",
 spec_autoware_state_sub = SubscriptionSpec(name="/autoware/state",
                                            msg_type=AutowareState,
                                            depth=1)
+
+# subscribe current state from odometry (kinematic state)
+spec_odometry = SubscriptionSpec(name="/localization/kinematic_state",
+                                 msg_type=Odometry,
+                                 depth=1)
+
+# subscribe current acceleration (separate topic, currently not in /localization/kinematic_state)
+spec_curr_acc = SubscriptionSpec(name="/localization/acceleration",
+                                 msg_type=AccelWithCovarianceStamped,
+                                 depth=1)
