@@ -40,9 +40,7 @@ from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.logging import LoggingSeverity
 from rclpy.node import Node
-from rclpy.qos import QoSDurabilityPolicy
-from rclpy.qos import QoSHistoryPolicy
-from rclpy.qos import QoSReliabilityPolicy
+
 # tf2
 import tf2_ros
 from tf2_ros.buffer import Buffer
@@ -77,7 +75,22 @@ from .common.utils.transform import quaternion2orientation
 from .common.utils.transform import map2utm
 from .common.utils.transform import utm2map
 from .common.utils.message import create_goal_marker
-from .common.ros_interface.create import create_qos_profile
+from .common.ros_interface.create import create_subscription, create_publisher, create_client
+
+# subscriber specifications
+from .common.ros_interface.specs_subscriptions import \
+    spec_initial_pose_sub, spec_goal_pose_sub, spec_auto_button_sub, spec_velocity_limit_sub, spec_routing_state_sub, \
+    spec_autoware_state_sub
+
+# publisher specifications
+from .common.ros_interface.specs_publisher import \
+    spec_goal_pose_pub, spec_traj_pub, spec_aw_state_pub, spec_vehicle_engage_pub, spec_api_engage_pub, \
+    spec_routing_state_pub, spec_route_pub, spec_velocity_pub, spec_initial_pose_pub, spec_goal_region_pub, \
+    spec_velocity_limit_pub, spec_velocity_limit_pub_vis
+
+# service client specifications
+from .common.ros_interface.specs_clients import \
+    spec_change_to_stop_client
 
 
 class Cr2Auto(Node):
@@ -174,156 +187,72 @@ class Cr2Auto(Node):
 
         # ========= Subscribers =========
         # subscribe initial pose
-        self.initialpose_sub = self.create_subscription(
-            PoseWithCovarianceStamped,
-            "/initialpose3d",
-            self.initial_pose_callback,
-            1,
-            callback_group=self.callback_group,
-        )
+        self.initialpose_sub = create_subscription(self, spec_initial_pose_sub, self.initial_pose_callback,
+                                                   self.callback_group)
+
         # subscribe goal pose
-        self.goal_pose_sub = self.create_subscription(
-            PoseStamped,
-            "/planning/mission_planning/goal",
-            self.goal_pose_callback,
-            1,
-            callback_group=self.callback_group,
-        )
+        self.goal_pose_sub = create_subscription(self, spec_goal_pose_sub, self.goal_pose_callback, self.callback_group)
+
         # subscribe autoware engage message
-        self.auto_button_sub = self.create_subscription(
-            Engage,
-            "/autoware/engage",
-            self.auto_button_callback,
-            1,
-            callback_group=self.callback_group,
-        )
+        self.auto_button_sub = create_subscription(self, spec_auto_button_sub, self.auto_button_callback,
+                                                   self.callback_group)
+
         # subscribe velocity limit from API
-        # (Here we directly use the value from the API velocity limit setter in RVIZ.
-        # In the default AW.Universe this value is input to the node external_velocity_limit_selector
-        # which selects the velocity limit from different values)
-        self.create_subscription(
-            VelocityLimit,
-            "/planning/scenario_planning/max_velocity_default",
-            self.velocity_limit_callback,
-            1,
-            callback_group=self.callback_group,
-        )
+        self.vel_limit_sub = create_subscription(self, spec_velocity_limit_sub, self.velocity_limit_callback,
+                                                 self.callback_group)
+
         # subscribe routing state
-        self.routing_state_sub = self.create_subscription(
-            RouteState,
-            "/api/routing/state",
-            self.routing_state_callback,
-            1,
-            callback_group=self.callback_group,
-        )
+        self.routing_state_sub = create_subscription(self, spec_routing_state_sub, self.routing_state_callback,
+                                                     self.callback_group)
+
         # subscribe autoware state
-        self.autoware_state_sub = self.create_subscription(
-            AutowareState,
-            "/autoware/state",
-            self.state_callback,
-            1,
-            callback_group=self.callback_group,
-        )
+        self.autoware_state_sub = create_subscription(self, spec_autoware_state_sub, self.state_callback,
+                                                      self.callback_group)
+
         # ========= Publishers =========
         # publish goal pose
-        self.goal_pose_pub = self.create_publisher(
-            PoseStamped,
-            "/planning/mission_planning/goal",
-            1,
-        )
+        self.goal_pose_pub = create_publisher(self, spec_goal_pose_pub)
+
         # publish trajectory
-        # We do not publish the trajectory directly to /planning/scenario_planning/trajectory
-        # but instead use a dummy-topic that is analyzed by the planning_validator, which in turn is checked
-        # by the system_error_monitor
-        self.traj_pub = self.create_publisher(
-            AWTrajectory, 
-            "/planning/commonroad/trajectory", 
-            1
-        )
+        self.traj_pub = create_publisher(self, spec_traj_pub)
+
         # publish autoware state
-        # list of states: https://gitlab.com/autowarefoundation/autoware.auto/autoware_auto_msgs/-/blob/master/autoware_auto_system_msgs/msg/AutowareState.idl
-        self.aw_state_pub = self.create_publisher(
-            AutowareState, 
-            "/autoware/state", 
-            1
-        )
+        self.aw_state_pub = create_publisher(self, spec_aw_state_pub)
+
         # publish vehicle engage for AW Planning Simulation
-        self.vehicle_engage_pub = self.create_publisher(
-            Engage, 
-            "/vehicle/engage", 
-            1
-        )
+        self.vehicle_engage_pub = create_publisher(self, spec_vehicle_engage_pub)
+
         # publish engage required by node /control/operation_mode_transistion_manager
-        self.api_engage_pub = self.create_publisher(
-            Engage, 
-            "/api/autoware/get/engage", 
-            1
-        )
+        self.api_engage_pub = create_publisher(self, spec_api_engage_pub)
+
         # publish routing state
-        qos_routing_state_pub = create_qos_profile(QoSHistoryPolicy.KEEP_LAST,
-                                                   QoSReliabilityPolicy.RELIABLE,
-                                                   QoSDurabilityPolicy.TRANSIENT_LOCAL,
-                                                   depth=1)
-        self.routing_state_pub = self.create_publisher(
-            RouteState, 
-            "/api/routing/state", 
-            qos_routing_state_pub
-        )
+        self.routing_state_pub = create_publisher(self, spec_routing_state_pub)
+
         # publish route marker
-        qos_route_pub = create_qos_profile(QoSHistoryPolicy.KEEP_LAST,
-                                           QoSReliabilityPolicy.RELIABLE,
-                                           QoSDurabilityPolicy.TRANSIENT_LOCAL,
-                                           depth=1)
-        self.route_pub = self.create_publisher(
-            MarkerArray,
-            "/planning/mission_planning/route_marker",
-            qos_route_pub,
-        )
+        self.route_pub = create_publisher(self, spec_route_pub)
+
         # publish reference trajectory to motion velocity smoother
-        self.velocity_pub = self.create_publisher(
-            AWTrajectory,
-            "/planning/scenario_planning/scenario_selector/trajectory",
-            1
-        )
+        self.velocity_pub = create_publisher(self, spec_velocity_pub)
+
         # publish initial state of the scenario (replay solution trajectory mode)
-        self.initial_pose_pub = self.create_publisher(
-            PoseWithCovarianceStamped, 
-            "/initialpose3d", 
-            1
-        )
+        self.initial_pose_pub = create_publisher(self, spec_initial_pose_pub)
+
         # publish goal region(s) of the scenario (TODO: use correct topic)
-        self.goal_region_pub = self.create_publisher(
-            MarkerArray, 
-            "/goal_region_marker_array", 
-            1
-        )
+        self.goal_region_pub = create_publisher(self, spec_goal_region_pub)
+
         # publish max velocity limit
         # (currently only subscribed by Motion Velocity Smoother, if we use the external_velocity_limit_selector node,
         #  this publisher can be removed)
-        self.velocity_limit_pub = self.create_publisher(
-            VelocityLimit,
-            "/planning/scenario_planning/max_velocity",
-            1
-        )
+        self.velocity_limit_pub = create_publisher(self, spec_velocity_limit_pub)
+
         # publish current velocity limit for display in RVIZ
         # (this separate topic is currently only subscribed by RVIZ)
-        qos_velocity_limit_pub_vis = create_qos_profile(QoSHistoryPolicy.KEEP_LAST,
-                                                        QoSReliabilityPolicy.RELIABLE,
-                                                        QoSDurabilityPolicy.TRANSIENT_LOCAL,
-                                                        depth=1)
-        self.velocity_limit_pub_vis = self.create_publisher(
-            VelocityLimit,
-            "/planning/scenario_planning/current_max_velocity",
-            qos_velocity_limit_pub_vis
-        )
+        self.velocity_limit_pub_vis = create_publisher(self, spec_velocity_limit_pub_vis)
 
         # ========= Service Clients =========
         # client for change to stop service call (only for publishing "stop" if goal arrived)
+        self.change_to_stop_client = create_client(self, spec_change_to_stop_client)
 
-        self.change_to_stop_client = self.create_client(
-            ChangeOperationMode, 
-            "/api/operation_mode/change_to_stop"
-        )
         self.change_to_stop_request = ChangeOperationMode.Request()
 
         # ========= Set up Planner Interfaces =========
