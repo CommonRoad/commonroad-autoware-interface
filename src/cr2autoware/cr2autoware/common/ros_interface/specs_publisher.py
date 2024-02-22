@@ -58,13 +58,13 @@ spec_api_engage_pub = PublisherSpec(name="/api/autoware/get/engage",
 spec_routing_state_pub = PublisherSpec(name="/api/routing/state",
                                        msg_type=RouteState,
                                        depth=1,
-                                       qos_profile=QosSpec(QoSDurabilityPolicy.TRANSIENT_LOCAL))
+                                       qos_profile=QosSpec(durability=QoSDurabilityPolicy.TRANSIENT_LOCAL))
 
 # publish route marker
 spec_route_pub = PublisherSpec(name="/planning/mission_planning/route_marker",
                                msg_type=MarkerArray,
                                depth=1,
-                               qos_profile=QosSpec(QoSDurabilityPolicy.TRANSIENT_LOCAL))
+                               qos_profile=QosSpec(durability=QoSDurabilityPolicy.TRANSIENT_LOCAL))
 
 # publish reference trajectory to motion velocity smoother
 spec_velocity_pub = PublisherSpec(name="/planning/scenario_planning/scenario_selector/trajectory",
