@@ -154,16 +154,8 @@ class Cr2Auto(Node):
                                                                                 self.scenario, 
                                                                                 self.origin_transformation)
         
-        # write CommonRoad scenario to xml file
-        if self.write_scenario:
-            self._write_scenario()
-        
         # intiialize planning-specific attributes
-        self.planning_problem_set = None
-        self.planner_state_list = None
         self.is_computing_trajectory = False  # stop update scenario when trajectory is being computed
-        self.reference_path = None
-        self.reference_path_published = False
         self.new_initial_pose = False
         self.external_velocity_limit = 1337.0
 
