@@ -20,18 +20,32 @@ from .specs_base import SrvClientSpec
 
 def create_publisher(node: Node, spec: PublisherSpec) -> Publisher:
     """Creates a topic publisher with the given specification for the node"""
-    return
+    _qos_pofile: QoSProfile = create_qos_profile(spec.qos_profile.history,
+                                                 spec.qos_profile.reliability,
+                                                 spec.qos_profile.durability,
+                                                 spec.depth)
+    _pub: Publisher = node.create_publisher(spec.msg_type,
+                                            spec.name,
+                                            _qos_pofile)
+    return _pub
 
 
 def create_subscription(node: Node, spec: SubscriptionSpec, callback_func: Callable,
                         callback_group: Type[CallbackGroup] = None) -> Subscription:
     """Creates a topic subscription with the given specification for the node"""
-    return
+    _sub: Subscription = node.create_subscription(spec.msg_type,
+                                                  spec.name,
+                                                  callback_func,
+                                                  spec.depth,
+                                                  callback_group=callback_group)
+    return _sub
 
 
 def create_client(node: Node, spec: SrvClientSpec) -> Client:
     """Creates a service client with the given specification for the node"""
-    return
+    _client = node.create_client(spec.srv_type,
+                                 spec.name)
+    return _client
 
 
 def create_qos_profile(history_policy: QoSHistoryPolicy,

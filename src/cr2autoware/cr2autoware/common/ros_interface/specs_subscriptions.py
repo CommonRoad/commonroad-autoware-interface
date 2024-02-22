@@ -31,8 +31,8 @@ initial_pose_sub = SubscriptionSpec(name="/initialpose3d",
 
 # subscribe goal pose
 goal_pose_sub = SubscriptionSpec(name="/planning/mission_planning/goal",
-                                msg_type=PoseStamped,
-                                depth=1)
+                                 msg_type=PoseStamped,
+                                 depth=1)
 
 
 # subscribe autoware engage message
