@@ -34,13 +34,17 @@ class BaseSpec:
 
 @dataclass
 class QosSpec:
-    """Class for ROS quality-of-service (QOS) specifications"""
+    """
+    Class for ROS quality-of-service (QOS) specifications
+    Default values correspond to ROS2 defaults
+    see here: https://docs.ros.org/en/rolling/Concepts/Intermediate/About-Quality-of-Service-Settings.html
+    """
     # history policy
-    history: QoSHistoryPolicy
+    history: QoSHistoryPolicy = QoSHistoryPolicy.KEEP_LAST
     # reliability policy
-    reliability: QoSReliabilityPolicy
+    reliability: QoSReliabilityPolicy = QoSReliabilityPolicy.RELIABLE
     # durability_policy
-    durability: QoSDurabilityPolicy
+    durability: QoSDurabilityPolicy = QoSDurabilityPolicy.VOLATILE
 
 
 @dataclass
@@ -51,7 +55,7 @@ class PublisherSpec(BaseSpec):
     # depth
     depth: int = 1
     # QOS profile
-    qos_profile: Optional[QosSpec] = field(init=False)
+    qos_profile: QosSpec = field(default_factory=QosSpec)
 
 
 @dataclass
@@ -62,7 +66,7 @@ class SubscriptionSpec(BaseSpec):
     # depth
     depth: int = 1
     # QOS profile
-    qos_profile: QosSpec = field(init=False)
+    qos_profile: QosSpec = field(default_factory=QosSpec)
 
 
 @dataclass
