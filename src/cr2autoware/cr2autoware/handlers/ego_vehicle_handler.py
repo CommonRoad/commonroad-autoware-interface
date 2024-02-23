@@ -24,10 +24,15 @@ from commonroad.scenario.state import InitialState, FloatExactOrInterval
 from .base import BaseHandler
 from ..common.utils.transform import quaternion2orientation
 from ..common.utils.transform import map2utm
+from ..common.ros_interface.create import create_subscription
 
 # Avoid circular imports
 if typing.TYPE_CHECKING:
     from cr2autoware.cr2autoware import Cr2Auto
+
+# subscriber specifications
+from ..common.ros_interface.specs_subscriptions import \
+    spec_odometry, spec_curr_acc
 
 
 @dataclass(eq=False)
@@ -104,20 +109,10 @@ class EgoVehicleHandler(BaseHandler):
 
     def _init_subscriptions(self):
         # subscribe current state from odometry
-        self._node.create_subscription(
-            Odometry,
-            "/localization/kinematic_state",
-            self.current_state_callback,
-            1,
-            callback_group=self._node.callback_group)
+        _ = create_subscription(self._node, spec_odometry, self._current_state_callback, self._node.callback_group)
 
         # subscribe current acceleration (separate topic, currently not in /localization/kinematic_state)
-        self._node.create_subscription(
-            AccelWithCovarianceStamped,
-            "/localization/acceleration",
-            self.current_acc_callback,
-            1,
-            callback_group=self._node.callback_group)
+        _ = create_subscription(self._node, spec_curr_acc, self._current_acc_callback, self._node.callback_group)
 
     def _init_publishers(self):
         pass
@@ -160,7 +155,7 @@ class EgoVehicleHandler(BaseHandler):
     def vehicle_max_acceleration(self):
         return self._vehicle_max_acceleration
 
-    def current_state_callback(self, msg: Odometry) -> None:
+    def _current_state_callback(self, msg: Odometry) -> None:
         """
         Callback to current kinematic state of the ego vehicle.
         :param msg: current kinematic state message
@@ -168,7 +163,7 @@ class EgoVehicleHandler(BaseHandler):
         self._current_vehicle_state = msg
         self.new_pose_received = True
 
-    def current_acc_callback(self, msg: AccelWithCovarianceStamped) -> None:
+    def _current_acc_callback(self, msg: AccelWithCovarianceStamped) -> None:
         """
         Callback to current acceleration of the ego vehicle.
         NOTE: acceleration is currently not part of kinematic state message, that's why separate callback is required
@@ -177,7 +172,7 @@ class EgoVehicleHandler(BaseHandler):
         # store acceleration message
         self._current_vehicle_acc = msg
 
-    def process_current_state(self) -> None:
+    def _process_current_state(self) -> None:
         """Calculate the current commonroad state from the autoware latest state message."""
         if self._current_vehicle_state is not None:
             source_frame = self._current_vehicle_state.header.frame_id
@@ -232,7 +227,7 @@ class EgoVehicleHandler(BaseHandler):
         """Update the commonroad scenario with the latest vehicle state and obstacle messages received."""
         # process last state message
         if self._current_vehicle_state is not None:
-            self.process_current_state()
+            self._process_current_state()
         else:
             if self._VERBOSE:
                 self._logger.info("has not received a vehicle state yet!")

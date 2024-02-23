@@ -34,10 +34,15 @@ from .base import BaseHandler
 from ..common.utils.transform import orientation2quaternion
 from ..common.utils.transform import utm2map
 from ..common.utils.message import create_goal_region_marker
+from ..common.ros_interface.create import create_publisher
 
 # Avoid circular imports
 if typing.TYPE_CHECKING:
     from cr2autoware.cr2autoware import Cr2Auto
+
+# publisher specifications
+from ..common.ros_interface.specs_publisher import \
+    spec_initial_pose_2d_pub, spec_goal_pose_pub, spec_goal_region_pub
 
 
 # TODO: At the moment this class will only load the first planning problem from the CommonRoad file.
@@ -99,19 +104,13 @@ class PlanningProblemHandler(BaseHandler):
 
     def _init_publishers(self):
         # publish initial pose
-        self._INITIAL_POSE_PUBLISHER = self._node.create_publisher(
-            PoseWithCovarianceStamped, "/initialpose", 1
-        )
+        self._INITIAL_POSE_PUBLISHER = create_publisher(self._node, spec_initial_pose_2d_pub)
+
         # publish goal pose
-        self._GOAL_POSE_PUBLISHER = self._node.create_publisher(
-            PoseStamped,
-            "/planning/mission_planning/goal",
-            1,
-        )
+        self._GOAL_POSE_PUBLISHER = create_publisher(self._node, spec_goal_pose_pub)
+
         # publish goal marker
-        self._GOAL_REGION_PUBLISHER = self._node.create_publisher(
-            MarkerArray, "/goal_region_marker_array", 1
-        )
+        self._GOAL_REGION_PUBLISHER = create_publisher(self._node, spec_goal_region_pub)
 
     def _load_planning_problem(self, map_path: str) -> Optional[PlanningProblem]:
         """Load the planning problem from the CommonRoad file."""
