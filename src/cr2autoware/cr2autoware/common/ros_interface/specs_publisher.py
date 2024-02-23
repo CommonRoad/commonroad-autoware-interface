@@ -15,6 +15,7 @@ from visualization_msgs.msg import MarkerArray
 from autoware_auto_planning_msgs.msg import Trajectory as AWTrajectory  # type: ignore
 from autoware_auto_system_msgs.msg import AutowareState  # type: ignore
 from autoware_auto_vehicle_msgs.msg import Engage  # type: ignore
+from dummy_perception_publisher.msg import Object  # type: ignore
 
 # Autoware AdAPI message imports
 from autoware_adapi_v1_msgs.msg import RouteState  # type: ignore
@@ -96,3 +97,8 @@ spec_velocity_limit_pub_vis = PublisherSpec(name="/planning/scenario_planning/cu
 spec_initial_pose_2d_pub = PublisherSpec(name="/initialpose",
                                          msg_type=PoseWithCovarianceStamped,
                                          depth=1)
+
+# obstacle publisher for dynamic obstacle in CR scenario (when loading scenario from a CR file)
+spec_obstacle_pub = PublisherSpec(name="/simulation/dummy_perception_publisher/object_info",
+                                  msg_type=Object,
+                                  depth=1)

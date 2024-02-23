@@ -56,10 +56,17 @@ from ..common.utils.message import create_object_base_msg
 from ..common.utils.message import log_obstacle
 from ..common.utils.geometry import upsample_trajectory
 from ..common.utils.geometry import traj_linear_interpolate
+from ..common.ros_interface.create import create_publisher
+from ..common.ros_interface.create import create_subscription
 
 # Avoid circular imports
 if typing.TYPE_CHECKING:
     from cr2autoware.cr2autoware import Cr2Auto
+
+# publisher specifications
+from ..common.ros_interface.specs_publisher import spec_obstacle_pub
+
+# subscriber specifications
 
 # TODO: Figure out how to load from CR xml file
 
@@ -335,11 +342,7 @@ class ScenarioHandler(BaseHandler):
 
     def _init_publishers(self) -> None:
         # obstacle publisher for dynamic obstacle in CR scenario
-        self._OBSTACLE_PUBLISHER = self._node.create_publisher(
-            Object,
-            "/simulation/dummy_perception_publisher/object_info",
-            1,
-        )
+        self._OBSTACLE_PUBLISHER = create_publisher(self._node, spec_obstacle_pub)
 
     @property
     def scenario(self) -> CRScenario:
