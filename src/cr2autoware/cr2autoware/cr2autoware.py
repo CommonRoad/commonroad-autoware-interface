@@ -173,6 +173,7 @@ class Cr2Auto(Node):
         # vars to save last messages
         # https://github.com/tier4/autoware_auto_msgs/blob/tier4/main/autoware_auto_system_msgs/msg/AutowareState.idl
         self.last_msg_aw_state = 1  # 1 = initializing
+        self.last_msg_aw_stamp = self.get_clock().now()
         self.goal_msgs = []
         self.current_goal_msg = None
         self.last_goal_reached = self.get_clock().now()
@@ -192,14 +193,14 @@ class Cr2Auto(Node):
         # subscribe velocity limit from API
         self.vel_limit_sub = create_subscription(self, spec_velocity_limit_sub, self.velocity_limit_callback,
                                                  self.callback_group)
+        
+        # subscribe autoware state
+        self.autoware_state_sub = create_subscription(self, spec_autoware_state_sub, self.state_callback,
+                                                      self.callback_group)
 
         # subscribe routing state
         self.routing_state_sub = create_subscription(self, spec_routing_state_sub, self.routing_state_callback,
                                                      self.callback_group)
-
-        # subscribe autoware state
-        self.autoware_state_sub = create_subscription(self, spec_autoware_state_sub, self.state_callback,
-                                                      self.callback_group)
 
         # ========= Publishers =========
         # publish goal pose
