@@ -45,7 +45,6 @@ from commonroad_dc.boundary.boundary import create_road_boundary_obstacle
 
 # crdesigner imports
 from crdesigner.common.config.lanelet2_config import lanelet2_config
-from crdesigner.common.config.general_config import general_config
 from crdesigner.map_conversion.map_conversion_interface import lanelet_to_commonroad
 
 # cr2autoware
@@ -295,14 +294,17 @@ class ScenarioHandler(BaseHandler):
             "Creating from autoware map via Lanelet2CommonRoad conversion instead"
         )
 
-        general_config.proj_string_cr = projection_string
+        lanelet2_config.proj_string_l2 = projection_string
         lanelet2_config.left_driving = left_driving
         lanelet2_config.adjacencies = adjacencies
         lanelet2_config.translate = True
+        lanelet2_config.autoware = True
 
-        scenario = lanelet_to_commonroad(input_file=map_filename, general_conf=general_config,
-                                         lanelet2_conf=lanelet2_config)
-        
+        scenario = lanelet_to_commonroad(
+            input_file=map_filename,
+            lanelet2_conf=lanelet2_config,
+        )
+
         scenario.dt = dt
         return scenario
 
@@ -612,7 +614,7 @@ class ScenarioHandler(BaseHandler):
 
         new_initial_pose = self._last_msg.get("initial_pose")
         new_goal_pose = self._last_msg.get("goal_pose")   
- 
+
         # only consider values if z is not None or 0.0
         if new_initial_pose is not None and new_initial_pose.pose.pose.position.z != 0.0:       
             new_initial_pose_z = new_initial_pose.pose.pose.position.z
