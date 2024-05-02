@@ -17,3 +17,4 @@ Coupling Autoware with the CommonRoad Motion Planning Framework", Proc. of the I
 ## Authors
 - Gerald Würsching: gerald.wuersching[at]tum.de
 - Tobias Mascetta: tobias.mascetta[at]tum.de
+- Yuanfei Lin: yuanfei.lin[at]tum.de
