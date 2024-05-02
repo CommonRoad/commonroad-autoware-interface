@@ -62,7 +62,7 @@ pages:
   only:
     - master
     - release
-    - feature/add_ci
+    - develop
   when: manual
   script:
     - pip install mkdocs
