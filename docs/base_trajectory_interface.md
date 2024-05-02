@@ -1,0 +1,1 @@
+::: src.cr2autoware.cr2autoware.interfaces.base.trajectory_planner_interface

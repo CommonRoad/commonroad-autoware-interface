@@ -2,21 +2,76 @@ default:
   image: python:3.10
 
 stages: # List of stages for jobs, and their order of execution
-  - pre
+  - style
+  - test
+  - deploy
 
-pre-commit-job:
-  stage: pre
-  variables:
-    GIT_CHECKOUT: "true"
-  script:
-    - echo "pre-commit checks are running..."
-    - pip install pre-commit
-    - "pre-commit run
-      --color=always
-      --config .pre-commit-config.yaml
-      --from-ref=$CI_MERGE_REQUEST_DIFF_BASE_SHA
-      --to-ref=$CI_COMMIT_SHA
-      "
-  allow_failure: false
+
+####### Style ##########
+flake8:
+  stage: style
+  needs: []
+  image: python:3.10
+  before_script: []
+  cache: []
   only:
-    - merge_requests
+    - develop
+    - master
+    - release
+  script:
+    - pip install flake8
+    - flake8 src/cr2autoware --extend-ignore=E501,E203 --max-line-length=120
+
+black:
+  stage: style
+  needs: []
+  image: pyfound/black:24.2.0
+  before_script: []
+  cache: []
+  only:
+    - develop
+    - master
+    - release
+  script:
+    - black --check --verbose --diff --color src/cr2autoware
+
+
+
+########### Test #################
+test_build_pages:
+  stage: test
+  allow_failure: true
+  script:
+    - pip install mkdocs
+    - pip install mkdocstrings-python
+    - pip install mkdocs-material
+    - mkdocs build
+  artifacts:
+    paths:
+      - site
+  needs: [ ]
+
+
+
+
+################# Deploy ##########
+# Deploy to gitlab pages
+pages:
+  stage: deploy
+  publish: site
+  only:
+    - master
+    - release
+    - feature/add_ci
+  when: manual
+  script:
+    - pip install mkdocs
+    - pip install mkdocstrings-python
+    - pip install mkdocs-material
+    - mkdocs build
+  artifacts:
+    paths:
+      - site
+  environment:
+    name: Gitlab Pages
+    url: https://cps.pages.gitlab.lrz.de/dfg-car/
