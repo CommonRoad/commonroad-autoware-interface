@@ -16,27 +16,27 @@ import utm
 import yaml
 
 # ROS msgs
+from geometry_msgs.msg import Pose
 from geometry_msgs.msg import PoseStamped
 from geometry_msgs.msg import PoseWithCovarianceStamped
+from geometry_msgs.msg import Polygon as PolygonMsg
 from rclpy.publisher import Publisher
 from std_msgs.msg import Header
 
 # Autoware msgs
-from autoware_auto_perception_msgs.msg import DetectedObjects  # type: ignore
 from autoware_auto_perception_msgs.msg import PredictedObjects  # type: ignore
-from autoware_auto_planning_msgs.msg import TrajectoryPoint  # type: ignore
-from dummy_perception_publisher.msg import Object  # type: ignore
+from autoware_auto_perception_msgs.msg import PredictedObject  # type: ignore
+from autoware_auto_perception_msgs.msg import ObjectClassification  # type: ignore
 
 # commonroad-io imports
 from commonroad.common.file_reader import CommonRoadFileReader
-from commonroad.geometry.shape import Rectangle
 from commonroad.prediction.prediction import TrajectoryPrediction
 from commonroad.scenario.obstacle import DynamicObstacle
-from commonroad.scenario.obstacle import ObstacleType
 from commonroad.scenario.obstacle import StaticObstacle
 from commonroad.scenario.scenario import Scenario as CRScenario
 from commonroad.scenario.state import InitialState
-from commonroad.scenario.state import TraceState
+from commonroad.scenario.state import CustomState
+from commonroad.scenario.trajectory import Trajectory as CRTrajectory
 from commonroad.scenario.lanelet import LaneletNetwork
 
 # commonroad-dc imports
@@ -49,6 +49,10 @@ from crdesigner.map_conversion.map_conversion_interface import lanelet_to_common
 
 # cr2autoware
 from .base import BaseHandler
+from ..common.utils.type_mapping import aw_to_cr_shape
+from ..common.utils.type_mapping import aw_to_cr_shape_updater
+from ..common.utils.type_mapping import get_classification_with_highest_probability
+from ..common.utils.type_mapping import aw_to_cr_obstacle_type
 from ..common.utils.transform import quaternion2orientation
 from ..common.utils.transform import map2utm
 from ..common.utils.message import create_object_base_msg
@@ -66,8 +70,7 @@ if typing.TYPE_CHECKING:
 from ..common.ros_interface.specs_publisher import spec_obstacle_pub
 
 # subscriber specifications
-
-# TODO: Figure out how to load from CR xml file
+# TODO load from specs file
 
 
 class ScenarioHandler(BaseHandler):
@@ -79,8 +82,9 @@ class ScenarioHandler(BaseHandler):
     _OBSTACLE_PUBLISHER: "/simulation/dummy_perception_publisher/object_info"
 
     ======== Subscribers:
-    "/perception/object_recognition/detection/objects" (subscribes to DetectedObjects messages)
     "/perception/object_recognition/objects" (subscribes to PredictedObjects messages)
+    "/initialpose3d" (subscribes to PoseWithCovarianceStamped messages)
+    "/planning/mission_planning/echo_back_goal_pose" (subscribes to PoseStamped messages)
     """
 
     # Constants and parameters
@@ -309,14 +313,6 @@ class ScenarioHandler(BaseHandler):
         return scenario
 
     def _init_subscriptions(self) -> None:
-        # subscribe objects from perception
-        self._node.create_subscription(
-            DetectedObjects,
-            "/perception/object_recognition/detection/objects",
-            lambda msg: self._last_msg.update({"static_obstacle": msg}),
-            1,
-            callback_group=self._node.callback_group,
-        )
         # subscribe predicted objects from perception
         self._node.create_subscription(
             PredictedObjects,
@@ -363,71 +359,44 @@ class ScenarioHandler(BaseHandler):
         return self._origin_transformation
 
     def update_scenario(self):
-        """Trigger an update of the scenario.
-
-        This function can be called to update the scenario with the latest messages.
-        Typically it is called by a timer callback.
+        """
+        Update the CommonRoad scenario using the perception/prediction input.
         """
         self._logger.info("Updating scenario")
-        self._process_static_obs()
-        self._process_dynamic_obs()
 
-    def _process_static_obs(self) -> None:
-        last_message = self._last_msg.get("static_obstacle")  # type: DetectedObjects
-        if last_message is None:
-            return
-        # TODO: remove the dynamic obstacles from the static list
-        temp_pose = PoseStamped()
-        temp_pose.header = last_message.header
+        # process objects from perception
+        self._process_objects()
 
-        # remove all static obstacles from the scenario
-        # Bug in CR scenario where List[StaticObstacle] is not allowed - fixed in newest version
-        self._scenario.remove_obstacle(self._scenario.static_obstacles)  # type: ignore
+        # print scenario update summary
+        if self._VERBOSE:
+            self._print_summary()
 
-        # add all static obstacles from the last message to the scenario
-        for box in last_message.objects:
-            # TODO: CommonRoad can also consider uncertain states of obstacles, which we could derive from the covariances
-            temp_pose.pose.position.x = box.kinematics.pose_with_covariance.pose.position.x
-            temp_pose.pose.position.y = box.kinematics.pose_with_covariance.pose.position.y
-            temp_pose.pose.position.z = box.kinematics.pose_with_covariance.pose.position.z
-            temp_pose.pose.orientation.x = box.kinematics.pose_with_covariance.pose.orientation.x
-            temp_pose.pose.orientation.y = box.kinematics.pose_with_covariance.pose.orientation.y
-            temp_pose.pose.orientation.z = box.kinematics.pose_with_covariance.pose.orientation.z
-            temp_pose.pose.orientation.w = box.kinematics.pose_with_covariance.pose.orientation.w
-            pose_map = self._node.transform_pose(temp_pose, "map")
-            if pose_map is None:
-                continue
+    def _print_summary(self):
+        """
+        Prints current scenario update to console via ROS logger for debugging
+        """
+        self._logger.debug(f"###### SCENARIO UPDATE")
+        self._logger.debug(f"\t Number of dynamic obstacles: {len(self.scenario.dynamic_obstacles)}")
+        self._logger.debug(f"\t Current obstacle types: "
+                           f"{[obs.obstacle_type for obs in self.scenario.dynamic_obstacles]}")
 
-            pos = map2utm(self.origin_transformation, pose_map.pose.position)
-            orientation = quaternion2orientation(pose_map.pose.orientation)
-            width = box.shape.dimensions.y
-            length = box.shape.dimensions.x
+    def _process_objects(self) -> None:
+        """
+        Converts Autoware objects to CommonRoad dynamic obstacles and add them to the CommonRoad scenario.
+        The incoming objects are provided by the prediction module via the topic /perception/object_recognition/objects
+        For each object we convert the estimated state and shape as well as the predicted trajectory
 
-            obs_state = InitialState(
-                position=pos,
-                orientation=orientation,
-                velocity=0,
-                acceleration=0,
-                yaw_rate=0,
-                slip_angle=0,
-                time_step=0,
-            )
-
-            obs_id = self._scenario.generate_object_id()
-            # TODO: get object type from autoware --> see https://gitlab.com/autowarefoundation/autoware.auto/autoware_auto_msgs/-/blob/master/autoware_auto_perception_msgs/msg/ObjectClassification.idl
-            obs_type = ObstacleType.UNKNOWN
-            obs_shape = Rectangle(width=width, length=length)
-
-            self._scenario.add_objects(StaticObstacle(obs_id, obs_type, obs_shape, obs_state))
-
-    # TODO: This function is too complicated -> split it up
-    def _process_dynamic_obs(self) -> None:
-        """Convert dynamic autoware obstacles to commonroad obstacles and add them to the scenario."""
-        last_message = self._last_msg.get("dynamic_obstacle")  # type: PredictedObjects
+        Processing consists of three parts:
+        - Adding newly appearing objects to the scenario
+        - Updating existing objects (i.e., their state, shape and predicted trajectory)
+        - Removing disappearing objects from the scenario
+        """
+        last_message = self._last_msg.get("dynamic_obstacle")  # message type: PredictedObjects
         if last_message is None:
             return
 
         for obstacle in last_message.objects:
+            # convert current state
             position = map2utm(
                 self._origin_transformation,
                 obstacle.kinematics.initial_pose_with_covariance.pose.position,
@@ -437,10 +406,17 @@ class ScenarioHandler(BaseHandler):
             )
             velocity = obstacle.kinematics.initial_twist_with_covariance.twist.linear.x
             yaw_rate = obstacle.kinematics.initial_twist_with_covariance.twist.angular.z
+            shape_type = obstacle.shape.type
             width = obstacle.shape.dimensions.y
             length = obstacle.shape.dimensions.x
+            footprint = obstacle.shape.footprint
+            classification = obstacle.classification
             time_step = 0
-            traj = []
+
+            # initialize list for predicted poses
+            list_predicted_poses = []
+
+            # get predicted path with highest confidence
             highest_conf_val = 0
             highest_conf_idx = 0
             for i in range(len(obstacle.kinematics.predicted_paths)):
@@ -449,54 +425,33 @@ class ScenarioHandler(BaseHandler):
                     highest_conf_val = conf_val
                     highest_conf_idx = i
 
+            # align time step of prediction to scenario time step
             obj_traj_dt = obstacle.kinematics.predicted_paths[highest_conf_idx].time_step.nanosec
+            scenario_dt = self.scenario.dt * 1e9    # in nanoseconds
 
-            if obj_traj_dt > self.scenario.dt * 1e9:
+            if obj_traj_dt > scenario_dt:
                 # upsample predicted path of obstacles to match dt
-                if obj_traj_dt % (self.scenario.dt * 1e9) == 0.0:
-                    dt_ratio = int(obj_traj_dt / (self.scenario.dt * 1e9)) + 1
-                else:
-                    dt_ratio = math.ceil(obj_traj_dt / (self.scenario.dt * 1e9))
-
-                for point in obstacle.kinematics.predicted_paths[highest_conf_idx].path:
-                    traj.append(point)
-                    if len(traj) >= 2:
-                        upsample_trajectory(traj, dt_ratio)
-
-            elif obj_traj_dt < self.scenario.dt * 1e9:
+                self.upsample_predicted_path(
+                    scenario_dt, obstacle, list_predicted_poses, obj_traj_dt, highest_conf_idx
+                )
+            elif obj_traj_dt < scenario_dt:
                 # downsample predicted path of obstacles to match dt.
-                # if the time steps are divisible without reminder,
-                # get the trajectories at the steps according to ratio
-                if (self.scenario.dt * 1e9) % obj_traj_dt == 0.0:
-                    dt_ratio = (self.scenario.dt * 1e9) / obj_traj_dt
-                    for idx, point in enumerate(
-                        obstacle.kinematics.predicted_paths[highest_conf_idx].path
-                    ):
-                        if (idx + 1) % dt_ratio == 0:
-                            traj.append(point)
-                else:
-                    # make interpolation according to time steps
-                    dt_ratio = math.ceil((self.scenario.dt * 1e9) / obj_traj_dt)
-                    for idx, point in enumerate(
-                        obstacle.kinematics.predicted_paths[highest_conf_idx].path
-                    ):
-                        if (idx + 1) % dt_ratio == 0:
-                            point_1 = obstacle.kinematics.predicted_paths[highest_conf_idx].path[
-                                idx - 1
-                            ]
-                            point_2 = point
-                            new_point = traj_linear_interpolate(
-                                point_1, point_2, obj_traj_dt, self.scenario.dt * 1e9
-                            )
-                            traj.append(new_point)
+                self.downsample_predicted_path(
+                    scenario_dt, obstacle, list_predicted_poses, obj_traj_dt, highest_conf_idx
+                )
             else:
-                for point in obstacle.kinematics.predicted_paths[highest_conf_idx].path:
-                    traj.append(point)
-
-            # TODO: Remove nested list when code is testable.
+                # keep sampling of predicted path
+                for pose in obstacle.kinematics.predicted_paths[highest_conf_idx].path:
+                    list_predicted_poses.append(pose)
+           
+            # get Autoware object id
             object_id_aw: int = obstacle.object_id.uuid
             aw_id_list = [list(value) for value in self._dynamic_obstacles_map.values()]
+
+            # process incoming objects
             if list(object_id_aw) not in aw_id_list:
+                # newly appearing object: create new CommonRoad dynamic obstacle
+                # current obstacle state
                 dynamic_obstacle_initial_state = InitialState(
                     position=position,
                     orientation=orientation,
@@ -506,16 +461,35 @@ class ScenarioHandler(BaseHandler):
                     slip_angle=0.0,
                     time_step=time_step,
                 )
+                # generate unique CommonRoad ID add to ID mapping
                 object_id_cr = self._scenario.generate_object_id()
                 self._dynamic_obstacles_map[object_id_cr] = object_id_aw
+
+                # add new dynamic obstacle to scenario
                 self._add_dynamic_obstacle(
-                    dynamic_obstacle_initial_state, traj, width, length, object_id_cr, time_step
+                    dynamic_obstacle_initial_state,
+                    list_predicted_poses,
+                    shape_type,
+                    width,
+                    length,
+                    footprint,
+                    classification,
+                    object_id_cr,
                 )
             else:
+                # existing object: update state and shape
                 for key, value in self._dynamic_obstacles_map.items():
                     if np.array_equal(object_id_aw, value):
+                        # get obstacle with id
                         dynamic_obs = self._scenario.obstacle_by_id(key)
-                        if dynamic_obs:
+
+                        if isinstance(dynamic_obs, DynamicObstacle):
+                            # shape update
+                            aw_to_cr_shape_updater(
+                                dynamic_obs, width, length, footprint
+                            )
+
+                            # state update
                             dynamic_obs.initial_state = InitialState(
                                 position=position,
                                 orientation=orientation,
@@ -525,41 +499,150 @@ class ScenarioHandler(BaseHandler):
                                 slip_angle=0.0,
                                 time_step=time_step,
                             )
-                            dynamic_obs.obstacle_shape = Rectangle(width=width, length=length)
-                            if len(traj) > 2:
+
+                            # predicted trajectory update
+                            if len(list_predicted_poses) > 2:
+                                # update trajectory prediction for the obstacle
                                 dynamic_obs.prediction = TrajectoryPrediction(
-                                    self._node._awtrajectory_to_crtrajectory(
-                                        2, dynamic_obs.initial_state.time_step, traj
+                                    self._pose_list_to_crtrajectory(
+                                        dynamic_obs.initial_state.time_step + 1, list_predicted_poses
                                     ),
                                     dynamic_obs.obstacle_shape,
                                 )
 
+    def _pose_list_to_crtrajectory(self, time_step: int, list_poses: List[Pose]):
+        """
+        Converts a predicted obstacle path given as list of geometry_msgs/Pose into a CommonRoad trajectory type.
+        :param time_step: initial time step of the input path
+        :param list_poses: input path given as a list of geometry_msgs/Pose (i.e., positions and orientations)
+        :return CRTrajectory: trajectory in the CommonRoad format
+        """
+        # CommonRoad state list
+        cr_state_list = []
+
+        # time step counter
+        cnt_time_step = time_step
+
+        for i in range(len(list_poses)):
+            # transform position
+            position = map2utm(self.origin_transformation, list_poses[i].position)
+            # transform orientation
+            orientation = quaternion2orientation(list_poses[i].orientation)
+            # append state to CommonRoad state list
+            cr_state = CustomState(position=position, orientation=orientation, time_step=cnt_time_step)
+            cr_state_list.append(cr_state)
+            # increment time step counter
+            cnt_time_step += 1
+
+        return CRTrajectory(time_step, cr_state_list)
+                            
+    @staticmethod
+    def upsample_predicted_path(
+        scenario_dt: float, 
+        obstacle: PredictedObject,
+        traj: List[Pose],
+        obj_traj_dt: float,
+        highest_conf_idx: int
+    ) -> None:
+        """
+        Upsample predicted path of obstacles to match dt.
+        
+        :param scenario_dt: time step of the scenario
+        :param obstacle: obstacle from autoware
+        :param traj: trajectory of obstacle
+        :param obj_traj_dt: time step of the obstacle
+        :param highest_conf_idx: index of the highest confidence value in the predicted paths
+        """
+        if obj_traj_dt % scenario_dt == 0.0:
+            dt_ratio = int(obj_traj_dt / scenario_dt) + 1
+        else:
+            dt_ratio = math.ceil(obj_traj_dt / scenario_dt)
+
+        for point in obstacle.kinematics.predicted_paths[highest_conf_idx].path:
+            traj.append(point)
+            if len(traj) >= 2:
+                upsample_trajectory(traj, dt_ratio)
+
+    @staticmethod
+    def downsample_predicted_path(
+        scenario_dt: float,
+        obstacle: PredictedObject,
+        traj: List[Pose],
+        obj_traj_dt: float,
+        highest_conf_idx: int
+    ) -> None:
+        """
+        Downsample predicted path of obstacles to match dt.
+
+        :param scenario_dt: time step of the scenario
+        :param obstacle: obstacle from autoware
+        :param traj: trajectory of obstacle
+        :param obj_traj_dt: time step of the obstacle
+        :param highest_conf_idx: index of the highest confidence value in the predicted paths    
+        """
+        # if the time steps are divisible without reminder,
+        # get the trajectories at the steps according to ratio
+        if scenario_dt % obj_traj_dt == 0.0:
+            dt_ratio = scenario_dt / obj_traj_dt
+            for idx, point in enumerate(
+                obstacle.kinematics.predicted_paths[highest_conf_idx].path
+            ):
+                if (idx + 1) % dt_ratio == 0:
+                    traj.append(point)
+        else:
+            # make interpolation according to time steps
+            dt_ratio = math.ceil(scenario_dt / obj_traj_dt)
+            for idx, point in enumerate(
+                obstacle.kinematics.predicted_paths[highest_conf_idx].path
+            ):
+                if (idx + 1) % dt_ratio == 0:
+                    point_1 = obstacle.kinematics.predicted_paths[highest_conf_idx].path[
+                        idx - 1
+                    ]
+                    point_2 = point
+                    new_point = traj_linear_interpolate(
+                        point_1, point_2, obj_traj_dt, scenario_dt
+                    )
+                    traj.append(new_point)
+
     def _add_dynamic_obstacle(
         self,
-        initial_state: TraceState,
-        traj: List[TrajectoryPoint],
+        initial_state: InitialState,
+        traj: List[Pose],
+        shape_type: int,
         width: float,
         length: float,
-        object_id: int,
-        time_step: int,
+        footprint: PolygonMsg,
+        classification: List[ObjectClassification],
+        dynamic_obstacle_id: int,
     ) -> None:
-        """Add dynamic obstacles with their trajectory.
+        """
+        Add dynamic obstacles with their predicted trajectory to the CommonRoad scenario.
 
         :param initial_state: initial state of obstacle
         :param traj: trajectory of obstacle
+        :param shape_type: shape type of obstacle
         :param width: width of obstacle
         :param length: length of obstacle
-        :param object_id: id of obstacle
-        :param time_step: time step of the obstacle
+        :param dynamic_obstacle_id: id of obstacle
         """
-        dynamic_obstacle_shape = Rectangle(width=width, length=length)
-        # ToDo: get object type from autoware
-        dynamic_obstacle_type = ObstacleType.CAR
-        dynamic_obstacle_id = object_id
+        # get initial time step
+        time_step = initial_state.time_step
+
+        # convert obstacle shape
+        dynamic_obstacle_shape = aw_to_cr_shape(
+            shape_type, width, length, footprint
+        )
+
+        # convert obstacle classification / type
+        dynamic_obstacle_type = aw_to_cr_obstacle_type[
+            get_classification_with_highest_probability(classification)
+        ]
+
         if len(traj) > 2:
             # create the trajectory of the obstacle, starting at time_step
-            dynamic_obstacle_trajectory = self._node._awtrajectory_to_crtrajectory(
-                2, time_step, traj
+            dynamic_obstacle_trajectory = self._pose_list_to_crtrajectory(
+                time_step + 1, traj
             )
 
             # create the prediction using the trajectory and the shape of the obstacle
@@ -567,6 +650,7 @@ class ScenarioHandler(BaseHandler):
                 dynamic_obstacle_trajectory, dynamic_obstacle_shape
             )
 
+            # create the dynamic obstacle
             dynamic_obstacle = DynamicObstacle(
                 dynamic_obstacle_id,
                 dynamic_obstacle_type,
@@ -575,9 +659,11 @@ class ScenarioHandler(BaseHandler):
                 dynamic_obstacle_prediction,
             )
         else:
+            # create dynamic obstacle without a predicted trajectory
             dynamic_obstacle = DynamicObstacle(
                 dynamic_obstacle_id, dynamic_obstacle_type, dynamic_obstacle_shape, initial_state
             )
+
         # add dynamic obstacle to the scenario
         self.scenario.add_objects(dynamic_obstacle)
 
@@ -606,7 +692,7 @@ class ScenarioHandler(BaseHandler):
             self._OBSTACLE_PUBLISHER.publish(object_msg)
             self._logger.debug(log_obstacle(object_msg, isinstance(obstacle, StaticObstacle)))
 
-    def get_z_coordinate(self):
+    def get_z_coordinate(self) -> float:
         """Calculate the mean of the z coordinate from initial_pose and goal_pose."""
         new_initial_pose_z = None
         new_goal_pose_z = None
@@ -647,5 +733,5 @@ class ScenarioHandler(BaseHandler):
             z = 0.0
             self._logger.info("Z is either not found or is 0.0")
             return z
-        z = np.median(valid_z_list)
+        z = float(np.median(valid_z_list))
         return z
