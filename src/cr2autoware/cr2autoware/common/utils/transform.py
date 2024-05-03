@@ -14,7 +14,8 @@ from commonroad.common.util import AngleInterval
 
 
 def orientation2quaternion(orientation: AngleExactOrInterval) -> Quaternion:
-    """Transform orientation (in CommonRoad) to quaternion (in Autoware).
+    """
+    Transform orientation (in CommonRoad) to quaternion (in Autoware).
 
     :param orientation: orientation angles
     :return: orientation quaternion
@@ -28,7 +29,8 @@ def orientation2quaternion(orientation: AngleExactOrInterval) -> Quaternion:
 
 
 def quaternion2orientation(quaternion: Quaternion) -> float:
-    """Transform quaternion (in Autoware) to orientation (in CommonRoad).
+    """
+    Transform quaternion (in Autoware) to orientation (in CommonRoad).
 
     :param quaternion: orientation quaternion
     :return: orientation angles
@@ -48,7 +50,8 @@ def quaternion2orientation(quaternion: Quaternion) -> float:
 
 
 def map2utm(origin_transformation, p: Point) -> np.ndarray:
-    """Transform position (in Autoware) to position (in CommonRoad).
+    """
+    Transform position (in Autoware) to position (in CommonRoad).
 
     :param origin_transformation: list or array with 2 elements
     :param p: position Autoware
@@ -60,7 +63,8 @@ def map2utm(origin_transformation, p: Point) -> np.ndarray:
 
 
 def utm2map(origin_transformation, position: np.array) -> Point:
-    """Transform position (in CommonRoad) to position (in Autoware).
+    """
+    Transform position (in CommonRoad) to position (in Autoware).
 
     :param origin_transformation: list or array with 2 elements
     :param position: position CommonRoad

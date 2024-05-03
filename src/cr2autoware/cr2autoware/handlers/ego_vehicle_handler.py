@@ -224,14 +224,28 @@ class EgoVehicleHandler(BaseHandler):
             )
 
     def update_ego_vehicle(self):
-        """Update the commonroad scenario with the latest vehicle state and obstacle messages received."""
+        """
+        Update the state of the ego vehicle using the localization input.
+        """
         # process last state message
         if self._current_vehicle_state is not None:
+            self._logger.info("Updating ego vehicle")
             self._process_current_state()
-        else:
+
+            # print ego vehicle update summary
             if self._VERBOSE:
-                self._logger.info("has not received a vehicle state yet!")
+                self._print_summary()
+        else:
+            self._logger.info("No vehicle state received")
             return
+
+    def _print_summary(self):
+        """
+         Prints current ego vehicle update to console via ROS logger for debugging
+        """
+        self._logger.debug(f"###### EGO VEHICLE UPDATE (time step: {self._ego_vehicle_state.time_step})")
+        self._logger.debug(f"\t Current position: {self._ego_vehicle_state.position}")
+        self._logger.debug(f"\t Current velocity: {self._ego_vehicle_state.velocity}")
 
     def get_cr_ego_vehicle(self):
         """Create a new ego vehicle with current position for visualization."""

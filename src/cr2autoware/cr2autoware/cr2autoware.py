@@ -404,6 +404,7 @@ class Cr2Auto(Node):
                 # Compute trajectory
                 self.is_computing_trajectory = True
                 self.ego_vehicle_handler.update_ego_vehicle()
+
                 self.scenario_handler.update_scenario()
                 self.plot_save_scenario()
 
@@ -451,17 +452,13 @@ class Cr2Auto(Node):
                         self.route_planner.publish(point_list, reference_velocities,
                                                    self.scenario_handler.get_z_coordinate())
 
-                    if self.get_state() == AutowareState.DRIVING:
-                        # log current position
-                        # TODO use DataGeneration module instead
-                        self.trajectory_logger.log_state(self.ego_vehicle_handler.ego_vehicle_state)
-
                     if self.verbose:
                         self._logger.info("Solving planning problem!")
 
                     # Get current initial state for planning
                     # The initial velocity needs to be increase here due to a hardcoded velocity threshold in
                     # AW. Universe Shift_Decider Package (If velocity is below 0.01, the gear will remain in park)
+
                     init_state = self.ego_vehicle_handler.ego_vehicle_state
                     if init_state.velocity < 0.01:
                         init_state.velocity = 0.01
@@ -592,30 +589,6 @@ class Cr2Auto(Node):
         # TODO this doesn't work anymore -> FIX
 
         self.set_state(AutowareState.WAITING_FOR_ENGAGE)
-
-    def _awtrajectory_to_crtrajectory(self, mode, time_step, traj):
-        """
-        Generate a commonroad trajectory from autoware trajectory.
-        :param mode: 1=TrajectoryPoint mode, 2=pose mode
-        :param time_step: timestep from which to start
-        :param traj: the trajectory in autoware format
-        :return CRTrajectory: the trajectory in commonroad format
-        """
-        state_list = []
-        work_traj = []
-        if mode == 1:
-            for trajectory_point in traj:
-                work_traj.append(trajectory_point.pose)
-        else:
-            work_traj = traj
-        for i in range(len(work_traj)):
-            # compute new position
-            position = map2utm(self.origin_transformation, work_traj[i].position)
-            orientation = quaternion2orientation(work_traj[i].orientation)
-            new_state = CustomState(position=position, orientation=orientation, time_step=i)
-            state_list.append(new_state)
-
-        return CRTrajectory(time_step, state_list)
 
     def initial_pose_callback(self, msg: PoseWithCovarianceStamped) -> None:
         """
