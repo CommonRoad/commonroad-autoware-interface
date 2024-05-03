@@ -176,6 +176,7 @@ class Cr2Auto(Node):
         self.goal_msgs = []
         self.current_goal_msg = None
         self.last_goal_reached = self.get_clock().now()
+        self.initial_pose = None
 
         # ========= Subscribers =========
         # subscribe initial pose
@@ -449,7 +450,7 @@ class Cr2Auto(Node):
                         reference_velocities = self.velocity_planner.reference_velocities
                         # call publisher
                         self.route_planner.publish(point_list, reference_velocities,
-                                                   self.scenario_handler.get_z_coordinate())
+                                                   self.scenario_handler.get_z_coordinate(self.initial_pose))
 
                     if self.verbose:
                         self._logger.info("Solving planning problem!")
@@ -484,7 +485,7 @@ class Cr2Auto(Node):
 
                         # publish trajectory
                         self.trajectory_planner.publish(self.origin_transformation,
-                                                        self.scenario_handler.get_z_coordinate())
+                                                        self.scenario_handler.get_z_coordinate(self.initial_pose))
 
                     # check if goal is reached
                     self._is_goal_reached()
@@ -665,7 +666,7 @@ class Cr2Auto(Node):
         """
         self._logger.info("Received new goal pose!")
         # post process goal pose z coordinate
-        msg.pose.position.z = self.scenario_handler.get_z_coordinate()
+        msg.pose.position.z = self.scenario_handler.get_z_coordinate(self.initial_pose)
 
         self.goal_msgs.append(msg)
 
@@ -678,7 +679,8 @@ class Cr2Auto(Node):
             point_list = self.velocity_planner.reference_positions
             reference_velocities = self.velocity_planner.reference_velocities
             # call publisher
-            self.route_planner.publish(point_list, reference_velocities, self.scenario_handler.get_z_coordinate())
+            self.route_planner.publish(point_list, reference_velocities,
+                                       self.scenario_handler.get_z_coordinate(self.initial_pose))
     
     def velocity_limit_callback(self, msg: VelocityLimit) -> None:
         """

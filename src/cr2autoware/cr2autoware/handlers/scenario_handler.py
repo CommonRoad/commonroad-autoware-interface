@@ -67,7 +67,6 @@ if typing.TYPE_CHECKING:
     from cr2autoware.cr2autoware import Cr2Auto
 
 # subscriber specifications
-from ..common.ros_interface.specs_subscriptions import spec_initial_pose_sub
 from ..common.ros_interface.specs_subscriptions import spec_echo_back_goal_pose_sub
 from ..common.ros_interface.specs_subscriptions import spec_objects_sub
 
@@ -312,12 +311,6 @@ class ScenarioHandler(BaseHandler):
         _ = create_subscription(self._node,
                                 spec_objects_sub,
                                 lambda msg: self._last_msg.update({"dynamic_obstacle": msg}),
-                                self._node.callback_group
-        )
-        # subscribe initialpose 3d from localization TODO: redundant
-        _ = create_subscription(self._node,
-                                spec_initial_pose_sub,
-                                lambda msg: self._last_msg.update({"initial_pose": msg}),
                                 self._node.callback_group
         )
         # subscribe goal pose TODO: redundant
@@ -655,13 +648,17 @@ class ScenarioHandler(BaseHandler):
         # add dynamic obstacle to the scenario
         self.scenario.add_objects(dynamic_obstacle)
 
-    def get_z_coordinate(self) -> float:
-        """Calculate the mean of the z coordinate from initial_pose and goal_pose."""
+    def get_z_coordinate(self, new_initial_pose: PoseWithCovarianceStamped) -> float:
+        """
+        Approximation of the elevation (z-coordinate) of the scenario as the mean between initial_pose and goal_pose.
+
+        :param new_initial_pose the initial pose of the ego vehicle
+        :param new_goal_pose the desired goal pose
+        """
         new_initial_pose_z = None
         new_goal_pose_z = None
         goal_pose_z = self._z_list[1]
 
-        new_initial_pose = self._last_msg.get("initial_pose")
         new_goal_pose = self._last_msg.get("goal_pose")   
 
         # only consider values if z is not None or 0.0
