@@ -68,7 +68,7 @@ if typing.TYPE_CHECKING:
 
 # subscriber specifications
 from ..common.ros_interface.specs_subscriptions import spec_initial_pose_sub
-from ..common.ros_interface.specs_subscriptions import spec_goal_pose_sub
+from ..common.ros_interface.specs_subscriptions import spec_echo_back_goal_pose_sub
 from ..common.ros_interface.specs_subscriptions import spec_objects_sub
 
 
@@ -322,7 +322,7 @@ class ScenarioHandler(BaseHandler):
         )
         # subscribe goal pose TODO: redundant
         _ = create_subscription(self._node,
-                                spec_goal_pose_sub,
+                                spec_echo_back_goal_pose_sub,
                                 lambda msg: self._last_msg.update({"goal_pose": msg}),
                                 self._node.callback_group
         )

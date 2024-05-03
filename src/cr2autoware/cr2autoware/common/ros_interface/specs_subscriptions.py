@@ -34,6 +34,10 @@ spec_initial_pose_sub = SubscriptionSpec(name="/initialpose3d",
 spec_goal_pose_sub = SubscriptionSpec(name="/planning/mission_planning/goal",
                                       msg_type=PoseStamped,
                                       depth=1)
+# subscribe echo back goal pose
+spec_echo_back_goal_pose_sub = SubscriptionSpec(name="/planning/mission_planning/echo_back_goal_pose",
+                                                msg_type=PoseStamped,
+                                                depth=1)
 
 # subscribe autoware engage message
 spec_auto_button_sub = SubscriptionSpec(name="/autoware/engage",
