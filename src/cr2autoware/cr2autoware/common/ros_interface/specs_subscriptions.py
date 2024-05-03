@@ -12,6 +12,7 @@ from nav_msgs.msg import Odometry
 # Autoware messages
 from autoware_auto_vehicle_msgs.msg import Engage  # type: ignore
 from autoware_auto_system_msgs.msg import AutowareState  # type: ignore
+from autoware_auto_perception_msgs.msg import PredictedObjects  # type: ignore
 
 # Autoware AdAPI message imports
 from autoware_adapi_v1_msgs.msg import RouteState  # type: ignore
@@ -63,3 +64,8 @@ spec_odometry = SubscriptionSpec(name="/localization/kinematic_state",
 spec_curr_acc = SubscriptionSpec(name="/localization/acceleration",
                                  msg_type=AccelWithCovarianceStamped,
                                  depth=1)
+
+# subscribe predicted objects from perception
+spec_objects_sub = SubscriptionSpec(name="/perception/object_recognition/objects",
+                                    msg_type=PredictedObjects,
+                                    depth=1)

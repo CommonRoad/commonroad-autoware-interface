@@ -66,11 +66,10 @@ from ..common.ros_interface.create import create_subscription
 if typing.TYPE_CHECKING:
     from cr2autoware.cr2autoware import Cr2Auto
 
-# publisher specifications
-from ..common.ros_interface.specs_publisher import spec_obstacle_pub
-
 # subscriber specifications
-# TODO load from specs file
+from ..common.ros_interface.specs_subscriptions import spec_initial_pose_sub
+from ..common.ros_interface.specs_subscriptions import spec_goal_pose_sub
+from ..common.ros_interface.specs_subscriptions import spec_objects_sub
 
 
 class ScenarioHandler(BaseHandler):
@@ -310,28 +309,22 @@ class ScenarioHandler(BaseHandler):
 
     def _init_subscriptions(self) -> None:
         # subscribe predicted objects from perception
-        self._node.create_subscription(
-            PredictedObjects,
-            "/perception/object_recognition/objects",
-            lambda msg: self._last_msg.update({"dynamic_obstacle": msg}),
-            1,
-            callback_group=self._node.callback_group,
+        _ = create_subscription(self._node,
+                                spec_objects_sub,
+                                lambda msg: self._last_msg.update({"dynamic_obstacle": msg}),
+                                self._node.callback_group
         )
-        # subscribe initialpose 3d from localization
-        self._node.create_subscription(
-            PoseWithCovarianceStamped,
-            "/initialpose3d",
-            lambda msg: self._last_msg.update({"initial_pose": msg}),
-            1,
-            callback_group=self._node.callback_group,
+        # subscribe initialpose 3d from localization TODO: redundant
+        _ = create_subscription(self._node,
+                                spec_initial_pose_sub,
+                                lambda msg: self._last_msg.update({"initial_pose": msg}),
+                                self._node.callback_group
         )
-        # subscribe goal pose
-        self._node.create_subscription(
-            PoseStamped,
-            "/planning/mission_planning/echo_back_goal_pose",
-            lambda msg: self._last_msg.update({"goal_pose": msg}),
-            1,
-            callback_group=self._node.callback_group,
+        # subscribe goal pose TODO: redundant
+        _ = create_subscription(self._node,
+                                spec_goal_pose_sub,
+                                lambda msg: self._last_msg.update({"goal_pose": msg}),
+                                self._node.callback_group
         )
 
     def _init_publishers(self) -> None:
