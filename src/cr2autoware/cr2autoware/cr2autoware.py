@@ -130,7 +130,6 @@ class Cr2Auto(Node):
 
         # initialize commonroad-specfic attributes
         self.write_scenario = self.get_parameter("general.write_scenario").get_parameter_value().bool_value
-        self.PUBLISH_OBSTACLES = self.get_parameter("scenario.publish_obstacles").get_parameter_value().bool_value
         self.solution_path = self.get_parameter("general.solution_file").get_parameter_value().string_value
         self.rnd = None
 
@@ -870,11 +869,6 @@ class Cr2Auto(Node):
         if self.auto_button_status and self.get_state() == AutowareState.WAITING_FOR_ENGAGE and \
                 self.routing_state != RouteState.UNSET:
             self.set_state(AutowareState.DRIVING)
-
-            # TODO check if needed?
-            if self.PUBLISH_OBSTACLES:  # publish obstacle at once after engaged
-                self.scenario_handler.publish_initial_obstacles()
-                self.PUBLISH_OBSTACLES = False
 
         if not self.engage_status and self.get_state() == AutowareState.DRIVING:
             self.set_state(AutowareState.WAITING_FOR_ENGAGE)

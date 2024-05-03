@@ -79,7 +79,6 @@ class ScenarioHandler(BaseHandler):
     Keeps an up to date state of the current scenario in CommonRoad format.
 
     ======== Publishers:
-    _OBSTACLE_PUBLISHER: "/simulation/dummy_perception_publisher/object_info"
 
     ======== Subscribers:
     "/perception/object_recognition/objects" (subscribes to PredictedObjects messages)
@@ -100,9 +99,6 @@ class ScenarioHandler(BaseHandler):
     # We update obstacles in the scenario with every msg
     # to publish the initial obstacles, they need to be stored
     _initial_obstacles: List[Union[DynamicObstacle, StaticObstacle]] = []
-
-    # Publishers
-    _OBSTACLE_PUBLISHER: Publisher
 
     def __init__(self, node: "Cr2Auto"):
         # init base class
@@ -339,8 +335,7 @@ class ScenarioHandler(BaseHandler):
         )
 
     def _init_publishers(self) -> None:
-        # obstacle publisher for dynamic obstacle in CR scenario
-        self._OBSTACLE_PUBLISHER = create_publisher(self._node, spec_obstacle_pub)
+        pass
 
     @property
     def scenario(self) -> CRScenario:
@@ -666,31 +661,6 @@ class ScenarioHandler(BaseHandler):
 
         # add dynamic obstacle to the scenario
         self.scenario.add_objects(dynamic_obstacle)
-
-    def publish_initial_obstacles(self):
-        """Publish initial static and dynamic obstacles from CR in form of AW 2D Dummy cars."""
-        header = Header()
-        header.stamp = self._node.get_clock().now().to_msg()
-        header.frame_id = "map"
-
-        for obstacle in self._initial_obstacles:
-            object_msg = create_object_base_msg(header, self.origin_transformation, obstacle)
-            if isinstance(obstacle, DynamicObstacle):
-                try:
-                    # Bug in CommonRoad?: initial_state is not of type InitialState (warumauchimmer)
-                    state: InitialState = obstacle.initial_state  # type: ignore
-                    object_msg.initial_state.twist_covariance.twist.linear.x = state.velocity
-                    object_msg.initial_state.accel_covariance.accel.linear.x = state.acceleration
-                except AttributeError as e:
-                    self._logger.error(
-                        "Error during publish_initial_obstacles. \n"
-                        f"Obstacle {obstacle} has no velocity or acceleration."
-                    )
-                    self._logger.debug(e)
-                object_msg.max_velocity = 20.0
-                object_msg.min_velocity = -10.0
-            self._OBSTACLE_PUBLISHER.publish(object_msg)
-            self._logger.debug(log_obstacle(object_msg, isinstance(obstacle, StaticObstacle)))
 
     def get_z_coordinate(self) -> float:
         """Calculate the mean of the z coordinate from initial_pose and goal_pose."""
