@@ -96,9 +96,6 @@ class ScenarioHandler(BaseHandler):
     _origin_transformation: List[float]
     _last_msg: Dict[str, Any] = {}
     _dynamic_obstacles_map: Dict[int, int] = {}
-    # We update obstacles in the scenario with every msg
-    # to publish the initial obstacles, they need to be stored
-    _initial_obstacles: List[Union[DynamicObstacle, StaticObstacle]] = []
 
     def __init__(self, node: "Cr2Auto"):
         # init base class
@@ -253,8 +250,6 @@ class ScenarioHandler(BaseHandler):
                 map_filename, projection_string, left_driving, adjacencies, dt=dt
             )
         scenario.convert_to_2d()
-        self._initial_obstacles.extend(scenario.static_obstacles)
-        self._initial_obstacles.extend(scenario.dynamic_obstacles)
         return scenario
 
     def _create_initial_road_boundary(self) -> pycrcc.CollisionObject:
