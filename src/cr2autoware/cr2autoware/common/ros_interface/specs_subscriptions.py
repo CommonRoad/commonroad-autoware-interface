@@ -30,10 +30,6 @@ spec_initial_pose_sub = SubscriptionSpec(name="/initialpose3d",
                                          msg_type=PoseWithCovarianceStamped,
                                          depth=1)
 
-# subscribe goal pose
-spec_goal_pose_sub = SubscriptionSpec(name="/planning/mission_planning/goal",
-                                      msg_type=PoseStamped,
-                                      depth=1)
 # subscribe echo back goal pose
 spec_echo_back_goal_pose_sub = SubscriptionSpec(name="/planning/mission_planning/echo_back_goal_pose",
                                                 msg_type=PoseStamped,
