@@ -80,7 +80,7 @@ from .common.ros_interface.create import create_subscription, create_publisher, 
 # subscriber specifications
 from .common.ros_interface.specs_subscriptions import \
     spec_initial_pose_sub, spec_goal_pose_sub, spec_auto_button_sub, spec_velocity_limit_sub, spec_routing_state_sub, \
-    spec_autoware_state_sub
+    spec_autoware_state_sub, spec_echo_back_goal_pose_sub
 
 # publisher specifications
 from .common.ros_interface.specs_publisher import \
@@ -184,7 +184,8 @@ class Cr2Auto(Node):
                                                    self.callback_group)
 
         # subscribe goal pose
-        self.goal_pose_sub = create_subscription(self, spec_goal_pose_sub, self.goal_pose_callback, self.callback_group)
+        self.goal_pose_sub = create_subscription(self, spec_echo_back_goal_pose_sub, self.goal_pose_callback,
+                                                 self.callback_group)
 
         # subscribe autoware engage message
         self.auto_button_sub = create_subscription(self, spec_auto_button_sub, self.auto_button_callback,
@@ -450,7 +451,8 @@ class Cr2Auto(Node):
                         reference_velocities = self.velocity_planner.reference_velocities
                         # call publisher
                         self.route_planner.publish(point_list, reference_velocities,
-                                                   self.scenario_handler.get_z_coordinate(self.initial_pose))
+                                                   self.scenario_handler.get_z_coordinate(self.initial_pose,
+                                                                                          self.current_goal_msg))
 
                     if self.verbose:
                         self._logger.info("Solving planning problem!")
@@ -485,7 +487,8 @@ class Cr2Auto(Node):
 
                         # publish trajectory
                         self.trajectory_planner.publish(self.origin_transformation,
-                                                        self.scenario_handler.get_z_coordinate(self.initial_pose))
+                                                        self.scenario_handler.get_z_coordinate(self.initial_pose,
+                                                                                               self.current_goal_msg))
 
                     # check if goal is reached
                     self._is_goal_reached()
@@ -665,8 +668,6 @@ class Cr2Auto(Node):
         :param msg: Goal Pose message
         """
         self._logger.info("Received new goal pose!")
-        # post process goal pose z coordinate
-        msg.pose.position.z = self.scenario_handler.get_z_coordinate(self.initial_pose)
 
         self.goal_msgs.append(msg)
 
@@ -680,7 +681,7 @@ class Cr2Auto(Node):
             reference_velocities = self.velocity_planner.reference_velocities
             # call publisher
             self.route_planner.publish(point_list, reference_velocities,
-                                       self.scenario_handler.get_z_coordinate(self.initial_pose))
+                                       self.scenario_handler.get_z_coordinate(self.initial_pose, msg))
     
     def velocity_limit_callback(self, msg: VelocityLimit) -> None:
         """
@@ -755,8 +756,7 @@ class Cr2Auto(Node):
             # TODO remove deeopcopy
             self.current_goal_msg = deepcopy(current_msg)
 
-
-            self._logger.info("Pose position: " + str(current_msg.pose.position))
+            self._logger.info("Goal pose position: " + str(current_msg.pose.position))
 
             # TODO move goal creation to PlanningProbHandler
             position = map2utm(self.origin_transformation, current_msg.pose.position)

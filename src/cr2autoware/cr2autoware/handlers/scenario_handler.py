@@ -312,13 +312,7 @@ class ScenarioHandler(BaseHandler):
                                 spec_objects_sub,
                                 lambda msg: self._last_msg.update({"dynamic_obstacle": msg}),
                                 self._node.callback_group
-        )
-        # subscribe goal pose TODO: redundant
-        _ = create_subscription(self._node,
-                                spec_echo_back_goal_pose_sub,
-                                lambda msg: self._last_msg.update({"goal_pose": msg}),
-                                self._node.callback_group
-        )
+                                )
 
     def _init_publishers(self) -> None:
         pass
@@ -648,7 +642,7 @@ class ScenarioHandler(BaseHandler):
         # add dynamic obstacle to the scenario
         self.scenario.add_objects(dynamic_obstacle)
 
-    def get_z_coordinate(self, new_initial_pose: PoseWithCovarianceStamped) -> float:
+    def get_z_coordinate(self, new_initial_pose: PoseWithCovarianceStamped, new_goal_pose: PoseStamped) -> float:
         """
         Approximation of the elevation (z-coordinate) of the scenario as the mean between initial_pose and goal_pose.
 
@@ -658,8 +652,6 @@ class ScenarioHandler(BaseHandler):
         new_initial_pose_z = None
         new_goal_pose_z = None
         goal_pose_z = self._z_list[1]
-
-        new_goal_pose = self._last_msg.get("goal_pose")   
 
         # only consider values if z is not None or 0.0
         if new_initial_pose is not None and new_initial_pose.pose.pose.position.z != 0.0:       
