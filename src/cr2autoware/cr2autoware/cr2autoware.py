@@ -79,7 +79,7 @@ from .common.ros_interface.create import create_subscription, create_publisher, 
 
 # subscriber specifications
 from .common.ros_interface.specs_subscriptions import \
-    spec_initial_pose_sub, spec_goal_pose_sub, spec_auto_button_sub, spec_velocity_limit_sub, spec_routing_state_sub, \
+    spec_initial_pose_sub, spec_auto_button_sub, spec_velocity_limit_sub, spec_routing_state_sub, \
     spec_autoware_state_sub, spec_echo_back_goal_pose_sub
 
 # publisher specifications

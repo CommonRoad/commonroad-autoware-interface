@@ -55,11 +55,8 @@ from ..common.utils.type_mapping import get_classification_with_highest_probabil
 from ..common.utils.type_mapping import aw_to_cr_obstacle_type
 from ..common.utils.transform import quaternion2orientation
 from ..common.utils.transform import map2utm
-from ..common.utils.message import create_object_base_msg
-from ..common.utils.message import log_obstacle
 from ..common.utils.geometry import upsample_trajectory
 from ..common.utils.geometry import traj_linear_interpolate
-from ..common.ros_interface.create import create_publisher
 from ..common.ros_interface.create import create_subscription
 
 # Avoid circular imports
@@ -67,7 +64,6 @@ if typing.TYPE_CHECKING:
     from cr2autoware.cr2autoware import Cr2Auto
 
 # subscriber specifications
-from ..common.ros_interface.specs_subscriptions import spec_echo_back_goal_pose_sub
 from ..common.ros_interface.specs_subscriptions import spec_objects_sub
 
 
@@ -80,8 +76,6 @@ class ScenarioHandler(BaseHandler):
 
     ======== Subscribers:
     "/perception/object_recognition/objects" (subscribes to PredictedObjects messages)
-    "/initialpose3d" (subscribes to PoseWithCovarianceStamped messages)
-    "/planning/mission_planning/echo_back_goal_pose" (subscribes to PoseStamped messages)
     """
 
     # Constants and parameters
