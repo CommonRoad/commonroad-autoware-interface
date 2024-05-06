@@ -12,6 +12,7 @@ from nav_msgs.msg import Odometry
 # Autoware messages
 from autoware_auto_vehicle_msgs.msg import Engage  # type: ignore
 from autoware_auto_system_msgs.msg import AutowareState  # type: ignore
+from autoware_auto_perception_msgs.msg import PredictedObjects  # type: ignore
 
 # Autoware AdAPI message imports
 from autoware_adapi_v1_msgs.msg import RouteState  # type: ignore
@@ -29,10 +30,10 @@ spec_initial_pose_sub = SubscriptionSpec(name="/initialpose3d",
                                          msg_type=PoseWithCovarianceStamped,
                                          depth=1)
 
-# subscribe goal pose
-spec_goal_pose_sub = SubscriptionSpec(name="/planning/mission_planning/goal",
-                                      msg_type=PoseStamped,
-                                      depth=1)
+# subscribe echo back goal pose
+spec_echo_back_goal_pose_sub = SubscriptionSpec(name="/planning/mission_planning/echo_back_goal_pose",
+                                                msg_type=PoseStamped,
+                                                depth=1)
 
 # subscribe autoware engage message
 spec_auto_button_sub = SubscriptionSpec(name="/autoware/engage",
@@ -63,3 +64,8 @@ spec_odometry = SubscriptionSpec(name="/localization/kinematic_state",
 spec_curr_acc = SubscriptionSpec(name="/localization/acceleration",
                                  msg_type=AccelWithCovarianceStamped,
                                  depth=1)
+
+# subscribe predicted objects from perception
+spec_objects_sub = SubscriptionSpec(name="/perception/object_recognition/objects",
+                                    msg_type=PredictedObjects,
+                                    depth=1)

@@ -8,6 +8,7 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Union
+from typing import Optional
 
 # third party
 import numpy as np
@@ -55,22 +56,16 @@ from ..common.utils.type_mapping import get_classification_with_highest_probabil
 from ..common.utils.type_mapping import aw_to_cr_obstacle_type
 from ..common.utils.transform import quaternion2orientation
 from ..common.utils.transform import map2utm
-from ..common.utils.message import create_object_base_msg
-from ..common.utils.message import log_obstacle
 from ..common.utils.geometry import upsample_trajectory
 from ..common.utils.geometry import traj_linear_interpolate
-from ..common.ros_interface.create import create_publisher
 from ..common.ros_interface.create import create_subscription
 
 # Avoid circular imports
 if typing.TYPE_CHECKING:
     from cr2autoware.cr2autoware import Cr2Auto
 
-# publisher specifications
-from ..common.ros_interface.specs_publisher import spec_obstacle_pub
-
 # subscriber specifications
-# TODO load from specs file
+from ..common.ros_interface.specs_subscriptions import spec_objects_sub
 
 
 class ScenarioHandler(BaseHandler):
@@ -82,8 +77,6 @@ class ScenarioHandler(BaseHandler):
 
     ======== Subscribers:
     "/perception/object_recognition/objects" (subscribes to PredictedObjects messages)
-    "/initialpose3d" (subscribes to PoseWithCovarianceStamped messages)
-    "/planning/mission_planning/echo_back_goal_pose" (subscribes to PoseStamped messages)
     """
 
     # Constants and parameters
@@ -126,9 +119,10 @@ class ScenarioHandler(BaseHandler):
         self._origin_transformation = self._get_origin_transformation(
             map_config, Proj(projection_string), self._scenario)
 
-        # Initialize list of current z values
+        # Initialize params for computing elevation (z-coordinate)
         self._z_list = [None, None]  # [initial_pose_z, goal_pose_z]
         self._initialpose3d_z = 0.0  # z value of initialpose3d
+        self._z_coordinate = 0.0     # current elevation, i.e., z-coordinate
 
     def _init_parameters(self) -> None:
         """Init scenario handler specific parameters from self._node"""
@@ -305,29 +299,11 @@ class ScenarioHandler(BaseHandler):
 
     def _init_subscriptions(self) -> None:
         # subscribe predicted objects from perception
-        self._node.create_subscription(
-            PredictedObjects,
-            "/perception/object_recognition/objects",
-            lambda msg: self._last_msg.update({"dynamic_obstacle": msg}),
-            1,
-            callback_group=self._node.callback_group,
-        )
-        # subscribe initialpose 3d from localization
-        self._node.create_subscription(
-            PoseWithCovarianceStamped,
-            "/initialpose3d",
-            lambda msg: self._last_msg.update({"initial_pose": msg}),
-            1,
-            callback_group=self._node.callback_group,
-        )
-        # subscribe goal pose
-        self._node.create_subscription(
-            PoseStamped,
-            "/planning/mission_planning/echo_back_goal_pose",
-            lambda msg: self._last_msg.update({"goal_pose": msg}),
-            1,
-            callback_group=self._node.callback_group,
-        )
+        _ = create_subscription(self._node,
+                                spec_objects_sub,
+                                lambda msg: self._last_msg.update({"dynamic_obstacle": msg}),
+                                self._node.callback_group
+                                )
 
     def _init_publishers(self) -> None:
         pass
@@ -347,6 +323,10 @@ class ScenarioHandler(BaseHandler):
     @property
     def origin_transformation(self) -> List[Union[float, Any]]:
         return self._origin_transformation
+
+    @property
+    def z_coordinate(self) -> float:
+        return self._z_coordinate
 
     def update_scenario(self):
         """
@@ -657,14 +637,17 @@ class ScenarioHandler(BaseHandler):
         # add dynamic obstacle to the scenario
         self.scenario.add_objects(dynamic_obstacle)
 
-    def get_z_coordinate(self) -> float:
-        """Calculate the mean of the z coordinate from initial_pose and goal_pose."""
+    def compute_z_coordinate(self, new_initial_pose: Optional[PoseWithCovarianceStamped],
+                             new_goal_pose: Optional[PoseStamped]):
+        """
+        Approximation of the elevation (z-coordinate) of the scenario as the mean between initial_pose and goal_pose.
+
+        :param new_initial_pose the initial pose of the ego vehicle
+        :param new_goal_pose the desired goal pose
+        """
         new_initial_pose_z = None
         new_goal_pose_z = None
         goal_pose_z = self._z_list[1]
-
-        new_initial_pose = self._last_msg.get("initial_pose")
-        new_goal_pose = self._last_msg.get("goal_pose")   
 
         # only consider values if z is not None or 0.0
         if new_initial_pose is not None and new_initial_pose.pose.pose.position.z != 0.0:       
@@ -695,8 +678,9 @@ class ScenarioHandler(BaseHandler):
 
         valid_z_list = [i for i in [self._z_list[0], self._z_list[1]] if i is not None]
         if not valid_z_list:
-            z = 0.0
+            self._z_coordinate = 0.0
             self._logger.info("Z is either not found or is 0.0")
-            return z
-        z = float(np.median(valid_z_list))
-        return z
+            return
+
+        # set elevation as median between initial and goal pose z coordinates
+        self._z_coordinate = float(np.median(valid_z_list))
