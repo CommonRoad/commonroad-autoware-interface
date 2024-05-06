@@ -8,6 +8,7 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Union
+from typing import Optional
 
 # third party
 import numpy as np
@@ -121,9 +122,10 @@ class ScenarioHandler(BaseHandler):
         self._origin_transformation = self._get_origin_transformation(
             map_config, Proj(projection_string), self._scenario)
 
-        # Initialize list of current z values
+        # Initialize params for computing elevation (z-coordinate)
         self._z_list = [None, None]  # [initial_pose_z, goal_pose_z]
         self._initialpose3d_z = 0.0  # z value of initialpose3d
+        self._z_coordinate = 0.0     # current elevation, i.e., z-coordinate
 
     def _init_parameters(self) -> None:
         """Init scenario handler specific parameters from self._node"""
@@ -326,6 +328,10 @@ class ScenarioHandler(BaseHandler):
     @property
     def origin_transformation(self) -> List[Union[float, Any]]:
         return self._origin_transformation
+
+    @property
+    def z_coordinate(self) -> float:
+        return self._z_coordinate
 
     def update_scenario(self):
         """
@@ -636,7 +642,8 @@ class ScenarioHandler(BaseHandler):
         # add dynamic obstacle to the scenario
         self.scenario.add_objects(dynamic_obstacle)
 
-    def get_z_coordinate(self, new_initial_pose: PoseWithCovarianceStamped, new_goal_pose: PoseStamped) -> float:
+    def compute_z_coordinate(self, new_initial_pose: Optional[PoseWithCovarianceStamped],
+                             new_goal_pose: Optional[PoseStamped]):
         """
         Approximation of the elevation (z-coordinate) of the scenario as the mean between initial_pose and goal_pose.
 
@@ -676,8 +683,9 @@ class ScenarioHandler(BaseHandler):
 
         valid_z_list = [i for i in [self._z_list[0], self._z_list[1]] if i is not None]
         if not valid_z_list:
-            z = 0.0
+            self._z_coordinate = 0.0
             self._logger.info("Z is either not found or is 0.0")
-            return z
-        z = float(np.median(valid_z_list))
-        return z
+            return
+
+        # set elevation as median between initial and goal pose z coordinates
+        self._z_coordinate = float(np.median(valid_z_list))

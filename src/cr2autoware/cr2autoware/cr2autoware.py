@@ -451,8 +451,7 @@ class Cr2Auto(Node):
                         reference_velocities = self.velocity_planner.reference_velocities
                         # call publisher
                         self.route_planner.publish(point_list, reference_velocities,
-                                                   self.scenario_handler.get_z_coordinate(self.initial_pose,
-                                                                                          self.current_goal_msg))
+                                                   self.scenario_handler.z_coordinate)
 
                     if self.verbose:
                         self._logger.info("Solving planning problem!")
@@ -487,8 +486,7 @@ class Cr2Auto(Node):
 
                         # publish trajectory
                         self.trajectory_planner.publish(self.origin_transformation,
-                                                        self.scenario_handler.get_z_coordinate(self.initial_pose,
-                                                                                               self.current_goal_msg))
+                                                        self.scenario_handler.z_coordinate)
 
                     # check if goal is reached
                     self._is_goal_reached()
@@ -604,6 +602,9 @@ class Cr2Auto(Node):
         self.new_initial_pose = True
         self.ego_vehicle_handler.new_pose_received = False
 
+        # (re)-compute elevation (z-coordinate) when new initial pose is received
+        self.scenario_handler.compute_z_coordinate(self.initial_pose, self.current_goal_msg)
+
     def routing_state_callback(self, msg: RouteState) -> None:
         """
         Callback to routing state. Checks if "Clear route" button was pressed.
@@ -674,6 +675,9 @@ class Cr2Auto(Node):
         if self.verbose:
             self._logger.info("goal msg: " + str(msg))
 
+        # (re)-compute elevation (z-coordinate) when new goal pose is received
+        self.scenario_handler.compute_z_coordinate(self.initial_pose, msg)
+
         self._pub_goals()
         # autoware requires that the reference path has to be published again when new goals are published
         if self.velocity_planner.is_velocity_planning_completed:
@@ -681,7 +685,7 @@ class Cr2Auto(Node):
             reference_velocities = self.velocity_planner.reference_velocities
             # call publisher
             self.route_planner.publish(point_list, reference_velocities,
-                                       self.scenario_handler.get_z_coordinate(self.initial_pose, msg))
+                                       self.scenario_handler.z_coordinate)
     
     def velocity_limit_callback(self, msg: VelocityLimit) -> None:
         """
