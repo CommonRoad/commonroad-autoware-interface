@@ -1,12 +1,14 @@
 # standard imports
 from typing import Dict
 from typing import List
+from uuid import UUID as PyUUID
 
 # third party
 import numpy as np
 
 # ROS msgs
 from geometry_msgs.msg import Polygon as PolygonMsg
+from unique_identifier_msgs.msg import UUID as UUIDMsg
 
 # Autoware msgs
 from autoware_auto_perception_msgs.msg import ObjectClassification  # type: ignore
@@ -108,3 +110,15 @@ def aw_to_cr_shape_updater(
 
     else:
         raise TypeError("Unsupported CommonRoad shape type: " + str(dynamic_obstacle.obstacle_shape))
+
+
+def uuid_from_ros_msg(
+        msg: UUIDMsg
+) -> PyUUID:
+    """
+    Converts a ROS UUID message to a Python type UUID.
+    ROS UUID is represented as uint8[16], i.e., an array of length 16 containing 8-byte unsigned integers.
+
+    :param msg: ROS UUID message of type unique_identifier_msgs/msg/UUID
+    """
+    return PyUUID(bytes=bytes([int(_elem) for _elem in msg]))
