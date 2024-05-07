@@ -180,7 +180,11 @@ class VelocityPlanner:
         # append tail of reference trajectory
         zeros = [0] * len(self._tail)
 
-        positions_arr = np.concatenate((np.array(point_list), self._tail), axis=0)
+        if len(self._tail) == 0:
+            positions_arr = np.array(point_list)
+        else:
+            positions_arr = np.concatenate((np.array(point_list), self._tail), axis=0)
+
         velocities_arr = np.array(velocity_list + zeros)
 
         _len_vel_arr = len(velocities_arr)
