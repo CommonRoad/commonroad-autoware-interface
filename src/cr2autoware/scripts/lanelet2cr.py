@@ -11,6 +11,7 @@ from crdesigner.map_conversion.lanelet2.lanelet2cr import Lanelet2CRConverter
 from crdesigner.map_conversion.lanelet2.lanelet2_parser import Lanelet2Parser
 
 from crdesigner.map_conversion.map_conversion_interface import lanelet_to_commonroad
+from crdesigner.common.config.general_config import general_config
 from crdesigner.common.config.lanelet2_config import lanelet2_config
 
 DEFAULT_PROJ_STRING = "+proj=utm +zone=32 +ellps=WGS84"
@@ -36,7 +37,8 @@ except FileNotFoundError:
 left_driving = False  # replace with favoured value
 adjacencies = False  # replace with favoured value
 
-lanelet2_config.proj_string_l2 = proj
+general_config.proj_string_cr = proj
+
 lanelet2_config.left_driving = left_driving
 lanelet2_config.adjacencies = adjacencies
 lanelet2_config.translate = True
@@ -44,6 +46,7 @@ lanelet2_config.autoware = True
 
 scenario = lanelet_to_commonroad(
     input_map_path,
+    general_conf=general_config,
     lanelet2_conf=lanelet2_config,
 )
 

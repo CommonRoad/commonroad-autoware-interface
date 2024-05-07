@@ -45,6 +45,7 @@ import commonroad_dc.pycrcc as pycrcc
 from commonroad_dc.boundary.boundary import create_road_boundary_obstacle
 
 # crdesigner imports
+from crdesigner.common.config.general_config import general_config
 from crdesigner.common.config.lanelet2_config import lanelet2_config
 from crdesigner.map_conversion.map_conversion_interface import lanelet_to_commonroad
 
@@ -283,7 +284,8 @@ class ScenarioHandler(BaseHandler):
             "Creating from autoware map via Lanelet2CommonRoad conversion instead"
         )
 
-        lanelet2_config.proj_string_l2 = projection_string
+        general_config.proj_string_cr = projection_string
+
         lanelet2_config.left_driving = left_driving
         lanelet2_config.adjacencies = adjacencies
         lanelet2_config.translate = True
@@ -291,6 +293,7 @@ class ScenarioHandler(BaseHandler):
 
         scenario = lanelet_to_commonroad(
             input_file=map_filename,
+            general_conf=general_config,
             lanelet2_conf=lanelet2_config,
         )
 
