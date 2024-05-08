@@ -10,6 +10,7 @@ from typing import List
 from typing import Union
 from typing import Optional
 from uuid import UUID
+import time
 
 # third party
 import numpy as np
@@ -361,18 +362,27 @@ class ScenarioHandler(BaseHandler):
         """
         self._logger.info("Updating scenario")
 
+        # log time
+        t_start = time.perf_counter()
+
         # process objects from perception
         self._process_objects()
 
+        # log time
+        t_elapsed = time.perf_counter() - t_start
+
         # print scenario update summary
         if self._VERBOSE:
-            self._print_summary()
+            self._print_summary(t_elapsed)
 
-    def _print_summary(self):
+    def _print_summary(self, t_elapsed: float):
         """
         Prints current scenario update to console via ROS logger for debugging
+
+        :param t_elapsed elapsed scenario update time
         """
         self._logger.debug(f"###### SCENARIO UPDATE")
+        self._logger.debug(f"\t Scenario update took: {t_elapsed} s")
         self._logger.debug(f"\t Number of dynamic obstacles: {len(self.scenario.dynamic_obstacles)}")
         self._logger.debug(f"\t Current obstacle types: "
                            f"{[obs.obstacle_type.value for obs in self.scenario.dynamic_obstacles]}")
