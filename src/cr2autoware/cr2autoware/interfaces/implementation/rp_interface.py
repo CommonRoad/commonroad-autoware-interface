@@ -8,9 +8,6 @@ from commonroad.planning.planning_problem import PlanningProblem
 # commonroad-dc
 import commonroad_dc.pycrcc as pycrcc
 
-# route planner
-from commonroad_route_planner.route_planner import Route
-
 # commonroad-rp imports
 from commonroad_rp.utility.config import ReactivePlannerConfiguration
 from commonroad_rp.utility.logger import initialize_logger
@@ -117,7 +114,7 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
             # TODO: sample emergency brake trajectory if no trajectory is found
             self._cr_state_list = None
 
-    def update(self, planning_problem: PlanningProblem = None, route: Route = None, reference_path: np.ndarray = None):
+    def update(self, planning_problem: PlanningProblem = None, reference_path: np.ndarray = None):
         """
         Updates externals of the trajectory planner
         """

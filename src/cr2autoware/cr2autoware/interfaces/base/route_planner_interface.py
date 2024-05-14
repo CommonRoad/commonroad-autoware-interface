@@ -36,7 +36,8 @@ class RoutePlannerInterface(ABC):
     # verbose logging
     _verbose: bool
 
-    def __init__(self, route_pub: Publisher, logger: RcutilsLogger, verbose: bool, lanelet_network: LaneletNetwork):
+    def __init__(self, route_pub: Publisher, logger: RcutilsLogger, verbose: bool, lanelet_network: LaneletNetwork,
+                 **kwargs):
         """
         :param route_pub: ROS2 node publisher
         :param logger: ROS2 node logger
@@ -54,7 +55,7 @@ class RoutePlannerInterface(ABC):
         self.lanelet_network: LaneletNetwork = lanelet_network
 
         # initialize planner class (set in child class)
-        self._planner: Any = self._initialize_planner()
+        self._planner: Any = self._initialize_planner(**kwargs)
 
         # reference path
         self._reference_path: Optional[np.ndarray] = None
@@ -92,19 +93,19 @@ class RoutePlannerInterface(ABC):
         self._lanelet_network = lln
 
     @abstractmethod
-    def _initialize_planner(self, **kwargs):
+    def _initialize_planner(self, **kwargs) -> Any:
         """Abstract method to initialize the self._planner."""
         pass
 
     @abstractmethod
-    def _plan(self, planning_problem: PlanningProblem, **kwargs):
+    def _plan(self, planning_problem: Optional[PlanningProblem] = None, **kwargs):
         """
         Plans a route and a reference path for the given planning problem.
         The planning algorithm is implemented in the respective planner (self._planner)
         """
         pass
 
-    def plan(self, planning_problem: PlanningProblem, **kwargs):
+    def plan(self, planning_problem: Optional[PlanningProblem] = None, **kwargs):
         """
         Calls the encapsulated _plan function. If planning result is valid, sets _is_route_planned to True.
         """
@@ -120,7 +121,9 @@ class RoutePlannerInterface(ABC):
             self._is_route_planned = False
 
     def reset(self):
-        """Resets route and reference path (e.g., when desired by the user upon pressing Clear Route)"""
+        """
+        Resets route and reference path (e.g., when desired by the user upon pressing Clear Route)
+        """
         # reset reference path and route
         self._reference_path = None
         self._route_list_lanelet_ids = None
@@ -129,8 +132,9 @@ class RoutePlannerInterface(ABC):
         # publish empty reference path
         self.publish()
 
-    def _prepare_route_marker_msg(self, path: np.ndarray = None, velocities: np.ndarray = None, elevation: Optional[float] = None) \
-            -> MarkerArray:
+    @staticmethod
+    def _prepare_route_marker_msg(path: np.ndarray = None, velocities: np.ndarray = None,
+                                  elevation: Optional[float] = None) -> MarkerArray:
         if path is None:
             path = np.array([])
         if velocities is None:
@@ -142,8 +146,9 @@ class RoutePlannerInterface(ABC):
         return create_route_marker_msg(path, velocities, elevation)
 
     def publish(self, path: np.ndarray = None, velocities: np.ndarray = None, elevation: float = None):
-        """Publish route markers of planned reference path to visualize in RVIZ."""
-
+        """
+        Publish route markers of planned reference path to visualize in RVIZ.
+        """
         route_marker_msg = self._prepare_route_marker_msg(path, velocities, elevation)
         self._route_pub.publish(route_marker_msg)
 
