@@ -21,37 +21,26 @@ function print_progress() {
 
 print_progress "<CR2Autoware>: Starting Cr2Autoware Setup" -n
 
-# initialize and update submodules
-# TODO: remove if dependencies are fetched via vcs
-print_progress "<CR2Autoware>: Fetching submodules..." -n
-git submodule init
-git submodule update
-print_progress "Done" -n
-
-# install apt packages
+# install required apt packages
 print_progress "<CR2Autoware>: Installing apt packages..." -n
-# TODO: include apt dependencies in dockerfile?
 sudo apt-get update -y
 sudo apt install -y python3-pykdl
-# TODO Bugfix: missing in Dockerimage
+# missing in Dockerimage
 sudo apt-get install -y liblttng-ust-dev
+# Rosbag writer for file writer
+sudo apt-get install -y ros-humble-rosbag2 ros-humble-rosbag2-storage-mcap
 print_progress "Done" -n
 
 # install pip packages
 print_progress "<CR2Autoware>: Installing pip packages..." -n
 
 cd dfg-car
-print_progress "<CR2Autoware>: Installing dfg-car..." -n
+print_progress "<CR2Autoware>: Installing dfg-car dependencies..." -n
 pip install -r src/cr2autoware/requirements.txt
 print_progress "Done" -n
 
 cd ../commonroad-scenario-designer
 print_progress "<CR2Autoware>: Installing commonroad-scenario-designer..." -n
-pip install .
-print_progress "Done" -n
-
-cd ../commonroad-search
-print_progress "<CR2Autoware>: Installing commonroad-search..." -n
 pip install .
 print_progress "Done" -n
 
@@ -61,8 +50,5 @@ pip install .
 print_progress "Done" -n
 
 cd ..
-
-# TODO: Bugfix numpy version
-pip install -U numpy
 
 print_progress "<CR2Autoware>: Cr2Autoware Setup completed!" -n
