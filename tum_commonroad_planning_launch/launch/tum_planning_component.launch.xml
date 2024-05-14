@@ -60,9 +60,14 @@
       <push-ros-namespace namespace="mission_planning"/>
       <!-- The mission planner is required for the lane departure checks of -->
       <!-- the node control/trajectory_follower/lane_departure_checker-->
-      <include file="$(find-pkg-share tier4_planning_launch)/launch/mission_planning/mission_planning.launch.xml">
-        <arg name="mission_planner_param_path" value="$(var mission_planner_param_path)"/>
-      </include>
+      <group>
+        <include file="$(find-pkg-share mission_planner)/launch/mission_planner.launch.xml">
+          <arg name="mission_planner_param_path" value="$(var mission_planner_param_path)"/>
+        </include>
+      </group>
+      <group>
+        <include file="$(find-pkg-share mission_planner)/launch/goal_pose_visualizer.launch.xml"/>
+      </group>
     </group>
 
     <!-- AW.Universe: scenario planning module for motion velocity smoother -->
