@@ -341,10 +341,11 @@ class Cr2Auto(Node):
     # TODO move factory method to separate module
     def _route_planner_factory(self):
         """Factory function to initialize route planner according to specified type."""
-        return CommonRoadRoutePlanner(self.route_pub,
-                                      self._logger,
-                                      self.verbose,
-                                      self.scenario_handler.lanelet_network)
+        return CommonRoadRoutePlanner(route_pub=self.route_pub,
+                                      logger=self._logger,
+                                      verbose=self.verbose,
+                                      lanelet_network=self.scenario_handler.lanelet_network,
+                                      planning_problem=self.planning_problem)
 
     def _set_cr2auto_mode(self):
         """
@@ -821,7 +822,7 @@ class Cr2Auto(Node):
             self._logger.info("Set new goal active!")
 
             # plan route and reference path
-            self.route_planner.plan(self.planning_problem)
+            self.route_planner.plan(planning_problem=self.planning_problem)
 
             # plan velocity profile (-> reference trajectory)
             _goal_pos_cr = map2utm(self.origin_transformation, self.current_goal_msg.pose.position)
@@ -841,7 +842,8 @@ class Cr2Auto(Node):
             self.set_state(AutowareState.WAITING_FOR_ENGAGE)
 
             # update reference path of trajectory planner
-            self.trajectory_planner.update(reference_path=self.route_planner.reference_path)
+            self.trajectory_planner.update(reference_path=self.route_planner.reference_path,
+                                           planning_problem=self.planning_problem)
 
         else:
             if self.verbose:
@@ -891,7 +893,7 @@ class Cr2Auto(Node):
             self.set_state(AutowareState.WAITING_FOR_ENGAGE)
             
             # Re-plan the route and reference path
-            self.route_planner.plan(self.planning_problem)
+            self.route_planner.plan(planning_problem=self.planning_problem)
             # Re-plan the velocity profile
             _goal_pos_cr = map2utm(self.origin_transformation, self.current_goal_msg.pose.position)
             self.velocity_planner.plan(self.route_planner.reference_path, _goal_pos_cr,
