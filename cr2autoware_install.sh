@@ -19,7 +19,7 @@ function print_progress() {
   print "${GREEN}${1}${NC}" "${2}"
 }
 
-print_progress "<CR2Autoware>: Starting Cr2Autoware Setup" -n
+print_progress "<CR2Autoware>: Starting CR2AW Setup" -n
 
 # install required apt packages
 print_progress "<CR2Autoware>: Installing apt packages..." -n
@@ -34,8 +34,7 @@ print_progress "Done" -n
 # install pip packages
 print_progress "<CR2Autoware>: Installing pip packages..." -n
 
-cd dfg-car
-print_progress "<CR2Autoware>: Installing dfg-car dependencies..." -n
+print_progress "<CR2Autoware>: Installing CR2AW pip dependencies..." -n
 pip install -r src/cr2autoware/requirements.txt
 print_progress "Done" -n
 

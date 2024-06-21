@@ -15,13 +15,22 @@ from crdesigner.common.config.general_config import general_config
 from crdesigner.common.config.lanelet2_config import lanelet2_config
 
 DEFAULT_PROJ_STRING = "+proj=utm +zone=32 +ellps=WGS84"
-basis_path = "/home/drivingsim/autoware/src/universe/autoware.universe/planning/tum_commonroad_planning/dfg-car/src/cr2autoware/data/test_maps/lanelet2/"
-map_name = "merging_lanelets_utm"
-simple_cr_scenario_path = basis_path + map_name + "_from_osm.xml"
-input_path = basis_path + map_name + "/"
-input_map_path = input_path + "lanelet2_map.osm"
-input_map_config_path = input_path + "map_config.yaml"
 
+
+# *************************
+# set paths
+# *************************
+basis_path = "/home/drivingsim/autoware/src/universe/autoware.universe/planning/tum_commonroad_planning/dfg-car/src/cr2autoware/data/test_maps/lanelet2/"
+
+cr_scenario_path = basis_path + "cr_scenario" + "_from_lanelet2.xml"
+
+input_map_path = basis_path + "lanelet2_map.osm"
+input_map_config_path = basis_path + "map_config.yaml"
+
+
+# *************************
+# map conversion
+# *************************
 try:
     with open(input_map_config_path, 'r') as stream:
         data_loaded = yaml.safe_load(stream)
@@ -52,6 +61,10 @@ scenario = lanelet_to_commonroad(
 
 scenario.convert_to_2d()
 
+
+# **************************
+# write output CR file
+# **************************
 # store converted file as CommonRoad scenario
 writer = CommonRoadFileWriter(
     scenario=scenario,
@@ -61,4 +74,4 @@ writer = CommonRoadFileWriter(
     source="CommonRoad Scenario Designer",
     tags={Tag.URBAN},
 )
-writer.write_to_file(simple_cr_scenario_path, OverwriteExistingFile.ALWAYS)
+writer.write_to_file(cr_scenario_path, OverwriteExistingFile.ALWAYS)

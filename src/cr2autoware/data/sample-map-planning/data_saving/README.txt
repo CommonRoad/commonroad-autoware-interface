@@ -1,0 +1,1 @@
+The data_saving/ folder is required here for storing the rosbag *.mcap files which are recorded by the DataGenerationHandler.
