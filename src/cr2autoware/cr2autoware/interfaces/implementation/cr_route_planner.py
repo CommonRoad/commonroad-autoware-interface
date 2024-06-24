@@ -1,7 +1,7 @@
 # standard imports
 from typing import Optional
 
-#third party imports
+# third party imports
 import numpy as np
 from scipy.interpolate import splev
 from scipy.interpolate import splprep
