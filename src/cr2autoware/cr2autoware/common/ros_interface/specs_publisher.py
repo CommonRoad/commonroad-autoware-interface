@@ -102,3 +102,4 @@ spec_initial_pose_2d_pub = PublisherSpec(name="/initialpose",
 spec_obstacle_pub = PublisherSpec(name="/simulation/dummy_perception_publisher/object_info",
                                   msg_type=Object,
                                   depth=1)
+

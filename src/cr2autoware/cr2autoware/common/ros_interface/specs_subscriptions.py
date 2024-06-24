@@ -12,7 +12,9 @@ from nav_msgs.msg import Odometry
 # Autoware messages
 from autoware_auto_vehicle_msgs.msg import Engage  # type: ignore
 from autoware_auto_system_msgs.msg import AutowareState  # type: ignore
-from autoware_auto_perception_msgs.msg import PredictedObjects  # type: ignore
+from autoware_auto_planning_msgs.msg import Trajectory # type: ignore
+from autoware_auto_perception_msgs.msg import PredictedObjects # type: ignore
+from autoware_auto_perception_msgs.msg import TrafficSignalArray  # type: ignore
 
 # Autoware AdAPI message imports
 from autoware_adapi_v1_msgs.msg import RouteState  # type: ignore
@@ -65,7 +67,31 @@ spec_curr_acc = SubscriptionSpec(name="/localization/acceleration",
                                  msg_type=AccelWithCovarianceStamped,
                                  depth=1)
 
+# subscribes to smoothed trajectory
+spec_traj_smoothed = SubscriptionSpec(
+    name="/planning/scenario_planning/trajectory_smoothed",
+    msg_type=Trajectory,
+    depth=1
+)
+
+# subscribes to trajectory
+spec_traj = SubscriptionSpec(
+    name="/planning/scenario_planning/trajectory",
+    msg_type=Trajectory,
+    depth=1
+)
+
+
 # subscribe predicted objects from perception
-spec_objects_sub = SubscriptionSpec(name="/perception/object_recognition/objects",
-                                    msg_type=PredictedObjects,
-                                    depth=1)
+spec_objects_sub = SubscriptionSpec(
+    name="/perception/object_recognition/objects",
+    msg_type=PredictedObjects,
+    depth=1
+)
+
+# subscribes to traffic lights
+spec_traffic_lights = SubscriptionSpec(
+    name="/perception/traffic_light_recognition/traffic_signals",
+    msg_type=TrafficSignalArray,
+    depth=1
+)
