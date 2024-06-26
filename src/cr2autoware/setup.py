@@ -6,7 +6,7 @@ package_name = 'cr2autoware'
 setup(
     # package info
     name=package_name,
-    version='0.1',
+    version='0.1.0',
     zip_safe=True,
     author='Cyber-Physical Systems Group, Technical University of Munich',
     author_email='commonroad@lists.lrz.de',
