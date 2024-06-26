@@ -8,6 +8,9 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Union
+from typing import Optional
+from uuid import UUID
+import time
 
 # third party
 import numpy as np
@@ -16,27 +19,31 @@ import utm
 import yaml
 
 # ROS msgs
+from geometry_msgs.msg import Pose
 from geometry_msgs.msg import PoseStamped
 from geometry_msgs.msg import PoseWithCovarianceStamped
+from geometry_msgs.msg import Polygon as PolygonMsg
 from rclpy.publisher import Publisher
 from std_msgs.msg import Header
 
 # Autoware msgs
-from autoware_auto_perception_msgs.msg import DetectedObjects  # type: ignore
 from autoware_auto_perception_msgs.msg import PredictedObjects  # type: ignore
-from autoware_auto_planning_msgs.msg import TrajectoryPoint  # type: ignore
-from dummy_perception_publisher.msg import Object  # type: ignore
+from autoware_auto_perception_msgs.msg import PredictedObject  # type: ignore
+from autoware_auto_perception_msgs.msg import ObjectClassification  # type: ignore
+from autoware_auto_perception_msgs.msg import PredictedPath  # type: ignore
+from autoware_auto_perception_msgs.msg import TrafficSignalArray  # type: ignore
+from autoware_auto_perception_msgs.msg import TrafficSignal  # type: ignore
+from autoware_auto_perception_msgs.msg import TrafficLight  # type: ignore
 
 # commonroad-io imports
 from commonroad.common.file_reader import CommonRoadFileReader
-from commonroad.geometry.shape import Rectangle
 from commonroad.prediction.prediction import TrajectoryPrediction
 from commonroad.scenario.obstacle import DynamicObstacle
-from commonroad.scenario.obstacle import ObstacleType
 from commonroad.scenario.obstacle import StaticObstacle
 from commonroad.scenario.scenario import Scenario as CRScenario
 from commonroad.scenario.state import InitialState
-from commonroad.scenario.state import TraceState
+from commonroad.scenario.state import CustomState
+from commonroad.scenario.trajectory import Trajectory as CRTrajectory
 from commonroad.scenario.lanelet import LaneletNetwork
 
 # commonroad-dc imports
@@ -44,31 +51,34 @@ import commonroad_dc.pycrcc as pycrcc
 from commonroad_dc.boundary.boundary import create_road_boundary_obstacle
 
 # crdesigner imports
-from crdesigner.common.config.lanelet2_config import lanelet2_config
 from crdesigner.common.config.general_config import general_config
+from crdesigner.common.config.lanelet2_config import lanelet2_config
 from crdesigner.map_conversion.map_conversion_interface import lanelet_to_commonroad
 
 # cr2autoware
 from .base import BaseHandler
+from ..common.utils.type_mapping import aw_to_cr_shape
+from ..common.utils.type_mapping import aw_to_cr_shape_updater
+from ..common.utils.type_mapping import get_classification_with_highest_probability
+from ..common.utils.type_mapping import set_traffic_light_cycle
+from ..common.utils.type_mapping import aw_to_cr_obstacle_type
+from ..common.utils.type_mapping import aw_to_cr_traffic_light_color
+from ..common.utils.type_mapping import aw_to_cr_traffic_traffic_light_shape
+from ..common.utils.type_mapping import aw_to_cr_traffic_traffic_light_status
+from ..common.utils.type_mapping import uuid_from_ros_msg
 from ..common.utils.transform import quaternion2orientation
 from ..common.utils.transform import map2utm
-from ..common.utils.message import create_object_base_msg
-from ..common.utils.message import log_obstacle
 from ..common.utils.geometry import upsample_trajectory
 from ..common.utils.geometry import traj_linear_interpolate
-from ..common.ros_interface.create import create_publisher
 from ..common.ros_interface.create import create_subscription
 
 # Avoid circular imports
 if typing.TYPE_CHECKING:
     from cr2autoware.cr2autoware import Cr2Auto
 
-# publisher specifications
-from ..common.ros_interface.specs_publisher import spec_obstacle_pub
-
 # subscriber specifications
-
-# TODO: Figure out how to load from CR xml file
+from ..common.ros_interface.specs_subscriptions import spec_objects_sub
+from ..common.ros_interface.specs_subscriptions import spec_traffic_signals_sub
 
 
 class ScenarioHandler(BaseHandler):
@@ -77,11 +87,10 @@ class ScenarioHandler(BaseHandler):
     Keeps an up to date state of the current scenario in CommonRoad format.
 
     ======== Publishers:
-    _OBSTACLE_PUBLISHER: "/simulation/dummy_perception_publisher/object_info"
 
     ======== Subscribers:
-    "/perception/object_recognition/detection/objects" (subscribes to DetectedObjects messages)
     "/perception/object_recognition/objects" (subscribes to PredictedObjects messages)
+    "/perception/traffic_light_recognition/traffic_signals (subscribes to TrafficSignals messages)
     """
 
     # Constants and parameters
@@ -93,13 +102,10 @@ class ScenarioHandler(BaseHandler):
     _dt: float
     _origin_transformation: List[float]
     _last_msg: Dict[str, Any] = {}
-    _dynamic_obstacles_map: Dict[int, int] = {}
-    # We update obstacles in the scenario with every msg
-    # to publish the initial obstacles, they need to be stored
-    _initial_obstacles: List[Union[DynamicObstacle, StaticObstacle]] = []
 
-    # Publishers
-    _OBSTACLE_PUBLISHER: Publisher
+    # mapping between Autoware object ID (key, given as UUID)
+    # and corresponding CommonRoad object ID (value, given as int)
+    _object_id_mapping: Dict[UUID, int] = {}
 
     def __init__(self, node: "Cr2Auto"):
         # init base class
@@ -130,12 +136,15 @@ class ScenarioHandler(BaseHandler):
         self._origin_transformation = self._get_origin_transformation(
             map_config, Proj(projection_string), self._scenario)
 
-        # Initialize list of current z values
+        # Initialize params for computing elevation (z-coordinate)
         self._z_list = [None, None]  # [initial_pose_z, goal_pose_z]
         self._initialpose3d_z = 0.0  # z value of initialpose3d
+        self._z_coordinate = 0.0     # current elevation, i.e., z-coordinate
 
     def _init_parameters(self) -> None:
-        """Init scenario handler specific parameters from self._node"""
+        """
+        Init scenario handler specific parameters from self._node
+        """
         self.MAP_PATH = self._get_param("general.map_path").string_value
         if not os.path.exists(self.MAP_PATH):
             raise ValueError("Can't find given map path: %s" % self.MAP_PATH)
@@ -145,6 +154,10 @@ class ScenarioHandler(BaseHandler):
         self._dt = self._get_param("scenario.dt").double_value
 
     def _read_map_config(self, map_path: str) -> Dict[str, Any]:
+        """
+        Read the map config file to obtain the origin (lat/lon) of the local coorindates of the lanelet2 map
+        :param map_path path to directory containing the map_config.yaml file
+        """
         map_config = {}
 
         map_config_tmp = list(glob.iglob(os.path.join(map_path, ("map_config" + "*.[yY][aA][mM][lL]"))))
@@ -188,6 +201,9 @@ class ScenarioHandler(BaseHandler):
         return map_config
 
     def _get_projection_string(self, map_config: Dict[str, Any]) -> str:
+        """
+        Obtain the projection string based on the lat/lon origin of the Lanelet2 map
+        """
         aw_origin_latitude = map_config["aw_origin_latitude"]
         aw_origin_longitude = map_config["aw_origin_longitude"]
         utm_str = utm.from_latlon(float(aw_origin_latitude), float(aw_origin_longitude))
@@ -198,6 +214,10 @@ class ScenarioHandler(BaseHandler):
     def _get_origin_transformation(
         self, map_config: Dict[str, Any], projection: Proj, scenario: CRScenario
     ) -> List[Union[float, Any]]:
+        """
+        Compute the origin transformation (i.e., translation between the local coordinates of the CommonRoad map and
+        the Autoware Lanelet2 map)
+        """
         aw_origin_x, aw_origin_y = projection(
             map_config["aw_origin_longitude"], map_config["aw_origin_latitude"]
         )
@@ -237,8 +257,8 @@ class ScenarioHandler(BaseHandler):
         adjacencies: bool,
         dt: float,
     ) -> CRScenario:
-        """Initialize the scenario either from a CommonRoad scenario file or from Autoware map.
-
+        """
+        Initialize the scenario either from a CommonRoad scenario file or from Autoware map.
         Transforms Autoware map to CommonRoad scenario if no CommonRoad scenario file is found
         in the `map_path` directory.
         """
@@ -254,8 +274,6 @@ class ScenarioHandler(BaseHandler):
                 map_filename, projection_string, left_driving, adjacencies, dt=dt
             )
         scenario.convert_to_2d()
-        self._initial_obstacles.extend(scenario.static_obstacles)
-        self._initial_obstacles.extend(scenario.dynamic_obstacles)
         return scenario
 
     def _create_initial_road_boundary(self) -> pycrcc.CollisionObject:
@@ -296,136 +314,124 @@ class ScenarioHandler(BaseHandler):
         )
 
         general_config.proj_string_cr = projection_string
+
         lanelet2_config.left_driving = left_driving
         lanelet2_config.adjacencies = adjacencies
         lanelet2_config.translate = True
+        lanelet2_config.autoware = True
 
-        scenario = lanelet_to_commonroad(input_file=map_filename, general_conf=general_config,
-                                         lanelet2_conf=lanelet2_config)
-        
+        scenario = lanelet_to_commonroad(
+            input_file=map_filename,
+            general_conf=general_config,
+            lanelet2_conf=lanelet2_config,
+        )
+
         scenario.dt = dt
         return scenario
 
     def _init_subscriptions(self) -> None:
-        # subscribe objects from perception
-        self._node.create_subscription(
-            DetectedObjects,
-            "/perception/object_recognition/detection/objects",
-            lambda msg: self._last_msg.update({"static_obstacle": msg}),
-            1,
-            callback_group=self._node.callback_group,
-        )
         # subscribe predicted objects from perception
-        self._node.create_subscription(
-            PredictedObjects,
-            "/perception/object_recognition/objects",
-            lambda msg: self._last_msg.update({"dynamic_obstacle": msg}),
-            1,
-            callback_group=self._node.callback_group,
-        )
-        # subscribe initialpose 3d from localization
-        self._node.create_subscription(
-            PoseWithCovarianceStamped,
-            "/initialpose3d",
-            lambda msg: self._last_msg.update({"initial_pose": msg}),
-            1,
-            callback_group=self._node.callback_group,
-        )
-        # subscribe goal pose
-        self._node.create_subscription(
-            PoseStamped,
-            "/planning/mission_planning/echo_back_goal_pose",
-            lambda msg: self._last_msg.update({"goal_pose": msg}),
-            1,
-            callback_group=self._node.callback_group,
-        )
+        _ = create_subscription(self._node,
+                                spec_objects_sub,
+                                lambda msg: self._last_msg.update({"dynamic_obstacle": msg}),
+                                self._node.callback_group
+                                )
+        # subscribe traffic lights from perception
+        _ = create_subscription(self._node,
+                                spec_traffic_signals_sub,
+                                lambda msg: self._last_msg.update({"traffic_lights": msg}),
+                                self._node.callback_group
+                                )
 
     def _init_publishers(self) -> None:
-        # obstacle publisher for dynamic obstacle in CR scenario
-        self._OBSTACLE_PUBLISHER = create_publisher(self._node, spec_obstacle_pub)
+        pass
 
     @property
     def scenario(self) -> CRScenario:
+        """ Getter for current CR scenario """
         return self._scenario
 
     @property
     def lanelet_network(self) -> LaneletNetwork:
+        """ Getter for CR lanelet network """
         return self._scenario.lanelet_network
 
     @property
     def road_boundary(self) -> pycrcc.CollisionObject:
+        """ Getter for road boundary collision object """
         return self._road_boundary
 
     @property
     def origin_transformation(self) -> List[Union[float, Any]]:
+        """ Getter for the origin transformation """
         return self._origin_transformation
 
-    def update_scenario(self):
-        """Trigger an update of the scenario.
+    @property
+    def z_coordinate(self) -> float:
+        """ Getter for the elevation / z-coordinate """
+        return self._z_coordinate
 
-        This function can be called to update the scenario with the latest messages.
-        Typically it is called by a timer callback.
+    def update_scenario(self):
+        """
+        Update the CommonRoad scenario using the perception/prediction input.
         """
         self._logger.info("Updating scenario")
-        self._process_static_obs()
-        self._process_dynamic_obs()
 
-    def _process_static_obs(self) -> None:
-        last_message = self._last_msg.get("static_obstacle")  # type: DetectedObjects
+        # log time
+        t_start = time.perf_counter()
+
+        # process objects from perception
+        self._process_objects()
+
+        # process traffic lights from perception
+        self._process_traffic_lights()
+
+        # log time
+        t_elapsed = time.perf_counter() - t_start
+
+        # print scenario update summary
+        if self._VERBOSE:
+            self._print_summary(t_elapsed)
+
+    def _print_summary(self, t_elapsed: float):
+        """
+        Prints current scenario update to console via ROS logger for debugging
+
+        :param t_elapsed elapsed scenario update time
+        """
+        self._logger.debug(f"###### SCENARIO UPDATE")
+        self._logger.debug(f"\t Scenario update took: {t_elapsed} s")
+        self._logger.debug(f"\t Number of dynamic obstacles: {len(self.scenario.dynamic_obstacles)}")
+        self._logger.debug(f"\t Current obstacle types: "
+                           f"{[obs.obstacle_type.value for obs in self.scenario.dynamic_obstacles]}")
+        self._logger.debug(f"\t Current CR obstacle IDs: "
+                           f"{[obs.obstacle_id for obs in self.scenario.dynamic_obstacles]}")
+        self._logger.debug(f"\t Current CR traffic light IDs: "
+                           f"{[tl.traffic_light_id for tl in self.lanelet_network.traffic_lights if tl.active is True]}")
+
+    def _process_objects(self) -> None:
+        """
+        Converts Autoware objects to CommonRoad dynamic obstacles and add them to the CommonRoad scenario.
+        The incoming objects are provided by the prediction module via the topic /perception/object_recognition/objects
+        For each object we convert the estimated state and shape as well as the predicted trajectory
+
+        Processing consists of three parts:
+        - Adding newly appearing objects to the scenario
+        - Updating existing objects (i.e., their state, shape and predicted trajectory)
+        - Removing disappearing objects from the scenario
+        """
+        last_message = self._last_msg.get("dynamic_obstacle")  # message type: PredictedObjects
         if last_message is None:
             return
-        # TODO: remove the dynamic obstacles from the static list
-        temp_pose = PoseStamped()
-        temp_pose.header = last_message.header
 
-        # remove all static obstacles from the scenario
-        # Bug in CR scenario where List[StaticObstacle] is not allowed - fixed in newest version
-        self._scenario.remove_obstacle(self._scenario.static_obstacles)  # type: ignore
+        # get list of previously registered AW object IDs in CR scenario
+        list_prev_aw_object_ids: List[UUID] = list(self._object_id_mapping.keys())
 
-        # add all static obstacles from the last message to the scenario
-        for box in last_message.objects:
-            # TODO: CommonRoad can also consider uncertain states of obstacles, which we could derive from the covariances
-            temp_pose.pose.position.x = box.kinematics.pose_with_covariance.pose.position.x
-            temp_pose.pose.position.y = box.kinematics.pose_with_covariance.pose.position.y
-            temp_pose.pose.position.z = box.kinematics.pose_with_covariance.pose.position.z
-            temp_pose.pose.orientation.x = box.kinematics.pose_with_covariance.pose.orientation.x
-            temp_pose.pose.orientation.y = box.kinematics.pose_with_covariance.pose.orientation.y
-            temp_pose.pose.orientation.z = box.kinematics.pose_with_covariance.pose.orientation.z
-            temp_pose.pose.orientation.w = box.kinematics.pose_with_covariance.pose.orientation.w
-            pose_map = self._node.transform_pose(temp_pose, "map")
-            if pose_map is None:
-                continue
-
-            pos = map2utm(self.origin_transformation, pose_map.pose.position)
-            orientation = quaternion2orientation(pose_map.pose.orientation)
-            width = box.shape.dimensions.y
-            length = box.shape.dimensions.x
-
-            obs_state = InitialState(
-                position=pos,
-                orientation=orientation,
-                velocity=0,
-                acceleration=0,
-                yaw_rate=0,
-                slip_angle=0,
-                time_step=0,
-            )
-
-            obs_id = self._scenario.generate_object_id()
-            # TODO: get object type from autoware --> see https://gitlab.com/autowarefoundation/autoware.auto/autoware_auto_msgs/-/blob/master/autoware_auto_perception_msgs/msg/ObjectClassification.idl
-            obs_type = ObstacleType.UNKNOWN
-            obs_shape = Rectangle(width=width, length=length)
-
-            self._scenario.add_objects(StaticObstacle(obs_id, obs_type, obs_shape, obs_state))
-
-    # TODO: This function is too complicated -> split it up
-    def _process_dynamic_obs(self) -> None:
-        """Convert dynamic autoware obstacles to commonroad obstacles and add them to the scenario."""
-        last_message = self._last_msg.get("dynamic_obstacle")  # type: PredictedObjects
-        if last_message is None:
-            return
+        # list of AW object IDs in current perception message
+        list_curr_aw_object_ids: List[UUID] = list()
 
         for obstacle in last_message.objects:
+            # convert current state
             position = map2utm(
                 self._origin_transformation,
                 obstacle.kinematics.initial_pose_with_covariance.pose.position,
@@ -435,66 +441,48 @@ class ScenarioHandler(BaseHandler):
             )
             velocity = obstacle.kinematics.initial_twist_with_covariance.twist.linear.x
             yaw_rate = obstacle.kinematics.initial_twist_with_covariance.twist.angular.z
+            shape_type = obstacle.shape.type
             width = obstacle.shape.dimensions.y
             length = obstacle.shape.dimensions.x
+            footprint = obstacle.shape.footprint
+            classification = obstacle.classification
             time_step = 0
-            traj = []
-            highest_conf_val = 0
-            highest_conf_idx = 0
-            for i in range(len(obstacle.kinematics.predicted_paths)):
-                conf_val = obstacle.kinematics.predicted_paths[i].confidence
-                if conf_val > highest_conf_val:
-                    highest_conf_val = conf_val
-                    highest_conf_idx = i
 
-            obj_traj_dt = obstacle.kinematics.predicted_paths[highest_conf_idx].time_step.nanosec
+            # initialize list for predicted poses
+            list_predicted_poses = []
 
-            if obj_traj_dt > self.scenario.dt * 1e9:
+            # get predicted path with highest confidence
+            object_predicted_path: PredictedPath = self._get_predicted_path(obstacle)
+
+            # align time step of prediction to scenario time step
+            obj_traj_dt = object_predicted_path.time_step.nanosec
+            scenario_dt = self.scenario.dt * 1e9    # in nanoseconds
+
+            if obj_traj_dt > scenario_dt:
                 # upsample predicted path of obstacles to match dt
-                if obj_traj_dt % (self.scenario.dt * 1e9) == 0.0:
-                    dt_ratio = int(obj_traj_dt / (self.scenario.dt * 1e9)) + 1
-                else:
-                    dt_ratio = math.ceil(obj_traj_dt / (self.scenario.dt * 1e9))
-
-                for point in obstacle.kinematics.predicted_paths[highest_conf_idx].path:
-                    traj.append(point)
-                    if len(traj) >= 2:
-                        upsample_trajectory(traj, dt_ratio)
-
-            elif obj_traj_dt < self.scenario.dt * 1e9:
+                self._upsample_predicted_path(
+                    scenario_dt, object_predicted_path, list_predicted_poses, obj_traj_dt
+                )
+            elif obj_traj_dt < scenario_dt:
                 # downsample predicted path of obstacles to match dt.
-                # if the time steps are divisible without reminder,
-                # get the trajectories at the steps according to ratio
-                if (self.scenario.dt * 1e9) % obj_traj_dt == 0.0:
-                    dt_ratio = (self.scenario.dt * 1e9) / obj_traj_dt
-                    for idx, point in enumerate(
-                        obstacle.kinematics.predicted_paths[highest_conf_idx].path
-                    ):
-                        if (idx + 1) % dt_ratio == 0:
-                            traj.append(point)
-                else:
-                    # make interpolation according to time steps
-                    dt_ratio = math.ceil((self.scenario.dt * 1e9) / obj_traj_dt)
-                    for idx, point in enumerate(
-                        obstacle.kinematics.predicted_paths[highest_conf_idx].path
-                    ):
-                        if (idx + 1) % dt_ratio == 0:
-                            point_1 = obstacle.kinematics.predicted_paths[highest_conf_idx].path[
-                                idx - 1
-                            ]
-                            point_2 = point
-                            new_point = traj_linear_interpolate(
-                                point_1, point_2, obj_traj_dt, self.scenario.dt * 1e9
-                            )
-                            traj.append(new_point)
+                self._downsample_predicted_path(
+                    scenario_dt, object_predicted_path, list_predicted_poses, obj_traj_dt,
+                )
             else:
-                for point in obstacle.kinematics.predicted_paths[highest_conf_idx].path:
-                    traj.append(point)
+                # keep sampling of predicted path
+                for pose in object_predicted_path.path:
+                    list_predicted_poses.append(pose)
 
-            # TODO: Remove nested list when code is testable.
-            object_id_aw: int = obstacle.object_id.uuid
-            aw_id_list = [list(value) for value in self._dynamic_obstacles_map.values()]
-            if list(object_id_aw) not in aw_id_list:
+            # get AW object ID: convert ROS2 UUID msg to Python UUID
+            object_id_aw: UUID = uuid_from_ros_msg(obstacle.object_id.uuid)
+
+            # append AW object ID to current list
+            list_curr_aw_object_ids.append(object_id_aw)
+
+            # process incoming objects
+            if object_id_aw not in list_prev_aw_object_ids:
+                # newly appearing object: create new CommonRoad dynamic obstacle
+                # current obstacle state
                 dynamic_obstacle_initial_state = InitialState(
                     position=position,
                     orientation=orientation,
@@ -504,60 +492,228 @@ class ScenarioHandler(BaseHandler):
                     slip_angle=0.0,
                     time_step=time_step,
                 )
+                # generate unique CommonRoad ID add to ID mapping
                 object_id_cr = self._scenario.generate_object_id()
-                self._dynamic_obstacles_map[object_id_cr] = object_id_aw
+                self._object_id_mapping[object_id_aw] = object_id_cr
+
+                # add new dynamic obstacle to scenario
                 self._add_dynamic_obstacle(
-                    dynamic_obstacle_initial_state, traj, width, length, object_id_cr, time_step
+                    dynamic_obstacle_initial_state,
+                    list_predicted_poses,
+                    shape_type,
+                    width,
+                    length,
+                    footprint,
+                    classification,
+                    object_id_cr,
                 )
             else:
-                for key, value in self._dynamic_obstacles_map.items():
-                    if np.array_equal(object_id_aw, value):
-                        dynamic_obs = self._scenario.obstacle_by_id(key)
-                        if dynamic_obs:
-                            dynamic_obs.initial_state = InitialState(
-                                position=position,
-                                orientation=orientation,
-                                velocity=velocity,
-                                acceleration=0.0,
-                                yaw_rate=yaw_rate,
-                                slip_angle=0.0,
-                                time_step=time_step,
-                            )
-                            dynamic_obs.obstacle_shape = Rectangle(width=width, length=length)
-                            if len(traj) > 2:
-                                dynamic_obs.prediction = TrajectoryPrediction(
-                                    self._node._awtrajectory_to_crtrajectory(
-                                        2, dynamic_obs.initial_state.time_step, traj
-                                    ),
-                                    dynamic_obs.obstacle_shape,
-                                )
+                # existing object: update its state, shape and prediction
+                # get CR object ID from mapping
+                object_id_cr = self._object_id_mapping[object_id_aw]
+
+                # get obstacle with id
+                dynamic_obs = self._scenario.obstacle_by_id(object_id_cr)
+
+                # shape update
+                aw_to_cr_shape_updater(
+                    dynamic_obs, width, length, footprint
+                )
+
+                # state update
+                dynamic_obs.initial_state = InitialState(
+                    position=position,
+                    orientation=orientation,
+                    velocity=velocity,
+                    acceleration=0.0,
+                    yaw_rate=yaw_rate,
+                    slip_angle=0.0,
+                    time_step=time_step,
+                )
+
+                # predicted trajectory update
+                if len(list_predicted_poses) > 2:
+                    # update trajectory prediction for the obstacle
+                    dynamic_obs.prediction = TrajectoryPrediction(
+                        self._pose_list_to_crtrajectory(
+                            dynamic_obs.initial_state.time_step + 1, list_predicted_poses
+                        ),
+                        dynamic_obs.obstacle_shape,
+                    )
+
+        # remove obstacles from scenario which are not in the current objects message
+        self._remove_objects_from_scenario(list_curr_aw_object_ids)
+
+    def _remove_objects_from_scenario(self, list_curr_aw_object_ids: List[UUID]):
+        """
+        Removes all objects from the CR scenario which are not present in the current objects message from the AW
+        perception module. Objects are removed from the CR scenario and from the object ID mapping
+
+        :param list_curr_aw_object_ids: List of AW object IDs in the current perception message
+        """
+        # init list to store removed AW object IDs
+        list_removed_aw_object_ids = list()
+
+        # iterate over AW object IDs in mapping
+        for key in self._object_id_mapping.keys():
+            if key not in list_curr_aw_object_ids:
+                # get CR object ID
+                cr_object_id = self._object_id_mapping[key]
+                # remove obstacle from scenario
+                self._scenario.remove_obstacle(self._scenario.obstacle_by_id(cr_object_id))
+
+                # add to list of removed IDs
+                list_removed_aw_object_ids.append(key)
+
+        # remove from object ID mapping
+        for idx in list_removed_aw_object_ids:
+            self._object_id_mapping.pop(idx)
+
+    @staticmethod
+    def _get_predicted_path(predicted_object: PredictedObject) -> PredictedPath:
+        """
+        Retrieves the predicted path of an object. If multiple predicted paths are available, the prediction with the
+        highest confidence is returned
+        """
+        highest_conf_val = 0
+        highest_conf_idx = 0
+        for i in range(len(predicted_object.kinematics.predicted_paths)):
+            conf_val = predicted_object.kinematics.predicted_paths[i].confidence
+            if conf_val > highest_conf_val:
+                highest_conf_val = conf_val
+                highest_conf_idx = i
+
+        return predicted_object.kinematics.predicted_paths[highest_conf_idx]
+
+    def _pose_list_to_crtrajectory(self, time_step: int, list_poses: List[Pose]):
+        """
+        Converts a predicted obstacle path given as list of geometry_msgs/Pose into a CommonRoad trajectory type.
+        :param time_step: initial time step of the input path
+        :param list_poses: input path given as a list of geometry_msgs/Pose (i.e., positions and orientations)
+        :return CRTrajectory: trajectory in the CommonRoad format
+        """
+        # CommonRoad state list
+        cr_state_list = []
+
+        # time step counter
+        cnt_time_step = time_step
+
+        for i in range(len(list_poses)):
+            # transform position
+            position = map2utm(self.origin_transformation, list_poses[i].position)
+            # transform orientation
+            orientation = quaternion2orientation(list_poses[i].orientation)
+            # append state to CommonRoad state list
+            cr_state = CustomState(position=position, orientation=orientation, time_step=cnt_time_step)
+            cr_state_list.append(cr_state)
+            # increment time step counter
+            cnt_time_step += 1
+
+        return CRTrajectory(time_step, cr_state_list)
+
+    @staticmethod
+    def _upsample_predicted_path(
+        scenario_dt: float, 
+        object_predicted_path: PredictedPath,
+        return_path: List[Pose],
+        obj_traj_dt: float,
+    ) -> None:
+        """
+        Upsample predicted path of obstacles to match time step dt of the scenario.
+        
+        :param scenario_dt: time step of the scenario
+        :param object_predicted_path: predicted path of the object from AW prediction
+        :param return_path: upsampled predicted path of the object
+        :param obj_traj_dt: time step of the obstacle
+        """
+        if obj_traj_dt % scenario_dt == 0.0:
+            dt_ratio = int(obj_traj_dt / scenario_dt) + 1
+        else:
+            dt_ratio = math.ceil(obj_traj_dt / scenario_dt)
+
+        for point in object_predicted_path.path:
+            return_path.append(point)
+            if len(return_path) >= 2:
+                upsample_trajectory(return_path, dt_ratio)
+
+    @staticmethod
+    def _downsample_predicted_path(
+        scenario_dt: float,
+        object_predicted_path: PredictedPath,
+        return_path: List[Pose],
+        obj_traj_dt: float,
+    ) -> None:
+        """
+        Downsample predicted path of obstacles to match time step dt of the scenario.
+
+        :param scenario_dt: time step of the scenario
+        :param object_predicted_path: predicted path of the object from AW prediction
+        :param return_path: downsampled predicted path of the object
+        :param obj_traj_dt: time step of the obstacle
+        """
+        # if the time steps are divisible without remainder,
+        # get the trajectories at the steps according to ratio
+        if scenario_dt % obj_traj_dt == 0.0:
+            dt_ratio = scenario_dt / obj_traj_dt
+            for idx, point in enumerate(
+                object_predicted_path.path
+            ):
+                if (idx + 1) % dt_ratio == 0:
+                    return_path.append(point)
+        else:
+            # make interpolation according to time steps
+            dt_ratio = math.ceil(scenario_dt / obj_traj_dt)
+            for idx, point in enumerate(
+                object_predicted_path.path
+            ):
+                if (idx + 1) % dt_ratio == 0:
+                    point_1 = object_predicted_path.path[
+                        idx - 1
+                    ]
+                    point_2 = point
+                    new_point = traj_linear_interpolate(
+                        point_1, point_2, obj_traj_dt, scenario_dt
+                    )
+                    return_path.append(new_point)
 
     def _add_dynamic_obstacle(
         self,
-        initial_state: TraceState,
-        traj: List[TrajectoryPoint],
+        initial_state: InitialState,
+        traj: List[Pose],
+        shape_type: int,
         width: float,
         length: float,
-        object_id: int,
-        time_step: int,
+        footprint: PolygonMsg,
+        classification: List[ObjectClassification],
+        dynamic_obstacle_id: int,
     ) -> None:
-        """Add dynamic obstacles with their trajectory.
+        """
+        Add dynamic obstacles with their predicted trajectory to the CommonRoad scenario.
 
         :param initial_state: initial state of obstacle
         :param traj: trajectory of obstacle
+        :param shape_type: shape type of obstacle
         :param width: width of obstacle
         :param length: length of obstacle
-        :param object_id: id of obstacle
-        :param time_step: time step of the obstacle
+        :param dynamic_obstacle_id: id of obstacle
         """
-        dynamic_obstacle_shape = Rectangle(width=width, length=length)
-        # ToDo: get object type from autoware
-        dynamic_obstacle_type = ObstacleType.CAR
-        dynamic_obstacle_id = object_id
+        # get initial time step
+        time_step = initial_state.time_step
+
+        # convert obstacle shape
+        dynamic_obstacle_shape = aw_to_cr_shape(
+            shape_type, width, length, footprint
+        )
+
+        # convert obstacle classification / type
+        dynamic_obstacle_type = aw_to_cr_obstacle_type[
+            get_classification_with_highest_probability(classification)
+        ]
+
         if len(traj) > 2:
             # create the trajectory of the obstacle, starting at time_step
-            dynamic_obstacle_trajectory = self._node._awtrajectory_to_crtrajectory(
-                2, time_step, traj
+            dynamic_obstacle_trajectory = self._pose_list_to_crtrajectory(
+                time_step + 1, traj
             )
 
             # create the prediction using the trajectory and the shape of the obstacle
@@ -565,6 +721,7 @@ class ScenarioHandler(BaseHandler):
                 dynamic_obstacle_trajectory, dynamic_obstacle_shape
             )
 
+            # create the dynamic obstacle
             dynamic_obstacle = DynamicObstacle(
                 dynamic_obstacle_id,
                 dynamic_obstacle_type,
@@ -573,46 +730,118 @@ class ScenarioHandler(BaseHandler):
                 dynamic_obstacle_prediction,
             )
         else:
+            # create dynamic obstacle without a predicted trajectory
             dynamic_obstacle = DynamicObstacle(
                 dynamic_obstacle_id, dynamic_obstacle_type, dynamic_obstacle_shape, initial_state
             )
+
         # add dynamic obstacle to the scenario
         self.scenario.add_objects(dynamic_obstacle)
 
-    def publish_initial_obstacles(self):
-        """Publish initial static and dynamic obstacles from CR in form of AW 2D Dummy cars."""
-        header = Header()
-        header.stamp = self._node.get_clock().now().to_msg()
-        header.frame_id = "map"
+    def _process_traffic_lights(self) -> None:
+        """
+        Converts Autoware traffic lights to CommonRoad traffic lights and updates the CommonRoad scenario.
+        The incoming traffic lights are provided by the perception module via the topic /perception/traffic_lights
+        """
 
-        for obstacle in self._initial_obstacles:
-            object_msg = create_object_base_msg(header, self.origin_transformation, obstacle)
-            if isinstance(obstacle, DynamicObstacle):
+        last_message = self._last_msg.get("traffic_lights") # type: TrafficSignalArray
+
+        if last_message is None:
+            return
+
+        # initialize list of processed traffic light IDs
+        processed_traffic_light_ids: List[int] = []
+
+        # process all traffic lights from perception message
+        for traffic_signal in last_message.signals:
+            # get traffic light ID
+            traffic_signal_id = traffic_signal.map_primitive_id
+
+            # add traffic light ID to processed list
+            processed_traffic_light_ids.append(traffic_signal_id)
+
+            # get traffic light from lanelet network
+            traffic_light_cr = self.lanelet_network.find_traffic_light_by_id(traffic_signal_id)
+
+            # get traffic light element with highest confidence
+            traffic_light: TrafficLight = self._get_traffic_light(traffic_signal)
+
+            # get traffic light status, color and shape
+            status = traffic_light.status
+            color = traffic_light.color
+            shape = traffic_light.shape
+
+            # convert traffic light status
+            try:
+                status_cr = aw_to_cr_traffic_traffic_light_status[status]
+            except KeyError:
+                self._logger.error("Traffic light status not found in AW to CR status map!")
+                continue
+
+            # check if detected traffic light is active:
+            if status_cr is True:
+                # set traffic light color and cycle
                 try:
-                    # Bug in CommonRoad?: initial_state is not of type InitialState (warumauchimmer)
-                    state: InitialState = obstacle.initial_state  # type: ignore
-                    object_msg.initial_state.twist_covariance.twist.linear.x = state.velocity
-                    object_msg.initial_state.accel_covariance.accel.linear.x = state.acceleration
-                except AttributeError as e:
-                    self._logger.error(
-                        "Error during publish_initial_obstacles. \n"
-                        f"Obstacle {obstacle} has no velocity or acceleration."
-                    )
-                    self._logger.debug(e)
-                object_msg.max_velocity = 20.0
-                object_msg.min_velocity = -10.0
-            self._OBSTACLE_PUBLISHER.publish(object_msg)
-            self._logger.debug(log_obstacle(object_msg, isinstance(obstacle, StaticObstacle)))
+                    color_cr = aw_to_cr_traffic_light_color[color]
+                except KeyError:
+                    self._logger.error("Traffic light color not found in AW to CR color map!")
+                    continue
+                traffic_light_cr.color = color_cr
+                traffic_light_cr.traffic_light_cycle = set_traffic_light_cycle(color_cr)
 
-    def get_z_coordinate(self):
-        """Calculate the mean of the z coordinate from initial_pose and goal_pose."""
+                # set traffic light direction
+                try:
+                    shape_cr = aw_to_cr_traffic_traffic_light_shape[shape]
+                except KeyError:
+                    self._logger.error("Traffic light shape not found in AW to CR shape map!")
+                    continue
+                traffic_light_cr.direction = shape_cr
+            else:
+                # set traffic light color and cycle to inactive
+                color_cr = aw_to_cr_traffic_light_color[99]
+                traffic_light_cr.color = color_cr
+                traffic_light_cr.traffic_light_cycle = set_traffic_light_cycle(color_cr)
+                traffic_light_cr.direction = aw_to_cr_traffic_traffic_light_shape[shape]
+
+            # set detected traffic light in perception message to active
+            traffic_light_cr.active = True
+
+        # set traffic light active state to False and traffic light cycle to inactive for all traffic lights that are not in the perception message
+        for traffic_light_l2n in self.lanelet_network.traffic_lights:
+            if traffic_light_l2n.active is True:
+                if traffic_light_l2n.traffic_light_id not in processed_traffic_light_ids:
+                    traffic_light_l2n.active = False
+                    color_inactive = aw_to_cr_traffic_light_color[99]
+                    traffic_light_l2n.traffic_light_cycle = set_traffic_light_cycle(color_inactive)
+
+    @staticmethod
+    def _get_traffic_light(traffic_signal: TrafficSignal) -> TrafficLight:
+        """
+        Retrieves the traffic light with the highest confidence value from the perception message. If multiple traffic
+        lights are available, the traffic light with the highest confidence is returned.
+        """
+        highest_conf_val = 0
+        highest_conf_idx = 0
+        for i in range(len(traffic_signal.lights)):
+            conf_val = traffic_signal.lights[i].confidence
+            if conf_val > highest_conf_val:
+                highest_conf_val = conf_val
+                highest_conf_idx = i
+
+        return traffic_signal.lights[highest_conf_idx]
+
+    def compute_z_coordinate(self, new_initial_pose: Optional[PoseWithCovarianceStamped],
+                             new_goal_pose: Optional[PoseStamped]):
+        """
+        Approximation of the elevation (z-coordinate) of the scenario as the mean between initial_pose and goal_pose.
+
+        :param new_initial_pose the initial pose of the ego vehicle
+        :param new_goal_pose the desired goal pose
+        """
         new_initial_pose_z = None
         new_goal_pose_z = None
         goal_pose_z = self._z_list[1]
 
-        new_initial_pose = self._last_msg.get("initial_pose")
-        new_goal_pose = self._last_msg.get("goal_pose")   
- 
         # only consider values if z is not None or 0.0
         if new_initial_pose is not None and new_initial_pose.pose.pose.position.z != 0.0:       
             new_initial_pose_z = new_initial_pose.pose.pose.position.z
@@ -642,8 +871,9 @@ class ScenarioHandler(BaseHandler):
 
         valid_z_list = [i for i in [self._z_list[0], self._z_list[1]] if i is not None]
         if not valid_z_list:
-            z = 0.0
+            self._z_coordinate = 0.0
             self._logger.info("Z is either not found or is 0.0")
-            return z
-        z = np.median(valid_z_list)
-        return z
+            return
+
+        # set elevation as median between initial and goal pose z coordinates
+        self._z_coordinate = float(np.median(valid_z_list))

@@ -1,0 +1,16 @@
+repositories:
+  # CR2AW interface
+  universe/autoware.universe/planning/tum_commonroad_planning/commonroad-autoware-interface:
+    type: git
+    url: https://github.com/CommonRoad/commonroad-autoware-interface.git
+    version: master
+  # Scenario designer for map format conversion
+  universe/autoware.universe/planning/tum_commonroad_planning/commonroad-scenario-designer:
+    type: git
+    url: https://github.com/CommonRoad/commonroad-scenario-designer.git
+    version: develop
+  # Trajectory planner: commonroad-reactive planner
+  universe/autoware.universe/planning/tum_commonroad_planning/commonroad-reactive-planner:
+    type: git
+    url: https://github.com/CommonRoad/commonroad-reactive-planner.git
+    version: master

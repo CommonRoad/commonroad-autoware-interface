@@ -1,3 +1,6 @@
+# standard imports
+from typing import Optional
+
 # third party imports
 import numpy as np
 from scipy.interpolate import splev
@@ -22,39 +25,59 @@ from cr2autoware.interfaces.base.route_planner_interface import RoutePlannerInte
 
 
 class CommonRoadRoutePlanner(RoutePlannerInterface):
-    """Interface for the CommonRoad Route Planner"""
+    """
+    Interface for the CommonRoad Route Planner
+    """
 
     def __init__(self, route_pub: Publisher,
                  logger: RcutilsLogger,
                  verbose: bool,
-                 lanelet_network: LaneletNetwork):
+                 lanelet_network: LaneletNetwork,
+                 planning_problem: PlanningProblem):
 
-        super().__init__(route_pub=route_pub, logger=logger.get_child("route_planner"), verbose=verbose,
-                         lanelet_network=lanelet_network)
+        super().__init__(route_pub=route_pub, logger=logger.get_child("cr_route_planner"), verbose=verbose,
+                         lanelet_network=lanelet_network, planning_problem=planning_problem)
 
-        self._planner: CRRoutePlanner = self._initialize_planner()
+        self._planner: CRRoutePlanner = self._initialize_planner(planning_problem=planning_problem)
 
-    def _initialize_planner(self, **kwargs) -> CRRoutePlanner:
-        """Implements abstract _initialize_planner from base class"""
-        # TODO: initialize Route Planner properly
-        # return CRRoutePlanner(lanelet_network=self.lanelet_network)
-        pass
+    def _initialize_planner(self, **kwargs) -> Optional[CRRoutePlanner]:
+        """
+        Implements abstract _initialize_planner from base class
+        """
+        if "planning_problem" in kwargs:
+            _planning_prob = kwargs.get("planning_problem")
+            if isinstance(_planning_prob, PlanningProblem):
+                return CRRoutePlanner(lanelet_network=self.lanelet_network, planning_problem=_planning_prob)
+            else:
+                self._logger.warning(f"A planning problem is required for initialization: CR Route Planner not "
+                                     f"initialized.")
+                return
 
-    def _plan(self, planning_problem: PlanningProblem, **kwargs):
-        """Implements abstract plan method from base class"""
+    def _plan(self, planning_problem: Optional[PlanningProblem] = None, **kwargs) -> None:
+        """
+        Implements abstract plan method from base class
+        """
         self._is_ref_path_published = False
 
-        # TODO don't initialize route planner object here
-        self._planner = CRRoutePlanner(lanelet_network=self.lanelet_network, planning_problem=planning_problem)
-
-        # TODO implement this function for updating planning problem in route planner
-        # self._planner.set_planning_problem(planning_problem)
+        # check if cr route planner has been initialized, otherwise initialize
+        if self._planner is None:
+            if isinstance(planning_problem, PlanningProblem):
+                self._planner = CRRoutePlanner(lanelet_network=self.lanelet_network, planning_problem=planning_problem)
+            else:
+                raise TypeError(f"CR Route Planner requires planning problem of type PlanningProblem to be initialized")
 
         if self._verbose:
             self._logger.info("<CommonRoadRoutePlanner>: Starting to plan route ...")
 
         try:
-            planned_route = self._planner.plan_routes().retrieve_first_route()
+            if planning_problem:
+                generated_routes = self._planner.update_planning_problem_and_plan_routes(
+                    planning_problem=planning_problem)
+            else:
+                generated_routes = self._planner.plan_routes()
+
+            planned_route = generated_routes.retrieve_first_route()
+
         except IndexError:
             self._logger.info("<CommonRoadRoutePlanner>: No valid route could be found.")
             return

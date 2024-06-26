@@ -4,14 +4,17 @@ To add a new topic subscription, add the specification here first.
 """
 
 # ROS messages
-from geometry_msgs.msg import PoseStamped
-from geometry_msgs.msg import PoseWithCovarianceStamped
-from geometry_msgs.msg import AccelWithCovarianceStamped
-from nav_msgs.msg import Odometry
+from geometry_msgs.msg import PoseStamped # type: ignore
+from geometry_msgs.msg import PoseWithCovarianceStamped # type: ignore
+from geometry_msgs.msg import AccelWithCovarianceStamped # type: ignore
+from nav_msgs.msg import Odometry # type: ignore
 
 # Autoware messages
 from autoware_auto_vehicle_msgs.msg import Engage  # type: ignore
 from autoware_auto_system_msgs.msg import AutowareState  # type: ignore
+from autoware_auto_perception_msgs.msg import PredictedObjects  # type: ignore
+from autoware_auto_perception_msgs.msg import TrafficSignalArray  # type: ignore
+from autoware_auto_planning_msgs.msg import Trajectory # type: ignore
 
 # Autoware AdAPI message imports
 from autoware_adapi_v1_msgs.msg import RouteState  # type: ignore
@@ -29,10 +32,17 @@ spec_initial_pose_sub = SubscriptionSpec(name="/initialpose3d",
                                          msg_type=PoseWithCovarianceStamped,
                                          depth=1)
 
+# subscribe echo back goal pose
+spec_echo_back_goal_pose_sub = SubscriptionSpec(name="/planning/mission_planning/echo_back_goal_pose",
+                                                msg_type=PoseStamped,
+                                                depth=1)
+
 # subscribe goal pose
 spec_goal_pose_sub = SubscriptionSpec(name="/planning/mission_planning/goal",
                                       msg_type=PoseStamped,
                                       depth=1)
+
+
 
 # subscribe autoware engage message
 spec_auto_button_sub = SubscriptionSpec(name="/autoware/engage",
@@ -63,3 +73,47 @@ spec_odometry = SubscriptionSpec(name="/localization/kinematic_state",
 spec_curr_acc = SubscriptionSpec(name="/localization/acceleration",
                                  msg_type=AccelWithCovarianceStamped,
                                  depth=1)
+
+# subscribes to smoothed trajectory
+spec_traj_smoothed = SubscriptionSpec(
+    name="/planning/scenario_planning/trajectory_smoothed",
+    msg_type=Trajectory,
+    depth=1
+)
+
+# subscribes to trajectory
+spec_traj = SubscriptionSpec(
+    name="/planning/scenario_planning/trajectory",
+    msg_type=Trajectory,
+    depth=1
+)
+
+spec_objects_sub = SubscriptionSpec(
+    name="/perception/object_recognition/objects",
+    msg_type=PredictedObjects,
+    depth=1
+)
+
+
+# TODO: merge with above and check in rosbag_saving_handler etc.
+# subscribe traffic signals from perception
+spec_traffic_lights = SubscriptionSpec(name="/perception/traffic_light_recognition/traffic_signals",
+                                            msg_type=TrafficSignalArray,
+                                            depth=1)
+
+
+
+
+# subscribes to traffic lights
+spec_traffic_lights = SubscriptionSpec(
+    name="/perception/traffic_light_recognition/traffic_signals",
+    msg_type=TrafficSignalArray,
+    depth=1
+)
+
+# TODO: Check data saving and merge
+spec_obj_recognition = spec_objects_sub
+spec_traffic_signals_sub = spec_traffic_lights
+
+
+

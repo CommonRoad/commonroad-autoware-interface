@@ -3,7 +3,9 @@ from copy import deepcopy
 import os
 import traceback
 from typing import Optional
+import datetime
 import time
+import datetime
 
 # third party imports
 import numpy as np
@@ -19,11 +21,11 @@ from autoware_auto_system_msgs.msg import AutowareState  # type: ignore
 from autoware_auto_vehicle_msgs.msg import Engage  # type: ignore
 
 # Autoware AdAPI message imports
-from autoware_adapi_v1_msgs.msg import RouteState # type: ignore
-from autoware_adapi_v1_msgs.srv import ChangeOperationMode # type: ignore
+from autoware_adapi_v1_msgs.msg import RouteState  # type: ignore
+from autoware_adapi_v1_msgs.srv import ChangeOperationMode  # type: ignore
 
 # Tier IV message imports
-from tier4_planning_msgs.msg import VelocityLimit   # type: ignore
+from tier4_planning_msgs.msg import VelocityLimit  # type: ignore
 
 # ROS message imports
 from geometry_msgs.msg import Pose
@@ -64,6 +66,7 @@ from commonroad.visualization.mp_renderer import MPRenderer
 from cr2autoware.common.configuration import CR2AutowareParams
 from .handlers.scenario_handler import ScenarioHandler
 from .handlers.ego_vehicle_handler import EgoVehicleHandler
+from .handlers.data_generation_handler import DataGenerationHandler
 from .handlers.planning_problem_handler import PlanningProblemHandler
 from .interfaces.implementation.cr_route_planner import CommonRoadRoutePlanner
 from .interfaces.implementation.velocity_planner import VelocityPlanner
@@ -79,8 +82,8 @@ from .common.ros_interface.create import create_subscription, create_publisher, 
 
 # subscriber specifications
 from .common.ros_interface.specs_subscriptions import \
-    spec_initial_pose_sub, spec_goal_pose_sub, spec_auto_button_sub, spec_velocity_limit_sub, spec_routing_state_sub, \
-    spec_autoware_state_sub
+    spec_initial_pose_sub, spec_auto_button_sub, spec_velocity_limit_sub, spec_routing_state_sub, \
+    spec_autoware_state_sub, spec_echo_back_goal_pose_sub
 
 # publisher specifications
 from .common.ros_interface.specs_publisher import \
@@ -130,7 +133,6 @@ class Cr2Auto(Node):
 
         # initialize commonroad-specfic attributes
         self.write_scenario = self.get_parameter("general.write_scenario").get_parameter_value().bool_value
-        self.PUBLISH_OBSTACLES = self.get_parameter("scenario.publish_obstacles").get_parameter_value().bool_value
         self.solution_path = self.get_parameter("general.solution_file").get_parameter_value().string_value
         self.rnd = None
 
@@ -150,10 +152,10 @@ class Cr2Auto(Node):
         self.ego_vehicle_handler: EgoVehicleHandler = EgoVehicleHandler(self)
 
         # planning problem handler
-        self.plan_prob_handler: PlanningProblemHandler = PlanningProblemHandler(self, 
-                                                                                self.scenario, 
+        self.plan_prob_handler: PlanningProblemHandler = PlanningProblemHandler(self,
+                                                                                self.scenario,
                                                                                 self.origin_transformation)
-        
+
         # intiialize planning-specific attributes
         self.is_computing_trajectory = False  # stop update scenario when trajectory is being computed
         self.new_initial_pose = False
@@ -177,6 +179,7 @@ class Cr2Auto(Node):
         self.goal_msgs = []
         self.current_goal_msg = None
         self.last_goal_reached = self.get_clock().now()
+        self.initial_pose = None
 
         # ========= Subscribers =========
         # subscribe initial pose
@@ -184,7 +187,8 @@ class Cr2Auto(Node):
                                                    self.callback_group)
 
         # subscribe goal pose
-        self.goal_pose_sub = create_subscription(self, spec_goal_pose_sub, self.goal_pose_callback, self.callback_group)
+        self.goal_pose_sub = create_subscription(self, spec_echo_back_goal_pose_sub, self.goal_pose_callback,
+                                                 self.callback_group)
 
         # subscribe autoware engage message
         self.auto_button_sub = create_subscription(self, spec_auto_button_sub, self.auto_button_callback,
@@ -193,7 +197,7 @@ class Cr2Auto(Node):
         # subscribe velocity limit from API
         self.vel_limit_sub = create_subscription(self, spec_velocity_limit_sub, self.velocity_limit_callback,
                                                  self.callback_group)
-        
+
         # subscribe autoware state
         self.autoware_state_sub = create_subscription(self, spec_autoware_state_sub, self.state_callback,
                                                       self.callback_group)
@@ -272,6 +276,19 @@ class Cr2Auto(Node):
         self._set_external_velocity_limit(
             vel_limit=self.get_parameter("vehicle.max_velocity").get_parameter_value().double_value)
 
+        # data generation handler
+        self.save_data_path: str = self.get_parameter(
+            "general.map_path").get_parameter_value().string_value + "/data_saving"
+
+        self.data_generation_handler: DataGenerationHandler = DataGenerationHandler(
+            cr2aw_node=self,
+            save_path=self.save_data_path,
+            save_id=datetime.datetime.now().strftime("%Y_%m_%d_%H_%M"),
+            origin_transformation=self.origin_transformation
+        )
+
+        self.data_generation_handler.start_recording()
+
         # ========= Finish init() =========
         if self.verbose:
             self._logger.info("Cr2Auto initialization is completed!")
@@ -340,10 +357,11 @@ class Cr2Auto(Node):
     # TODO move factory method to separate module
     def _route_planner_factory(self):
         """Factory function to initialize route planner according to specified type."""
-        return CommonRoadRoutePlanner(self.route_pub,
-                                      self._logger,
-                                      self.verbose,
-                                      self.scenario_handler.lanelet_network)
+        return CommonRoadRoutePlanner(route_pub=self.route_pub,
+                                      logger=self._logger,
+                                      verbose=self.verbose,
+                                      lanelet_network=self.scenario_handler.lanelet_network,
+                                      planning_problem=self.planning_problem)
 
     def _set_cr2auto_mode(self):
         """
@@ -404,6 +422,7 @@ class Cr2Auto(Node):
                 # Compute trajectory
                 self.is_computing_trajectory = True
                 self.ego_vehicle_handler.update_ego_vehicle()
+
                 self.scenario_handler.update_scenario()
                 self.plot_save_scenario()
 
@@ -449,12 +468,7 @@ class Cr2Auto(Node):
                         reference_velocities = self.velocity_planner.reference_velocities
                         # call publisher
                         self.route_planner.publish(point_list, reference_velocities,
-                                                   self.scenario_handler.get_z_coordinate())
-
-                    if self.get_state() == AutowareState.DRIVING:
-                        # log current position
-                        # TODO use DataGeneration module instead
-                        self.trajectory_logger.log_state(self.ego_vehicle_handler.ego_vehicle_state)
+                                                   self.scenario_handler.z_coordinate)
 
                     if self.verbose:
                         self._logger.info("Solving planning problem!")
@@ -462,6 +476,7 @@ class Cr2Auto(Node):
                     # Get current initial state for planning
                     # The initial velocity needs to be increase here due to a hardcoded velocity threshold in
                     # AW. Universe Shift_Decider Package (If velocity is below 0.01, the gear will remain in park)
+
                     init_state = self.ego_vehicle_handler.ego_vehicle_state
                     if init_state.velocity < 0.01:
                         init_state.velocity = 0.01
@@ -476,7 +491,7 @@ class Cr2Auto(Node):
 
                         if self.verbose:
                             self._logger.info("Running trajectory planner")
-                        
+
                         # set reference velocity considering external limit
                         ref_vel = min(reference_velocity, self.external_velocity_limit)
 
@@ -488,7 +503,7 @@ class Cr2Auto(Node):
 
                         # publish trajectory
                         self.trajectory_planner.publish(self.origin_transformation,
-                                                        self.scenario_handler.get_z_coordinate())
+                                                        self.scenario_handler.z_coordinate)
 
                     # check if goal is reached
                     self._is_goal_reached()
@@ -534,16 +549,19 @@ class Cr2Auto(Node):
         """Check if vehicle is in goal region. If in goal region set new goal."""
         if self.planning_problem:
             if (
-                self.planning_problem.goal.is_reached(self.ego_vehicle_handler.ego_vehicle_state)
-                and (self.get_clock().now() - self.last_goal_reached).nanoseconds > 5e8
+                    self.planning_problem.goal.is_reached(self.ego_vehicle_handler.ego_vehicle_state)
+                    and (self.get_clock().now() - self.last_goal_reached).nanoseconds > 5e8
             ):
                 self._logger.info("Vehicle arrived at goal!")
                 self.last_goal_reached = self.get_clock().now()
 
-                # TODO use DataGeneration module instead
+                # Data saving
+                self._logger.info("calling data_generation_handler to save scenario")
+                self.data_generation_handler.stop_recording_and_save_data()
+
                 if (
-                    self.interactive_mode
-                    and self.get_parameter("general.store_trajectory").get_parameter_value().bool_value
+                        self.interactive_mode
+                        and self.get_parameter("general.store_trajectory").get_parameter_value().bool_value
                 ):
                     self.trajectory_logger.store_trajectory(
                         self.scenario,
@@ -593,30 +611,6 @@ class Cr2Auto(Node):
 
         self.set_state(AutowareState.WAITING_FOR_ENGAGE)
 
-    def _awtrajectory_to_crtrajectory(self, mode, time_step, traj):
-        """
-        Generate a commonroad trajectory from autoware trajectory.
-        :param mode: 1=TrajectoryPoint mode, 2=pose mode
-        :param time_step: timestep from which to start
-        :param traj: the trajectory in autoware format
-        :return CRTrajectory: the trajectory in commonroad format
-        """
-        state_list = []
-        work_traj = []
-        if mode == 1:
-            for trajectory_point in traj:
-                work_traj.append(trajectory_point.pose)
-        else:
-            work_traj = traj
-        for i in range(len(work_traj)):
-            # compute new position
-            position = map2utm(self.origin_transformation, work_traj[i].position)
-            orientation = quaternion2orientation(work_traj[i].orientation)
-            new_state = CustomState(position=position, orientation=orientation, time_step=i)
-            state_list.append(new_state)
-
-        return CRTrajectory(time_step, state_list)
-
     def initial_pose_callback(self, msg: PoseWithCovarianceStamped) -> None:
         """
         Callback to initial pose changes. Save message for later processing
@@ -628,6 +622,9 @@ class Cr2Auto(Node):
         self.new_initial_pose = True
         self.ego_vehicle_handler.new_pose_received = False
 
+        # (re)-compute elevation (z-coordinate) when new initial pose is received
+        self.scenario_handler.compute_z_coordinate(self.initial_pose, self.current_goal_msg)
+
     def routing_state_callback(self, msg: RouteState) -> None:
         """
         Callback to routing state. Checks if "Clear route" button was pressed.
@@ -635,7 +632,7 @@ class Cr2Auto(Node):
         reference path should be removed.
         """
         self.routing_state = msg.state
-       
+
         # routing state = UNSET when"Clear route" button is pressed in RVIZ
         if msg.state == RouteState.UNSET:
             # save last AutowareState and Time Stamp
@@ -676,7 +673,7 @@ class Cr2Auto(Node):
                 self._logger.info("Clear route while driving!")
                 self.waiting_for_velocity_0 = True
                 self.clear_route()
-        
+
     def clear_route(self):
         """
         Clear route and set AutowareState to WAITING_FOR_ROUTE.
@@ -692,13 +689,14 @@ class Cr2Auto(Node):
         :param msg: Goal Pose message
         """
         self._logger.info("Received new goal pose!")
-        # post process goal pose z coordinate
-        msg.pose.position.z = self.scenario_handler.get_z_coordinate()
 
         self.goal_msgs.append(msg)
 
         if self.verbose:
             self._logger.info("goal msg: " + str(msg))
+
+        # (re)-compute elevation (z-coordinate) when new goal pose is received
+        self.scenario_handler.compute_z_coordinate(self.initial_pose, msg)
 
         self._pub_goals()
         # autoware requires that the reference path has to be published again when new goals are published
@@ -706,8 +704,9 @@ class Cr2Auto(Node):
             point_list = self.velocity_planner.reference_positions
             reference_velocities = self.velocity_planner.reference_velocities
             # call publisher
-            self.route_planner.publish(point_list, reference_velocities, self.scenario_handler.get_z_coordinate())
-    
+            self.route_planner.publish(point_list, reference_velocities,
+                                       self.scenario_handler.z_coordinate)
+
     def velocity_limit_callback(self, msg: VelocityLimit) -> None:
         """
         Callback to external velocity limit from API. We directly subscribe the topic
@@ -750,7 +749,7 @@ class Cr2Auto(Node):
             self.engage_status = False
             self._logger.debug("Vehicle stopped! Setting /vehicle/engage to False")
 
-            self.waiting_for_velocity_0 = False    
+            self.waiting_for_velocity_0 = False
         else:
             self.engage_status = False
 
@@ -758,7 +757,7 @@ class Cr2Auto(Node):
         engage_msg = Engage()
         engage_msg.engage = self.engage_status
         self.vehicle_engage_pub.publish(engage_msg)
-        
+
         self.api_engage_pub.publish(engage_msg)
 
     def get_state(self):
@@ -781,8 +780,7 @@ class Cr2Auto(Node):
             # TODO remove deeopcopy
             self.current_goal_msg = deepcopy(current_msg)
 
-
-            self._logger.info("Pose position: " + str(current_msg.pose.position))
+            self._logger.info("Goal pose position: " + str(current_msg.pose.position))
 
             # TODO move goal creation to PlanningProbHandler
             position = map2utm(self.origin_transformation, current_msg.pose.position)
@@ -823,7 +821,7 @@ class Cr2Auto(Node):
 
             region = Rectangle(
                 length=self.ego_vehicle_handler.vehicle_length
-                + 0.25 * self.ego_vehicle_handler.vehicle_length,
+                       + 0.25 * self.ego_vehicle_handler.vehicle_length,
                 width=goal_lanelet_width,
                 center=position,
                 orientation=orientation,
@@ -843,7 +841,7 @@ class Cr2Auto(Node):
             self._logger.info("Set new goal active!")
 
             # plan route and reference path
-            self.route_planner.plan(self.planning_problem)
+            self.route_planner.plan(planning_problem=self.planning_problem)
 
             # plan velocity profile (-> reference trajectory)
             _goal_pos_cr = map2utm(self.origin_transformation, self.current_goal_msg.pose.position)
@@ -863,7 +861,8 @@ class Cr2Auto(Node):
             self.set_state(AutowareState.WAITING_FOR_ENGAGE)
 
             # update reference path of trajectory planner
-            self.trajectory_planner.update(reference_path=self.route_planner.reference_path)
+            self.trajectory_planner.update(reference_path=self.route_planner.reference_path,
+                                           planning_problem=self.planning_problem)
 
         else:
             if self.verbose:
@@ -886,7 +885,7 @@ class Cr2Auto(Node):
         - STOP Button pressed: Stopping in standstill is initiated
         """
         self.auto_button_status = msg.engage
-        
+
         self._logger.info(
             "AUTO Button message received! Auto Button Status: "
             + str(self.auto_button_status)
@@ -897,11 +896,6 @@ class Cr2Auto(Node):
         if self.auto_button_status and self.get_state() == AutowareState.WAITING_FOR_ENGAGE and \
                 self.routing_state != RouteState.UNSET:
             self.set_state(AutowareState.DRIVING)
-
-            # TODO check if needed?
-            if self.PUBLISH_OBSTACLES:  # publish obstacle at once after engaged
-                self.scenario_handler.publish_initial_obstacles()
-                self.PUBLISH_OBSTACLES = False
 
         if not self.engage_status and self.get_state() == AutowareState.DRIVING:
             self.set_state(AutowareState.WAITING_FOR_ENGAGE)
@@ -916,14 +910,15 @@ class Cr2Auto(Node):
 
             # waiting for standstill loop is implemented in set_state()
             self.set_state(AutowareState.WAITING_FOR_ENGAGE)
-            
+
             # Re-plan the route and reference path
-            self.route_planner.plan(self.planning_problem)
+            self.route_planner.plan(planning_problem=self.planning_problem)
+
             # Re-plan the velocity profile
             _goal_pos_cr = map2utm(self.origin_transformation, self.current_goal_msg.pose.position)
             self.velocity_planner.plan(self.route_planner.reference_path, _goal_pos_cr,
                                        self.origin_transformation)
-                  
+
         """
         # reset follow sultion trajectory simulation if interface is in trajectory follow mode and goal is reached
         if not self.interactive_mode and self.get_state() == AutowareState.ARRIVED_GOAL:

@@ -1,0 +1,71 @@
+site_name: CommonRoad To Autoware Interface
+
+theme:
+  name: readthedocs
+  logo: assets/commonroad_white150.png
+
+plugins:
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            docstring_style: sphinx
+            show_root_heading: false
+            heading_level: 3
+            show_module_names: False
+  - search
+
+nav:
+  - Introduction:
+    - "Introduction": index.md
+
+  - Architecture:
+      - "Architecture": architecture.md
+      - "Core Algorithms": core_algorithm.md
+      - "Conversions": conversions.md
+
+  - Main Node:
+      - "CommonRoad to Autoware Node": cr2aw_node.md
+
+  - Handlers:
+      - "Base Handler": base_handler.md
+      - "ROS2 Humble API Handler": api_handler.md
+      - "Ego Vehicle Handler": ego_vehicle_handler.md
+      - "Planning Problem Handler": planning_problem_handler.md
+      - "Scenario Handler": scenario_handler.md
+
+
+  - ROS2 Interface Specs:
+      - "Creation": spec_create.md
+      - "Base Spec": spec_base.md
+      - "Client Spec": spec_client.md
+      - "Publisher Spec": spec_publisher.md
+      - "Subscription Spec": spec_subscriber.md
+
+
+
+  - CommonRoad Planning Interfaces:
+      - Abstract Base Interfaces:
+        - "Base Route Planner Interface": base_route_interface.md
+        - "Base Trajectory Planner Interface": base_trajectory_interface.md
+
+      - CommonRoad Interfaces:
+          - "CommonRoad Route Planner Interface": cr_route_planner_interface.md
+          - "CommonRoad Reactive Planner Interface": cr_reactive_planner_interface.md
+          - "CommonRoad Velocity Planner Interface": cr_velocity_planner_interface.md
+
+
+  - Data Generation:
+      - "Rosbag Saver": index.md
+      - "MCAP to CommonRoad Converter": index.md
+
+
+  - Utils:
+      "Utils": utils.md
+
+
+
+
+
+
+
