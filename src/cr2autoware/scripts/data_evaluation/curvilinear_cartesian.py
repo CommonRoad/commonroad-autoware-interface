@@ -9,7 +9,8 @@ import commonroad_dc.pycrccosy as pycrccosy
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from commonroad_dc.pycrccosy import CurvilinearCoordinateSystem
-from typing import List, Tuple
+from typing import Tuple
+
 
 
 

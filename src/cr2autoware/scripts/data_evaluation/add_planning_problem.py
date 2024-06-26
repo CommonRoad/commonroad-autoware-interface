@@ -12,6 +12,9 @@ from commonroad.geometry.shape import Rectangle
 from commonroad.planning.goal import GoalRegion
 from commonroad.common.util import Interval
 
+# own code base
+from global_timer import GlobalTimer
+from data_eval_utils import convert_ros2_time_tuple_to_float
 
 
 def add_planning_problem(scenario_path: str,
@@ -19,7 +22,8 @@ def add_planning_problem(scenario_path: str,
                          initial_state_of_pp: CustomState,
                          goal_state_of_pp: CustomState,
                          goal_width: float,
-                         goal_length: float
+                         goal_length: float,
+                         global_timer: GlobalTimer
                          ) -> None:
     """
     Adds planning problem to scenario and saves it
@@ -30,6 +34,7 @@ def add_planning_problem(scenario_path: str,
     :param goal_state_of_pp: goal state of planning problem
     :param goal_width: width of goal region in meters
     :param goal_length: length of goal region in meters
+    :param global_timer: global timer of the scenario
     """
 
     # Load commonroad scenario
@@ -45,7 +50,7 @@ def add_planning_problem(scenario_path: str,
     initial_state: InitialState = InitialState(
         position=initial_state_of_pp.position,
         orientation=initial_state_of_pp.orientation,
-        time_step=initial_state_of_pp.time_step,
+        time_step=global_timer.find_closest_time_step(convert_ros2_time_tuple_to_float(initial_state_of_pp.ros2_time_stamp)),
         velocity=initial_state_of_pp.velocity,
         yaw_rate=0,
         slip_angle=0
@@ -60,7 +65,7 @@ def add_planning_problem(scenario_path: str,
     )
     goal_state = CustomState(
         position=region,
-        time_step=Interval(0, 1000),
+        time_step=Interval(0, global_timer.final_state_idx),
         velocity=Interval(0,50)
     )
     goal_region = GoalRegion([goal_state])

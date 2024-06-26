@@ -3,6 +3,7 @@ from copy import deepcopy
 import os
 import traceback
 from typing import Optional
+import datetime
 import time
 import datetime
 
@@ -279,14 +280,14 @@ class Cr2Auto(Node):
         self.save_data_path: str = self.get_parameter(
             "general.map_path").get_parameter_value().string_value + "/data_saving"
 
-        self.rosbag_saving_handler: DataGenerationHandler = DataGenerationHandler(
+        self.data_generation_handler: DataGenerationHandler = DataGenerationHandler(
             cr2aw_node=self,
             save_path=self.save_data_path,
             save_id=datetime.datetime.now().strftime("%Y_%m_%d_%H_%M"),
             origin_transformation=self.origin_transformation
         )
 
-        self.rosbag_saving_handler.start_recording()
+        self.data_generation_handler.start_recording()
 
         # ========= Finish init() =========
         if self.verbose:
@@ -554,10 +555,10 @@ class Cr2Auto(Node):
                 self._logger.info("Vehicle arrived at goal!")
                 self.last_goal_reached = self.get_clock().now()
 
+                # Data saving
                 self._logger.info("calling data_generation_handler to save scenario")
-                self.rosbag_saving_handler.stop_recording_and_save_data()
+                self.data_generation_handler.stop_recording_and_save_data()
 
-                # TODO use DataGeneration module instead
                 if (
                         self.interactive_mode
                         and self.get_parameter("general.store_trajectory").get_parameter_value().bool_value

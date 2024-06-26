@@ -1,23 +1,21 @@
 # standard imports
-from typing import Dict
-from typing import List
+from typing import Dict, List
 from uuid import UUID as PyUUID
 
 # third party
 import numpy as np
 
+# Autoware msgs
+from autoware_auto_perception_msgs.msg import ObjectClassification  # type: ignore
+from commonroad.geometry.shape import Circle, Polygon, Rectangle, Shape
+
+# commonroad-io imports
+from commonroad.scenario.obstacle import DynamicObstacle, ObstacleType
+from commonroad.scenario.traffic_light import TrafficLightDirection, TrafficLightState, TrafficLightCycle, TrafficLightCycleElement
+
 # ROS msgs
 from geometry_msgs.msg import Polygon as PolygonMsg
 from unique_identifier_msgs.msg import UUID as UUIDMsg
-
-# Autoware msgs
-from autoware_auto_perception_msgs.msg import ObjectClassification  # type: ignore
-
-# commonroad-io imports
-from commonroad.scenario.obstacle import DynamicObstacle
-from commonroad.scenario.obstacle import ObstacleType
-from commonroad.geometry.shape import Shape, Rectangle, Circle, Polygon
-
 
 # Dictionary to map Autoware classification to CommonRoad obstacle type
 aw_to_cr_obstacle_type: Dict[int, ObstacleType] = {
@@ -30,6 +28,51 @@ aw_to_cr_obstacle_type: Dict[int, ObstacleType] = {
     6: ObstacleType.BICYCLE,
     7: ObstacleType.PEDESTRIAN,
     }
+
+
+aw_to_cr_traffic_light_color: Dict[int, TrafficLightState] = {
+    1: TrafficLightState.RED,  # AW: RED
+    2: TrafficLightState.YELLOW,  # AW: AMBER
+    3: TrafficLightState.GREEN,  # AW: GREEN
+
+    99: TrafficLightState.INACTIVE,  # no AW state: represents a detected traffic light that is not active
+
+    # additional states Autoware:
+    # 18: UNKNOWN,
+    # 4: WHITE,
+    # additional states CommonRoad:
+    # TrafficLightState.RED_YELLOW
+    # TrafficLightState.INACTIVE
+}
+
+
+aw_to_cr_traffic_traffic_light_shape: Dict[int, TrafficLightDirection] = {
+    5: TrafficLightDirection.ALL,  # AW: CIRCLE
+    6: TrafficLightDirection.LEFT,  # AW: LEFT_ARROW
+    7: TrafficLightDirection.RIGHT,  # AW: RIGHT_ARROW
+    8: TrafficLightDirection.STRAIGHT,  # AW: UP_ARROW
+    9: TrafficLightDirection.LEFT_STRAIGHT,  # AW: UP_LEFT_ARROW
+    10: TrafficLightDirection.STRAIGHT_RIGHT,  # AW: UP_RIGHT_ARROW
+
+    # additional states Autoware:
+    # 11: DOWN_ARROW
+    # 12: DOWN_LEFT_ARROW
+    # 13: DOWN_RIGHT_ARROW
+    # 18: UNKNOWN,
+    # 0: CROSS,
+    # additional states CommonRoad:
+    # TrafficLightDirection.LEFT_RIGHT
+}
+
+
+aw_to_cr_traffic_traffic_light_status: Dict[int, bool] = {
+    15: False,  # AW: SOLID_OFF
+    16: True,  # AW: SOLID_ON
+
+    # additional states Autoware:
+    # 17: FLASHING
+    # 18: UNKNOWN
+}
 
 
 def get_classification_with_highest_probability(
@@ -110,6 +153,21 @@ def aw_to_cr_shape_updater(
 
     else:
         raise TypeError("Unsupported CommonRoad shape type: " + str(dynamic_obstacle.obstacle_shape))
+    
+
+def set_traffic_light_cycle(traffic_light_state: TrafficLightState) -> TrafficLightCycle:
+    """
+    Set the traffic light cycle based on the traffic light state.
+    
+    :param traffic_light_state: traffic light state
+    :return: traffic light cycle
+    """
+
+    cycle_element = TrafficLightCycleElement(traffic_light_state, 5)
+
+    traffic_light_cylce = TrafficLightCycle(cycle_elements=[cycle_element])
+
+    return traffic_light_cylce
 
 
 def uuid_from_ros_msg(
