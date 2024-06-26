@@ -1,6 +1,7 @@
 import os
-import sys
 import pickle
+import sys
+
 
 # own code base
 from visualization import visualize_route_and_trajectories
@@ -8,8 +9,12 @@ from physics_evaluation import visualize_planned_vs_driven_trajectory
 from add_obstacles import add_dynamic_obstacles
 from add_planning_problem import add_planning_problem
 
+from add_traffic_lights import add_traffic_lights
+from global_timer import GlobalTimer
+
 # typing
-from typing import List
+from typing import List, Tuple
+
 
 
 def main(data_dir_path: str,
@@ -48,6 +53,8 @@ def main(data_dir_path: str,
             reference_trajectory_pkl = os.path.join(data_dir_path, file_name)
         elif "predicted_obstacles_" in file_name:
             predicted_obstacles_pkl = os.path.join(data_dir_path, file_name)
+        elif "traffic_lights" in file_name:
+            traffic_lights_pkl = os.path.join(data_dir_path, file_name)
 
     with open(goal_pose_pkl, 'rb') as f:
         goal_pose_data = pickle.load(f)
@@ -68,6 +75,18 @@ def main(data_dir_path: str,
         predicted_obstacles = pickle.load(f)
 
 
+    with open(traffic_lights_pkl, 'rb') as f:
+        traffic_lights: List[Tuple[Tuple[int, int], List[TrafficLight]]] = pickle.load(f)
+
+
+    global_timer: GlobalTimer = GlobalTimer(
+        driven_trajectory=driven_trajectory_data[0],
+        traffic_light_data=None,
+        predicted_obstacles=predicted_obstacles,
+        downsample_ms=100
+    )
+
+
     # Add planning problem to scenario
     add_planning_problem(
         scenario_path=xml_path,
@@ -75,15 +94,31 @@ def main(data_dir_path: str,
         initial_state_of_pp=planned_trajectory_data[0].state_list[0],
         goal_state_of_pp=goal_pose_data[0],
         goal_width=2,
-        goal_length=6
+        goal_length=6,
+        global_timer=global_timer
     )
 
     # Add dynamic obstacles and save it
     add_dynamic_obstacles(
       dynamic_obstacles_per_time_step=predicted_obstacles,
       scenario_path=os.path.join(saving_dir_path, "mit_planing_problem.xml"),
-      save_path=os.path.join(saving_dir_path, "scenario_with_pp_and_obstacles.xml")
+      save_path=os.path.join(saving_dir_path, "scenario_with_pp_and_obstacles.xml"),
+      global_timer=global_timer
     )
+
+
+
+    # add traffic lights
+    add_traffic_lights(
+        traffic_lights_over_time=traffic_lights,
+        global_timer=global_timer,
+        scenario_path=os.path.join(saving_dir_path,"scenario_with_pp_and_obstacles.xml"),
+        save_path=os.path.join(saving_dir_path,"svenario_with_pp_obst_and_lights.xml")
+    )
+
+    ### Data visualization
+    sys.exit()
+
 
     # visualization parameters
     title_font_size: float = 50
@@ -120,8 +155,10 @@ def main(data_dir_path: str,
 
 
 if __name__ == "__main__":
-    sim_folder: str = "/home/tmasc/Desktop/edgar_fahrten/sim/mit_auto"
-    sim_save: str = "/home/tmasc/Desktop/edgar_fahrten/sim/mit_auto/auswertung_sim"
+
+    sim_folder: str = "/media/tmasc/148D-9D89/correctshape"
+    sim_save: str = "/media/tmasc/148D-9D89/correctshape/auswertung"
+
 
     # real_folder: str = "/home/tmasc/Desktop/edgar_fahrten/mcap_sim/asdf"
     # real_save: str = "/home/tmasc/Desktop/edgar_fahrten/mcap_sim/auswertung"
@@ -129,10 +166,11 @@ if __name__ == "__main__":
     real_folder: str = "/home/gerald/Documents/Research_Projects/EDGAR_MCube/05_Test_Drive_Data/2024_01_27_Test_Drives_CR2AW_Paper/PlanningSim/mit_auto/2024_01_21_14_26"
     real_save: str = "/home/gerald/Documents/Research_Projects/EDGAR_MCube/05_Test_Drive_Data/2024_01_27_Test_Drives_CR2AW_Paper/PlanningSim/mit_auto/2024_01_21_14_26/eval"
 
-    xml_path = os.path.join(sim_folder, "2024_01_21_14_26.xml")
+    xml_path = os.path.join(sim_folder, "japan_from_osm.xml")
 
     main(
         data_dir_path=sim_folder,
         saving_dir_path=sim_folder,
         xml_path=xml_path
     )
+

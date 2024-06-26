@@ -1,10 +1,45 @@
 from collections import defaultdict
+from dataclasses import dataclass
+from logging import Logger
 
 # commonrad
 from commonroad.common.file_reader import CommonRoadFileReader
 from commonroad.common.file_writer import CommonRoadFileWriter, OverwriteExistingFile
 from commonroad.scenario.state import InitialState, CustomState
 from commonroad.scenario.trajectory import Trajectory as CRTrajectory
+from commonroad.scenario.obstacle import DynamicObstacle
+from commonroad.prediction.prediction import TrajectoryPrediction
+from commonroad.geometry.shape import (
+    Circle,
+    Polygon,
+    Rectangle,
+    Shape
+)
+from commonroad.scenario.obstacle import ObstacleType
+
+# own code base
+from global_timer import GlobalTimer
+from data_eval_utils import convert_ros2_time_tuple_to_float
+
+# typing
+from typing import List, Any, Union, Dict
+
+dict_obstacle_id_to_list_obstacles = defaultdict(list)
+
+
+_logger = Logger(__name__)
+
+
+@dataclass
+class ObstacleOverTime:
+    obstacle: DynamicObstacle
+    ros2_time: float
+    time_step: int
+    obs_id: int
+    obs_shape: Any
+    obs_type: Any
+    custom_state: CustomState
+    temporal_distance_to_step: float
 
 # commonroad
 from commonroad.scenario.obstacle import DynamicObstacle
@@ -162,18 +197,19 @@ class ObstacleOverTime:
 
 
 
+
 def add_dynamic_obstacles(
         dynamic_obstacles_per_time_step: List[List[DynamicObstacle]],
         scenario_path: str,
         save_path: str,
-        downsample_time_step_ms: float=100
+        global_timer: GlobalTimer
 ) -> None:
     """
     Adds dynamic obstacles to commonroad scenario from autoware and saves the scenario.
     :param dynamic_obstacles_per_time_step: list of commonroad dynamic obstacles per time step
     :param scenario_path: path to commonroad xml.
     :param save_path: path to save the new scenario to.
-    :param downsample_time_step_ms: delta t for downsampling the trajectories of the dynamic obstalces
+    :param global_timer: global time for scenario
     """
 
     scenario, planning_problem_set = CommonRoadFileReader(
@@ -186,60 +222,187 @@ def add_dynamic_obstacles(
             continue
 
         for obstacle in obstacle_list:
-            if(ObstacleOverTime.get_instance_from_obstacle_id(obstacle.obstacle_id) is None):
-                # create instance and automatically save in classe if obstacle does not exist
-                _ = ObstacleOverTime(
-                    obstacle,
-                    time_idx,
-                    initial_ros2_time=convert_ros2_time_tuple_to_float(obstacle.ros2_time_stamp)
-                )
-            else:
-                # add new trajectory point to existing obstacle
-                obstacle_over_time: ObstacleOverTime = ObstacleOverTime.get_instance_from_obstacle_id(obstacle.obstacle_id)
-                custom_state: CustomState = CustomState(
-                    position=obstacle.prediction.trajectory.state_list[0].position,
-                    velocity=obstacle.prediction.trajectory.state_list[0].velocity,
-                    orientation=obstacle.prediction.trajectory.state_list[0].orientation,
-                    time_step=obstacle.prediction.trajectory.state_list[0].time_step,
-                    ros2_time_stamp=convert_ros2_time_tuple_to_float(obstacle.ros2_time_stamp)
-                )
-                obstacle_over_time.add_state_at_time_step(custom_state, time_idx)
+            time_s: float = convert_ros2_time_tuple_to_float(obstacle.ros2_time_stamp)
 
+            custom_state: CustomState = CustomState(
+                position=obstacle.prediction.trajectory.state_list[0].position,
+                velocity=obstacle.prediction.trajectory.state_list[0].velocity,
+                orientation=obstacle.prediction.trajectory.state_list[0].orientation,
+                time_step=global_timer.find_closest_time_step(
+                    time_s
+                ),
+                ros2_time_stamp=time_s
+            )
 
-    # Generate obstacle list
-    dynamic_obstacle_list: List[DynamicObstacle] = ObstacleOverTime.get_converted_dynamic_obstacles(
-        downsample_steps_ms=downsample_time_step_ms
-    )
+            obstacle_over_time = ObstacleOverTime(
+                obstacle=obstacle,
+                ros2_time=time_s,
+                obs_id=obstacle.obstacle_id,
+                obs_shape=obstacle.obstacle_shape,
+                obs_type=obstacle.obstacle_type,
+                custom_state=custom_state,
+                time_step=global_timer.find_closest_time_step(
+                    time_s
+                ),
+                temporal_distance_to_step=global_timer.get_distance_to_closest_time_step(time_s)
+            )
+
+            dict_obstacle_id_to_list_obstacles[obstacle.obstacle_id].append(obstacle_over_time)
+
+    # Sort list of states for each vehicle in ascending time order
+    for _key, _val in dict_obstacle_id_to_list_obstacles.items():
+        _val.sort(key=lambda x: x.ros2_time)
+
+    # create dynamic obstacle instances
+    dynamic_obstacle_list: List[DynamicObstacle] = [
+            create_dynamic_obstacle_from_sorted_states(states=states)
+            for obs_id, states in dict_obstacle_id_to_list_obstacles.items()
+    ]
 
     # remove old dynamic obstacles
     for obstacle in scenario.dynamic_obstacles:
         scenario.remove_obstacle(obstacle)
 
     # add new obstacles
-    for dynamic_obstacle in dynamic_obstacle_list:
+    for idx, dynamic_obstacle in enumerate(dynamic_obstacle_list):
+        _logger.info(f'Added {idx + 1}/{len(dynamic_obstacle_list)} obstacle with id: {dynamic_obstacle.obstacle_id}')
         scenario.add_objects(dynamic_obstacle)
 
-    # scenario.add_objects(convert_agent_vehicle(ego_trajectory))
 
     # save file
     file_writer = CommonRoadFileWriter(scenario, planning_problem_set)
     file_writer.write_to_file(save_path, OverwriteExistingFile.ALWAYS)
 
 
+def create_dynamic_obstacle_from_sorted_states(
+        states: List[ObstacleOverTime],
+) -> DynamicObstacle:
+    """
+    Creates dynamic obstacle from sorted list of states.
+    :param states: list of ObstacleOverTime instances for one vehicle in ascending time order
+    :param global_timer: global timer instance
+    :return: dynamic obstacle
+    """
 
-def convert_ros2_time_tuple_to_float(
-        time_tuple: Union[Tuple[int, int], float]
-) -> float:
+    # Filter out double entries in steps by taking the ones closest to the time steps continuous time value
+    dict_step_to_obsovertime = defaultdict(list)
+    state_list: List[ObstacleOverTime] = list()
+    for state in states:
+        dict_step_to_obsovertime[state.time_step].append(state)
+    for step, states in dict_step_to_obsovertime.items():
+        state_list.append(min(states, key=lambda x: x.temporal_distance_to_step))
+
+    # shape
+    shape = calculate_average_shape(states=state_list)
+
+    # obstacle type
+    obstacle_type = calculate_obstacle_type(states=state_list)
+
+    # create trajectory object
+    cr_trajectory = CRTrajectory(state_list[0].time_step, [state.custom_state for state in state_list])
+
+    trajectory_prediction = TrajectoryPrediction(
+        trajectory=cr_trajectory,
+        shape=states[0].obs_shape
+    )
+
+    # create initial state
+    initial_trajectory_state: CustomState = state_list[0].custom_state
+    initial_state = InitialState(
+        position=initial_trajectory_state.position,
+        orientation=initial_trajectory_state.orientation,
+        velocity=initial_trajectory_state.velocity,
+        acceleration=0.0,
+        yaw_rate=0.0,
+        slip_angle=0.0,
+        time_step=initial_trajectory_state.time_step,
+    )
+
+    # obstacle generation
+    return DynamicObstacle(
+                obstacle_id=states[0].obs_id,
+                obstacle_type=obstacle_type,
+                obstacle_shape=shape,
+                initial_state=initial_state,
+                prediction=trajectory_prediction,
+            )
+
+
+def calculate_obstacle_type(
+    states: List[ObstacleOverTime]
+) -> ObstacleType:
     """
-    Converts ros2 time (= tuple[sec, nanosec) to one float sec value.
-    :param time_tuple: time tuple, either directly convertible as [int, float], or from ros2 as [float, float]
-    :return: time as float in seconds
+    Calculates obstacle type
+    :param states: sorted list of ObstacleOverTime of one vehicle in ascending order
+    :return: average shape
     """
-    if(isinstance(time_tuple, float)):
-        time: float = time_tuple
+    # check if obstacle type changes
+    for state in states:
+        if(state.obs_type is not states[0].obs_type):
+            _logger.warning(f'the typ for obstacle {states[0].obs_id} changes over course of scenario')
+            break
+
+    # Pseudo Histogram
+    dict_obs_type_to_counter: Dict[ObstacleType, int] = {
+        ObstacleType.UNKNOWN: 0,
+        ObstacleType.CAR: 0,
+        ObstacleType.TRUCK: 0,
+        ObstacleType.BUS: 0,
+        ObstacleType.MOTORCYCLE: 0,
+        ObstacleType.BICYCLE: 0,
+        ObstacleType.PEDESTRIAN: 0,
+    }
+    for state in states:
+        dict_obs_type_to_counter[state.obs_type] += 1
+
+    # return key with highest value
+    return max(dict_obs_type_to_counter, key=dict_obs_type_to_counter.get)
+
+
+
+def calculate_average_shape(
+        states: List[ObstacleOverTime],
+) -> Union[Shape, Rectangle, Circle, Polygon]:
+    """
+    Calculates average shape, except for polygons (uses first shape).
+    :param state_list: sorted list of ObstacleOverTime of one vehicle in ascending temporal order
+    :return: average shape
+    """
+
+    # check if kind of shape changes over time
+    for state in states:
+        if(type(state.obs_shape) is not type(states[0].obs_shape)):
+            _logger.warning(f'the kind of shape for obstacle {states[0].obs_id} changes over course of scenario')
+            break
+
+    # average rectangle
+    if(isinstance(states[0].obs_shape, Rectangle)):
+        avg_width: float = sum([state.obs_shape.width for state in states]) / len(states)
+        avg_length: float = sum([state.obs_shape.length for state in states]) / len(states)
+        return_shape = Rectangle(
+            length=avg_length,
+            width=avg_width
+        )
+
+    # average circle
+    elif(isinstance(states[0].obs_shape, Circle)):
+        avg_radius: float = sum([state.obs_shape.radius for state in states]) / len(states)
+        return_shape = Circle(
+            radius=avg_radius
+        )
+
+    # For Polygons do not compute an average, just return the first value
+    elif(isinstance(states[0].obs_shape, Polygon)):
+        return_shape = states[0].obs_shape
+
     else:
-        time: float = float(time_tuple[0]) + (float(time_tuple[1]) / 1e9)
-    return time
+        raise NotImplementedError(f'shape of type {type(states[0])} not implented.')
+
+
+    return return_shape
+
+
+
 
 
 

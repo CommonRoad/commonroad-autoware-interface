@@ -18,19 +18,24 @@ from geometry_msgs.msg import Twist # type: ignore
 from geometry_msgs.msg import Pose # type: ignore
 from autoware_auto_planning_msgs.msg import Trajectory as AWTrajectory  # type: ignore
 from autoware_auto_perception_msgs.msg import PredictedObjects, PredictedObject  # type: ignore
+from autoware_auto_perception_msgs.msg import TrafficSignalArray # type: ignore
+
 
 
 # commonroad
 from commonroad.scenario.state import CustomState
 from commonroad.scenario.obstacle import DynamicObstacle
 from commonroad.scenario.trajectory import Trajectory as CRTrajectory
+from commonroad.scenario.traffic_light import TrafficLight
+
 
 # own code base
 import cr2autoware.common.utils.cr_conversion_utils as cr_conv_utils
 
 
 # typing
-from typing import List, Any
+from typing import List, Any, Tuple
+
 
 
 
@@ -46,7 +51,7 @@ class Rosbag2CR_Converter:
     "/planning/scenario_planning/trajectory"
     "/localization/kinematic_state"
     "/perception/object_recognition/objects"
-    "perception/traffic_light_recognition/traffic_signals"
+    "/perception/traffic_light_recognition/traffic_signals"
     """
 
     def __init__(
@@ -89,8 +94,7 @@ class Rosbag2CR_Converter:
         self._cr_planned_trajectory_data: List[CRTrajectory] = list()
         self._cr_driven_trajectory_data: List[CRTrajectory] = list()
         self._cr_predicted_objects_data: List[List[DynamicObstacle]] = list()
-
-
+        self._cr_traffic_light_data: List[Tuple[Tuple[int, int], List[TrafficLight]]] = list()
 
 
     def read_rosbag(self) -> None:
@@ -124,6 +128,9 @@ class Rosbag2CR_Converter:
 
             elif(topic == "/perception/object_recognition/objects"):
                 self._convert_predicted_objects(msg)
+
+            elif(topic == "/perception/traffic_light_recognition/traffic_signals"):
+                self._convert_traffic_lights(msg)
 
             else:
                 raise ValueError(f"Topic with name {topic} could not be assigned to known topics")
@@ -176,6 +183,13 @@ class Rosbag2CR_Converter:
                                                                  scenario_identifier=self._scenario_identifier,
                                                                  fileformat=fileformat)
 
+
+        traffic_lights_file: str = self._construct_pkl_name(current_dir_name=current_dir_name,
+                                                                 data_identifier="traffic_lights",
+                                                                 scenario_identifier=self._scenario_identifier,
+                                                                 fileformat=fileformat)
+
+
         # write to pickle files
         with open(initial_pose3d_file, 'wb') as f:
             pickle.dump(self._cr_initial_pose3d_data, f)
@@ -194,6 +208,10 @@ class Rosbag2CR_Converter:
 
         with open(predicted_obstacles_file, 'wb') as f:
             pickle.dump(self._cr_predicted_objects_data, f)
+
+        with open(traffic_lights_file, 'wb') as f:
+            pickle.dump(self._cr_traffic_light_data, f)
+
 
 
 
@@ -376,6 +394,19 @@ class Rosbag2CR_Converter:
         Generates cr trajectory data for ego vehicle after all messages have been read out
         """
         self._cr_driven_trajectory_data.append(CRTrajectory(0, self._odometry_data))
+
+
+    def _convert_traffic_lights(self, msg: TrafficSignalArray) -> None:
+        """
+        Converts traffic lights per step to CommonRoad.
+        """
+        stamp = msg.header.stamp
+        # Tuple[Tuple[int, int], List[TrafficLight]] = (ros2_time_stamp, list_of_traffic_lights_at_time_stamp)
+        traffic_light_tuple_at_stamp: Tuple[Tuple[int, int], List[TrafficLight]] = cr_conv_utils.convert_traffic_lights(
+            msg=msg,
+            stamp=stamp
+        )
+        self._cr_traffic_light_data.append(traffic_light_tuple_at_stamp)
 
 
 

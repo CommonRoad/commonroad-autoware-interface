@@ -31,6 +31,9 @@ from autoware_auto_perception_msgs.msg import PredictedObjects  # type: ignore
 from autoware_auto_perception_msgs.msg import PredictedObject  # type: ignore
 from autoware_auto_perception_msgs.msg import ObjectClassification  # type: ignore
 from autoware_auto_perception_msgs.msg import PredictedPath  # type: ignore
+from autoware_auto_perception_msgs.msg import TrafficSignalArray  # type: ignore
+from autoware_auto_perception_msgs.msg import TrafficSignal  # type: ignore
+from autoware_auto_perception_msgs.msg import TrafficLight  # type: ignore
 
 # commonroad-io imports
 from commonroad.common.file_reader import CommonRoadFileReader
@@ -57,7 +60,11 @@ from .base import BaseHandler
 from ..common.utils.type_mapping import aw_to_cr_shape
 from ..common.utils.type_mapping import aw_to_cr_shape_updater
 from ..common.utils.type_mapping import get_classification_with_highest_probability
+from ..common.utils.type_mapping import set_traffic_light_cycle
 from ..common.utils.type_mapping import aw_to_cr_obstacle_type
+from ..common.utils.type_mapping import aw_to_cr_traffic_light_color
+from ..common.utils.type_mapping import aw_to_cr_traffic_traffic_light_shape
+from ..common.utils.type_mapping import aw_to_cr_traffic_traffic_light_status
 from ..common.utils.type_mapping import uuid_from_ros_msg
 from ..common.utils.transform import quaternion2orientation
 from ..common.utils.transform import map2utm
@@ -71,6 +78,7 @@ if typing.TYPE_CHECKING:
 
 # subscriber specifications
 from ..common.ros_interface.specs_subscriptions import spec_objects_sub
+from ..common.ros_interface.specs_subscriptions import spec_traffic_signals_sub
 
 
 class ScenarioHandler(BaseHandler):
@@ -82,6 +90,7 @@ class ScenarioHandler(BaseHandler):
 
     ======== Subscribers:
     "/perception/object_recognition/objects" (subscribes to PredictedObjects messages)
+    "/perception/traffic_light_recognition/traffic_signals (subscribes to TrafficSignals messages)
     """
 
     # Constants and parameters
@@ -327,6 +336,12 @@ class ScenarioHandler(BaseHandler):
                                 lambda msg: self._last_msg.update({"dynamic_obstacle": msg}),
                                 self._node.callback_group
                                 )
+        # subscribe traffic lights from perception
+        _ = create_subscription(self._node,
+                                spec_traffic_signals_sub,
+                                lambda msg: self._last_msg.update({"traffic_lights": msg}),
+                                self._node.callback_group
+                                )
 
     def _init_publishers(self) -> None:
         pass
@@ -368,6 +383,9 @@ class ScenarioHandler(BaseHandler):
         # process objects from perception
         self._process_objects()
 
+        # process traffic lights from perception
+        self._process_traffic_lights()
+
         # log time
         t_elapsed = time.perf_counter() - t_start
 
@@ -388,6 +406,8 @@ class ScenarioHandler(BaseHandler):
                            f"{[obs.obstacle_type.value for obs in self.scenario.dynamic_obstacles]}")
         self._logger.debug(f"\t Current CR obstacle IDs: "
                            f"{[obs.obstacle_id for obs in self.scenario.dynamic_obstacles]}")
+        self._logger.debug(f"\t Current CR traffic light IDs: "
+                           f"{[tl.traffic_light_id for tl in self.lanelet_network.traffic_lights if tl.active is True]}")
 
     def _process_objects(self) -> None:
         """
@@ -452,7 +472,7 @@ class ScenarioHandler(BaseHandler):
                 # keep sampling of predicted path
                 for pose in object_predicted_path.path:
                     list_predicted_poses.append(pose)
-           
+
             # get AW object ID: convert ROS2 UUID msg to Python UUID
             object_id_aw: UUID = uuid_from_ros_msg(obstacle.object_id.uuid)
 
@@ -590,7 +610,7 @@ class ScenarioHandler(BaseHandler):
             cnt_time_step += 1
 
         return CRTrajectory(time_step, cr_state_list)
-                            
+
     @staticmethod
     def _upsample_predicted_path(
         scenario_dt: float, 
@@ -717,6 +737,98 @@ class ScenarioHandler(BaseHandler):
 
         # add dynamic obstacle to the scenario
         self.scenario.add_objects(dynamic_obstacle)
+
+    def _process_traffic_lights(self) -> None:
+        """
+        Converts Autoware traffic lights to CommonRoad traffic lights and updates the CommonRoad scenario.
+        The incoming traffic lights are provided by the perception module via the topic /perception/traffic_lights
+        """
+
+        last_message = self._last_msg.get("traffic_lights") # type: TrafficSignalArray
+
+        if last_message is None:
+            return
+
+        # initialize list of processed traffic light IDs
+        processed_traffic_light_ids: List[int] = []
+
+        # process all traffic lights from perception message
+        for traffic_signal in last_message.signals:
+            # get traffic light ID
+            traffic_signal_id = traffic_signal.map_primitive_id
+
+            # add traffic light ID to processed list
+            processed_traffic_light_ids.append(traffic_signal_id)
+
+            # get traffic light from lanelet network
+            traffic_light_cr = self.lanelet_network.find_traffic_light_by_id(traffic_signal_id)
+
+            # get traffic light element with highest confidence
+            traffic_light: TrafficLight = self._get_traffic_light(traffic_signal)
+
+            # get traffic light status, color and shape
+            status = traffic_light.status
+            color = traffic_light.color
+            shape = traffic_light.shape
+
+            # convert traffic light status
+            try:
+                status_cr = aw_to_cr_traffic_traffic_light_status[status]
+            except KeyError:
+                self._logger.error("Traffic light status not found in AW to CR status map!")
+                continue
+
+            # check if detected traffic light is active:
+            if status_cr is True:
+                # set traffic light color and cycle
+                try:
+                    color_cr = aw_to_cr_traffic_light_color[color]
+                except KeyError:
+                    self._logger.error("Traffic light color not found in AW to CR color map!")
+                    continue
+                traffic_light_cr.color = color_cr
+                traffic_light_cr.traffic_light_cycle = set_traffic_light_cycle(color_cr)
+
+                # set traffic light direction
+                try:
+                    shape_cr = aw_to_cr_traffic_traffic_light_shape[shape]
+                except KeyError:
+                    self._logger.error("Traffic light shape not found in AW to CR shape map!")
+                    continue
+                traffic_light_cr.direction = shape_cr
+            else:
+                # set traffic light color and cycle to inactive
+                color_cr = aw_to_cr_traffic_light_color[99]
+                traffic_light_cr.color = color_cr
+                traffic_light_cr.traffic_light_cycle = set_traffic_light_cycle(color_cr)
+                traffic_light_cr.direction = aw_to_cr_traffic_traffic_light_shape[shape]
+
+            # set detected traffic light in perception message to active
+            traffic_light_cr.active = True
+
+        # set traffic light active state to False and traffic light cycle to inactive for all traffic lights that are not in the perception message
+        for traffic_light_l2n in self.lanelet_network.traffic_lights:
+            if traffic_light_l2n.active is True:
+                if traffic_light_l2n.traffic_light_id not in processed_traffic_light_ids:
+                    traffic_light_l2n.active = False
+                    color_inactive = aw_to_cr_traffic_light_color[99]
+                    traffic_light_l2n.traffic_light_cycle = set_traffic_light_cycle(color_inactive)
+
+    @staticmethod
+    def _get_traffic_light(traffic_signal: TrafficSignal) -> TrafficLight:
+        """
+        Retrieves the traffic light with the highest confidence value from the perception message. If multiple traffic
+        lights are available, the traffic light with the highest confidence is returned.
+        """
+        highest_conf_val = 0
+        highest_conf_idx = 0
+        for i in range(len(traffic_signal.lights)):
+            conf_val = traffic_signal.lights[i].confidence
+            if conf_val > highest_conf_val:
+                highest_conf_val = conf_val
+                highest_conf_idx = i
+
+        return traffic_signal.lights[highest_conf_idx]
 
     def compute_z_coordinate(self, new_initial_pose: Optional[PoseWithCovarianceStamped],
                              new_goal_pose: Optional[PoseStamped]):

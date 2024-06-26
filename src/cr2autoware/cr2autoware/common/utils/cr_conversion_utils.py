@@ -7,7 +7,7 @@ import os
 import numpy as np
 
 # ROS imports
-import rclpy.logging as ros_logging
+import rclpy.logging as ros_logging # type: ignore
 
 # comonroad-io imports
 from commonroad.common.file_writer import CommonRoadFileWriter
@@ -20,13 +20,15 @@ from commonroad.scenario.obstacle import DynamicObstacle
 from commonroad.scenario.trajectory import Trajectory as CRTrajectory
 from commonroad.prediction.prediction import TrajectoryPrediction
 from commonroad.scenario.obstacle import ObstacleType
+from commonroad.scenario.traffic_light import TrafficLight, TrafficLightState, TrafficLightDirection
 from commonroad.geometry.shape import Shape, Rectangle, Circle, Polygon
 
 
 # Third party
 from autoware_auto_planning_msgs.msg import Trajectory as AWTrajectory  # type: ignore
 from autoware_auto_planning_msgs.msg import TrajectoryPoint  # type: ignore
-from autoware_auto_perception_msgs.msg import PredictedObjects, ObjectClassification,PredictedPath  # type: ignore
+from autoware_auto_perception_msgs.msg import PredictedObjects, ObjectClassification, PredictedPath  # type: ignore
+from autoware_auto_perception_msgs.msg import TrafficSignalArray # type: ignore
 from geometry_msgs.msg import Twist # type: ignore
 from geometry_msgs.msg import Pose # type: ignore
 from geometry_msgs.msg import Vector3 # type: ignore
@@ -43,7 +45,6 @@ from typing import List, Dict, Tuple, Union
 logger = ros_logging.get_logger(__name__)
 
 
-
 dict_autoware_to_cr_obstacle_type: Dict[int, ObstacleType] = {
     0: ObstacleType.UNKNOWN,
     1: ObstacleType.CAR,
@@ -55,6 +56,47 @@ dict_autoware_to_cr_obstacle_type: Dict[int, ObstacleType] = {
     7: ObstacleType.PEDESTRIAN,
 }
 
+
+
+dict_autoware_to_commonroad_traffic_light_color: Dict[int, TrafficLightState] = {
+    1: TrafficLightState.RED,  # AW: RED
+    2: TrafficLightState.YELLOW,  # AW: AMBER
+    3: TrafficLightState.GREEN,  # AW: GREEN
+
+    # additional states Autoware:
+    # 18: UNKNOWN,
+    # 4: WHITE,
+    # additional states CommonRoad:
+    # TrafficLightState.RED_YELLOW
+    # TrafficLightState.INACTIVE
+}
+
+dict_autoware_to_commonroad_traffic_light_shape: Dict[int, TrafficLightDirection] = {
+    5: TrafficLightDirection.ALL,  # AW: CIRCLE
+    6: TrafficLightDirection.LEFT,  # AW: LEFT_ARROW
+    7: TrafficLightDirection.RIGHT,  # AW: RIGHT_ARROW
+    8: TrafficLightDirection.STRAIGHT,  # AW: UP_ARROW
+    9: TrafficLightDirection.LEFT_STRAIGHT,  # AW: UP_LEFT_ARROW
+    10: TrafficLightDirection.STRAIGHT_RIGHT,  # AW: UP_RIGHT_ARROW
+
+    # additional states Autoware:
+    # 11: DOWN_ARROW
+    # 12: DOWN_LEFT_ARROW
+    # 13: DOWN_RIGHT_ARROW
+    # 18: UNKNOWN,
+    # 0: CROSS,
+    # additional states CommonRoad:
+    # TrafficLightDirection.LEFT_RIGHT
+}
+
+dict_autoware_to_commonroad_traffic_light_status: Dict[int, bool] = {
+    15: False,  # AW: SOLID_OFF
+    16: True,  # AW: SOLID_ON
+
+    # additional states Autoware:
+    # 17: FLASHING
+    # 18: UNKNOWN
+}
 
 
 def convert_ros2_time_stamp_to_tuple(stamp) -> Tuple[int, int]:
@@ -222,21 +264,20 @@ def convert_ros2_predicted_objects_to_cr_dynamic_obstacles(
         # WARNING: This value does not make sense in tum
         existance_probability: float = predicted_object.existence_probability
 
-
-        # Convert shape
-        shape: Union[Rectangle, Circle, Polygon] = convert_aw_shape_to_cr_shape(
-            aw_shape_type=predicted_object.shape,
-            width=predicted_object.shape.dimensions.x,
-            length=predicted_object.shape.dimensions.y,
-            footprint=predicted_object.shape.footprint
-        )
-
-
         # Obstacle type
         obstacle_type: ObstacleType = (
             dict_autoware_to_cr_obstacle_type[
                 get_classification_with_highest_probability(predicted_object.classification)]
         )
+
+        # Convert shape
+        shape: Union[Rectangle, Circle, Polygon] = convert_aw_shape_to_cr_shape(
+            cr_object_type=obstacle_type,
+            width=predicted_object.shape.dimensions.y,
+            length=predicted_object.shape.dimensions.x,
+            footprint=predicted_object.shape.footprint
+        )
+
 
         # obstacle state
         kinematics = predicted_object.kinematics
@@ -292,8 +333,8 @@ def convert_uuid_to_int(
     :return: integer
     """
     id_str: str = ""
-    for el in uuid.shape[0]:
-        id_str += str(el)
+    for idx in range(uuid.shape[0]):
+        id_str += str(uuid[idx])
 
     return int(id_str) + offset
 
@@ -356,12 +397,13 @@ def save_cr_xml_scenario(
 
 
 def convert_aw_shape_to_cr_shape(
-        aw_shape_type: int,
+        cr_object_type: ObstacleType,
         width: float,
         length: float,
         footprint: PolygonMsg,
 ) -> Union[Rectangle, Circle, Polygon]:
-    """Convert Autoware shape to CommonRoad shape.
+    """
+    Convert Autoware shape to CommonRoad shape.
 
     :param aw_shape_type: Autoware shape type of the obstacle
     :param width: width of the obstacle
@@ -369,20 +411,49 @@ def convert_aw_shape_to_cr_shape(
     :param footprint: a specification of a polygon
     :return: CommonRoad shape
     """
-    if aw_shape_type == 0:
+
+    if cr_object_type in [ObstacleType.BUS, ObstacleType.TRUCK, ObstacleType.CAR, ObstacleType.UNKNOWN]:
         assert width > 0.0 and length > 0.0, "Obstacle shape: Width and length must be positive."
         return Rectangle(width=width, length=length)
 
-    elif aw_shape_type == 1:
+    elif cr_object_type in [ObstacleType.BICYCLE, ObstacleType.MOTORCYCLE, ObstacleType.PEDESTRIAN]:
         assert width > 0.0, "Obstacle shape: Width must be positive."
         return Circle(radius=(width / 2))
 
-    elif aw_shape_type == 2:
-        # convert 3D polygon footprint to 2D
-        points = footprint.points
-        assert points, "Obstacle shape: Footprint must be provided."
-        footprint_2d = np.array([[point.x, point.y] for point in points])
-        return Polygon(vertices=footprint_2d)
-
     else:
-        raise TypeError("Unsupported Autoware shape type: " + str(aw_shape_type))
+        raise TypeError("Unsupported Autoware shape type: " + str(cr_object_type))
+
+
+
+def convert_traffic_lights(
+        msg: TrafficSignalArray,
+        stamp
+) -> Tuple[Tuple[int, int], List[TrafficLight]]:
+    """
+    Converts autoware traffic lights to CommonRoad at time step.
+    !Warning!: Due to missing kwargs CR TrafficLight
+
+    :param msg: TrafficSignalArray autoware msg
+    :param stamp: ros2 time stamp
+    :return: Tuple[ros2_time_stamp, List[TrafficLight_At_Time_stamp]]
+    """
+    ros2_time_stamp: Tuple[int, int] = convert_ros2_time_stamp_to_tuple(stamp)
+
+    # TrafficSignalArray.signals: List[TrafficSignal] and TrafficSignal.elements: List[TrafficSignalElements]
+    traffic_light_list: List[TrafficLight] = list()
+
+    # Create a dummy traffic light as position [0, 0] with correct id so the values can be reassigned afterwards
+    for traffic_signal in msg.signals:
+        highest_confidence_light = max(traffic_signal.lights, key=lambda x: x.confidence)
+        traffic_light_list.append(
+            TrafficLight(
+                traffic_light_id=traffic_signal.map_primitive_id,
+                position=np.asarray([0, 0]),
+                color=[dict_autoware_to_commonroad_traffic_light_color[highest_confidence_light.color]],
+                active=dict_autoware_to_commonroad_traffic_light_status[highest_confidence_light.status],
+                direction=highest_confidence_light.shape
+            )
+        )
+
+    return (ros2_time_stamp, traffic_light_list)
+
