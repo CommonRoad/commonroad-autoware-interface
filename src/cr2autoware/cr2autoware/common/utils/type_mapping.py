@@ -4,6 +4,7 @@ from uuid import UUID as PyUUID
 
 # third party
 import numpy as np
+from shapely.geometry import Polygon as PolygonShapely
 
 # Autoware msgs
 from autoware_auto_perception_msgs.msg import ObjectClassification  # type: ignore
@@ -91,6 +92,7 @@ def aw_to_cr_shape(
     width: float,
     length: float,
     footprint: PolygonMsg,
+    safety_margin: float = 0.5,
 ) -> Shape:
     """
     Convert Autoware shape to CommonRoad shape.
@@ -99,8 +101,13 @@ def aw_to_cr_shape(
     :param width: width of the obstacle
     :param length: length of the obstacle
     :param footprint: a specification of a polygon
+    :param safety_margin: safety margin for the obstacle
     :return: CommonRoad shape
     """
+    # add safety margin
+    width = 2 * safety_margin + width
+    length = 2 * safety_margin + length
+
     if aw_shape_type == 0:
         assert width > 0.0 and length > 0.0, "Obstacle shape: Width and length must be positive."
         return Rectangle(width=width, length=length)
@@ -114,6 +121,12 @@ def aw_to_cr_shape(
         points = footprint.points
         assert points, "Obstacle shape: Footprint must be provided."
         footprint_2d = np.array([[point.x, point.y] for point in points])
+
+        # add safety margin buffer for polygon
+        polygon = PolygonShapely(footprint_2d)
+        polygon_buffer = polygon.buffer(safety_margin, join_style="mitre")
+        buffered_vertices = List(polygon_buffer.exterior.coords)
+        footprint = [[x, y] for x, y in buffered_vertices]
         return Polygon(vertices=footprint_2d)
 
     else:
@@ -125,6 +138,7 @@ def aw_to_cr_shape_updater(
     width: float,
     length: float,
     footprint: PolygonMsg,
+    safety_margin: float = 0.5,
 ) -> None:
     """Update the shape of a CommonRoad dynamic obstacle.
 
@@ -132,9 +146,14 @@ def aw_to_cr_shape_updater(
     :param width: width of the obstacle
     :param length: length of the obstacle
     :param footprint: a specification of a polygon
+    :param safety_margin: safety margin for the obstacle
     """
     shape = dynamic_obstacle.obstacle_shape
-    
+
+    # add safety margin
+    width = 2 * safety_margin + width
+    length = 2 * safety_margin + length
+
     if isinstance(shape, Rectangle):
         assert width > 0.0 and length > 0.0, "Update obstacle shape: Width and length must be positive."
         dynamic_obstacle.obstacle_shape.width = width
@@ -149,6 +168,12 @@ def aw_to_cr_shape_updater(
         points = footprint.points
         assert points, "Update obstacle shape: Footprint must be provided."
         footprint_2d = np.array([[point.x, point.y] for point in points])
+
+        # add safety margin buffer for polygon
+        polygon = PolygonShapely(footprint_2d)
+        polygon_buffer = polygon.buffer(safety_margin, join_style="mitre")
+        buffered_vertices = List(polygon_buffer.exterior.coords)
+        footprint = [[x, y] for x, y in buffered_vertices]
         dynamic_obstacle.obstacle_shape.vertices = footprint_2d
 
     else:
