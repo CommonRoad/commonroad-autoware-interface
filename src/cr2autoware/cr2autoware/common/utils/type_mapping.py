@@ -92,7 +92,7 @@ def aw_to_cr_shape(
     width: float,
     length: float,
     footprint: PolygonMsg,
-    safety_margin: float = 0.5,
+    safety_margin: float,
 ) -> Shape:
     """
     Convert Autoware shape to CommonRoad shape.
@@ -138,7 +138,7 @@ def aw_to_cr_shape_updater(
     width: float,
     length: float,
     footprint: PolygonMsg,
-    safety_margin: float = 0.5,
+    safety_margin: float,
 ) -> None:
     """Update the shape of a CommonRoad dynamic obstacle.
 

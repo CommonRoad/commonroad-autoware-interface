@@ -214,6 +214,8 @@ class TrajectoryPlannerParams(BaseParams):
     planner_update_time: float = 0.5
     # planning horizon (in seconds)
     planning_horizon: float = 5.0
+    # safety buffer to obstacles (in meters)
+    safety_margin: float = 0.8
 
     def __post_init__(self):
         # declare ROS params
