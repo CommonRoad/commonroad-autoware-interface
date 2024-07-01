@@ -36,6 +36,7 @@
       trajectory_planner_type: 1 # 1: reactive planner
       planner_update_time: 0.2 # run each x.x seconds
       planning_horizon: 5.0
+      safety_margin: 0.8 # buffer distance to obstacles in m
 
     rp_interface:
       rp_config_yaml: "../../../../src/universe/autoware.universe/planning/tum_commonroad_planning/dfg-car/src/cr2autoware/param/edgar_rp_config.yaml"

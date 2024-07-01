@@ -144,6 +144,8 @@ class ScenarioHandler(BaseHandler):
     def _init_parameters(self) -> None:
         """
         Init scenario handler specific parameters from self._node
+
+        :raises VauleError: if safety margin is negative
         """
         self.MAP_PATH = self._get_param("general.map_path").string_value
         if not os.path.exists(self.MAP_PATH):
@@ -152,6 +154,10 @@ class ScenarioHandler(BaseHandler):
         self.LEFT_DRIVING = self._get_param("scenario.left_driving").bool_value
         self.ADJACENCIES = self._get_param("scenario.adjacencies").bool_value
         self._dt = self._get_param("scenario.dt").double_value
+        # safety margin for obstacle shapes
+        self.safety_margin = self._get_param("trajectory_planner.safety_margin").double_value
+        if self.safety_margin < 0.0:
+            raise ValueError("Safety margin must be greater or equal to 0.0!")
 
     def _read_map_config(self, map_path: str) -> Dict[str, Any]:
         """
@@ -517,7 +523,7 @@ class ScenarioHandler(BaseHandler):
 
                 # shape update
                 aw_to_cr_shape_updater(
-                    dynamic_obs, width, length, footprint
+                    dynamic_obs, width, length, footprint, self.safety_margin
                 )
 
                 # state update
@@ -702,7 +708,7 @@ class ScenarioHandler(BaseHandler):
 
         # convert obstacle shape
         dynamic_obstacle_shape = aw_to_cr_shape(
-            shape_type, width, length, footprint
+            shape_type, width, length, footprint, self.safety_margin
         )
 
         # convert obstacle classification / type
