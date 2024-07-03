@@ -29,11 +29,15 @@ nav:
 
   - Handlers:
       - "Base Handler": base_handler.md
+      - "Data Generation Handler": data_generation_handler.md
       - "ROS2 Humble API Handler": api_handler.md
       - "Ego Vehicle Handler": ego_vehicle_handler.md
       - "Planning Problem Handler": planning_problem_handler.md
       - "Scenario Handler": scenario_handler.md
+      - "Spot Handler": spot_handler.md
 
+  - Configuration:
+      - "Configuration": configuration.md
 
   - ROS2 Interface Specs:
       - "Creation": spec_create.md
@@ -56,12 +60,23 @@ nav:
 
 
   - Data Generation:
-      - "Rosbag Saver": index.md
-      - "MCAP to CommonRoad Converter": index.md
+      - "Work in Progress": placeholder.md
+  #    - "Rosbag Saver": index.md
+  #    - "MCAP to CommonRoad Converter": index.md
 
 
   - Utils:
-      "Utils": utils.md
+      - "Utils":
+        - "CR2AW Conversion Utils": utils_conversion.md
+        - "Debug Utils": utils_debug.md
+        - "Geometry Utils": utils_geometry.md
+        - "General Utils": utils_general.md
+        - "Message Utils": utils_message.md
+        - "TF2 geometry_msgs Utils": utils_tf2_geometry_msgs.md
+        - "TrajectoryLogger Utils": utils_trajectory_logger.md
+        - "Transform Utils": utils_transform.md
+        - "Type Mapping Utils": utils_type_mapping.md
+        - "Visualization Utils": utils_visualization.md
 
 
 

@@ -23,7 +23,14 @@ from cr2autoware.common.utils.transform import utm2map
 class TrajectoryPlannerInterface(ABC):
     """
     Abstract base class for trajectory planner interface.
-    Defines basic attributes and abstract methods which need to be implemented by all planner interfaces
+
+    Defines basic attributes and abstract methods which need to be implemented by all planner interfaces.
+
+    :var _traj_pub: reference to trajectory publisher
+    :var _logger: reference to ROS logger
+    :var _verbose: constant for verbose logging
+    :var _planner: reference to planner class
+    :var _cr_state_list: list of CommonRoad states
     """
 
     # reference to trajectory publisher
@@ -35,7 +42,11 @@ class TrajectoryPlannerInterface(ABC):
 
     def __init__(self, traj_pub: Publisher, logger: RcutilsLogger, verbose: bool):
         """
+        Constructor for TrajectoryPlannerInterface class.
+
         :param traj_pub: The ROS2 publisher to use which publishes the planned trajectory to Autoware
+        :param logger: The ROS2 logger to use for logging
+        :param verbose: Flag for verbose logging
         """
         # initialize trajectory publisher
         self._traj_pub = traj_pub
@@ -52,20 +63,45 @@ class TrajectoryPlannerInterface(ABC):
 
     @property
     def cr_state_list(self) -> Optional[List[TraceState]]:
+        """
+        Getter for CommonRoad state list.
+        
+        :return: List of CommonRoad states
+        """
         return self._cr_state_list
 
     @abstractmethod
-    def update(self, *args, **kwargs):
-        """Updates all dynamic inputs of the planner for cyclic re-planning"""
+    def update(self, *args, **kwargs) -> None:
+        """
+        Updates all dynamic inputs of the planner for cyclic re-planning.
+        
+        :param args: Additional arguments
+        :param kwargs: Additional keyword arguments
+        """
         pass
 
     @abstractmethod
-    def plan(self, current_state: EgoVehicleState, goal: GoalRegion, **kwargs):
-        """Plans a trajectory. The planning algorithm is implemented in the respective planner (self._planner)"""
+    def plan(self, current_state: EgoVehicleState, goal: GoalRegion, **kwargs) -> None:
+        """
+        Plans a trajectory. The planning algorithm is implemented in the respective planner (self._planner).
+        
+        :param current_state: Current ego vehicle state
+        :param goal: Goal region
+        :param kwargs: Additional keyword arguments
+        """
         pass
 
     def _prepare_trajectory_msg(self, origin_transformation: List, elevation: float) -> AWTrajectory:
-        """Converts the CommonRoad state list into a AWTrajectory message type for publishing to Autoware"""
+        """
+        Converts the CommonRoad state list into a AWTrajectory message type for publishing to Autoware.
+
+        Publishes the trajectory starting from the second state in the state list. The first state (index 0) is
+        simply the current initial state. If no trajectory is planned, an empty trajectory is published.
+
+        :param origin_transformation: Origin transformation for UTM to map transformation
+        :param elevation: Elevation for the trajectory
+        :return: AWTrajectory message
+        """
         if self._verbose:
             self._logger.info("Preparing trajectory message!")
 
@@ -102,8 +138,13 @@ class TrajectoryPlannerInterface(ABC):
 
         return aw_traj
 
-    def publish(self, origin_transformation: List, elevation: float):
-        """Publishes the output trajectory as AWTrajectory message type"""
+    def publish(self, origin_transformation: List, elevation: float) -> None:
+        """
+        Publishes the output trajectory as AWTrajectory message type.
+        
+        :param origin_transformation: Origin transformation for UTM to map transformation
+        :param elevation: Elevation for the trajectory
+        """
         traj_msg = self._prepare_trajectory_msg(origin_transformation, elevation)
 
         self._traj_pub.publish(traj_msg)

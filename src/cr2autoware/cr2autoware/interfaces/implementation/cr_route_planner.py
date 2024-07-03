@@ -26,7 +26,11 @@ from cr2autoware.interfaces.base.route_planner_interface import RoutePlannerInte
 
 class CommonRoadRoutePlanner(RoutePlannerInterface):
     """
-    Interface for the CommonRoad Route Planner
+    Interface for the CommonRoad Route Planner.
+
+    This class implements the abstract methods of the base class RoutePlannerInterface.
+
+    :var _planner: reference to CommonRoad Route Planner
     """
 
     def __init__(self, route_pub: Publisher,
@@ -34,6 +38,15 @@ class CommonRoadRoutePlanner(RoutePlannerInterface):
                  verbose: bool,
                  lanelet_network: LaneletNetwork,
                  planning_problem: PlanningProblem):
+        """
+        Constructor for CommonRoadRoutePlanner class.
+
+        :param route_pub: ROS2 node publisher for route
+        :param logger: ROS2 logger node
+        :param verbose: Flag for verbose logging
+        :param lanelet_network: CommonRoad Lanelet Network
+        :param planning_problem: CommonRoad Planning Problem
+        """
 
         super().__init__(route_pub=route_pub, logger=logger.get_child("cr_route_planner"), verbose=verbose,
                          lanelet_network=lanelet_network, planning_problem=planning_problem)
@@ -42,7 +55,11 @@ class CommonRoadRoutePlanner(RoutePlannerInterface):
 
     def _initialize_planner(self, **kwargs) -> Optional[CRRoutePlanner]:
         """
-        Implements abstract _initialize_planner from base class
+        Implements abstract _initialize_planner from base class.
+
+        :param kwargs: Additional keyword arguments
+        :return: CRRoutePlanner object
+        :raises _logger.warning: If no planning problem is provided
         """
         if "planning_problem" in kwargs:
             _planning_prob = kwargs.get("planning_problem")
@@ -55,7 +72,12 @@ class CommonRoadRoutePlanner(RoutePlannerInterface):
 
     def _plan(self, planning_problem: Optional[PlanningProblem] = None, **kwargs) -> None:
         """
-        Implements abstract plan method from base class
+        Implements abstract plan method from base class.
+
+        :param planning_problem: The CommonRoad Planning Problem
+        :param kwargs: Additional keyword arguments
+        :raises TypeError: If planning problem is not of type PlanningProblem
+        :raises IndexError: If no valid route could be found
         """
         self._is_ref_path_published = False
 
@@ -92,8 +114,14 @@ class CommonRoadRoutePlanner(RoutePlannerInterface):
             self._logger.info("<CommonRoadRoutePlanner>: Route planning completed!")
 
     def _postprocess_ref_path(self, curvature_limit: float = 0.195, spline_smooth_fac: float = 5.0,
-                              resampling_step: float = 1.0):
-        """Postprocessing options of original reference path"""
+                              resampling_step: float = 1.0) -> None:
+        """
+        Postprocessing options of original reference path.
+        
+        :param curvature_limit: Maximum curvature limit for reference path
+        :param spline_smooth_fac: Spline smoothing factor
+        :param resampling_step: Resampling step for reference path
+        """
         # reduce curvature simple
         ref_path_mod = self._simple_reduce_curvature(ref_path=self._reference_path, max_curv=curvature_limit)
 
@@ -111,7 +139,15 @@ class CommonRoadRoutePlanner(RoutePlannerInterface):
         self._reference_path = ref_path_mod
 
     @staticmethod
-    def _simple_reduce_curvature(ref_path: np.ndarray, max_curv: float, resample_step: float = 1.0):
+    def _simple_reduce_curvature(ref_path: np.ndarray, max_curv: float, resample_step: float = 1.0) -> np.ndarray:
+        """
+        Simple curvature reduction method for reference path.
+
+        :param ref_path: Reference path
+        :param max_curv: Maximum curvature limit
+        :param resample_step: Resampling step for reference path
+        :return: Modified reference path
+        """
         max_curvature = 0.5
         iter = 0
         while max_curvature > max_curv:

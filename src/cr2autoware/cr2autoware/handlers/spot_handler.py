@@ -27,12 +27,11 @@ if typing.TYPE_CHECKING:
 
 @dataclass
 class SpotObstacle:
-    """Result for a single obstacle from SPOT.
+    """
+    Result for a single obstacle from SPOT.
 
-    Attributes:
-        obstacle_id: ID of the obstacle.
-        predictions: List of predictions for the obstacle. One for each time step.
-
+    :var obstacle_id: ID of the obstacle.
+    :var predictions: List of predictions for the obstacle.
     """
 
     obstacle_id: int
@@ -40,17 +39,11 @@ class SpotObstacle:
 
     @classmethod
     def from_spot_interface(cls, spot_result: Any) -> "SpotObstacle":
-        """Convert a spot result from the spot interface to a SpotResult object.
+        """
+        Convert a spot result from the spot interface to a SpotResult object.
 
-        Parameters
-        ----------
-        spot_result : Any
-            Result of SPOT from the spot interface.
-
-        Returns
-        -------
-        SpotObstacle
-            SpotObstacle object.
+        :param spot_result: Result of SPOT from the spot interface.
+        :return: SpotResult object.
         """
         obstacle_id = int(spot_result[0])
         predictions = [
@@ -60,12 +53,10 @@ class SpotObstacle:
         return cls(obstacle_id, predictions)
 
     def get_occupancy_list(self) -> List[Occupancy]:
-        """Convert the predictions of SPOT to a list of occupancies.
+        """
+        Convert the predictions of SPOT to a list of occupancies.
 
-        Returns
-        -------
-        List[Occupancy]
-            List of occupancies for the obstacle.
+        :return: List of occupancies for the obstacle.
         """
         occupancy_list: List[Occupancy] = []
         for time_step, prediction in enumerate(self.predictions):
@@ -79,14 +70,12 @@ class SpotObstacle:
 
 @dataclass
 class SpotPrediction:
-    """Prediction of SPOT for one time step and obstacle.
+    """
+    Prediction of SPOT for one time step and obstacle.
 
-    Attributes:
-        velocities: List containing velocity information about the lanes,
-            which are part of the prediction.
-            Type: List[lane_id] = Tuple[v_min, v_max]
-        occupied_polygons: List containing polygons of the occupancy
 
+    :var velocities: List containing velocity information about the lanes, which are part of the prediction.
+    :var occupied_polygons: List containing polygons of the occupancy
     """
 
     velocities: List[Tuple[float, float]]
@@ -94,17 +83,11 @@ class SpotPrediction:
 
     @classmethod
     def from_spot_interface(cls, spot_prediction: Any) -> "SpotPrediction":
-        """Convert a spot prediction from the spot interface to a SpotPrediction object.
+        """
+        Convert a spot prediction from the spot interface to a SpotPrediction object.
 
-        Parameters
-        ----------
-        spot_prediction : Any
-            Prediction of SPOT from the spot interface.
-
-        Returns
-        -------
-        SpotPrediction
-            SpotPrediction object.
+        :param spot_prediction: Prediction of SPOT from the spot interface.
+        :return: SpotPrediction object.
         """
         velocities = spot_prediction[0]
         polygons = cls._convert_vertex_list_to_polygons(spot_prediction[1])
@@ -112,34 +95,27 @@ class SpotPrediction:
 
     @classmethod
     def _convert_vertex_list_to_polygons(cls, vertices: Sequence[Sequence[float]]) -> List[Polygon]:
-        """Convert a list of vertices as returned by SPOT to a list of polygons.
+        """
+        Convert a list of vertices as returned by SPOT to a list of polygons.
 
         SPOT returns all polygons as one list of vertices that needs to be split.
         This function converts the list of vertices to a list of polygons by
         creating a separate polygon whenever a vertex is reached, which has the
         same x and y coordinates as a preceding vertex.
 
-        Example:
-        SPOT returns the following list of vertices:
+        **Example:**
+
+        SPOT returns the following list of vertices::
+
             [(0, 0), (1, 0), (1, 1), (0, 1), (0, 0), (2, 0), (2, 1), (0, 1), (2, 0)]
-        This list is converted to the following list of polygons:
-            [Polygon([(0, 0), (1, 0), (1, 1), (0, 1), (0, 0)]),
-                Polygon([(2, 0), (2, 1), (0, 1), (2, 0)])]
 
-        Parameters
-        ----------
-        vertices : Sequence[Sequence[float]]
-            List of vertices as returned by SPOT.
+        This list is converted to the following list of polygons::
 
-        Returns
-        -------
-        List[Polygon]
-            List of polygons.
+            [Polygon([(0, 0), (1, 0), (1, 1), (0, 1), (0, 0)]), Polygon([(2, 0), (2, 1), (0, 1), (2, 0)])]
 
-        Raises
-        ------
-        ValueError
-            If the list of vertices is not closed correctly.
+        :param vertices: List of vertices as returned by SPOT.
+        :return: List of polygons.
+        :raises ValueError: If the list of vertices is not closed correctly.
         """
         shapes: List[Polygon] = []
         first_idx = 0
@@ -175,10 +151,24 @@ class SpotPrediction:
 
 
 class SpotHandler:
-    """Handles communication with autoware for CommonRoad SPOT.
+    """
+    Handles communication with autoware for CommonRoad SPOT.
 
-    Receives an up to date CommonRoad Scenario object and publishes results
-    of SPOT based on that.
+    Receives an up to date CommonRoad Scenario object and publishes results of SPOT based on that.
+
+    ----------------
+    **Publishers:**
+
+    * _OCCUPANCY_REGION_PUBLISHER:
+        * Description: Publishes predicted occupancy regions of the obstacles.
+        * Topic: `/cr2autoware_marker_array`
+        * Message Type: `visualization_msgs.msg.MarkerArray`
+
+    ----------------
+    :var VERBOSE: Flag to enable detailed logging.
+    :var PLANNING_HORIZON: Planning horizon for SPOT.
+    :var _logger: Logger for the SpotHandler.
+    :var _node: reference to CR2Auto ROS2 node
     """
 
     # Constants and parameters
@@ -190,6 +180,11 @@ class SpotHandler:
     _node: "Cr2Auto"
 
     def __init__(self, node: "Cr2Auto") -> None:
+        """
+        Constructor for SpotHandler.
+
+        :param node: reference to CR2Auto ROS2 node
+        """
         self._logger = node.get_logger().get_child("spot")
         self._node = node
 
@@ -198,6 +193,7 @@ class SpotHandler:
         self._init_publishers(self._node)
 
     def _init_parameters(self) -> None:
+        """Retrieve required ROS params from self._node."""
         def _get_parameter(name: str) -> ParameterValue:
             return self._node.get_parameter(name).get_parameter_value()
 
@@ -212,8 +208,12 @@ class SpotHandler:
             "trajectory_planner.planning_horizon"
         ).double_value
 
-    def _init_publishers(self, node: "Cr2Auto"):
-        """Initialize RViz publishers."""
+    def _init_publishers(self, node: "Cr2Auto") -> None:
+        """
+        Initialize required publishers for self._node.
+        
+        :param node: reference to CR2Auto ROS2 node
+        """
         self._OCCUPANCY_REGION_PUBLISHER = node.create_publisher(
             MarkerArray, "/cr2autoware_marker_array", 0
         )
@@ -224,7 +224,13 @@ class SpotHandler:
         origin_transformation: Sequence[float],
         planning_problem: PlanningProblem,
     ) -> None:
-        """Rerun SPOT and publish results to Autoware."""
+        """
+        Rerun SPOT and publish results to Autoware.
+        
+        :param scenario: CommonRoad scenario to predict obstacles for.
+        :param origin_transformation: Transformation of the origin.
+        :param planning_problem: Planning problem for SPOT.
+        """
         # Register scenario
         if not self._register_scenario(scenario, planning_problem):
             self._logger.warning("Failed to register scenario with SPOT.")
@@ -242,8 +248,18 @@ class SpotHandler:
         # Remove scenario from SPOT
         spot.removeScenario(1)
 
-    def _register_scenario(self, scenario: Scenario, planning_problem: PlanningProblem) -> bool:
-        """Register scenario with SPOT."""
+    def _register_scenario(
+        self, 
+        scenario: Scenario, 
+        planning_problem: PlanningProblem
+    ) -> bool:
+        """
+        Register scenario with SPOT.
+        
+        :param scenario: CommonRoad scenario to register with SPOT.
+        :param planning_problem: Planning problem for SPOT.
+        :return: True if registration was successful, False otherwise.
+        """
         # TODO: Add field of view
         field_of_view = np.empty([0, 2], float)
         result = spot.registerScenario(
@@ -258,8 +274,19 @@ class SpotHandler:
         return not result
 
     def _run_spot(
-        self, scenario: Scenario, num_steps: int = 15, num_threads: int = 4
+        self, 
+        scenario: Scenario, 
+        num_steps: int = 15, 
+        num_threads: int = 4
     ) -> List[SpotObstacle]:
+        """
+        Run SPOT for the given scenario.
+
+        :param scenario: CommonRoad scenario to predict obstacles for.
+        :param num_steps: Number of steps to predict obstacles for, defaults to 15
+        :param num_threads: Number of threads to use for SPOT prediction, defaults to 4
+        :return: List of predicted obstacles.
+        """
         # start_time = float(self._node.get_clock().now().nanoseconds / 1e9)
         start_time = 0.0
         dt = scenario.dt
@@ -271,19 +298,17 @@ class SpotHandler:
         return obstacles
 
     def _add_obstacles_to_scenario(
-        self, scenario: Scenario, obstacles: Sequence[SpotObstacle], initial_time_step: int = 1
+        self, 
+        scenario: Scenario, 
+        obstacles: Sequence[SpotObstacle], 
+        initial_time_step: int = 1
     ) -> None:
-        """Add predicted obstacles as `SetBasedPrediction` objects to scenario.
+        """
+        Add predicted obstacles as `SetBasedPrediction` objects to scenario.
 
-        Parameters
-        ----------
-        scenario : Scenario
-            CommonRoad scenario to add obstacles to.
-        obstacles : Sequence[SpotObstacle]
-            SPOT obstacles to add to scenario.
-        initial_time_step : int, optional
-            Initial time step of the prediction, by default 1
-
+        :param scenario: CommonRoad scenario to add obstacles to.
+        :param obstacles: SPOT obstacles to add to scenario.
+        :param initial_time_step: Initial time step of the prediction, defaults to 1
         """
         for i, obstacle in enumerate(obstacles):
             scenario.dynamic_obstacles[i].prediction = SetBasedPrediction(
@@ -292,12 +317,17 @@ class SpotHandler:
 
     # TODO: Make visualization more appealing
     def _visualize_obstacles(
-        self, obstacles: Sequence[SpotObstacle], origin_transformation: Sequence[float]
+        self, 
+        obstacles: Sequence[SpotObstacle], 
+        origin_transformation: Sequence[float]
     ) -> None:
-        """Visualize obstacle in RViz.
+        """
+        Visualize obstacle in RViz.
 
-        For now, we will use a simple goal region markes. We will later
-        define a more sophisticated region marker.
+        For now, we will use a simple goal region marker. We will later define a more sophisticated region marker.
+
+        :param obstacles: List of obstacles to visualize.
+        :param origin_transformation: Transformation of the origin.
         """
         marker_array = MarkerArray()
         marker_id = 0xFFFF

@@ -99,7 +99,131 @@ from .common.ros_interface.specs_clients import \
 class Cr2Auto(Node):
     """
     Cr2Auto class that is an instance of a ROS2 Node.
+
     This node serves as a the main interface between CommonRoad and Autoware.Universe
+
+    ----------------
+    **Publishers:**
+
+    * goal_pose_pub: 
+        * Description: Goal pose of the vehicle.
+        * Topic: `/planning/mission_planning/goal`
+        * Message Type: `geometry_msgs.msg.PoseStamped`
+    * traj_pub:
+        * Description: Trajectory of the vehicle.
+        * Topic: `/planning/commonroad/trajectory`
+        * Message Type: `autoware_auto_planning_msgs.msg.Trajectory`
+    * aw_state_pub:
+        * Description: Autoware state.
+        * Topic: `/autoware/state`
+        * Message Type: `autoware_auto_system_msgs.msg.AutowareState`
+    * vehicle_engage_pub:
+        * Description: Engage message for Autoware Planning Simulation.
+        * Topic: `/vehicle/engage`
+        * Message Type: `autoware_auto_vehicle_msgs.msg.Engage`
+    * api_engage_pub:
+        * Description: Publish engage message for node `/control/operation_mode_transistion_manager`.
+        * Topic: `/api/autoware/get/engage`
+        * Message Type: `autoware_auto_vehicle_msgs.msg.Engage`
+    * routing_state_pub:
+        * Description: Routing state.
+        * Topic: `/api/routing/state`
+        * Message Type: `autoware_adapi_v1_msgs.msg.RouteState`
+    * route_pub:
+        * Description: Route marker.
+        * Topic: `/planning/mission_planning/route_marker`
+        * Message Type: `visualization_msgs.msg.MarkerArray`
+    * velocity_pub:
+        * Description: Reference trajectory to motion velocity smoother.
+        * Topic: `/planning/scenario_planning/scenario_selector/trajectory`
+        * Message Type: `autoware_auto_planning_msgs.msg.Trajectory`
+    * initial_pose_pub:
+        * Description: Initial pose of the vehicle.
+        * Topic: `/initialpose3d`
+        * Message Type: `geometry_msgs.msg.PoseWithCovarianceStamped`
+    * goal_region_pub:
+        * Description: Goal region of the vehicle.
+        * Topic: `/goal_region_marker_array`
+        * Message Type: `visualization_msgs.msg.MarkerArray`
+    * velocity_limit_pub:
+        * Description: Maximum velocity limit.
+        * Topic: `/planning/scenario_planning/max_velocity`
+        * Message Type: `tier4_planning_msgs.msg.VelocityLimit`
+    * velocity_limit_pub_vis:
+        * Description: Maximum velocity limit for visualization in RVIZ.
+        * Topic: `/planning/scenario_planning/current_max_velocity`
+        * Message Type: `tier4_planning_msgs.msg.VelocityLimit`
+
+    ----------------
+    **Subscribers:**
+
+    * initialpose_sub:
+        * Description: Initial pose of the vehicle
+        * Topic: `/initialpose3d`
+        * Message Type: `geometry_msgs.msg.PoseWithCovarianceStamped`
+    * goal_pose_sub:
+        * Description: Goal pose of the vehicle
+        * Topic: `/planning/mission_planning/echo_back_goal_pose`
+        * Message Type: `geometry_msgs.msg.PoseStamped`
+    * auto_button_sub:
+        * Description: Engage message for Autoware
+        * Topic: `/autoware/engage`
+        * Message Type: `autoware_auto_vehicle_msgs.msg.Engage`
+    * vel_limit_sub:
+        * Description: Maximum velocity limit
+        * Topic: `/planning/scenario_planning/max_velocity_default`
+        * Message Type: `tier4_planning_msgs.msg.VelocityLimit`
+    * autoware_state_sub:
+        * Description: Autoware state
+        * Topic: `/autoware/state`
+        * Message Type: `autoware_auto_system_msgs.msg.AutowareState`
+    * routing_state_sub:
+        * Description: Routing state
+        * Topic: `/api/routing/state`
+        * Message Type: `autoware_adapi_v1_msgs.msg.RouteState`
+
+    ----------------
+    **Service Clients:**
+
+    * `change_to_stop_client`: Service client for change to stop service call
+    
+    ----------------
+    :var scenario_handler: Instance of the ScenarioHandler class
+    :var plan_prob_handler: Instance of the PlanningProblemHandler class
+    :var params: Instance of the CR2AutowareParams class
+    :var _logger: Instance of the logger
+    :var verbose: Boolean to enable verbose logging
+    :var callback_group: Callback group for async execution
+    :var write_scenario: Boolean to write scenario to file
+    :var solution_path: Path to solution file
+    :var rnd: MPRenderer
+    :var trajectory_logger: Instance of the TrajectoryLogger class
+    :var origin_transformation: Transformation from map to UTM coordinates
+    :var ego_vehicle_handler: Instance of the EgoVehicleHandler class
+    :var is_computing_trajectory: Boolean to check if trajectory is being computed
+    :var new_initial_pose: Boolean to check if new initial pose is received
+    :var external_velocity_limit: External velocity limit
+    :var tf_buffer: Buffer for tf2_ros
+    :var tf_listener: Transform listener for tf2_ros
+    :var aw_state: Instance of the AutowareState class
+    :var engage_status: Boolean to check if vehicle is engaged
+    :var auto_button_status: Boolean to check if auto button is pressed
+    :var waiting_for_velocity_0: Boolean to check if waiting for velocity to be zero
+    :var routing_state: Instance of the RouteState class
+    :var last_msg_aw_state: Last message AutowareState
+    :var last_msg_aw_stamp: Last message timestamp
+    :var goal_msgs: List of goal messages
+    :var current_goal_msg: Current goal message
+    :var last_goal_reached: Last goal reached timestamp
+    :var initial_pose: Initial pose message
+    :var trajectory_planner_type: Trajectory planner type
+    :var route_planner: Instance of the CommonRoadRoutePlanner class
+    :var trajectory_planner: Instance of the ReactivePlannerInterface class
+    :var interactive_mode: Boolean to check if interactive mode is enabled
+    :var timer_solve_planning_problem: Timer for solving planning problem
+    :var timer_follow_trajectory_mode_update: Timer for updating follow trajectory mode
+    :var save_data_path: Path to save data
+    :var data_generation_handler: Instance of the DataGenerationHandler class
     """
 
     scenario_handler: ScenarioHandler
@@ -108,6 +232,8 @@ class Cr2Auto(Node):
     def __init__(self):
         """
         Constructor of the Cr2Auto class.
+
+        Initializes the Cr2Auto node and sets up the ROS2 interfaces. Sets Autoware state to `WAITING_FOR_ROUTE`.
         """
         # ignore typing due to bug in rclpy
         super().__init__(node_name="cr2autoware")  # type: ignore
@@ -156,7 +282,7 @@ class Cr2Auto(Node):
                                                                                 self.scenario,
                                                                                 self.origin_transformation)
 
-        # intiialize planning-specific attributes
+        # initialize planning-specific attributes
         self.is_computing_trajectory = False  # stop update scenario when trajectory is being computed
         self.new_initial_pose = False
         self.external_velocity_limit = 1337.0
@@ -297,7 +423,10 @@ class Cr2Auto(Node):
     def scenario(self) -> Scenario:
         """
         Get scenario object retrieved from the scenario_handler.
+
         Caution: Does not trigger an update of the scenario.
+
+        :return: CommonRoad scenario
         """
         if self.scenario_handler is None:
             raise RuntimeError("Scenario handler not initialized.")
@@ -307,7 +436,10 @@ class Cr2Auto(Node):
     def planning_problem(self) -> Optional[PlanningProblem]:
         """
         Get planning problem object retrieved from the planning problem handler.
+
         Caution: Does not trigger an update of the planning problem.
+
+        :return: CommonRoad planning problem
         """
         if self.plan_prob_handler is None:
             raise RuntimeError("Planning problem handler not initialized.")
@@ -318,7 +450,7 @@ class Cr2Auto(Node):
         """Set planning problem in the planning problem handler."""
         self.plan_prob_handler.planning_problem = planning_problem
 
-    def _set_velocity_planner(self):
+    def _set_velocity_planner(self) -> None:
         """Initializes the velocity planner"""
         self.velocity_planner = VelocityPlanner(
             self.velocity_pub,
@@ -338,8 +470,13 @@ class Cr2Auto(Node):
         )
 
     # TODO move factory method to separate module
-    def _trajectory_planner_factory(self):
-        """Factory function to initialize trajectory planner according to specified type."""
+    def _trajectory_planner_factory(self) -> ReactivePlannerInterface:
+        """
+        Factory function to initialize trajectory planner according to specified type.
+
+        :return: Instance of the ReactivePlannerInterface class
+        :raises _logger.error: If trajectory planner type is invalid
+        """
         if self.trajectory_planner_type == 1:  # Reactive planner
             return ReactivePlannerInterface(self.traj_pub,
                                             self._logger,
@@ -355,18 +492,20 @@ class Cr2Auto(Node):
             self._logger.error("<Trajectory Planner Factory> Planner type is invalid")
 
     # TODO move factory method to separate module
-    def _route_planner_factory(self):
-        """Factory function to initialize route planner according to specified type."""
+    def _route_planner_factory(self) -> CommonRoadRoutePlanner:
+        """
+        Factory function to initialize route planner according to specified type.
+        
+        :return: Instance of the CommonRoadRoutePlanner class
+        """
         return CommonRoadRoutePlanner(route_pub=self.route_pub,
                                       logger=self._logger,
                                       verbose=self.verbose,
                                       lanelet_network=self.scenario_handler.lanelet_network,
                                       planning_problem=self.planning_problem)
 
-    def _set_cr2auto_mode(self):
-        """
-        Decide whether the CR2Autoware interface goes in interactive planning mode or trajectory following mode.
-        """
+    def _set_cr2auto_mode(self) -> None:
+        """Decide whether the CR2Autoware interface goes in interactive planning mode or trajectory following mode."""
         if self.solution_path == "":
             # set interactive mode to true
             self.interactive_mode = True
@@ -394,11 +533,13 @@ class Cr2Auto(Node):
                 callback=self.follow_trajectory_mode_update,
                 callback_group=self.callback_group)
 
-    def _set_external_velocity_limit(self, vel_limit: float):
+    def _set_external_velocity_limit(self, vel_limit: float) -> None:
         """
-        Sets the velocity limit for CR2Autoware
-        Publishes the velocity limit for RVIZ
-        (Can be removed if external_velocity_limit_selector node is used)
+        Sets the velocity limit for CR2Autoware. 
+
+        Publishes the velocity limit for RVIZ. (Can be removed if external_velocity_limit_selector node is used).
+
+        :param vel_limit: Maximum velocity limit
         """
         # set limit
         self.external_velocity_limit = max(0.0, vel_limit)
@@ -413,8 +554,18 @@ class Cr2Auto(Node):
 
     def solve_planning_problem(self) -> None:
         """
-        Main planning function
+        Main planning function.
+
         Update loop for interactive planning mode and solve planning problem with algorithms offered by CommonRoad.
+
+        * Checks if a planning problem is already being solved
+        * Compute reference path if initial pose was changed
+        * Plan and publish trajectory
+
+
+        :raises Exception: If an error occurs during planning
+        :raises Exception: if new goal pose cannot be set
+        :raises _logger.info: If a planning problem is already being solved
         """
         try:
             # avoid parallel processing issues by checking if a planning problem is already being solved
@@ -516,9 +667,11 @@ class Cr2Auto(Node):
         except Exception:
             self._logger.error(traceback.format_exc())
 
-    def follow_trajectory_mode_update(self):
+    def follow_trajectory_mode_update(self) -> None:
         """
         Update mode for follow trajectory mode. It checks if the goal position is reached.
+
+        :raises Exception: If an error occurs during the update
         """
         try:
             if self.verbose:
@@ -538,14 +691,15 @@ class Cr2Auto(Node):
         except Exception:
             self._logger.error(traceback.format_exc())
 
-    def plot_save_scenario(self):
+    def plot_save_scenario(self) -> None:
+        """Plot and save scenario if enabled in launch file."""
         if self.get_parameter("general.plot_scenario").get_parameter_value().bool_value:
             self._plot_scenario()
 
         if self.write_scenario:
             self._write_scenario()
 
-    def _is_goal_reached(self):
+    def _is_goal_reached(self) -> None:
         """Check if vehicle is in goal region. If in goal region set new goal."""
         if self.planning_problem:
             if (
@@ -579,10 +733,8 @@ class Cr2Auto(Node):
                 else:
                     self._set_new_goal()
 
-    def follow_solution_trajectory(self):
-        """
-        Follow/Replay a trajectory provided by a CommonRoad solution file.
-        """
+    def follow_solution_trajectory(self) -> None:
+        """Follow/Replay a trajectory provided by a CommonRoad solution file."""
         states = self.trajectory_logger.load_trajectory(self.solution_path)
 
         # set initial pose to first position in solution trajectory and publish it
@@ -613,7 +765,8 @@ class Cr2Auto(Node):
 
     def initial_pose_callback(self, msg: PoseWithCovarianceStamped) -> None:
         """
-        Callback to initial pose changes. Save message for later processing
+        Callback to initial pose changes. Save message for later processing.
+
         :param msg: Initial Pose message
         """
 
@@ -628,8 +781,11 @@ class Cr2Auto(Node):
     def routing_state_callback(self, msg: RouteState) -> None:
         """
         Callback to routing state. Checks if "Clear route" button was pressed.
-        Pressing the "Clear Route" button in RVIZ sets the routing state to UNSET. Then the currently planned route and
+
+        Pressing the "Clear Route" button in RVIZ sets the routing state to `UNSET`. Then the currently planned route and
         reference path should be removed.
+
+        :param msg: Route State message
         """
         self.routing_state = msg.state
 
@@ -674,10 +830,8 @@ class Cr2Auto(Node):
                 self.waiting_for_velocity_0 = True
                 self.clear_route()
 
-    def clear_route(self):
-        """
-        Clear route and set AutowareState to WAITING_FOR_ROUTE.
-        """
+    def clear_route(self) -> None:
+        """Clear route and set AutowareState to `WAITING_FOR_ROUTE`."""
         # call reset function of route planner
         self.route_planner.reset()
         self.plan_prob_handler.planning_problem = None
@@ -686,6 +840,7 @@ class Cr2Auto(Node):
     def goal_pose_callback(self, msg: PoseStamped) -> None:
         """
         Callback to goal pose. Safe message to goal message list and set as active goal if no goal is active.
+
         :param msg: Goal Pose message
         """
         self._logger.info("Received new goal pose!")
@@ -709,13 +864,31 @@ class Cr2Auto(Node):
 
     def velocity_limit_callback(self, msg: VelocityLimit) -> None:
         """
-        Callback to external velocity limit from API. We directly subscribe the topic
-        /planning/scenario_planning/max_velocity_default sent from the API in RVIZ.
-        :param msg: Veloctiy Limit message
+        Callback to external velocity limit from API.
+
+        We directly subscribe the topic /planning/scenario_planning/max_velocity_default sent from the API in RVIZ.
+
+        :param msg: Velocity Limit message
         """
         self._set_external_velocity_limit(vel_limit=msg.max_velocity)
 
-    def set_state(self, new_aw_state: AutowareState):
+    def set_state(self, new_aw_state: AutowareState) -> None:
+        """
+        Set new Autoware state and publish it.
+
+        For specific Autoware states, the `/vehicle/engage` signal is set.
+
+        * AW state `DRIVING`: Set `/vehicle/engage` to `True`
+        * AW state `ARRIVED_GOAL`: Set `/vehicle/engage` to `False`
+
+        Special case: If the flag `waiting_for_velocity_0` is set, the vehicle waits until the velocity is zero and
+        then sets `/vehicle/engage` to `False`. This flag is used for two cases:
+
+        * When the stop button is pressed while driving
+        * When clear route is pressed while driving
+
+        :param new_aw_state: New Autoware state
+        """
         self.aw_state.state = new_aw_state
         if self.verbose:
             self._logger.info("Setting new AutowareState to: " + str(new_aw_state))
@@ -745,7 +918,7 @@ class Cr2Auto(Node):
                     self._logger.error("Stop initiated! Velocity is not zero. Timeout!")
                     break
                 time.sleep(0.5)
-            # set /vehicle/engage to False if stop button is pressend and velocity of vehicle is zero
+            # set /vehicle/engage to False if stop button is pressed and velocity of vehicle is zero
             self.engage_status = False
             self._logger.debug("Vehicle stopped! Setting /vehicle/engage to False")
 
@@ -760,13 +933,19 @@ class Cr2Auto(Node):
 
         self.api_engage_pub.publish(engage_msg)
 
-    def get_state(self):
+    def get_state(self) -> AutowareState:
+        """
+        Returns current Autoware state.
+        
+        :return: Current Autoware state
+        """
         return self.aw_state.state
 
     def _set_new_goal(self) -> None:
         """
-        Set the next goal of the goal message list active. Calculate route to new goal.
-        Publish new goal markers and route for visualization in RVIZ.
+        Set the next goal of the goal message list active. 
+        
+        Calculate route to new goal. Publish new goal markers and route for visualization in RVIZ.
         """
         # set new goal if we have one
         if len(self.goal_msgs) > 0:
@@ -871,6 +1050,7 @@ class Cr2Auto(Node):
     def state_callback(self, msg: AutowareState) -> None:
         """
         Callback to autoware state. Save the message for later processing.
+
         :param msg: autoware state message
         """
         self.last_msg_aw_stamp = msg.stamp
@@ -880,9 +1060,12 @@ class Cr2Auto(Node):
     # msg.engage sent by tum_state_rviz_plugin will always be true
     def auto_button_callback(self, msg: Engage) -> None:
         """
-        Method handles processing of AUTO Button
-        - AUTO Button pressed: AutowareState is set to DRIVING if route is set
-        - STOP Button pressed: Stopping in standstill is initiated
+        Method handles processing of AUTO Button.
+
+        * AUTO Button pressed: AutowareState is set to `DRIVING` if route is set
+        * STOP Button pressed: Stopping in standstill is initiated
+
+        :param msg: AUTO button engage message
         """
         self.auto_button_status = msg.engage
 
@@ -919,15 +1102,12 @@ class Cr2Auto(Node):
             self.velocity_planner.plan(self.route_planner.reference_path, _goal_pos_cr,
                                        self.origin_transformation)
 
-        """
-        # reset follow sultion trajectory simulation if interface is in trajectory follow mode and goal is reached
-        if not self.interactive_mode and self.get_state() == AutowareState.ARRIVED_GOAL:
-            self.follow_solution_trajectory()"""
+        # reset following trajectory simulation if interface is in trajectory follow mode and goal is reached
+        # if not self.interactive_mode and self.get_state() == AutowareState.ARRIVED_GOAL:
+        #    self.follow_solution_trajectory()
 
-    def _pub_goals(self):
-        """
-        Publish the goals as markers to visualize in RVIZ.
-        """
+    def _pub_goals(self) -> None:
+        """Publish the goals as markers to visualize in RVIZ."""
         # TODO move this function to Planning Problem Handler??
         goals_msg = MarkerArray()
 
@@ -955,11 +1135,9 @@ class Cr2Auto(Node):
         # TODO why is the route pub used here?? Should be the goal publisher
         self.route_pub.publish(goals_msg)
 
-    def _plot_scenario(self):
-        """
-        Plot the commonroad scenario.
+    def _plot_scenario(self) -> None:
+        """ Plot the commonroad scenario."""
         # TODO: Test function
-        """
         if self.rnd is None:
             self.rnd = MPRenderer()
             plt.ion()
@@ -972,21 +1150,20 @@ class Cr2Auto(Node):
         # self.rnd.draw_params.static_obstacle.occupancy.shape.rectangle.edgecolor = "#000000"
         # self.rnd.draw_params.static_obstacle.occupancy.shape.rectangle.zorder = 50
         # self.rnd.draw_params.static_obstacle.occupancy.shape.rectangle.opacity = 1
-        """self.ego_vehicle_handler.ego_vehicle.draw(self.rnd, draw_params={ # outdate cr-io
-            "static_obstacle": {
-                "occupancy": {
-                    "shape": {
-                        "rectangle": {
-                            "facecolor": "#ff0000",
-                            "edgecolor": '#000000',
-                            "zorder": 50,
-                            "opacity": 1
-                        }
-                    }
-                }
-
-            }
-        })"""
+        # self.ego_vehicle_handler.ego_vehicle.draw(self.rnd, draw_params={ # outdate cr-io
+        #     "static_obstacle": {
+        #         "occupancy": {
+        #             "shape": {
+        #                 "rectangle": {
+        #                     "facecolor": "#ff0000",
+        #                     "edgecolor": '#000000',
+        #                     "zorder": 50,
+        #                     "opacity": 1
+        #                 }
+        #             }
+        #         }
+        #     }
+        # })
         # self.rnd.draw_params["static_obstacle"]["occupancy"]["shape"]["rectangle"]["facecolor"] = "#ff0000"
         cr_ego_vehicle.draw(self.rnd)
 
@@ -996,10 +1173,8 @@ class Cr2Auto(Node):
         self.rnd.render()
         plt.pause(0.1)
 
-    def _write_scenario(self):
-        """
-        Store converted map as CommonRoad scenario.
-        """
+    def _write_scenario(self) -> None:
+        """Store converted map as CommonRoad scenario."""
         planning_problem = PlanningProblemSet()
         if self.planning_problem:
             planning_problem.add_planning_problem(self.planning_problem)
@@ -1018,11 +1193,13 @@ class Cr2Auto(Node):
         )
 
     def transform_pose(self, pose_in: PoseStamped, target_frame: str = "map") -> PoseStamped:
-        """Transform a `PoseStamped` message to the target frame.
+        """
+        Transform a `PoseStamped` message to the target frame.
 
-        Args:
-            pose_in (PoseStamped): Pose to transform.
-            target_frame (str, optional): Target frame. Defaults to "map".
+        :param pose_in: Pose to transform
+        :param target_frame: Target frame
+        :return: Transformed pose
+        :raises Exception: If tf2_ros.ExtrapolationException occurs
         """
         source_frame = pose_in.header.frame_id
 
@@ -1051,6 +1228,15 @@ class Cr2Auto(Node):
 
 
 def main(args=None):
+    """
+    Initialize the ROS2 node and execute it in a multi-threaded environment.
+
+    This function initializes the ROS2 node for the Cr2Auto class, adds it to a multi-threaded executor,
+    and keeps it spinning to handle callbacks. Before shutting down the ROS2 context, it ensures the node
+    is properly destroyed.
+
+    :param args: Arguments passed to the ROS2 node initialization, defaults to None.
+    """
     rclpy.init(args=args)
     cr2auto = Cr2Auto()
     # Create executor for multithreded execution

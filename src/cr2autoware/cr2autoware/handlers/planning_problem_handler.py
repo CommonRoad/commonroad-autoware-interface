@@ -51,15 +51,31 @@ from ..common.ros_interface.specs_publisher import \
 class PlanningProblemHandler(BaseHandler):
     """
     Handles communication with Autoware for CommonRoad PlanningProblem relevant data.
-    Keeps an up to date state of the current planning problem in CommonRoad format.
 
-    ======== Publishers:
-    _INITIAL_POSE_PUBLISHER: "/initialpose"
-    _GOAL_POSE_PUBLISHER: "/planning/mission_planning/goal"
-    _GOAL_REGION_PUBLISHER: "/goal_region_marker_array"
+    Keeps an up-to-date state of the current planning problem in CommonRoad format.
 
-    ======== Subscribers:
+    -------------------
+    **Publishers:**
 
+    * _INITIAL_POSE_PUBLISHER:
+        * Description: Publishes the initial pose of the vehicle.
+        * Topic: :topic:`/initialpose`
+        * Message Type: :message_type:`geometry_msgs.msg.PoseWithCovarianceStamped`
+    * _GOAL_POSE_PUBLISHER:
+        * Description: Publishes the goal pose of the vehicle.
+        * Topic: :topic:`/planning/mission_planning/goal`
+        * Message Type: :message_type:`geometry_msgs.msg.PoseStamped`
+    * _GOAL_REGION_PUBLISHER:
+        * Description: Publishes the goal region of the vehicle.
+        * Topic: :topic:`/goal_region_marker_array`
+        * Message Type: :message_type:`visualization_msgs.msg.MarkerArray`
+
+    -------------------
+    :var MAP_PATH: path to the CommonRoad file
+    :var _planning_problem: planning problem in CommonRoad format
+    :var _INITIAL_POSE_PUBLISHER: publisher for initial pose
+    :var _GOAL_POSE_PUBLISHER: publisher for goal pose
+    :var _GOAL_REGION_PUBLISHER: publisher for goal region
     """
 
     # Constants and parameters
@@ -73,6 +89,12 @@ class PlanningProblemHandler(BaseHandler):
     _GOAL_REGION_PUBLISHER: Publisher
 
     def __init__(self, node: "Cr2Auto", scenario: Scenario, origin_transformation: List[float]):
+        """Constructor for PlanningProblemHandler.
+
+        :param node: reference to Cr2Auto ROS2 node
+        :param scenario: reference to CommonRoad scenario
+        :param origin_transformation: transformation from UTM (CommonRoad) to map (Autoware) coordinates
+        """
         # init base class
         super().__init__(node=node,
                          logger=node.get_logger().get_child("planning_problem_handler"),
@@ -94,15 +116,21 @@ class PlanningProblemHandler(BaseHandler):
         if self._planning_problem is not None:
             self.publish_initial_states(self._planning_problem, scenario, origin_transformation)
 
-    def _init_parameters(self):
+    def _init_parameters(self) -> None:
+        """Initialize parameters from the node.
+
+        :raises ValueError: if the map path is not found
+        """
         self.MAP_PATH = self._get_param("general.map_path").string_value
         if not Path(self.MAP_PATH).exists():
             raise ValueError("Can't find given map path: %s" % self.MAP_PATH)
 
-    def _init_subscriptions(self):
+    def _init_subscriptions(self) -> None:
+        """Initialize subscriptions."""
         pass
 
-    def _init_publishers(self):
+    def _init_publishers(self) -> None:
+        """Initialize publishers."""
         # publish initial pose
         self._INITIAL_POSE_PUBLISHER = create_publisher(self._node, spec_initial_pose_2d_pub)
 
@@ -113,7 +141,13 @@ class PlanningProblemHandler(BaseHandler):
         self._GOAL_REGION_PUBLISHER = create_publisher(self._node, spec_goal_region_pub)
 
     def _load_planning_problem(self, map_path: str) -> Optional[PlanningProblem]:
-        """Load the planning problem from the CommonRoad file."""
+        """
+        Load the planning problem from the CommonRoad file.
+        
+        :param map_path: path to the CommonRoad file
+        :return: planning problem in CommonRoad format
+        :raises StopIteration: if no CommonRoad file is found
+        """
         xml_files = glob.iglob(Path(map_path).joinpath("*.[xX][mM][lL]").as_posix())
         try:
             commonroad_map_file = next(xml_files)
@@ -134,7 +168,11 @@ class PlanningProblemHandler(BaseHandler):
 
     @property
     def planning_problem(self) -> Optional[PlanningProblem]:
-        """Get the planning problem in CommonRoad format."""
+        """
+        Get the planning problem in CommonRoad format.
+        
+        :return: planning problem in CommonRoad format
+        """
         if self._planning_problem is None:
             self._logger.info("No planning problem loaded.")
         return self._planning_problem
@@ -148,8 +186,14 @@ class PlanningProblemHandler(BaseHandler):
         planning_problem: PlanningProblem,
         scenario: Scenario,
         origin_transformation: List[float],
-    ):
-        """Publish the initial state, the goal, and the goal region from the commonroad scenario to Autoware."""
+    ) -> None:
+        """
+        Publish the initial state, the goal, and the goal region from the CommonRoad scenario to Autoware.
+        
+        :param planning_problem: planning problem in CommonRoad format
+        :param scenario: scenario in CommonRoad format
+        :param origin_transformation: transformation from UTM (CommonRoad) to map (Autoware) coordinates
+        """
         self._publish_initial_pose(planning_problem, origin_transformation)
         self._publish_initial_goal(planning_problem, scenario, origin_transformation)
 
@@ -157,7 +201,13 @@ class PlanningProblemHandler(BaseHandler):
         self,
         planning_problem: PlanningProblem,
         origin_transformation: List[float],
-    ):
+    ) -> None:
+        """
+        Publish the initial pose to the `/initialpose` topic.
+
+        :param planning_problem: planning problem in CommonRoad format
+        :param origin_transformation: transformation from UTM (CommonRoad) to map (Autoware) coordinates
+        """
         # publish the initial pose to the autoware PoseWithCovarianceStamped
         initial_state = planning_problem.initial_state
         initial_pose_msg = PoseWithCovarianceStamped()
@@ -179,7 +229,15 @@ class PlanningProblemHandler(BaseHandler):
         planning_problem: PlanningProblem,
         scenario: Scenario,
         origin_transformation: List[float],
-    ):
+    ) -> None:
+        """
+        Publish the goal pose and the goal region to the `/planning/mission_planning/goal` and
+        `/goal_region_marker_array` topics.
+
+        :param planning_problem: planning problem in CommonRoad format
+        :param scenario: scenario in CommonRoad format
+        :param origin_transformation: transformation from UTM (CommonRoad) to map (Autoware) coordinates
+        """
         # Don't publish if there is no goal
         if len(planning_problem.goal.state_list) <= 0:
             return
@@ -263,6 +321,14 @@ class PlanningProblemHandler(BaseHandler):
     def _get_goal_from_lanelet(
         self, goal_position: ShapeGroup, scenario: Scenario
     ) -> Tuple[Optional[np.ndarray], Optional[Quaternion]]:
+        """
+        Get the goal position and orientation from the lanelet.
+
+        :param goal_position: goal position in CommonRoad format
+        :param scenario: scenario in CommonRoad format
+        :return: goal position and orientation
+        :raises AssertionError: if the orientation cannot be derived from the lanelet
+        """
         shape = goal_position.shapes[0]
         assert isinstance(shape, Polygon)
 

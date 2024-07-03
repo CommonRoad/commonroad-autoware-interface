@@ -1,3 +1,11 @@
+"""
+General Utils
+===========================
+
+This module contains general utility functions that are used throughout the package.
+
+---------------------------
+"""
 # standard imports
 
 # third party
@@ -23,10 +31,11 @@ from .transform import utm2map
 from .transform import orientation2quaternion
 
 
-def create_goal_marker(position):
-    """Create a ros sphere marker to represent a goal.
+def create_goal_marker(position) -> Marker:
+    """
+    Create a ros sphere marker to represent a goal.
 
-    :param: position: ros pose.position
+    :param position: ros pose.position
     :return: new marker
     """
     marker = Marker()
@@ -48,10 +57,11 @@ def create_goal_marker(position):
     return marker
 
 
-def create_goal_region_marker(shape, origin_transformation):
-    """Create a ros marker to represent a goal_region.
+def create_goal_region_marker(shape, origin_transformation) -> Marker:
+    """
+    Create a ros marker to represent a goal_region.
 
-    :param: shape: shape(s) of the goal region
+    :param shape: shape(s) of the goal region
     :param origin_transformation: list or array with 2 elements
     :return: new marker
     """
@@ -92,10 +102,13 @@ def create_goal_region_marker(shape, origin_transformation):
 
 
 def create_route_marker_msg(path: np.ndarray, velocities: np.ndarray, elevation: float) -> MarkerArray:
-    """Create a message for a route in rviz Marker.LINE_STRIP format.
+    """
+    Create a message for a route in rviz Marker.LINE_STRIP format.
 
-    :param path:
-    :param velocities:
+    :param path: path for the route
+    :param velocities: velocities for the route
+    :param elevation: elevation for the route
+    :return: route marker message
     """
     route = Marker()
     route.header.frame_id = "map"
@@ -144,8 +157,9 @@ def create_route_marker_msg(path: np.ndarray, velocities: np.ndarray, elevation:
     return route_msg
 
 
-def create_object_base_msg(header, origin_transformation, obstacle):
-    """Create a base Object message for static and dynamic obstacles.
+def create_object_base_msg(header, origin_transformation, obstacle) -> Object:
+    """
+    Create a base Object message for static and dynamic obstacles.
 
     :param header: header message for Object
     :param origin_transformation: list or array with 2 elements
@@ -167,8 +181,9 @@ def create_object_base_msg(header, origin_transformation, obstacle):
     return object_msg
 
 
-def log_obstacle(object_msg, static):
-    """Simplify obstacle logging.
+def log_obstacle(object_msg, static) -> str:
+    """
+    Simplify obstacle logging.
 
     :param object_msg: Object message that contains obstacle information
     :param static: True for static and False for dynamic obstacles
