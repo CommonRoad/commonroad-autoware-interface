@@ -137,6 +137,7 @@ spec_traj = SubscriptionSpec(
     depth=1
 )
 
+# subscribe objects from perception
 spec_objects_sub = SubscriptionSpec(
     name="/perception/object_recognition/objects",
     msg_type=PredictedObjects,
@@ -144,16 +145,7 @@ spec_objects_sub = SubscriptionSpec(
 )
 
 
-# TODO: merge with above and check in rosbag_saving_handler etc.
 # subscribe traffic signals from perception
-spec_traffic_lights = SubscriptionSpec(name="/perception/traffic_light_recognition/traffic_signals",
-                                            msg_type=TrafficSignalArray,
-                                            depth=1)
-
-
-
-
-# subscribes to traffic lights
 spec_traffic_lights = SubscriptionSpec(
     name="/perception/traffic_light_recognition/traffic_signals",
     msg_type=TrafficSignalArray,
