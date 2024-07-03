@@ -47,17 +47,38 @@ class EgoVehicleState(InitialState):
 
 class EgoVehicleHandler(BaseHandler):
     """
-    # Update of the CR Ego vehicle with current vehicle state from Autoware.
+    Update of the CR Ego vehicle with current vehicle state from Autoware.
 
-    # This class should contain all methods related to updating the CommonRoad Ego Vehicle object with the current ego state from Autoware
-    # contains subscription/callbacks to current ego vehicle state from AW
-    # contains all associated methods necessary for transformations etc...
+    This class should contain all methods related to updating the CommonRoad Ego Vehicle object with the current ego
+    state from Autoware:
 
-    ======== Publishers:
+    * contains subscription/callbacks to current ego vehicle state from AW
+    * contains all associated methods necessary for transformations etc...
 
-    ======== Subscribers:
-    "/localization/kinematic_state" (subscribes to Odometry message)
-    "/localization/acceleration" (subscribes to AccelWithCovarianceStamped message)
+    -------------------
+    **Subscribers:**
+
+    * _current_state_callback:
+        * Description: Callback to current kinematic state of the ego vehicle
+        * Topic: `/localization/kinematic_state`
+        * Message Type: `nav_msgs.msg.Odometry`
+    * _current_acc_callback:
+        * Description: Callback to current acceleration of the ego vehicle
+        * Topic: `/localization/acceleration`
+        * Message Type: `geometry_msgs.msg.AccelWithCovarianceStamped`
+
+    -------------------
+    :var _vehicle_length: length of the ego vehicle1111
+    :var _vehicle_width: width of the ego vehicle
+    :var _vehicle_wheelbase: wheelbase of the ego vehicle
+    :var _vehicle_wb_front_axle: distance from front axle to center of gravity
+    :var _vehicle_wb_rear_axle: distance from rear axle to center of gravity
+    :var _vehicle_max_steer_angle: maximum steering angle of the ego vehicle
+    :var _vehicle_max_acceleration: maximum acceleration of the ego vehicle
+    :var _ego_vehicle_state: current ego vehicle state
+    :var _current_vehicle_state: current vehicle state from odometry
+    :var _current_vehicle_acc: current vehicle acceleration
+    :var new_pose_received: flag for new pose received
     """
 
     _vehicle_length: Optional[float] = None
@@ -69,7 +90,11 @@ class EgoVehicleHandler(BaseHandler):
     _vehicle_max_acceleration: Optional[float] = None
 
     def __init__(self, node: "Cr2Auto"):
-        # init base class
+        """
+        Constructor for EgoVehicleHandler class.
+        
+        :param node: reference to CR2Auto ROS2 node
+        """
         super().__init__(node=node,
                          logger=node.get_logger().get_child("ego_vehicle_handler"),
                          verbose=node.verbose)
@@ -109,6 +134,7 @@ class EgoVehicleHandler(BaseHandler):
         self._vehicle_max_acceleration = max_acceleration
 
     def _init_subscriptions(self):
+        """Initialize subscriptions."""
         # subscribe current state from odometry
         _ = create_subscription(self._node, spec_odometry, self._current_state_callback, self._node.callback_group)
 
@@ -116,49 +142,94 @@ class EgoVehicleHandler(BaseHandler):
         _ = create_subscription(self._node, spec_curr_acc, self._current_acc_callback, self._node.callback_group)
 
     def _init_publishers(self):
+        """Initialize publishers."""
         pass
 
     @property
     def ego_vehicle_state(self) -> Optional[EgoVehicleState]:
-        """CommonRoad ego vehicle state. Coordinates in CR frame"""
+        """
+        CommonRoad ego vehicle state. Coordinates in CR frame
+        
+        :return: ego vehicle state
+        """
         return self._ego_vehicle_state
 
     @property
-    def current_vehicle_state(self):
-        """Autoware ego vehicle state msg. Coordinates in AW map frame"""
+    def current_vehicle_state(self) -> Odometry:
+        """
+        Autoware ego vehicle state msg. Coordinates in AW map frame
+        
+        :return: current vehicle state
+        """
         return self._current_vehicle_state
 
     @property
-    def vehicle_length(self):
+    def vehicle_length(self) -> Optional[float]:
+        """
+        Get the length of the ego vehicle.
+
+        :return: length of the ego vehicle
+        """
         return self._vehicle_length
 
     @property
-    def vehicle_width(self):
+    def vehicle_width(self) -> Optional[float]:
+        """
+        Get the width of the ego vehicle.
+        
+        :return: width of the ego vehicle
+        """
         return self._vehicle_width
 
     @property
-    def vehicle_wheelbase(self):
+    def vehicle_wheelbase(self) -> Optional[float]:
+        """
+        Get the wheelbase of the ego vehicle.
+
+        :return: wheelbase of the ego vehicle
+        """
         return self._vehicle_wheelbase
 
     @property
-    def vehicle_wb_front_axle(self):
+    def vehicle_wb_front_axle(self) -> Optional[float]:
+        """
+        Get the front axle track width of the ego vehicle.
+
+        :return: front axle track width of the ego vehicle
+        """
         return self._vehicle_wb_front_axle
 
     @property
-    def vehicle_wb_rear_axle(self):
+    def vehicle_wb_rear_axle(self) -> Optional[float]:
+        """
+        Get the rear axle track width of the ego vehicle.
+
+        :return: rear axle track width of the ego vehicle
+        """
         return self._vehicle_wb_rear_axle
 
     @property
-    def vehicle_max_steer_angle(self):
+    def vehicle_max_steer_angle(self) -> Optional[float]:
+        """
+        Get the maximum steering angle of the ego vehicle.
+        
+        :return: maximum steering angle of the ego vehicle
+        """
         return self._vehicle_max_steer_angle
 
     @property
-    def vehicle_max_acceleration(self):
+    def vehicle_max_acceleration(self) -> Optional[float]:
+        """
+        Get the maximum acceleration of the ego vehicle.
+
+        :return: maximum acceleration of the ego vehicle
+        """
         return self._vehicle_max_acceleration
 
     def _current_state_callback(self, msg: Odometry) -> None:
         """
         Callback to current kinematic state of the ego vehicle.
+
         :param msg: current kinematic state message
         """
         self._current_vehicle_state = msg
@@ -167,7 +238,9 @@ class EgoVehicleHandler(BaseHandler):
     def _current_acc_callback(self, msg: AccelWithCovarianceStamped) -> None:
         """
         Callback to current acceleration of the ego vehicle.
-        NOTE: acceleration is currently not part of kinematic state message, that's why separate callback is required
+
+        **Note:** acceleration is currently not part of kinematic state message, that's why separate callback is required
+
         :param msg: current acceleration message
         """
         # store acceleration message
@@ -224,10 +297,8 @@ class EgoVehicleHandler(BaseHandler):
                 steering_angle=steering_angle,
             )
 
-    def update_ego_vehicle(self):
-        """
-        Update the state of the ego vehicle using the localization input.
-        """
+    def update_ego_vehicle(self) -> None:
+        """Update the state of the ego vehicle using the localization input."""
         # process last state message
         if self._current_vehicle_state is not None:
             self._logger.info("Updating ego vehicle")
@@ -248,17 +319,19 @@ class EgoVehicleHandler(BaseHandler):
             self._logger.info("No vehicle state received")
             return
 
-    def _print_summary(self, t_elapsed: float):
-        """
-         Prints current ego vehicle update to console via ROS logger for debugging
-        """
+    def _print_summary(self, t_elapsed: float) -> None:
+        """Prints current ego vehicle update to console via ROS logger for debugging."""
         self._logger.debug(f"###### EGO VEHICLE UPDATE (time step: {self._ego_vehicle_state.time_step})")
         self._logger.debug(f"\t Ego vehicle update took: {t_elapsed} s")
         self._logger.debug(f"\t Current position: {self._ego_vehicle_state.position}")
         self._logger.debug(f"\t Current velocity: {self._ego_vehicle_state.velocity}")
 
-    def get_cr_ego_vehicle(self):
-        """Create a new ego vehicle with current position for visualization."""
+    def get_cr_ego_vehicle(self) -> DynamicObstacle:
+        """
+        Create a new ego vehicle with current position for visualization.
+        
+        :return: ego vehicle object
+        """
         ego_vehicle_id = self._node.scenario_handler.scenario.generate_object_id()
         ego_vehicle_type = ObstacleType.CAR
         ego_vehicle_shape = Rectangle(width=self.vehicle_width, length=self.vehicle_length)

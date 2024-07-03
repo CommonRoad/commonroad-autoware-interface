@@ -26,7 +26,18 @@ from cr2autoware.common.utils.message import create_route_marker_msg
 class RoutePlannerInterface(ABC):
     """
     Abstract base class for a route planner interface.
+
     Defines basic attributes and abstract methods to be implemented by derived route planners.
+
+    :var _route_pub: reference to route publisher
+    :var _logger: reference to ROS logger
+    :var _verbose: constant for verbose logging
+    :var lanelet_network: lanelet network from CommonRoad scenario
+    :var _planner: reference to planner class
+    :var _reference_path: reference path
+    :var _route_list_lanelet_ids: list of route lanelet IDs
+    :var _is_route_planned: bool to check if route planned
+    :var _is_ref_path_published: bool to check if reference path published
     """
 
     # reference to route publisher
@@ -39,10 +50,13 @@ class RoutePlannerInterface(ABC):
     def __init__(self, route_pub: Publisher, logger: RcutilsLogger, verbose: bool, lanelet_network: LaneletNetwork,
                  **kwargs):
         """
-        :param route_pub: ROS2 node publisher
+        Constructor for RoutePlannerInterface class.
+
+        :param route_pub: ROS2 node publisher for route
         :param logger: ROS2 node logger
         :param verbose: verbose logging True/False
         :param lanelet_network: lanelet network from CommonRoad scenario
+        :param kwargs: additional keyword arguments
         """
         # initialize route publisher
         self._route_pub = route_pub
@@ -69,22 +83,38 @@ class RoutePlannerInterface(ABC):
 
     @property
     def reference_path(self) -> Optional[np.ndarray]:
-        """Getter for reference path"""
+        """
+        Getter for reference path.
+        
+        :return: reference path
+        """
         return self._reference_path
 
     @property
     def is_route_planned(self) -> bool:
-        """Getter for route planned bool"""
+        """
+        Getter for route planned bool.
+        
+        :return: route planned bool
+        """
         return self._is_route_planned
 
     @property
     def is_ref_path_published(self) -> bool:
-        """Getter for ref path published bool"""
+        """
+        Getter for ref path published bool.
+        
+        :return: ref path published bool
+        """
         return self._is_ref_path_published
 
     @property
-    def lanelet_network(self):
-        """Getter for lanelet network"""
+    def lanelet_network(self) -> LaneletNetwork:
+        """
+        Getter for lanelet network.
+        
+        :return: lanelet network
+        """
         return self._lanelet_network
 
     @lanelet_network.setter
@@ -94,20 +124,31 @@ class RoutePlannerInterface(ABC):
 
     @abstractmethod
     def _initialize_planner(self, **kwargs) -> Any:
-        """Abstract method to initialize the self._planner."""
+        """
+        Abstract method to initialize the self._planner.
+        
+        :param kwargs: additional keyword arguments
+        :return: planner class
+        """
         pass
 
     @abstractmethod
-    def _plan(self, planning_problem: Optional[PlanningProblem] = None, **kwargs):
+    def _plan(self, planning_problem: Optional[PlanningProblem] = None, **kwargs) -> None:
         """
         Plans a route and a reference path for the given planning problem.
-        The planning algorithm is implemented in the respective planner (self._planner)
+
+        The planning algorithm is implemented in the respective planner (self._planner).
+
+        :param planning_problem: planning problem
         """
         pass
 
-    def plan(self, planning_problem: Optional[PlanningProblem] = None, **kwargs):
+    def plan(self, planning_problem: Optional[PlanningProblem] = None, **kwargs) -> None:
         """
         Calls the encapsulated _plan function. If planning result is valid, sets _is_route_planned to True.
+
+        :param planning_problem: planning problem
+        :param kwargs: additional keyword arguments
         """
         self.reset()
         self._logger.info("<RoutePlannerInterface>: Planning route")
@@ -120,10 +161,8 @@ class RoutePlannerInterface(ABC):
             self._logger.info("<RoutePlannerInterface> No valid route and reference path found")
             self._is_route_planned = False
 
-    def reset(self):
-        """
-        Resets route and reference path (e.g., when desired by the user upon pressing Clear Route)
-        """
+    def reset(self) -> None:
+        """Resets route and reference path (e.g., when desired by the user upon pressing Clear Route)."""
         # reset reference path and route
         self._reference_path = None
         self._route_list_lanelet_ids = None
@@ -135,6 +174,14 @@ class RoutePlannerInterface(ABC):
     @staticmethod
     def _prepare_route_marker_msg(path: np.ndarray = None, velocities: np.ndarray = None,
                                   elevation: Optional[float] = None) -> MarkerArray:
+        """
+        Prepare route marker message for visualization in RVIZ.
+
+        :param path: reference path
+        :param velocities: velocities along the reference path
+        :param elevation: elevation of the reference path
+        :return: route marker message
+        """
         if path is None:
             path = np.array([])
         if velocities is None:
@@ -145,9 +192,13 @@ class RoutePlannerInterface(ABC):
         
         return create_route_marker_msg(path, velocities, elevation)
 
-    def publish(self, path: np.ndarray = None, velocities: np.ndarray = None, elevation: float = None):
+    def publish(self, path: np.ndarray = None, velocities: np.ndarray = None, elevation: float = None) -> None:
         """
         Publish route markers of planned reference path to visualize in RVIZ.
+
+        :param path: reference path
+        :param velocities: velocities along the reference path
+        :param elevation: elevation of the reference path
         """
         route_marker_msg = self._prepare_route_marker_msg(path, velocities, elevation)
         self._route_pub.publish(route_marker_msg)

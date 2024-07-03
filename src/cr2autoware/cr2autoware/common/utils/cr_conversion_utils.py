@@ -1,3 +1,70 @@
+"""
+CR to Autoware Conversion Utils
+=============================
+
+This module provides functions to convert data from CommonRoad to Autoware and vice versa.
+
+-----------------------
+**Dictionaries:**
+
+* dict_autoware_to_cr_obstacle_type: Dict[int, ObstacleType]
+    * Description: Dictionary to map Autoware obstacle ids to CommonRoad obstacle types.
+    * Key: Autoware obstacle id
+    * Value: CommonRoad obstacle type
+    * Mapping:
+        * 0: UNKNOWN
+        * 1: CAR
+        * 2: TRUCK
+        * 3: BUS
+        * 4: TRUCK
+        * 5: MOTORCYCLE
+        * 6: BICYCLE
+        * 7: PEDESTRIAN
+
+* dict_autoware_to_commonroad_traffic_light_color: Dict[int, TrafficLightState]
+    * Description: Dictionary to map Autoware traffic light colors to CommonRoad traffic light states   .
+    * Key: Autoware traffic light color
+    * Value: CommonRoad traffic light state
+    * Mapping:
+        * 1: RED
+        * 2: YELLOW
+        * 3: GREEN
+        * 18: UNKNOWN
+        * 4: WHITE
+        * Additional states CommonRoad:
+            * TrafficLightState.RED_YELLOW
+            * TrafficLightState.INACTIVE
+
+* dict_autoware_to_commonroad_traffic_light_shape: Dict[int, TrafficLightDirection]
+    * Description: Dictionary to map Autoware traffic light shapes to CommonRoad traffic light directions.
+    * Key: Autoware traffic light shape
+    * Value: CommonRoad traffic light direction
+    * Mapping:
+        * 5: CIRCLE
+        * 6: LEFT_ARROW
+        * 7: RIGHT_ARROW
+        * 8: UP_ARROW
+        * 9: UP_LEFT_ARROW
+        * 10: UP_RIGHT_ARROW
+        * Additional states Autoware:
+            * 11: DOWN_ARROW
+            * 12: DOWN_LEFT_ARROW
+            * 13: DOWN_RIGHT_ARROW
+            * 18: UNKNOWN
+            * 0: CROSS
+        * Additional states CommonRoad:
+            * TrafficLightDirection.LEFT_RIGHT
+
+
+* dict_autoware_to_commonroad_traffic_light_status: Dict[int, bool]
+    * Description: Dictionary to map Autoware traffic light status to CommonRoad traffic light status.
+    * Key: Autoware traffic light status
+    * Value: CommonRoad traffic light status
+    * Mapping:
+        * 15: SOLID_OFF
+        * 16: SOLID_ON
+-----------------------
+"""
 # standard imports
 import math
 import os
@@ -57,7 +124,6 @@ dict_autoware_to_cr_obstacle_type: Dict[int, ObstacleType] = {
 }
 
 
-
 dict_autoware_to_commonroad_traffic_light_color: Dict[int, TrafficLightState] = {
     1: TrafficLightState.RED,  # AW: RED
     2: TrafficLightState.YELLOW,  # AW: AMBER
@@ -70,6 +136,7 @@ dict_autoware_to_commonroad_traffic_light_color: Dict[int, TrafficLightState] = 
     # TrafficLightState.RED_YELLOW
     # TrafficLightState.INACTIVE
 }
+
 
 dict_autoware_to_commonroad_traffic_light_shape: Dict[int, TrafficLightDirection] = {
     5: TrafficLightDirection.ALL,  # AW: CIRCLE
@@ -89,6 +156,7 @@ dict_autoware_to_commonroad_traffic_light_shape: Dict[int, TrafficLightDirection
     # TrafficLightDirection.LEFT_RIGHT
 }
 
+
 dict_autoware_to_commonroad_traffic_light_status: Dict[int, bool] = {
     15: False,  # AW: SOLID_OFF
     16: True,  # AW: SOLID_ON
@@ -101,7 +169,8 @@ dict_autoware_to_commonroad_traffic_light_status: Dict[int, bool] = {
 
 def convert_ros2_time_stamp_to_tuple(stamp) -> Tuple[int, int]:
     """
-    Converts the time stamp of a message into a tuple[sec, nano_sec]
+    Converts the time stamp of a message into a tuple[sec, nano_sec].
+
     :param stamp: ros2 stamp msg
     :return: stamp as Tuple[int,int]
     """
@@ -110,18 +179,16 @@ def convert_ros2_time_stamp_to_tuple(stamp) -> Tuple[int, int]:
     return (seconds, nano_seconds)
 
 
-
-
 def convert_vector3_to_numpy(
         vector3: Vector3
 ) -> np.ndarray:
     """
-    Transform position (in autoware) to position (in commonroad).
+    Transform position (in Autoware) to position (in CommonRoad).
+
     :param vector3: ros2 vector3 msg
     :return: numpy (3,) array
     """
     return np.array([vector3.x, vector3.y, vector3.z])
-
 
 
 def convert_ros2_pose_to_cr_custom_state(
@@ -132,10 +199,11 @@ def convert_ros2_pose_to_cr_custom_state(
         stamp: Tuple[int,int] = None
 ) -> CustomState:
     """
-    Converts ros2 pose into commonroad custom state object:
+    Converts ros2 pose into CommonRoad custom state object.
+
     :param pose: Autoware pose msg
-    :param origin_transform:origin transformation from autoware to CommonRoad
-    :param time_step: commonroad time step
+    :param origin_transform: origin transformation from Autoware to CommonRoad
+    :param time_step: CommonRoad time step
     :param twist: Autoware twist message
     :param stamp: ros2 time stamp
     :return: CommonRoad custom state object
@@ -167,23 +235,22 @@ def convert_ros2_pose_to_cr_custom_state(
                        ros2_time_stamp=ros2_time_stamp)
 
 
-
 def convert_ros2_trajectory_to_cr_trajectory(
         trajectory: List[TrajectoryPoint],
         origin_transform: List[float],
         stamp=None
 ) -> CRTrajectory:
     """
-    Converts ros2 pose into commonroad custom state object.
-    :param trajectory: list of autoware trajectory points.
-    :param origin_transform: origin transformation from autoware to CommonRoad
+    Converts ros2 pose into CommonRoad custom state object.
+
+    :param trajectory: list of Autoware trajectory points.
+    :param origin_transform: origin transformation from Autoware to CommonRoad
     :param stamp: ros2 time stamp
     :return: CommonRoad trajectory
     """
     ros2_time_stamp: Tuple[int,int] = None
     if(stamp is not None):
         ros2_time_stamp = convert_ros2_time_stamp_to_tuple(stamp)
-
 
     state_list: List[CustomState] = list()
     for i in range(len(trajectory)):
@@ -202,9 +269,7 @@ def convert_ros2_trajectory_to_cr_trajectory(
     if(len(state_list) == 0):
         raise ValueError('trajectory state list is empty')
 
-
     return CRTrajectory(0, state_list)
-
 
 
 def convert_ros2_predicted_path_to_cr_trajectory(
@@ -212,9 +277,10 @@ def convert_ros2_predicted_path_to_cr_trajectory(
         origin_transform: List[float]
 ) -> CRTrajectory:
     """
-    Converts ros2 pose into commonroad custom state object.
-    :param predicted_path: predicted autoware path
-    :param origin_transform: origin transformation from autoware to CommonRoad
+    Converts ros2 pose into Commonroad custom state object.
+
+    :param predicted_path: predicted Autoware path
+    :param origin_transform: origin transformation from Autoware to CommonRoad
     :return: CommonRoad trajectory object
     """
     state_list: List[CustomState] = list()
@@ -231,10 +297,7 @@ def convert_ros2_predicted_path_to_cr_trajectory(
     if(len(state_list) == 0):
         raise ValueError('predicted path conversion: state list is empty')
 
-
     return CRTrajectory(0, state_list)
-
-
 
 
 def convert_ros2_predicted_objects_to_cr_dynamic_obstacles(
@@ -242,11 +305,12 @@ def convert_ros2_predicted_objects_to_cr_dynamic_obstacles(
         origin_transform: List[float],
         step: int,
         stamp=None
-)->List[DynamicObstacle]:
+) -> List[DynamicObstacle]:
     """
     Converts a ROS2 detected object to a CommonRoad static obstacle.
+
     :param msg: Autoware predicted objects message
-    :param origin_transform: origin transformation from autoware to CommonRoad map
+    :param origin_transform: origin transformation from Autoware to CommonRoad map
     :param step: time step
     :param stamp: ros2 time stamp
     :return: list of CommonRoad dynamic obstacles of time-step
@@ -297,7 +361,6 @@ def convert_ros2_predicted_objects_to_cr_dynamic_obstacles(
             time_step=time_step,
         )
 
-
         # predicted trajectory
         predicted_trajectory: CRTrajectory = get_cr_trajectory_with_with_highest_probability(kinematics.predicted_paths,
                                                                                         origin_transform)
@@ -328,9 +391,10 @@ def convert_uuid_to_int(
 ) -> int:
     """
     Quick and dirty conversion for uuid.
+
     :param uuid: array of int
     :param offset: offset so no clash with other cr-ids occurs
-    :return: integer
+    :return:
     """
     id_str: str = ""
     for idx in range(uuid.shape[0]):
@@ -339,12 +403,12 @@ def convert_uuid_to_int(
     return int(id_str) + offset
 
 
-
 def get_classification_with_highest_probability(
         classification: List[ObjectClassification]
 ) -> int:
     """
-    Finds class with highest probatility.
+    Finds class with the highest probability.
+
     :param classification: list of classification objects
     :return: label (int) of highest classification
     """
@@ -357,13 +421,13 @@ def get_cr_trajectory_with_with_highest_probability(
 ) -> CRTrajectory:
     """
     Finds predicted path with the highest confidence and returns a CRTrajectory from it.
-    :param path_list: list of Autoware pridictited path
-    :param origin_transform: origin transformation from autoware to CommonRoad
+
+    :param path_list: list of Autoware predicted path
+    :param origin_transform: origin transformation from Autoware to CommonRoad
     :return: CommonRoad trajectory object
     """
     best_path: PredictedPath = sorted(path_list, key=lambda x: x.confidence, reverse=True)[0]
     return convert_ros2_predicted_path_to_cr_trajectory(best_path, origin_transform)
-
 
 
 def save_cr_xml_scenario(
@@ -374,6 +438,7 @@ def save_cr_xml_scenario(
 ) -> None:
     """
     Store converted map as CommonRoad scenario.
+
     :param save_path: root dir path to save the CommonRoad xml to.
     :param filename: filename of the CommonRoad scenario
     :param planning_problem: CommonRoad planning problem
@@ -424,16 +489,16 @@ def convert_aw_shape_to_cr_shape(
         raise TypeError("Unsupported Autoware shape type: " + str(cr_object_type))
 
 
-
 def convert_traffic_lights(
         msg: TrafficSignalArray,
         stamp
 ) -> Tuple[Tuple[int, int], List[TrafficLight]]:
     """
-    Converts autoware traffic lights to CommonRoad at time step.
+    Converts Autoware traffic lights to CommonRoad at time step.
+
     !Warning!: Due to missing kwargs CR TrafficLight
 
-    :param msg: TrafficSignalArray autoware msg
+    :param msg: TrafficSignalArray Autoware msg
     :param stamp: ros2 time stamp
     :return: Tuple[ros2_time_stamp, List[TrafficLight_At_Time_stamp]]
     """
@@ -456,4 +521,3 @@ def convert_traffic_lights(
         )
 
     return (ros2_time_stamp, traffic_light_list)
-

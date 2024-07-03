@@ -1,3 +1,11 @@
+"""
+Type Mapping Utils
+===========================
+
+This module provides type mapping utilities for the CommonRoad to Autoware interface.
+
+---------------------------
+"""
 # standard imports
 from typing import Dict, List
 from uuid import UUID as PyUUID
@@ -18,6 +26,7 @@ from commonroad.scenario.traffic_light import TrafficLightDirection, TrafficLigh
 from geometry_msgs.msg import Polygon as PolygonMsg
 from unique_identifier_msgs.msg import UUID as UUIDMsg
 
+
 # Dictionary to map Autoware classification to CommonRoad obstacle type
 aw_to_cr_obstacle_type: Dict[int, ObstacleType] = {
     0: ObstacleType.UNKNOWN,
@@ -28,7 +37,7 @@ aw_to_cr_obstacle_type: Dict[int, ObstacleType] = {
     5: ObstacleType.MOTORCYCLE,
     6: ObstacleType.BICYCLE,
     7: ObstacleType.PEDESTRIAN,
-    }
+}
 
 
 aw_to_cr_traffic_light_color: Dict[int, TrafficLightState] = {
@@ -65,7 +74,6 @@ aw_to_cr_traffic_traffic_light_shape: Dict[int, TrafficLightDirection] = {
     # TrafficLightDirection.LEFT_RIGHT
 }
 
-
 aw_to_cr_traffic_traffic_light_status: Dict[int, bool] = {
     15: False,  # AW: SOLID_OFF
     16: True,  # AW: SOLID_ON
@@ -77,10 +85,10 @@ aw_to_cr_traffic_traffic_light_status: Dict[int, bool] = {
 
 
 def get_classification_with_highest_probability(
-    classification: List[ObjectClassification]
+        classification: List[ObjectClassification]
 ) -> int:
     """Finds class with highest probatility.
-    
+
     :param classification: list of object classifications
     :return: class with highest probability
     """
@@ -88,11 +96,11 @@ def get_classification_with_highest_probability(
 
 
 def aw_to_cr_shape(
-    aw_shape_type: int,
-    width: float,
-    length: float,
-    footprint: PolygonMsg,
-    safety_margin: float,
+        aw_shape_type: int,
+        width: float,
+        length: float,
+        footprint: PolygonMsg,
+        safety_margin: float,
 ) -> Shape:
     """
     Convert Autoware shape to CommonRoad shape.
@@ -111,7 +119,7 @@ def aw_to_cr_shape(
     if aw_shape_type == 0:
         assert width > 0.0 and length > 0.0, "Obstacle shape: Width and length must be positive."
         return Rectangle(width=width, length=length)
-    
+
     elif aw_shape_type == 1:
         assert width > 0.0, "Obstacle shape: Width must be positive."
         return Circle(radius=(width / 2))
@@ -134,11 +142,11 @@ def aw_to_cr_shape(
 
 
 def aw_to_cr_shape_updater(
-    dynamic_obstacle: DynamicObstacle,
-    width: float,
-    length: float,
-    footprint: PolygonMsg,
-    safety_margin: float,
+        dynamic_obstacle: DynamicObstacle,
+        width: float,
+        length: float,
+        footprint: PolygonMsg,
+        safety_margin: float,
 ) -> None:
     """Update the shape of a CommonRoad dynamic obstacle.
 
@@ -158,7 +166,7 @@ def aw_to_cr_shape_updater(
         assert width > 0.0 and length > 0.0, "Update obstacle shape: Width and length must be positive."
         dynamic_obstacle.obstacle_shape.width = width
         dynamic_obstacle.obstacle_shape.length = length
-        
+
     elif isinstance(shape, Circle):
         assert width > 0.0, "Update obstacle shape: Width must be positive."
         dynamic_obstacle.obstacle_shape.radius = width / 2
@@ -178,12 +186,12 @@ def aw_to_cr_shape_updater(
 
     else:
         raise TypeError("Unsupported CommonRoad shape type: " + str(dynamic_obstacle.obstacle_shape))
-    
+
 
 def set_traffic_light_cycle(traffic_light_state: TrafficLightState) -> TrafficLightCycle:
     """
     Set the traffic light cycle based on the traffic light state.
-    
+
     :param traffic_light_state: traffic light state
     :return: traffic light cycle
     """
@@ -200,8 +208,10 @@ def uuid_from_ros_msg(
 ) -> PyUUID:
     """
     Converts a ROS UUID message to a Python type UUID.
+
     ROS UUID is represented as uint8[16], i.e., an array of length 16 containing 8-byte unsigned integers.
 
     :param msg: ROS UUID message of type unique_identifier_msgs/msg/UUID
+    :return:
     """
     return PyUUID(bytes=bytes([int(_elem) for _elem in msg]))

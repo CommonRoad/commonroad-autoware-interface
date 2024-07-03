@@ -27,7 +27,13 @@ from rclpy.impl.rcutils_logger import RcutilsLogger
 
 class ReactivePlannerInterface(TrajectoryPlannerInterface):
     """
-    Trajectory planner interface for the CommonRoad Reactive Planner
+    Trajectory planner interface for the CommonRoad Reactive Planner.
+
+    This class implements the abstract methods of the base class TrajectoryPlannerInterface.
+
+    :var scenario: reference to the scenario
+    :var _road_boundary: reference to the road boundary as a collision object
+    :var _planner: reference to the reactive planner
     """
     def __init__(self, traj_pub: Publisher,
                  logger: RcutilsLogger,
@@ -39,6 +45,20 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
                  horizon: float,
                  rp_interface_params: RPInterfaceParams,
                  ego_vehicle_handler: EgoVehicleHandler):
+        """
+        Constructor for ReactivePlannerInterface class.
+
+        :param traj_pub: ROS2 node publisher for trajectory
+        :param logger: ROS2 node logger
+        :param verbose: Flag for verbose logging
+        :param scenario: CommonRoad scenario
+        :param planning_problem: CommonRoad planning problem
+        :param road_boundary: road boundary as a collision object
+        :param dt: time step for the reactive planner
+        :param horizon: planning horizon for the reactive planner
+        :param rp_interface_params: Reactive Planner Interface parameters
+        :param ego_vehicle_handler: Ego Vehicle Handler
+        """
 
         # init parent class
         super().__init__(traj_pub=traj_pub, logger=logger.get_child("rp_interface"), verbose=verbose)
@@ -81,8 +101,16 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
         # init trajectory planner
         self._planner: ReactivePlanner = reactive_planner
 
-    def plan(self, current_state: EgoVehicleState, goal, reference_velocity=None, **kwargs):
-        """Overrides plan method from base class and calls the planning algorithm of the reactive planner"""
+    def plan(self, current_state: EgoVehicleState, goal, reference_velocity=None, **kwargs) -> None:
+        """
+        Overrides plan method from base class and calls the planning algorithm of the reactive planner.
+
+        
+        :param current_state: current state of the ego vehicle
+        :param goal: goal state of the ego vehicle
+        :param reference_velocity: reference velocity for the planner
+        :param kwargs: additional keyword arguments
+        """
         # set reference velocity for planner
         self._planner.set_desired_velocity(desired_velocity=reference_velocity, current_speed=current_state.velocity)
 
@@ -114,9 +142,12 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
             # TODO: sample emergency brake trajectory if no trajectory is found
             self._cr_state_list = None
 
-    def update(self, planning_problem: PlanningProblem = None, reference_path: np.ndarray = None):
+    def update(self, planning_problem: PlanningProblem = None, reference_path: np.ndarray = None) -> None:
         """
-        Updates externals of the trajectory planner
+        Updates externals of the trajectory planner.
+
+        :param planning_problem: planning problem
+        :param reference_path: reference path
         """
         # set planning problem if provided
         if planning_problem is not None:
