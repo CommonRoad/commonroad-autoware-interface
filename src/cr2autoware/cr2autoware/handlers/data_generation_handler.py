@@ -323,6 +323,14 @@ class DataGenerationHandler(BaseHandler):
             )
         )
 
+        self._writer.create_topic(
+            rosbag2_py.TopicMetadata(
+                name="/perception/traffic_light_recognition/traffic_signals",
+                type="autoware_auto_perception_msgs/msg/TrafficSignalArray",
+                serialization_format="cdr"
+            )
+        )
+
     def _init_subscriptions(self) -> None:
         """Creates subscribers to relevant topics."""
 
