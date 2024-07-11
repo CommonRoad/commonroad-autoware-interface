@@ -6,5 +6,4 @@
 ::: src.cr2autoware.cr2autoware.common.utils.tf2_geometry_msgs
 ::: src.cr2autoware.cr2autoware.common.utils.trajectory_logger
 ::: src.cr2autoware.cr2autoware.common.utils.transform
-::: src.cr2autoware.cr2autoware.common.utils.type_mapping
 ::: src.cr2autoware.cr2autoware.common.utils.visualization
