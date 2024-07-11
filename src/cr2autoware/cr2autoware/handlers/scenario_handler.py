@@ -57,15 +57,15 @@ from crdesigner.map_conversion.map_conversion_interface import lanelet_to_common
 
 # cr2autoware
 from .base import BaseHandler
-from ..common.utils.type_mapping import aw_to_cr_shape
-from ..common.utils.type_mapping import aw_to_cr_shape_updater
-from ..common.utils.type_mapping import get_classification_with_highest_probability
-from ..common.utils.type_mapping import set_traffic_light_cycle
-from ..common.utils.type_mapping import aw_to_cr_obstacle_type
-from ..common.utils.type_mapping import aw_to_cr_traffic_light_color
-from ..common.utils.type_mapping import aw_to_cr_traffic_traffic_light_shape
-from ..common.utils.type_mapping import aw_to_cr_traffic_traffic_light_status
-from ..common.utils.type_mapping import uuid_from_ros_msg
+from ..common.utils.cr_conversion_utils import commonroad_shape_conversion
+from ..common.utils.cr_conversion_utils import commonroad_shape_updater
+from ..common.utils.cr_conversion_utils import get_classification_with_highest_probability
+from ..common.utils.cr_conversion_utils import set_traffic_light_cycle
+from ..common.utils.cr_conversion_utils import dict_autoware_to_cr_obstacle_type
+from ..common.utils.cr_conversion_utils import dict_autoware_to_commonroad_traffic_light_color
+from ..common.utils.cr_conversion_utils import dict_autoware_to_commonroad_traffic_light_shape
+from ..common.utils.cr_conversion_utils import dict_autoware_to_commonroad_traffic_light_status
+from ..common.utils.cr_conversion_utils import uuid_from_ros_msg
 from ..common.utils.transform import quaternion2orientation
 from ..common.utils.transform import map2utm
 from ..common.utils.geometry import upsample_trajectory
@@ -532,7 +532,6 @@ class ScenarioHandler(BaseHandler):
             )
             velocity = obstacle.kinematics.initial_twist_with_covariance.twist.linear.x
             yaw_rate = obstacle.kinematics.initial_twist_with_covariance.twist.angular.z
-            shape_type = obstacle.shape.type
             width = obstacle.shape.dimensions.y
             length = obstacle.shape.dimensions.x
             footprint = obstacle.shape.footprint
@@ -591,7 +590,6 @@ class ScenarioHandler(BaseHandler):
                 self._add_dynamic_obstacle(
                     dynamic_obstacle_initial_state,
                     list_predicted_poses,
-                    shape_type,
                     width,
                     length,
                     footprint,
@@ -607,7 +605,7 @@ class ScenarioHandler(BaseHandler):
                 dynamic_obs = self._scenario.obstacle_by_id(object_id_cr)
 
                 # shape update
-                aw_to_cr_shape_updater(
+                commonroad_shape_updater(
                     dynamic_obs, width, length, footprint, self.safety_margin
                 )
 
@@ -778,7 +776,6 @@ class ScenarioHandler(BaseHandler):
         self,
         initial_state: InitialState,
         traj: List[Pose],
-        shape_type: int,
         width: float,
         length: float,
         footprint: PolygonMsg,
@@ -790,7 +787,6 @@ class ScenarioHandler(BaseHandler):
 
         :param initial_state: initial state of obstacle
         :param traj: trajectory of obstacle
-        :param shape_type: shape type of obstacle
         :param width: width of obstacle
         :param length: length of obstacle
         :param footprint: footprint of obstacle
@@ -800,15 +796,15 @@ class ScenarioHandler(BaseHandler):
         # get initial time step
         time_step = initial_state.time_step
 
-        # convert obstacle shape
-        dynamic_obstacle_shape = aw_to_cr_shape(
-            shape_type, width, length, footprint, self.safety_margin
-        )
-
         # convert obstacle classification / type
-        dynamic_obstacle_type = aw_to_cr_obstacle_type[
+        dynamic_obstacle_type = dict_autoware_to_cr_obstacle_type[
             get_classification_with_highest_probability(classification)
         ]
+
+        # create shape of the obstacle
+        dynamic_obstacle_shape = commonroad_shape_conversion(
+            dynamic_obstacle_type, width, length, footprint, self.safety_margin
+        )
 
         if len(traj) > 2:
             # create the trajectory of the obstacle, starting at time_step
@@ -874,7 +870,7 @@ class ScenarioHandler(BaseHandler):
 
             # convert traffic light status
             try:
-                status_cr = aw_to_cr_traffic_traffic_light_status[status]
+                status_cr = dict_autoware_to_commonroad_traffic_light_status[status]
             except KeyError:
                 self._logger.error("Traffic light status not found in AW to CR status map!")
                 continue
@@ -883,7 +879,7 @@ class ScenarioHandler(BaseHandler):
             if status_cr is True:
                 # set traffic light color and cycle
                 try:
-                    color_cr = aw_to_cr_traffic_light_color[color]
+                    color_cr = dict_autoware_to_commonroad_traffic_light_color[color]
                 except KeyError:
                     self._logger.error("Traffic light color not found in AW to CR color map!")
                     continue
@@ -892,17 +888,17 @@ class ScenarioHandler(BaseHandler):
 
                 # set traffic light direction
                 try:
-                    shape_cr = aw_to_cr_traffic_traffic_light_shape[shape]
+                    shape_cr = dict_autoware_to_commonroad_traffic_light_shape[shape]
                 except KeyError:
                     self._logger.error("Traffic light shape not found in AW to CR shape map!")
                     continue
                 traffic_light_cr.direction = shape_cr
             else:
                 # set traffic light color and cycle to inactive
-                color_cr = aw_to_cr_traffic_light_color[99]
+                color_cr = dict_autoware_to_commonroad_traffic_light_color[99]
                 traffic_light_cr.color = color_cr
                 traffic_light_cr.traffic_light_cycle = set_traffic_light_cycle(color_cr)
-                traffic_light_cr.direction = aw_to_cr_traffic_traffic_light_shape[shape]
+                traffic_light_cr.direction = dict_autoware_to_commonroad_traffic_light_shape[shape]
 
             # set detected traffic light in perception message to active
             traffic_light_cr.active = True
@@ -912,7 +908,7 @@ class ScenarioHandler(BaseHandler):
             if traffic_light_l2n.active is True:
                 if traffic_light_l2n.traffic_light_id not in processed_traffic_light_ids:
                     traffic_light_l2n.active = False
-                    color_inactive = aw_to_cr_traffic_light_color[99]
+                    color_inactive = dict_autoware_to_commonroad_traffic_light_color[99]
                     traffic_light_l2n.traffic_light_cycle = set_traffic_light_cycle(color_inactive)
 
     @staticmethod

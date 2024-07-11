@@ -75,7 +75,6 @@ nav:
         - "TF2 geometry_msgs Utils": utils_tf2_geometry_msgs.md
         - "TrajectoryLogger Utils": utils_trajectory_logger.md
         - "Transform Utils": utils_transform.md
-        - "Type Mapping Utils": utils_type_mapping.md
         - "Visualization Utils": utils_visualization.md
 
 
