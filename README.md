@@ -191,8 +191,8 @@ Please see our `README_FOR_DEVELOPERS.md` for some additional notes on how to us
 
 **Maintainers**: Yuanfei Lin, Tobias Mascetta, Gerald Würsching
 
-**Contributors**: Hamza Begic, Hamza Ben Yaacoub, Aziz Bouziri, Andrii Chumak, Jan Franck, Koray Koca, Yuanfei Lin,
-              Tobias Mascetta, Sven Pflaumbaum, Florian Weiser, Gerald Würsching, Yashuai Yan
+**Contributors**: Hamza Begic, Hamza Ben Yaacoub, Aziz Bouziri, Andrii Chumak, Jan Franck, Till Grutschus, Koray Koca, Yuanfei Lin,
+              Tobias Mascetta, Kaian Ni, Wei-Lin Pai, Sven Pflaumbaum, Florian Weiser, Gerald Würsching, Yashuai Yan, Alexander Zimmer
 
 
 ## :speech_balloon: Citation
