@@ -4,6 +4,7 @@ from enum import Enum
 from typing import List
 from typing import TYPE_CHECKING
 from typing import Any
+import datetime
 
 # third party imports
 import pickle
@@ -218,6 +219,12 @@ class DataGenerationHandler(BaseHandler):
         self._logger.info(f"Stopped recording data!")
         self._command_status = SaverCommands.STOP
         del self._writer
+        # init writer again for next recording with new save_id
+        self._save_id = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
+        self._init_writer()
+        self._logger.info(f"Initialized new writer for next recording!")
+        self.start_recording()
+        self._save_origin_transformation_to_pkl()
 
     def _add_time_header_to_msg(self, msg: Any) -> Any:
         """

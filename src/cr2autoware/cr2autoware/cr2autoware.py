@@ -409,7 +409,7 @@ class Cr2Auto(Node):
         self.data_generation_handler: DataGenerationHandler = DataGenerationHandler(
             cr2aw_node=self,
             save_path=self.save_data_path,
-            save_id=datetime.datetime.now().strftime("%Y_%m_%d_%H_%M"),
+            save_id=datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S"),
             origin_transformation=self.origin_transformation
         )
 
