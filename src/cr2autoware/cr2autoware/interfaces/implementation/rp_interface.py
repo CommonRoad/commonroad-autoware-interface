@@ -1,9 +1,14 @@
 # third party imports
 import numpy as np
+from typing import List, Set, Tuple
 
 # commonroad imports
 from commonroad.scenario.scenario import Scenario
+from commonroad.scenario.lanelet import Lanelet
 from commonroad.planning.planning_problem import PlanningProblem
+from commonroad.prediction.prediction import (
+    Occupancy
+)
 
 # commonroad-dc
 import commonroad_dc.pycrcc as pycrcc
@@ -121,6 +126,53 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
         :param reference_velocity: reference velocity for the planner
         :param kwargs: additional keyword arguments
         """
+        # check for narrow passage scenario
+
+        # get lanelets for the current position
+        lanelets: List[Lanelet] = []
+        lanelet_ids = self.scenario.lanelet_network.find_lanelet_by_position([current_state.position])
+        for lanelet_id in lanelet_ids:
+            lanelets.append(self.scenario.lanelet_network.find_lanelet_by_id(lanelet_id[0]))
+        self._logger.info(f"Initial lanelets: {lanelet_ids}")
+
+        # get lanelets for future position in the defined horizon
+        # TODO: use rp planning horizon instead of fixed horizon
+        horizon: int = 5
+        for i in range(1, horizon):
+            # TODO: use trajectory prediction to get future position (curren_state.position global frame, current implementation is for vehicle frame)
+            # future position leads to wrong global position!!!!
+            future_position = [current_state.position[0] + i * current_state.velocity, current_state.position[1]]
+            self._logger.info(f"Future position: {future_position}")
+            future_lanelet_ids = self.scenario.lanelet_network.find_lanelet_by_position([future_position])
+            self._logger.info(f"Future lanelets: {future_lanelet_ids}")
+            for lanelet_id in future_lanelet_ids:
+                self._logger.info(f"Future lanelet: {lanelet_id}")
+                # check if lanlet_id list has elements (future position is in a lanelet)
+                if lanelet_id:
+                    future_lanelet = self.scenario.lanelet_network.find_lanelet_by_id(lanelet_id[0])
+                    if future_lanelet and future_lanelet not in lanelets:
+                        lanelets.append(future_lanelet)
+                        self._logger.info(f"added: {lanelet_id}")
+
+        self._logger.info(f"Lanelets in the horizon: {lanelets}")
+
+        ### Not tested yet: 
+
+        # for the lanelet list check for obstacles and possible blockades
+        for lanelet in lanelets:
+            # get all obstacles in the lanelet
+            self._logger.info(f"Current lanelet: {lanelet}")
+            obstacles: Set = set()
+            obstacles.update(lanelet.dynamic_obstacles_on_lanelet)
+            obstacles.update(lanelet.static_obstacles_on_lanelet)
+            self._logger.info(f"Obstacles in {lanelet.lanelet_id}: {obstacles}")
+
+            y_blockades: List[Occupancy] = []
+            for obstacle in obstacles:
+                occupancy = obstacle.occupancy_at_time(self.scenario.time)
+                
+                self._logger.info("OCCUPANCY SHAPE: " + str(occupancy.shape))
+
         # set reference velocity for planner
         self._planner.set_desired_velocity(desired_velocity=reference_velocity, current_speed=init_state.velocity)
 
