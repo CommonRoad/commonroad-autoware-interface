@@ -507,6 +507,9 @@ class ScenarioHandler(BaseHandler):
         # process traffic lights from perception
         self._process_traffic_lights()
 
+        # assign objects to lanelets
+        self._scenario.assign_obstacles_to_lanelets()
+
         # log time
         t_elapsed = time.perf_counter() - t_start
 
