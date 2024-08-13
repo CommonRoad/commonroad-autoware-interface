@@ -1,9 +1,13 @@
 # third party imports
 import numpy as np
-from typing import List, Set, Tuple
+from typing import List, Set, Tuple, Optional
+from shapely.geometry import Point
+
 
 # commonroad imports
+from commonroad.geometry.shape import Rectangle, Polygon, Circle
 from commonroad.scenario.scenario import Scenario
+from commonroad.scenario.state import TraceState
 from commonroad.scenario.lanelet import Lanelet
 from commonroad.planning.planning_problem import PlanningProblem
 from commonroad.prediction.prediction import (
@@ -127,47 +131,17 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
         :param kwargs: additional keyword arguments
         """
         # check for narrow passage scenario
+        # if optimal trajectory is found, check for narrow passage
+        if self._cr_state_list:
+            # self._logger.debug("Optimal trajectory found. Checking for narrow passage??????????????????????????????????????????????????????????????????????")            # check for narrow passage
+            # self._logger.debug("Current state: {}".format(current_state))
+            # self._logger.debug("Current state list: {}".format(self._cr_state_list))
+            
+            # function to set max velocity for narrow passage
+            reference_velocity = self.narrow_passage_velocity_function(current_state, self._cr_state_list, reference_velocity)
 
-        # get lanelets for the current position
-        lanelets: List[Lanelet] = []
-        lanelet_ids = self.scenario.lanelet_network.find_lanelet_by_position([current_state.position])
-        for lanelet_id in lanelet_ids:
-            lanelets.append(self.scenario.lanelet_network.find_lanelet_by_id(lanelet_id[0]))
-        self._logger.info(f"Initial lanelets: {lanelet_ids}")
-
-        # get lanelets for future position in the defined horizon
-        # TODO: use rp planning horizon instead of fixed horizon
-        horizon: int = 5
-        for i in range(1, horizon):
-            # TODO: use trajectory prediction to get future position (curren_state.position global frame, current implementation is for vehicle frame)
-            # future position leads to wrong global position!!!!
-            future_position = [current_state.position[0] + i * current_state.velocity, current_state.position[1]]
-            self._logger.info(f"Future position: {future_position}")
-            future_lanelet_ids = self.scenario.lanelet_network.find_lanelet_by_position([future_position])
-            self._logger.info(f"Future lanelets: {future_lanelet_ids}")
-            for lanelet_id in future_lanelet_ids:
-                self._logger.info(f"Future lanelet: {lanelet_id}")
-                # check if lanlet_id list has elements (future position is in a lanelet)
-                if lanelet_id:
-                    future_lanelet = self.scenario.lanelet_network.find_lanelet_by_id(lanelet_id[0])
-                    if future_lanelet and future_lanelet not in lanelets:
-                        lanelets.append(future_lanelet)
-                        self._logger.info(f"added: {lanelet_id}")
-
-        self._logger.info(f"Lanelets in the horizon: {lanelets}")
-
-        # for the lanelet list check for obstacles and possible blockades
-        for lanelet in lanelets:
-            # get all obstacles in the lanelet
-            self._logger.info(f"Current lanelet: {lanelet}")
-            self._logger.info(f"Obstacles in {lanelet.lanelet_id}: {lanelet.dynamic_obstacles_on_lanelet}")
-            for timestep, obstacle_set in lanelet.dynamic_obstacles_on_lanelet.items():
-                for obstacle_id in obstacle_set:
-                    obstacle = self.scenario.obstacle_by_id(obstacle_id)
-                    self._logger.info(f"Obstacle {obstacle_id} at time {timestep}: {obstacle}")
-                    # get occupancy of the obstacle
-                    occupancy = obstacle.occupancy_at_time(timestep)
-                    self._logger.info(f"OCCUPANCY SHAPE: {occupancy.shape}")
+        else:
+            self._logger.debug("No optimal trajectory found. Narrow passage check skipped!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 
         # set reference velocity for planner
         self._planner.set_desired_velocity(desired_velocity=reference_velocity, current_speed=init_state.velocity)
@@ -218,3 +192,68 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
         if reference_path is not None:
             rp_coordinate_system = CoordinateSystem(reference=reference_path, smooth_reference=False)
             self._planner.set_reference_path(coordinate_system=rp_coordinate_system)
+
+    def narrow_passage_velocity_function(self, current_state: EgoVehicleHandler, cr_state_list: Optional[List[TraceState]], reference_velocity) -> float:
+        """
+        Check for narrow passages in the scenario and adjust the reference velocity accordingly.
+        
+        TODO: Implement this function
+        """
+        if reference_velocity is None:
+            return None
+                
+        # initialize narrow passage radius
+        narrow_passage_radius = 1000.0
+        # create position list for all states in the optimal trajectory
+        positions = [current_state.position] + [state.position for state in cr_state_list]
+        for position in positions:
+            # get lanelet ids for the current position
+            lanelet_ids = self.scenario.lanelet_network.find_lanelet_by_position([position])
+            for lanelet_id in lanelet_ids:
+                lanelet = self.scenario.lanelet_network.find_lanelet_by_id(lanelet_id[0])
+                # get all obstacles in the lanelet
+                for timestep, obstacle_set in lanelet.dynamic_obstacles_on_lanelet.items():
+                    for obstacle_id in obstacle_set:
+                        obstacle = self.scenario.obstacle_by_id(obstacle_id)
+                        # get occupancy of the obstacle
+                        occupancy = obstacle.occupancy_at_time(timestep)
+                        # convert occupancy to polygon
+                        if isinstance(occupancy, Occupancy):
+                            if occupancy.shape is Rectangle:
+                                self._logger.debug("Occupancy shape is Rectangle: " + str(occupancy))
+                                occupancy_polygon = occupancy._shapely_polygon
+                                self._logger.debug("Occupancy shape is Rectangle: " + str(occupancy_polygon))
+                            elif occupancy.shape is Polygon:
+                                self._logger.debug("Occupancy shape is Polygon: " + str(occupancy))
+                                occupancy_polygon = occupancy
+                            elif occupancy.shape is Circle:
+                                self._logger.debug("Occupancy shape is Circle: " + str(occupancy))
+                                occupancy_polygon = occupancy.shapely_object
+                                self._logger.debug("Occupancy shape is Circle: " + str(occupancy_polygon))
+                            else:
+                                continue 
+                        # get the distance to the obstacle
+                        # Convert the position to a Shapely Point object
+                        position_point = Point(position)
+
+                        # Get the distance to the obstacle's polygon
+                        radius = position_point.distance(occupancy_polygon)
+                        self._logger.debug(f"Distance to obstacle: {radius}")
+
+                        # Update maximum radius
+                        if radius < narrow_passage_radius:
+                            narrow_passage_radius = radius
+                            self._logger.info(f"Narrow passage radius: {narrow_passage_radius}")
+
+        # calculate the reference velocity based on the maximum radius
+        width_radius = self._planner.vehicle_params.width * 0.5
+        if narrow_passage_radius < width_radius:
+            reference_velocity = 0.0
+        elif narrow_passage_radius < 2 * width_radius:
+            reference_velocity = (narrow_passage_radius / (2 * width_radius))**2 * reference_velocity
+        else:
+            reference_velocity = reference_velocity
+        
+        self._logger.info(f"Reference velocity: {reference_velocity}")
+        
+        return reference_velocity
