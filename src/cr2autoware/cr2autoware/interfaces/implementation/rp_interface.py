@@ -204,47 +204,64 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
                 
         # initialize narrow passage radius
         narrow_passage_radius = 1000.0
+
+        previous_lanelet_id = None
+        combined_polygon = None
+        processed_obstacles = set()
+
         # create position list for all states in the optimal trajectory
         positions = [current_state.position] + [state.position for state in cr_state_list]
+        self._logger.debug(f"Positions: {positions}")
         for position in positions:
-            # get lanelet ids for the current position
+            # Get lanelet ids for the current position
             lanelet_ids = self.scenario.lanelet_network.find_lanelet_by_position([position])
             for lanelet_id in lanelet_ids:
                 lanelet = self.scenario.lanelet_network.find_lanelet_by_id(lanelet_id[0])
-                # get all obstacles in the lanelet
-                for timestep, obstacle_set in lanelet.dynamic_obstacles_on_lanelet.items():
-                    for obstacle_id in obstacle_set:
-                        obstacle = self.scenario.obstacle_by_id(obstacle_id)
-                        # get occupancy of the obstacle
-                        occupancy = obstacle.occupancy_at_time(timestep)
-                        # convert occupancy to polygon
-                        if isinstance(occupancy, Occupancy):
-                            if occupancy.shape is Rectangle:
-                                self._logger.debug("Occupancy shape is Rectangle: " + str(occupancy))
-                                occupancy_polygon = occupancy._shapely_polygon
-                                self._logger.debug("Occupancy shape is Rectangle: " + str(occupancy_polygon))
-                            elif occupancy.shape is Polygon:
-                                self._logger.debug("Occupancy shape is Polygon: " + str(occupancy))
-                                occupancy_polygon = occupancy
-                            elif occupancy.shape is Circle:
-                                self._logger.debug("Occupancy shape is Circle: " + str(occupancy))
-                                occupancy_polygon = occupancy.shapely_object
-                                self._logger.debug("Occupancy shape is Circle: " + str(occupancy_polygon))
-                            else:
-                                continue 
-                        # get the distance to the obstacle
-                        # Convert the position to a Shapely Point object
-                        position_point = Point(position)
-
-                        # Get the distance to the obstacle's polygon
-                        radius = position_point.distance(occupancy_polygon)
-                        self._logger.debug(f"Distance to obstacle: {radius}")
-
-                        # Update maximum radius
-                        if radius < narrow_passage_radius:
-                            narrow_passage_radius = radius
-                            self._logger.info(f"Narrow passage radius: {narrow_passage_radius}")
-
+                
+                # Check if the lanelet has changed
+                if lanelet_id[0] != previous_lanelet_id:
+                    previous_lanelet_id = lanelet_id[0]
+                    combined_polygon = None
+                    processed_obstacles.clear()
+                    
+                    # Get all obstacles in the lanelet
+                    for timestep, obstacle_set in lanelet.dynamic_obstacles_on_lanelet.items():
+                        for obstacle_id in obstacle_set:
+                            if obstacle_id in processed_obstacles:
+                                continue  # Skip already processed obstacles
+                            processed_obstacles.add(obstacle_id)
+                            
+                            obstacle = self.scenario.obstacle_by_id(obstacle_id)
+                            occupancy = obstacle.occupancy_at_time(timestep)
+                            
+                            # Convert occupancy to polygon
+                            if isinstance(occupancy, Occupancy):
+                                if occupancy.shape is Rectangle:
+                                    occupancy_polygon = occupancy._shapely_polygon
+                                elif occupancy.shape is Polygon:
+                                    occupancy_polygon = occupancy
+                                elif occupancy.shape is Circle:
+                                    occupancy_polygon = occupancy.shapely_object
+                                else:
+                                    continue
+                                
+                                # Combine polygons
+                                if combined_polygon is None:
+                                    combined_polygon = occupancy_polygon
+                                else:
+                                    combined_polygon = combined_polygon.union(occupancy_polygon)
+                
+        # Calculate the distance to the combined polygon
+        if combined_polygon is not None:
+            position_point = Point(position)
+            radius = position_point.distance(combined_polygon)
+            self._logger.debug(f"Distance to obstacle: {radius}")
+            
+            # Update maximum radius
+            if radius < narrow_passage_radius:
+                narrow_passage_radius = radius
+                self._logger.info(f"Narrow passage radius: {narrow_passage_radius}")
+        
         # calculate the reference velocity based on the maximum radius
         width_radius = self._planner.vehicle_params.width * 0.5
         if narrow_passage_radius < width_radius:
