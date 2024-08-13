@@ -508,7 +508,8 @@ class ScenarioHandler(BaseHandler):
         self._process_traffic_lights()
 
         # assign objects to lanelets
-        self._scenario.assign_obstacles_to_lanelets()
+        obstacle_ids = {obs.obstacle_id for obs in self.scenario.dynamic_obstacles}
+        self._scenario.assign_obstacles_to_lanelets(obstacle_ids=obstacle_ids)
 
         # log time
         t_elapsed = time.perf_counter() - t_start

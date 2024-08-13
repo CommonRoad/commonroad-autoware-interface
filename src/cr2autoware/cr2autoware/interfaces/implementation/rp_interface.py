@@ -156,22 +156,18 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
 
         self._logger.info(f"Lanelets in the horizon: {lanelets}")
 
-        ### Not tested yet: 
-
         # for the lanelet list check for obstacles and possible blockades
         for lanelet in lanelets:
             # get all obstacles in the lanelet
             self._logger.info(f"Current lanelet: {lanelet}")
-            obstacles: Set = set()
-            obstacles.update(lanelet.dynamic_obstacles_on_lanelet)
-            obstacles.update(lanelet.static_obstacles_on_lanelet)
-            self._logger.info(f"Obstacles in {lanelet.lanelet_id}: {obstacles}")
-
-            y_blockades: List[Occupancy] = []
-            for obstacle in obstacles:
-                occupancy = obstacle.occupancy_at_time(self.scenario.time)
-                
-                self._logger.info("OCCUPANCY SHAPE: " + str(occupancy.shape))
+            self._logger.info(f"Obstacles in {lanelet.lanelet_id}: {lanelet.dynamic_obstacles_on_lanelet}")
+            for timestep, obstacle_set in lanelet.dynamic_obstacles_on_lanelet.items():
+                for obstacle_id in obstacle_set:
+                    obstacle = self.scenario.obstacle_by_id(obstacle_id)
+                    self._logger.info(f"Obstacle {obstacle_id} at time {timestep}: {obstacle}")
+                    # get occupancy of the obstacle
+                    occupancy = obstacle.occupancy_at_time(timestep)
+                    self._logger.info(f"OCCUPANCY SHAPE: {occupancy.shape}")
 
         # set reference velocity for planner
         self._planner.set_desired_velocity(desired_velocity=reference_velocity, current_speed=init_state.velocity)
