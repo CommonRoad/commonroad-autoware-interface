@@ -650,7 +650,10 @@ class Cr2Auto(Node):
                         self.trajectory_planner.plan(
                             current_state=init_state,
                             goal=self.planning_problem.goal,
-                            reference_velocity=ref_vel)
+                            reference_velocity=ref_vel,
+                            external_velocity_limit_max=self.external_velocity_limit,
+                            external_velocity_limit_min=self.params.vehicle.min_velocity
+                            )
 
                         # publish trajectory
                         self.trajectory_planner.publish(self.origin_transformation,

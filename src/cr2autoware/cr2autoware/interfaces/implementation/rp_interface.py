@@ -88,10 +88,6 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
         # set road boundary
         self._road_boundary = road_boundary
 
-        # set external velocity limit
-        #TODO: get from VehicleParams in configuration.py
-        self.external_velocity_limit = 10.0
-
         # create reactive planner config
         rp_config = ReactivePlannerConfiguration().load(rp_interface_params.path_rp_config)
         rp_config.update(scenario=self.scenario, planning_problem=planning_problem)
@@ -137,7 +133,7 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
         # if optimal trajectory is found, check for narrow passage
         if self._cr_state_list:
             # function to set max velocity for narrow passage
-            reference_velocity = self.narrow_passage_velocity_function(current_state, self._cr_state_list, reference_velocity)
+            reference_velocity = self.narrow_passage_velocity_function(current_state, self._cr_state_list, reference_velocity, **kwargs)
 
         else:
             self._logger.debug("No optimal trajectory found. Narrow passage check skipped!")
@@ -192,7 +188,7 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
             rp_coordinate_system = CoordinateSystem(reference=reference_path, smooth_reference=False)
             self._planner.set_reference_path(coordinate_system=rp_coordinate_system)
 
-    def narrow_passage_velocity_function(self, current_state: EgoVehicleHandler, cr_state_list: Optional[List[TraceState]], reference_velocity) -> float:
+    def narrow_passage_velocity_function(self, current_state: EgoVehicleHandler, cr_state_list: Optional[List[TraceState]], reference_velocity, **kwargs) -> float:
         """
         Check for narrow passages in the scenario and adjust the reference velocity.
 
@@ -210,7 +206,7 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
         """
         if reference_velocity is None:
             return None
-                
+                        
         # initialize narrow passage radius
         narrow_passage_radius = 1000.0
 
@@ -296,6 +292,9 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
         self._logger.debug(f"Combined polygon: {combined_polygon}")
 
         if combined_polygon is not None:
+            # TODO: reference velocity occilates, because when reference velocity is set to minimum, 
+            # the positions of the optimal trajectory changes (due to the velocity change) and the narrow passage radius changes, then the reference velocity is set to maximum,
+            # in next iteration the position are again in the narrow passage and the reference velocity is set to minimum. This leads to a loop of changing reference velocities.
             for position in positions:
                 # Calculate the distance to the combined polygon
                 position_point = Point(position)
@@ -313,34 +312,31 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
 
             # calculate the reference velocity based on the maximum radius
             width_radius = self._planner.vehicle_params.width * 0.5
-            #TODO: Subscribe to external velocity limit from ROS2
-            if narrow_passage_radius < width_radius:
-                # TODO: Check if this is necessary. Planner already stops if collision is detected
-                self._logger.info(f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-                self._logger.info(f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-                self._logger.info(f"collision passage detected")
-                self._logger.info(f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-                self._logger.info(f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-                reference_velocity = 0.0
-            if narrow_passage_radius < 2 * width_radius:
-                self._logger.info(f"narrow passage detected")
-                # calculate current velocity reduction factor (current velocity relative to max velocity)
-                current_velocity_reduction = current_state.velocity /self.external_velocity_limit
-                # calculate velocity reduction factor for narrow passage (based on the ratio of the narrow passage radius to the width of the vehicle)
-                narrow_passage_velocity_reduction = (narrow_passage_radius / (2 * width_radius))**2
-                self._logger.info(f"current velocity reduction: {current_velocity_reduction}; narrow passage velocity reduction: {narrow_passage_velocity_reduction}")
-                # check if narrow passage velocity reduction factor is smaller than the current velocity reduction factor
-                # if so, adjust the reference velocity
-                if narrow_passage_velocity_reduction < current_velocity_reduction:
-                    reference_velocity = self.external_velocity_limit * narrow_passage_velocity_reduction
-                else:
-                    # TODO: Delete later:
-                    reference_velocity = reference_velocity
+            # get external velocity limits
+            external_velocity_limit_max = kwargs.get("external_velocity_limit_max")
+            external_velocity_limit_min = kwargs.get("external_velocity_limit_min")
+            #TODO: kwarg external_velocity_min is also used for set goal velocity; new vehicle parameter for min velocity necessary
+            external_velocity_limit_min = 2.0
+            # initialize minimum and maximum radius of narrow passages
+            # minmimal radius is the width of the vehicle
+            min_radius = width_radius 
+            # maximal radius is the double width of the vehicle
+            max_radius = 2 * width_radius
+
+            # set proposed reference velocity based on the narrow passage radius
+            if narrow_passage_radius < min_radius:
+                # narrow passage is smaller than the width of the vehicle, set reference velocity to minimum
+                proposed_reference_velocity = external_velocity_limit_min
+            elif narrow_passage_radius > max_radius:
+                # narrow passage is larger than the double width of the vehicle, set reference velocity to maximum
+                proposed_reference_velocity = external_velocity_limit_max
             else:
-                self._logger.info(f"no narrow passage detected")
-                # TODO: Delete later:
-                reference_velocity = reference_velocity
+                # narrow passage is between the width and double width of the vehicle
+                # calculate normalized radius and use a quadratic function for velocity adjustment
+                normalized_radius = (narrow_passage_radius - min_radius) / (max_radius - min_radius)
+                proposed_reference_velocity = external_velocity_limit_min + (external_velocity_limit_max - external_velocity_limit_min) * (normalized_radius)**2
             
+            reference_velocity = min(reference_velocity, proposed_reference_velocity)            
             self._logger.info(f"VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVvv")
             self._logger.info(f"Reference velocity: {reference_velocity}")
             self._logger.info(f"VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVvv")
