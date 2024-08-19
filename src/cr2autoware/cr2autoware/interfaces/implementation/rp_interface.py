@@ -2,7 +2,7 @@
 import numpy as np
 from typing import List, Set, Tuple, Optional
 from shapely.geometry import Point
-
+import time
 
 # commonroad imports
 from commonroad.geometry.shape import Rectangle, Polygon, Circle
@@ -204,6 +204,7 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
         :param reference_velocity: reference velocity for the planner
         :return: adjusted reference velocity
         """
+        t_start = time.perf_counter()
         if reference_velocity is None:
             return None
                         
@@ -241,7 +242,7 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
                 if lanelet.adj_right is not None:
                     right_adjacent_lanelet = self.scenario.lanelet_network.find_lanelet_by_id(lanelet.adj_right)
                     relevant_lanelets.add(right_adjacent_lanelet)
-        self._logger.debug(f"Relevant lanelets: {relevant_lanelets}")
+        #self._logger.debug(f"Relevant lanelets: {relevant_lanelets}")
             
         # Merge obstacle sets from the relevant lanelets
         combined_obstacle_sets = {}
@@ -250,7 +251,7 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
                 combined_obstacle_sets.setdefault(timestep, set()).update(obstacle_set)
     
         # Calculate the combined occupancy polygon for all obstacles on the relevant lanelets
-        self._logger.debug(f"Combined obstacle sets: {combined_obstacle_sets}")
+        #self._logger.debug(f"Combined obstacle sets: {combined_obstacle_sets}")
         # TODO: Only consider first timestep for better performance
         for timestep, obstacle_set in combined_obstacle_sets.items():
             for obstacle_id in obstacle_set:
@@ -269,15 +270,15 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
                         occupancy_polygon = None
                         if isinstance(shape, Rectangle):
                             occupancy_polygon = occupancy.shape._shapely_polygon
-                            self._logger.debug(f"Occupancy polygon: {occupancy_polygon}")
+                            #elf._logger.debug(f"Occupancy polygon: {occupancy_polygon}")
                         elif isinstance(shape, Polygon):
                             occupancy_polygon = occupancy
-                            self._logger.debug(f"Occupancy polygon: {occupancy_polygon}")
+                            #self._logger.debug(f"Occupancy polygon: {occupancy_polygon}")
                         elif isinstance(shape, Circle):
                             occupancy_polygon = occupancy.shape.shapely_object
-                            self._logger.debug(f"Occupancy polygon: {occupancy_polygon}")
+                            #self._logger.debug(f"Occupancy polygon: {occupancy_polygon}")
                         else:
-                            self._logger.error(f"Unsupported occupancy shape: {occupancy.shape}")
+                            #self._logger.error(f"Unsupported occupancy shape: {occupancy.shape}")
                             continue
                         
                         # Combine polygons
@@ -286,10 +287,10 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
                         else:
                             combined_polygon = combined_polygon.union(occupancy_polygon)
                 else: 
-                    self._logger.info(f"Obstacle deleted! Obstacle ID: {obstacle_id}")
+                    #self._logger.info(f"Obstacle deleted! Obstacle ID: {obstacle_id}")
                     continue
     
-        self._logger.debug(f"Combined polygon: {combined_polygon}")
+        #self._logger.debug(f"Combined polygon: {combined_polygon}")
 
         if combined_polygon is not None:
             # TODO: reference velocity occilates, because when reference velocity is set to minimum, 
@@ -299,16 +300,16 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
                 # Calculate the distance to the combined polygon
                 position_point = Point(position)
                 radius = position_point.distance(combined_polygon)
-                self._logger.debug(f"RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR")
-                self._logger.debug(f"Distance to obstacle: {radius}")
-                self._logger.debug(f"RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR")
+                #self._logger.debug(f"RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR")
+                #self._logger.debug(f"Distance to obstacle: {radius}")
+                #self._logger.debug(f"RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR")
                 
                 # Update maximum radius
                 if radius < narrow_passage_radius:
                     narrow_passage_radius = radius
-                    self._logger.debug(f"UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU")
-                    self._logger.info(f"Narrow passage radius: {narrow_passage_radius}")
-                    self._logger.debug(f"UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU")
+                    #self._logger.debug(f"UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU")
+                    #self._logger.info(f"Narrow passage radius: {narrow_passage_radius}")
+                    #self._logger.debug(f"UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU")
 
             # calculate the reference velocity based on the maximum radius
             width_radius = self._planner.vehicle_params.width * 0.5
@@ -337,8 +338,9 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
                 proposed_reference_velocity = external_velocity_limit_min + (external_velocity_limit_max - external_velocity_limit_min) * (normalized_radius)**2
             
             reference_velocity = min(reference_velocity, proposed_reference_velocity)            
-            self._logger.info(f"VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVvv")
-            self._logger.info(f"Reference velocity: {reference_velocity}")
-            self._logger.info(f"VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVvv")
-    
+            #self._logger.info(f"VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVvv")
+            #self._logger.info(f"Reference velocity: {reference_velocity}")
+            #self._logger.info(f"VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVvv")
+            t_end = time.perf_counter()
+            self._logger.debug(f"Time for narrow passage velocity function: {t_end - t_start}")
         return reference_velocity
