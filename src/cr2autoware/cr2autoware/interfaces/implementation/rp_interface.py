@@ -214,7 +214,6 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
         previous_lanelet_ids = None
         combined_polygon = None
         relevant_lanelets = set()
-        processed_obstacles = set()
 
         # create position list for all states in the optimal trajectory
         positions = [current_state.position] + [state.position for state in cr_state_list]
@@ -245,24 +244,21 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
         #self._logger.debug(f"Relevant lanelets: {relevant_lanelets}")
             
         # Merge obstacle sets from the relevant lanelets
-        combined_obstacle_sets = {}
+        combined_obstacle_set = set()
         for lanelet in relevant_lanelets:
-            for timestep, obstacle_set in lanelet.dynamic_obstacles_on_lanelet.items():
-                combined_obstacle_sets.setdefault(timestep, set()).update(obstacle_set)
+            # only consider obstacles on the first timestep
+            # TODO: Check if all obstacles are removed if they are not on the lanelet anymore
+            if lanelet.dynamic_obstacles_on_lanelet:
+                _, obstacle_set = next(iter(lanelet.dynamic_obstacles_on_lanelet.items()))
+                combined_obstacle_set.update(obstacle_set)
     
         # Calculate the combined occupancy polygon for all obstacles on the relevant lanelets
-        #self._logger.debug(f"Combined obstacle sets: {combined_obstacle_sets}")
-        # TODO: Only consider first timestep for better performance
-        for timestep, obstacle_set in combined_obstacle_sets.items():
-            for obstacle_id in obstacle_set:
-                # TODO: Add dynamic obstacles (check for velocity and acceleration of the obstacle?)
-                if obstacle_id in processed_obstacles:
-                    continue  # Skip already processed obstacles
-                processed_obstacles.add(obstacle_id)
-                
+        #self._logger.debug(f"Combined obstacle sets: {combined_obstacle_set}")    
+        if combined_obstacle_set:
+            for obstacle_id in combined_obstacle_set:
                 obstacle = self.scenario.obstacle_by_id(obstacle_id)
                 if obstacle is not None:
-                    occupancy = obstacle.occupancy_at_time(timestep)
+                    occupancy = obstacle.occupancy_at_time(0)
                     
                     # Convert occupancy to polygon
                     if isinstance(occupancy, Occupancy):
@@ -341,6 +337,6 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
             #self._logger.info(f"VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVvv")
             #self._logger.info(f"Reference velocity: {reference_velocity}")
             #self._logger.info(f"VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVvv")
-            t_end = time.perf_counter()
-            self._logger.debug(f"Time for narrow passage velocity function: {t_end - t_start}")
+        t_end = time.perf_counter()
+        self._logger.debug(f"Time for narrow passage velocity function: {t_end - t_start}")
         return reference_velocity
