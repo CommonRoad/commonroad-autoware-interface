@@ -88,6 +88,10 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
         # set road boundary
         self._road_boundary = road_boundary
 
+        # set external velocity limit
+        #TODO: get from VehicleParams in configuration.py
+        self.external_velocity_limit = 10.0
+
         # create reactive planner config
         rp_config = ReactivePlannerConfiguration().load(rp_interface_params.path_rp_config)
         rp_config.update(scenario=self.scenario, planning_problem=planning_problem)
@@ -260,30 +264,34 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
                 processed_obstacles.add(obstacle_id)
                 
                 obstacle = self.scenario.obstacle_by_id(obstacle_id)
-                occupancy = obstacle.occupancy_at_time(timestep)
-                
-                # Convert occupancy to polygon
-                if isinstance(occupancy, Occupancy):
-                    shape = occupancy.shape
-                    occupancy_polygon = None
-                    if isinstance(shape, Rectangle):
-                        occupancy_polygon = occupancy.shape._shapely_polygon
-                        self._logger.debug(f"Occupancy polygon: {occupancy_polygon}")
-                    elif isinstance(shape, Polygon):
-                        occupancy_polygon = occupancy
-                        self._logger.debug(f"Occupancy polygon: {occupancy_polygon}")
-                    elif isinstance(shape, Circle):
-                        occupancy_polygon = occupancy.shape.shapely_object
-                        self._logger.debug(f"Occupancy polygon: {occupancy_polygon}")
-                    else:
-                        self._logger.error(f"Unsupported occupancy shape: {occupancy.shape}")
-                        continue
+                if obstacle is not None:
+                    occupancy = obstacle.occupancy_at_time(timestep)
                     
-                    # Combine polygons
-                    if combined_polygon is None:
-                        combined_polygon = occupancy_polygon
-                    else:
-                        combined_polygon = combined_polygon.union(occupancy_polygon)
+                    # Convert occupancy to polygon
+                    if isinstance(occupancy, Occupancy):
+                        shape = occupancy.shape
+                        occupancy_polygon = None
+                        if isinstance(shape, Rectangle):
+                            occupancy_polygon = occupancy.shape._shapely_polygon
+                            self._logger.debug(f"Occupancy polygon: {occupancy_polygon}")
+                        elif isinstance(shape, Polygon):
+                            occupancy_polygon = occupancy
+                            self._logger.debug(f"Occupancy polygon: {occupancy_polygon}")
+                        elif isinstance(shape, Circle):
+                            occupancy_polygon = occupancy.shape.shapely_object
+                            self._logger.debug(f"Occupancy polygon: {occupancy_polygon}")
+                        else:
+                            self._logger.error(f"Unsupported occupancy shape: {occupancy.shape}")
+                            continue
+                        
+                        # Combine polygons
+                        if combined_polygon is None:
+                            combined_polygon = occupancy_polygon
+                        else:
+                            combined_polygon = combined_polygon.union(occupancy_polygon)
+                else: 
+                    self._logger.info(f"Obstacle deleted! Obstacle ID: {obstacle_id}")
+                    continue
     
         self._logger.debug(f"Combined polygon: {combined_polygon}")
 
