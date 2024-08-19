@@ -131,15 +131,11 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
         # check for narrow passage scenario
         # if optimal trajectory is found, check for narrow passage
         if self._cr_state_list:
-            # self._logger.debug("Optimal trajectory found. Checking for narrow passage??????????????????????????????????????????????????????????????????????")            # check for narrow passage
-            # self._logger.debug("Current state: {}".format(current_state))
-            # self._logger.debug("Current state list: {}".format(self._cr_state_list))
-            
             # function to set max velocity for narrow passage
             reference_velocity = self.narrow_passage_velocity_function(current_state, self._cr_state_list, reference_velocity)
 
         else:
-            self._logger.debug("No optimal trajectory found. Narrow passage check skipped!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+            self._logger.debug("No optimal trajectory found. Narrow passage check skipped!")
 
         # set reference velocity for planner
         self._planner.set_desired_velocity(desired_velocity=reference_velocity, current_speed=init_state.velocity)
@@ -207,14 +203,12 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
         combined_polygon = None
         relevant_lanelets = set()
         processed_obstacles = set()
-        skip_processing = False
 
         # create position list for all states in the optimal trajectory
         positions = [current_state.position] + [state.position for state in cr_state_list]
         #self._logger.debug(f"Positions: {positions}")
         for position in positions:         
-            # TODO: only for loop for relevant lanelets, then calculate the distance of the occupancy for each position
-            # TODO2: check distance between two positions and if the distance is too large add intermediate points
+            # TODO: check distance between two positions and if the distance is too large add intermediate points
             # Get lanelet ids for the current position
             lanelet_ids = self.scenario.lanelet_network.find_lanelet_by_position([position])
 
@@ -222,14 +216,10 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
 
                 # If the lanelet ids are the same as the previous ones, skip the processing and check the next position
                 if lanelet_ids == previous_lanelet_ids:
-                    skip_processing = True
                     break
                 
                 # Update previous lanelet ids and relevant lanelets
                 previous_lanelet_ids = lanelet_ids
-                relevant_lanelets.clear()
-                combined_polygon = None
-                processed_obstacles.clear()
 
                 # Collect all relevant lanelets
                 lanelet = self.scenario.lanelet_network.find_lanelet_by_id(lanelet_id[0])
@@ -240,56 +230,55 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
                 if lanelet.adj_right is not None:
                     right_adjacent_lanelet = self.scenario.lanelet_network.find_lanelet_by_id(lanelet.adj_right)
                     relevant_lanelets.add(right_adjacent_lanelet)
-            # self._logger.debug(f"Relevant lanelets: {relevant_lanelets}")
+        self._logger.debug(f"Relevant lanelets: {relevant_lanelets}")
             
-            if skip_processing:
-                skip_processing = False
-                continue
-            else:
-                # Merge obstacle sets from the relevant lanelets
-                combined_obstacle_sets = {}
-                for lanelet in relevant_lanelets:
-                    for timestep, obstacle_set in lanelet.dynamic_obstacles_on_lanelet.items():
-                        combined_obstacle_sets.setdefault(timestep, set()).update(obstacle_set)
-            
-                # Process combined obstacle sets
-                # self._logger.debug(f"Combined obstacle sets: {combined_obstacle_sets}")
-                for timestep, obstacle_set in combined_obstacle_sets.items():
-                    for obstacle_id in obstacle_set:
-                        if obstacle_id in processed_obstacles:
-                            continue  # Skip already processed obstacles
-                        processed_obstacles.add(obstacle_id)
-                        
-                        obstacle = self.scenario.obstacle_by_id(obstacle_id)
-                        occupancy = obstacle.occupancy_at_time(timestep)
-                        
-                        # Convert occupancy to polygon
-                        if isinstance(occupancy, Occupancy):
-                            shape = occupancy.shape
-                            occupancy_polygon = None
-                            if isinstance(shape, Rectangle):
-                                occupancy_polygon = occupancy.shape._shapely_polygon
-                                self._logger.debug(f"Occupancy polygon: {occupancy_polygon}")
-                            elif isinstance(shape, Polygon):
-                                occupancy_polygon = occupancy
-                                self._logger.debug(f"Occupancy polygon: {occupancy_polygon}")
-                            elif isinstance(shape, Circle):
-                                occupancy_polygon = occupancy.shape.shapely_object
-                                self._logger.debug(f"Occupancy polygon: {occupancy_polygon}")
-                            else:
-                                self._logger.error(f"Unsupported occupancy shape: {occupancy.shape}")
-                                continue
-                            
-                            # Combine polygons
-                            if combined_polygon is None:
-                                combined_polygon = occupancy_polygon
-                            else:
-                                combined_polygon = combined_polygon.union(occupancy_polygon)
-            
-            self._logger.debug(f"Combined polygon: {combined_polygon}")
+        # Merge obstacle sets from the relevant lanelets
+        combined_obstacle_sets = {}
+        for lanelet in relevant_lanelets:
+            for timestep, obstacle_set in lanelet.dynamic_obstacles_on_lanelet.items():
+                combined_obstacle_sets.setdefault(timestep, set()).update(obstacle_set)
+    
+        # Calculate the combined occupancy polygon for all obstacles on the relevant lanelets
+        self._logger.debug(f"Combined obstacle sets: {combined_obstacle_sets}")
+        # TODO: Only consider first timestep for better performance
+        for timestep, obstacle_set in combined_obstacle_sets.items():
+            for obstacle_id in obstacle_set:
+                # TODO: Add dynamic obstacles (check for velocity and acceleration of the obstacle?)
+                if obstacle_id in processed_obstacles:
+                    continue  # Skip already processed obstacles
+                processed_obstacles.add(obstacle_id)
+                
+                obstacle = self.scenario.obstacle_by_id(obstacle_id)
+                occupancy = obstacle.occupancy_at_time(timestep)
+                
+                # Convert occupancy to polygon
+                if isinstance(occupancy, Occupancy):
+                    shape = occupancy.shape
+                    occupancy_polygon = None
+                    if isinstance(shape, Rectangle):
+                        occupancy_polygon = occupancy.shape._shapely_polygon
+                        self._logger.debug(f"Occupancy polygon: {occupancy_polygon}")
+                    elif isinstance(shape, Polygon):
+                        occupancy_polygon = occupancy
+                        self._logger.debug(f"Occupancy polygon: {occupancy_polygon}")
+                    elif isinstance(shape, Circle):
+                        occupancy_polygon = occupancy.shape.shapely_object
+                        self._logger.debug(f"Occupancy polygon: {occupancy_polygon}")
+                    else:
+                        self._logger.error(f"Unsupported occupancy shape: {occupancy.shape}")
+                        continue
+                    
+                    # Combine polygons
+                    if combined_polygon is None:
+                        combined_polygon = occupancy_polygon
+                    else:
+                        combined_polygon = combined_polygon.union(occupancy_polygon)
+    
+        self._logger.debug(f"Combined polygon: {combined_polygon}")
 
-            # Calculate the distance to the combined polygon
-            if combined_polygon is not None:
+        if combined_polygon is not None:
+            for position in positions:
+                # Calculate the distance to the combined polygon
                 position_point = Point(position)
                 radius = position_point.distance(combined_polygon)
                 self._logger.debug(f"RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR")
@@ -303,21 +292,24 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
                     self._logger.info(f"Narrow passage radius: {narrow_passage_radius}")
                     self._logger.debug(f"UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU")
 
-        # calculate the reference velocity based on the maximum radius
-        width_radius = self._planner.vehicle_params.width * 0.5
-        if narrow_passage_radius < width_radius:
-            self._logger.info(f"collision passage detected")
-            reference_velocity = 0.0
-        if narrow_passage_radius < 2 * width_radius:
-            self._logger.info(f"narrow passage detected")
-            reference_velocity = (narrow_passage_radius / (2 * width_radius))**2 * reference_velocity
-        else:
-            self._logger.info(f"no narrow passage detected")
-            reference_velocity = reference_velocity
-        
-        self._logger.info(f"VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVvv")
-        self._logger.info(f"Reference velocity: {reference_velocity}")
-        self._logger.info(f"VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVvv")
-
-        
+            # calculate the reference velocity based on the maximum radius
+            width_radius = self._planner.vehicle_params.width * 0.5
+            if narrow_passage_radius < width_radius:
+                self._logger.info(f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+                self._logger.info(f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+                self._logger.info(f"collision passage detected")
+                self._logger.info(f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+                self._logger.info(f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+                reference_velocity = 0.0
+            if narrow_passage_radius < 2 * width_radius:
+                self._logger.info(f"narrow passage detected")
+                reference_velocity = (narrow_passage_radius / (2 * width_radius))**2 * reference_velocity
+            else:
+                self._logger.info(f"no narrow passage detected")
+                reference_velocity = reference_velocity
+            
+            self._logger.info(f"VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVvv")
+            self._logger.info(f"Reference velocity: {reference_velocity}")
+            self._logger.info(f"VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVvv")
+    
         return reference_velocity
