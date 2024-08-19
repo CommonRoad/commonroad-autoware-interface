@@ -71,6 +71,7 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
         :param traj_planner_params: General Trajectory Planner parameters
         :param rp_interface_params: Reactive Planner Interface parameters
         :param ego_vehicle_handler: Ego Vehicle Handler
+        :var external_velocity_limit: External velocity limit
         """
 
         # init parent class
@@ -189,9 +190,19 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
 
     def narrow_passage_velocity_function(self, current_state: EgoVehicleHandler, cr_state_list: Optional[List[TraceState]], reference_velocity) -> float:
         """
-        Check for narrow passages in the scenario and adjust the reference velocity accordingly.
-        
-        TODO: Implement this function
+        Check for narrow passages in the scenario and adjust the reference velocity.
+
+        This function searches for all relevant lanlets in the scenario. A relevant lanelet is a lanelet that is
+        on the current position of the ego vehicle, on a position of the optimal trajectory, or an adjacent lanelet to
+        these lanelets. The function then merges all obstacles on these lanelets and calculates the combined occupancy.
+        The function then calculates the distance to the combined occupancy for all positions in the optimal trajectory
+        and the current position. The function then calculates the distance to the nearest obstacle and adjusts the reference
+        velocity based on this distance.
+
+        :param current_state: current state of the ego vehicle
+        :param cr_state_list: list of states in the optimal trajectory
+        :param reference_velocity: reference velocity for the planner
+        :return: adjusted reference velocity
         """
         if reference_velocity is None:
             return None
@@ -294,7 +305,9 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
 
             # calculate the reference velocity based on the maximum radius
             width_radius = self._planner.vehicle_params.width * 0.5
+            #TODO: Subscribe to external velocity limit from ROS2
             if narrow_passage_radius < width_radius:
+                # TODO: Check if this is necessary. Planner already stops if collision is detected
                 self._logger.info(f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
                 self._logger.info(f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
                 self._logger.info(f"collision passage detected")
@@ -303,9 +316,21 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
                 reference_velocity = 0.0
             if narrow_passage_radius < 2 * width_radius:
                 self._logger.info(f"narrow passage detected")
-                reference_velocity = (narrow_passage_radius / (2 * width_radius))**2 * reference_velocity
+                # calculate current velocity reduction factor (current velocity relative to max velocity)
+                current_velocity_reduction = current_state.velocity /self.external_velocity_limit
+                # calculate velocity reduction factor for narrow passage (based on the ratio of the narrow passage radius to the width of the vehicle)
+                narrow_passage_velocity_reduction = (narrow_passage_radius / (2 * width_radius))**2
+                self._logger.info(f"current velocity reduction: {current_velocity_reduction}; narrow passage velocity reduction: {narrow_passage_velocity_reduction}")
+                # check if narrow passage velocity reduction factor is smaller than the current velocity reduction factor
+                # if so, adjust the reference velocity
+                if narrow_passage_velocity_reduction < current_velocity_reduction:
+                    reference_velocity = self.external_velocity_limit * narrow_passage_velocity_reduction
+                else:
+                    # TODO: Delete later:
+                    reference_velocity = reference_velocity
             else:
                 self._logger.info(f"no narrow passage detected")
+                # TODO: Delete later:
                 reference_velocity = reference_velocity
             
             self._logger.info(f"VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVvv")

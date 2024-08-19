@@ -38,6 +38,7 @@ If you use our code for research, please cite our [paper](https://mediatum.ub.tu
 - **Gerald Würsching**: gerald.wuersching[at]tum.de
 - **Tobias Mascetta**: tobias.mascetta[at]tum.de
 - **Yuanfei Lin**: yuanfei.lin[at]tum.de
+- **Sven Pflaumbaum**: sven.pflaumbaum[at]gmail.com
 
 
 ---
