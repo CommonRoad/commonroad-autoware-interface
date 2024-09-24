@@ -89,7 +89,8 @@ from .common.ros_interface.specs_subscriptions import \
 from .common.ros_interface.specs_publisher import \
     spec_goal_pose_pub, spec_traj_pub, spec_aw_state_pub, spec_vehicle_engage_pub, spec_api_engage_pub, \
     spec_routing_state_pub, spec_route_pub, spec_velocity_pub, spec_initial_pose_pub, spec_goal_region_pub, \
-    spec_velocity_limit_pub, spec_velocity_limit_pub_vis
+    spec_velocity_limit_pub, spec_velocity_limit_pub_vis, spec_narrow_passage_traj_pub, \
+    spec_narrow_passage_obstacle_pub, spec_narrow_passage_clearance_pub
 
 # service client specifications
 from .common.ros_interface.specs_clients import \
@@ -153,6 +154,18 @@ class Cr2Auto(Node):
         * Description: Maximum velocity limit for visualization in RVIZ.
         * Topic: `/planning/scenario_planning/current_max_velocity`
         * Message Type: `tier4_planning_msgs.msg.VelocityLimit`
+    * narrow_passage_trajectory_pub:
+        * Description: Narrow passage trajectory.
+        * Topic: `/planning/scenario_planning/narrow_passage/trajectory`
+        * Message Type: `autoware_auto_planning_msgs.msg.Trajectory`
+    * narrow_passage_obstacles_pub:
+        * Description: Narrow passage obstacles.
+        * Topic: `/planning/scenario_planning/narrow_passage/obstacles`
+        * Message Type: `visualization_msgs.msg.MarkerArray`
+    * narrow_passage_clearance_pub:
+        * Description: Narrow passage clearance circles.
+        * Topic: `/planning/scenario_planning/narrow_passage/clearance`
+        * Message Type: `visualization_msgs.msg.MarkerArray`
 
     ----------------
     **Subscribers:**
@@ -372,6 +385,15 @@ class Cr2Auto(Node):
         # (this separate topic is currently only subscribed by RVIZ)
         self.velocity_limit_pub_vis = create_publisher(self, spec_velocity_limit_pub_vis)
 
+        # Debug publisher for narrow passage detection
+        # TODO: Combine into one custom message
+        # publish narrow passage trajectory
+        self.narrow_passage_trajectory_pub = create_publisher(self, spec_narrow_passage_traj_pub)
+        # publish narrow passage obstacles
+        self.narrow_passage_obstacles_pub = create_publisher(self, spec_narrow_passage_obstacle_pub)
+        # publish narrow passage clearance circles
+        self.narrow_passage_clearance_pub = create_publisher(self, spec_narrow_passage_clearance_pub)
+
         # ========= Service Clients =========
         # client for change to stop service call (only for publishing "stop" if goal arrived)
         self.change_to_stop_client = create_client(self, spec_change_to_stop_client)
@@ -483,11 +505,14 @@ class Cr2Auto(Node):
                                             self.verbose,
                                             self.scenario,
                                             self.planning_problem,
-                                            self.scenario_handler.road_boundary,
+                                            self.scenario_handler,
                                             self.scenario.dt,
                                             self.params.trajectory_planner,
                                             self.params.rp_interface,
-                                            self.ego_vehicle_handler)
+                                            self.ego_vehicle_handler,
+                                            self.narrow_passage_trajectory_pub,
+                                            self.narrow_passage_obstacles_pub,
+                                            self.narrow_passage_clearance_pub)
         else:
             self._logger.error("<Trajectory Planner Factory> Planner type is invalid")
 

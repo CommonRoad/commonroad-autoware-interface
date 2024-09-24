@@ -1,7 +1,8 @@
 # third party imports
 import numpy as np
 from typing import List, Set, Tuple, Optional
-from shapely.geometry import Point
+from visualization_msgs.msg import Marker, MarkerArray
+from shapely.geometry import Point as PointShapely, MultiPolygon
 import time
 
 # commonroad imports
@@ -31,11 +32,17 @@ from cr2autoware.handlers.ego_vehicle_handler import (
     EgoVehicleHandler,
     EgoVehicleState
 )
+from cr2autoware.common.utils.transform import utm2map
+from cr2autoware.handlers.scenario_handler import ScenarioHandler
 from cr2autoware.interfaces.base.trajectory_planner_interface import TrajectoryPlannerInterface
 
 # ROS imports
 from rclpy.publisher import Publisher
 from rclpy.impl.rcutils_logger import RcutilsLogger
+from rclpy.time import Time
+
+# ROS messages
+from geometry_msgs.msg import Point as PointMsg
 
 
 class ReactivePlannerInterface(TrajectoryPlannerInterface):
@@ -53,11 +60,14 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
                  verbose: bool,
                  scenario: Scenario,
                  planning_problem: PlanningProblem,
-                 road_boundary: pycrcc.CollisionObject,
+                 scenario_handler: ScenarioHandler,
                  dt: float,
                  traj_planner_params: TrajectoryPlannerParams,
                  rp_interface_params: RPInterfaceParams,
-                 ego_vehicle_handler: EgoVehicleHandler):
+                 ego_vehicle_handler: EgoVehicleHandler,
+                 narrow_passage_trajectroy_pub: Publisher,
+                 narrow_passage_obstacles_pub: Publisher,
+                 narrow_passage_clearance_pub: Publisher):
         """
         Constructor for ReactivePlannerInterface class.
 
@@ -66,12 +76,15 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
         :param verbose: Flag for verbose logging
         :param scenario: CommonRoad scenario
         :param planning_problem: CommonRoad planning problem
-        :param road_boundary: road boundary as a collision object
+        :param scenario_handler: CommonRoad scenario handler
         :param dt: time step for the reactive planner
         :param traj_planner_params: General Trajectory Planner parameters
         :param rp_interface_params: Reactive Planner Interface parameters
         :param ego_vehicle_handler: Ego Vehicle Handler
         :var external_velocity_limit: External velocity limit
+        :var narrow_passage_trajectroy_pub: ROS2 node publisher for narrow passage trajectory
+        :var narrow_passage_obstacles_pub: ROS2 node publisher for narrow passage obstacles
+        :var narrow_passage_clearance_pub: ROS2 node publisher for narrow passage clearance
         """
 
         # init parent class
@@ -85,8 +98,16 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
         # set scenario
         self.scenario = scenario
 
+        # set scenario handler
+        self.scenario_handler = scenario_handler
+
         # set road boundary
-        self._road_boundary = road_boundary
+        self._road_boundary: pycrcc.CollisionObject = self.scenario_handler.road_boundary
+
+        # set narrow passage publishers
+        self._narrow_passage_trajectroy_pub = narrow_passage_trajectroy_pub
+        self._narrow_passage_obstacles_pub = narrow_passage_obstacles_pub
+        self._narrow_passage_clearance_pub = narrow_passage_clearance_pub
 
         # create reactive planner config
         rp_config = ReactivePlannerConfiguration().load(rp_interface_params.path_rp_config)
@@ -253,7 +274,8 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
                 combined_obstacle_set.update(obstacle_set)
     
         # Calculate the combined occupancy polygon for all obstacles on the relevant lanelets
-        #self._logger.debug(f"Combined obstacle sets: {combined_obstacle_set}")    
+        #self._logger.debug(f"Combined obstacle sets: {combined_obstacle_set}")
+        combined_polygon = None    
         if combined_obstacle_set:
             for obstacle_id in combined_obstacle_set:
                 obstacle = self.scenario.obstacle_by_id(obstacle_id)
@@ -274,19 +296,19 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
                             occupancy_polygon = occupancy.shape.shapely_object
                             #self._logger.debug(f"Occupancy polygon: {occupancy_polygon}")
                         else:
+                            # skip unsupported occupancy shapes
                             #self._logger.error(f"Unsupported occupancy shape: {occupancy.shape}")
                             continue
                         
-                        # Combine polygons
+                        # the union function returns a Polygon object if only one polygon is in the MultiPolygon
+                        # convert it to a MultiPolygon object
                         if combined_polygon is None:
-                            combined_polygon = occupancy_polygon
+                            combined_polygon = MultiPolygon([occupancy_polygon])
                         else:
                             combined_polygon = combined_polygon.union(occupancy_polygon)
                 else: 
                     #self._logger.info(f"Obstacle deleted! Obstacle ID: {obstacle_id}")
                     continue
-    
-        #self._logger.debug(f"Combined polygon: {combined_polygon}")
 
         if combined_polygon is not None:
             # TODO: reference velocity occilates, because when reference velocity is set to minimum, 
@@ -294,7 +316,7 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
             # in next iteration the position are again in the narrow passage and the reference velocity is set to minimum. This leads to a loop of changing reference velocities.
             for position in positions:
                 # Calculate the distance to the combined polygon
-                position_point = Point(position)
+                position_point = PointShapely(position)
                 radius = position_point.distance(combined_polygon)
                 #self._logger.debug(f"RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR")
                 #self._logger.debug(f"Distance to obstacle: {radius}")
@@ -307,8 +329,6 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
                     #self._logger.info(f"Narrow passage radius: {narrow_passage_radius}")
                     #self._logger.debug(f"UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU")
 
-            # calculate the reference velocity based on the maximum radius
-            width_radius = self._planner.vehicle_params.width * 0.5
             # get external velocity limits
             external_velocity_limit_max = kwargs.get("external_velocity_limit_max")
             external_velocity_limit_min = kwargs.get("external_velocity_limit_min")
@@ -316,9 +336,9 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
             external_velocity_limit_min = 2.0
             # initialize minimum and maximum radius of narrow passages
             # minmimal radius is the width of the vehicle
-            min_radius = width_radius 
+            min_radius = self._planner.vehicle_params.width * 0.5 
             # maximal radius is the double width of the vehicle
-            max_radius = 2 * width_radius
+            max_radius = self._planner.vehicle_params.width
 
             # set proposed reference velocity based on the narrow passage radius
             if narrow_passage_radius < min_radius:
@@ -339,4 +359,94 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
             #self._logger.info(f"VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVvv")
         t_end = time.perf_counter()
         self._logger.debug(f"Time for narrow passage velocity function: {t_end - t_start}")
+
+        # Debugging: Publish obstacles, clearance and trajectory  
+        self.publish_obstacles(combined_polygon)
+        self.publish_clearance(positions)
+        self.publish_trajectory()
+
         return reference_velocity
+    
+    def publish_trajectory(self):
+        """
+        Publishes the planned trajectory to the ROS2 node.
+        """
+        # create trajectory message
+        aw_trajectory_msg = self._prepare_trajectory_msg(self.scenario_handler.origin_transformation, self.scenario_handler.z_coordinate)
+        self._narrow_passage_trajectroy_pub.publish(aw_trajectory_msg)
+    
+    def publish_obstacles(self, multipolygon: MultiPolygon):
+        """
+        Publishes the obstacles in the narrow passage scenario to the ROS2 node.
+
+        :param multipolygon: MultiPolygon of the obstacles in the narrow passage scenario
+        """
+        if multipolygon is None:
+            return
+        
+        marker_array = MarkerArray()
+        for i, polygon in enumerate(multipolygon.geoms):
+            marker = Marker()
+            marker.header.frame_id = "map"
+            marker.header.stamp = Time().to_msg()
+            marker.ns = "combined_polygons"
+            marker.id = i
+            marker.type = Marker.LINE_STRIP
+            marker.action = Marker.ADD
+            marker.pose.orientation.w = 1.0
+            marker.scale.x = 0.1
+            marker.color.a = 1.0
+            marker.color.r = 1.0
+            marker.color.g = 0.0 
+            marker.color.b = 0.0
+
+            # Add points of the polygon to the marker
+            for x, y in polygon.exterior.coords:
+                p = utm2map(self.scenario_handler.origin_transformation, [x, y])
+                p.z = self.scenario_handler.z_coordinate
+                marker.points.append(p)
+
+            # Add first point again to close the polygon
+            if len(polygon.exterior.coords) > 0:
+                first_point = polygon.exterior.coords[0]
+                p = utm2map(self.scenario_handler.origin_transformation, [first_point[0], first_point[1]])
+                p.z = self.scenario_handler.z_coordinate
+                marker.points.append(p)
+
+            marker_array.markers.append(marker)
+
+        self._narrow_passage_obstacles_pub.publish(marker_array)
+
+    def publish_clearance(self, positions: List[Tuple[float, float]]):
+        """
+        Publishes the clearance of the narrow passage scenario to the ROS2 node.
+
+        :param position: list of positions of the ego vehicle and the optimal trajectory
+        """
+        if positions is None:
+            return
+        
+        marker_array = MarkerArray()
+        for i, position in enumerate(positions):
+            marker = Marker()
+            marker.header.frame_id = "map"
+            marker.header.stamp = Time().to_msg()
+            marker.ns = "clearance"
+            marker.id = i
+            marker.type = Marker.CYLINDER
+            marker.action = Marker.ADD
+            marker.pose.position = PointMsg()
+            p = utm2map(self.scenario_handler.origin_transformation, [position[0], position[1]])
+            marker.pose.position.x = p.x
+            marker.pose.position.y = p.y
+            marker.pose.position.z = self.scenario_handler.z_coordinate - 0.1
+            marker.scale.x = self._planner.vehicle_params.width
+            marker.scale.y = self._planner.vehicle_params.width
+            marker.scale.z = 0.01
+            marker.color.a = 1.0
+            marker.color.r = 0.0
+            marker.color.g = 1.0
+            marker.color.b = 0.0
+            marker_array.markers.append(marker)
+
+        self._narrow_passage_clearance_pub.publish(marker_array)

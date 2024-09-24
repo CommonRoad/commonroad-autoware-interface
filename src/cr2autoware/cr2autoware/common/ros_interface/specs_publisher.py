@@ -174,3 +174,18 @@ spec_cr_obstacles_pub = PublisherSpec(name="/planning/commonroad/cr_obstacles",
 spec_cr_obstacle_box_pub = PublisherSpec(name="/planning/commonroad/cr_obstacle_box",
                                      msg_type=MarkerArray,
                                      depth=1) 
+
+# publish trajectory for narrow passage behavior planning
+spec_narrow_passage_traj_pub = PublisherSpec(name="/planning/scenario_planning/narrow_passage/trajectory",
+                                             msg_type=AWTrajectory,
+                                             depth=1)
+
+# publish obstacles for narrow passage behavior planning
+spec_narrow_passage_obstacle_pub = PublisherSpec(name="/planning/scenario_planning/narrow_passage/obstacles",
+                                                 msg_type=MarkerArray,
+                                                 depth=1)
+
+# publish clearance for narrow passage behavior planning
+spec_narrow_passage_clearance_pub = PublisherSpec(name="/planning/scenario_planning/narrow_passage/clearance",
+                                                  msg_type=MarkerArray,
+                                                  depth=1)
