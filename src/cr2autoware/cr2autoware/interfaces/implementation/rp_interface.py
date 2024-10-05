@@ -2,7 +2,7 @@
 import numpy as np
 from typing import List, Set, Tuple, Optional
 from visualization_msgs.msg import Marker, MarkerArray
-from shapely.geometry import Point as PointShapely, MultiPolygon
+from shapely.geometry import Point as PointShapely, MultiPolygon, LineString
 import time
 
 # commonroad imports
@@ -225,6 +225,7 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
         :param reference_velocity: reference velocity for the planner
         :return: adjusted reference velocity
         """
+        #self._logger.debug(str(self._planner.reference_path))
         t_start = time.perf_counter()
         if reference_velocity is None:
             return None
@@ -236,8 +237,28 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
         combined_polygon = None
         relevant_lanelets = set()
 
-        # create position list for all states in the optimal trajectory
-        positions = [current_state.position] + [state.position for state in cr_state_list]
+        # Get nearest point in the reference path to the current vehicle position
+        current_position = np.array(current_state.position)
+        reference_path = np.array(self._planner.reference_path)
+        distances = np.linalg.norm(reference_path - current_position, axis=1)
+        nearest_index = np.argmin(distances)
+
+        # Filter reference_path to include only points after the nearest point
+        filtered_reference_path = self._planner.reference_path[nearest_index:]
+        positions = [filtered_reference_path[0]]
+        combined_distance: float = 0.0
+        # calculate reaction distance, a look ahead distance for the vehicle to react to obstacles
+        if current_state.velocity > 5.0:
+            look_ahead_distance = current_state.velocity * 4.0
+        else:
+            look_ahead_distance = 20.0
+
+        for point in range(1, len(filtered_reference_path)):
+            point_distance = np.linalg.norm(filtered_reference_path[point] - filtered_reference_path[point - 1])
+            combined_distance += point_distance
+            if combined_distance < look_ahead_distance:
+                positions.append(filtered_reference_path[point])
+
         #self._logger.debug(f"Positions: {positions}")
         for position in positions:         
             # TODO: check distance between two positions and if the distance is too large add intermediate points
@@ -340,10 +361,14 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
             # maximal radius is the double width of the vehicle
             max_radius = self._planner.vehicle_params.width
 
+            # if the minimum reference velocity is 0, provide a minimum value for the reference velocity
+            if external_velocity_limit_min == 0.0:
+                external_velocity_limit_min = external_velocity_limit_max - external_velocity_limit_min * 1/3
+            
             # set proposed reference velocity based on the narrow passage radius
             if narrow_passage_radius < min_radius:
                 # narrow passage is smaller than the width of the vehicle, set reference velocity to minimum
-                proposed_reference_velocity = external_velocity_limit_min
+                proposed_reference_velocity = external_velocity_limit_max - external_velocity_limit_min * 1/3
             elif narrow_passage_radius > max_radius:
                 # narrow passage is larger than the double width of the vehicle, set reference velocity to maximum
                 proposed_reference_velocity = external_velocity_limit_max
