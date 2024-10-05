@@ -381,38 +381,50 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
 
         :param multipolygon: MultiPolygon of the obstacles in the narrow passage scenario
         """
-        if multipolygon is None:
-            return
-        
         marker_array = MarkerArray()
-        for i, polygon in enumerate(multipolygon.geoms):
+
+        if multipolygon is not None:
+            if isinstance(multipolygon, Polygon):
+                polygons = [multipolygon]
+            elif isinstance(multipolygon, MultiPolygon):
+                polygons = multipolygon.geoms
+            else:
+                self._logger.error("Unsupported geometry type for multipolygon")
+                return
+
+            for i, polygon in enumerate(polygons):
+                marker = Marker()
+                marker.header.frame_id = "map"
+                marker.header.stamp = Time().to_msg()
+                marker.ns = "combined_polygons"
+                marker.id = i
+                marker.type = Marker.LINE_STRIP
+                marker.action = Marker.ADD
+                marker.pose.orientation.w = 1.0
+                marker.scale.x = 0.1
+                marker.color.a = 1.0
+                marker.color.r = 1.0
+                marker.color.g = 0.0 
+                marker.color.b = 0.0
+
+                # Add points of the polygon to the marker
+                for x, y in polygon.exterior.coords:
+                    p = utm2map(self.scenario_handler.origin_transformation, [x, y])
+                    p.z = self.scenario_handler.z_coordinate
+                    marker.points.append(p)
+
+                # Add first point again to close the polygon
+                if len(polygon.exterior.coords) > 0:
+                    first_point = polygon.exterior.coords[0]
+                    p = utm2map(self.scenario_handler.origin_transformation, [first_point[0], first_point[1]])
+                    p.z = self.scenario_handler.z_coordinate
+                    marker.points.append(p)
+
+                marker_array.markers.append(marker)
+                
+        else: 
             marker = Marker()
-            marker.header.frame_id = "map"
-            marker.header.stamp = Time().to_msg()
-            marker.ns = "combined_polygons"
-            marker.id = i
-            marker.type = Marker.LINE_STRIP
-            marker.action = Marker.ADD
-            marker.pose.orientation.w = 1.0
-            marker.scale.x = 0.1
-            marker.color.a = 1.0
-            marker.color.r = 1.0
-            marker.color.g = 0.0 
-            marker.color.b = 0.0
-
-            # Add points of the polygon to the marker
-            for x, y in polygon.exterior.coords:
-                p = utm2map(self.scenario_handler.origin_transformation, [x, y])
-                p.z = self.scenario_handler.z_coordinate
-                marker.points.append(p)
-
-            # Add first point again to close the polygon
-            if len(polygon.exterior.coords) > 0:
-                first_point = polygon.exterior.coords[0]
-                p = utm2map(self.scenario_handler.origin_transformation, [first_point[0], first_point[1]])
-                p.z = self.scenario_handler.z_coordinate
-                marker.points.append(p)
-
+            marker.action = Marker.DELETEALL
             marker_array.markers.append(marker)
 
         self._narrow_passage_obstacles_pub.publish(marker_array)
