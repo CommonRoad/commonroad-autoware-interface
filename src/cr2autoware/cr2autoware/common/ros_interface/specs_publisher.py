@@ -69,6 +69,14 @@ To add a new topic publisher, add the specification here first.
     * Description: CommonRoad scenario box for obstacles
     * Topic: `/planning/commonroad/cr_obstacle_box`
     * Message Type: `visualization_msgs.msg.MarkerArray`
+* spec_narrow_passage_obstacle_pub:
+    * Description: publish obstacles for narrow passage behavior planning
+    * Topic: `/planning/scenario_planning/narrow_passage/obstacles`
+    * Message Type: `visualization_msgs.msg.MarkerArray`
+* spec_narrow_passage_clearance_pub:
+    * Description: publish clearance for narrow passage behavior planning
+    * Topic: `/planning/scenario_planning/narrow_passage/clearance`
+    * Message Type: `visualization_msgs.msg.MarkerArray`
 """
 
 # ROS imports

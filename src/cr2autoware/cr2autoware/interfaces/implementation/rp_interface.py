@@ -65,7 +65,6 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
                  traj_planner_params: TrajectoryPlannerParams,
                  rp_interface_params: RPInterfaceParams,
                  ego_vehicle_handler: EgoVehicleHandler,
-                 narrow_passage_trajectroy_pub: Publisher,
                  narrow_passage_obstacles_pub: Publisher,
                  narrow_passage_clearance_pub: Publisher):
         """
@@ -82,7 +81,6 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
         :param rp_interface_params: Reactive Planner Interface parameters
         :param ego_vehicle_handler: Ego Vehicle Handler
         :var external_velocity_limit: External velocity limit
-        :var narrow_passage_trajectroy_pub: ROS2 node publisher for narrow passage trajectory
         :var narrow_passage_obstacles_pub: ROS2 node publisher for narrow passage obstacles
         :var narrow_passage_clearance_pub: ROS2 node publisher for narrow passage clearance
         """
@@ -105,7 +103,6 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
         self._road_boundary: pycrcc.CollisionObject = self.scenario_handler.road_boundary
 
         # set narrow passage publishers
-        self._narrow_passage_trajectroy_pub = narrow_passage_trajectroy_pub
         self._narrow_passage_obstacles_pub = narrow_passage_obstacles_pub
         self._narrow_passage_clearance_pub = narrow_passage_clearance_pub
 
@@ -215,17 +212,16 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
 
         This function searches for all relevant lanlets in the scenario. A relevant lanelet is a lanelet that is
         on the current position of the ego vehicle, on a position of the optimal trajectory, or an adjacent lanelet to
-        these lanelets. The function then merges all obstacles on these lanelets and calculates the combined occupancy.
-        The function then calculates the distance to the combined occupancy for all positions in the optimal trajectory
-        and the current position. The function then calculates the distance to the nearest obstacle and adjusts the reference
-        velocity based on this distance.
+        these lanelets. All obstacles on these lanelets are merged to a combined occupancy polygon. Also, the reference
+        path is filtered to include only a look ahead distance of the vehicle. The distance between the filtered 
+        reference path to the combined occupancy is calculated. Depending on this distance, the reference velocity
+        is adjusted.
 
         :param current_state: current state of the ego vehicle
         :param cr_state_list: list of states in the optimal trajectory
         :param reference_velocity: reference velocity for the planner
         :return: adjusted reference velocity
         """
-        #self._logger.debug(str(self._planner.reference_path))
         t_start = time.perf_counter()
         if reference_velocity is None:
             return None
@@ -283,7 +279,6 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
                 if lanelet.adj_right is not None:
                     right_adjacent_lanelet = self.scenario.lanelet_network.find_lanelet_by_id(lanelet.adj_right)
                     relevant_lanelets.add(right_adjacent_lanelet)
-        #self._logger.debug(f"Relevant lanelets: {relevant_lanelets}")
             
         # Merge obstacle sets from the relevant lanelets
         combined_obstacle_set = set()
@@ -295,7 +290,6 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
                 combined_obstacle_set.update(obstacle_set)
     
         # Calculate the combined occupancy polygon for all obstacles on the relevant lanelets
-        #self._logger.debug(f"Combined obstacle sets: {combined_obstacle_set}")
         combined_polygon = None    
         if combined_obstacle_set:
             for obstacle_id in combined_obstacle_set:
@@ -309,17 +303,12 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
                         occupancy_polygon = None
                         if isinstance(shape, Rectangle):
                             occupancy_polygon = occupancy.shape._shapely_polygon
-                            #elf._logger.debug(f"Occupancy polygon: {occupancy_polygon}")
                         elif isinstance(shape, Polygon):
                             occupancy_polygon = occupancy
-                            #self._logger.debug(f"Occupancy polygon: {occupancy_polygon}")
                         elif isinstance(shape, Circle):
                             occupancy_polygon = occupancy.shape.shapely_object
-                            #self._logger.debug(f"Occupancy polygon: {occupancy_polygon}")
                         else:
-                            # skip unsupported occupancy shapes
-                            #self._logger.error(f"Unsupported occupancy shape: {occupancy.shape}")
-                            continue
+                            raise TypeError("Unsupported CommonRoad shape type: " + str(shape))
                         
                         # the union function returns a Polygon object if only one polygon is in the MultiPolygon
                         # convert it to a MultiPolygon object
@@ -327,28 +316,16 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
                             combined_polygon = MultiPolygon([occupancy_polygon])
                         else:
                             combined_polygon = combined_polygon.union(occupancy_polygon)
-                else: 
-                    #self._logger.info(f"Obstacle deleted! Obstacle ID: {obstacle_id}")
-                    continue
 
         if combined_polygon is not None:
-            # TODO: reference velocity occilates, because when reference velocity is set to minimum, 
-            # the positions of the optimal trajectory changes (due to the velocity change) and the narrow passage radius changes, then the reference velocity is set to maximum,
-            # in next iteration the position are again in the narrow passage and the reference velocity is set to minimum. This leads to a loop of changing reference velocities.
             for position in positions:
                 # Calculate the distance to the combined polygon
                 position_point = PointShapely(position)
                 radius = position_point.distance(combined_polygon)
-                #self._logger.debug(f"RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR")
-                #self._logger.debug(f"Distance to obstacle: {radius}")
-                #self._logger.debug(f"RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR")
                 
                 # Update maximum radius
                 if radius < narrow_passage_radius:
                     narrow_passage_radius = radius
-                    #self._logger.debug(f"UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU")
-                    #self._logger.info(f"Narrow passage radius: {narrow_passage_radius}")
-                    #self._logger.debug(f"UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU")
 
             # get external velocity limits
             external_velocity_limit_max = kwargs.get("external_velocity_limit_max")
@@ -360,15 +337,11 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
             min_radius = self._planner.vehicle_params.width * 0.5 
             # maximal radius is the double width of the vehicle
             max_radius = self._planner.vehicle_params.width
-
-            # if the minimum reference velocity is 0, provide a minimum value for the reference velocity
-            if external_velocity_limit_min == 0.0:
-                external_velocity_limit_min = external_velocity_limit_max - external_velocity_limit_min * 1/3
             
             # set proposed reference velocity based on the narrow passage radius
             if narrow_passage_radius < min_radius:
                 # narrow passage is smaller than the width of the vehicle, set reference velocity to minimum
-                proposed_reference_velocity = external_velocity_limit_max - external_velocity_limit_min * 1/3
+                proposed_reference_velocity = external_velocity_limit_min
             elif narrow_passage_radius > max_radius:
                 # narrow passage is larger than the double width of the vehicle, set reference velocity to maximum
                 proposed_reference_velocity = external_velocity_limit_max
@@ -379,16 +352,13 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
                 proposed_reference_velocity = external_velocity_limit_min + (external_velocity_limit_max - external_velocity_limit_min) * (normalized_radius)**2
             
             reference_velocity = min(reference_velocity, proposed_reference_velocity)            
-            #self._logger.info(f"VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVvv")
-            #self._logger.info(f"Reference velocity: {reference_velocity}")
-            #self._logger.info(f"VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVvv")
+            self._logger.debug(f"Reference velocity: {reference_velocity*3.6} km/h")
         t_end = time.perf_counter()
         self._logger.debug(f"Time for narrow passage velocity function: {t_end - t_start}")
 
         # Debugging: Publish obstacles, clearance and trajectory  
         self.publish_obstacles(combined_polygon)
         self.publish_clearance(positions)
-        self.publish_trajectory()
 
         return reference_velocity
     
@@ -417,6 +387,10 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
                 self._logger.error("Unsupported geometry type for multipolygon")
                 return
 
+            marker = Marker()
+            marker.action = Marker.DELETEALL
+            marker_array.markers.append(marker)
+            
             for i, polygon in enumerate(polygons):
                 marker = Marker()
                 marker.header.frame_id = "map"
@@ -460,30 +434,36 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
 
         :param position: list of positions of the ego vehicle and the optimal trajectory
         """
-        if positions is None:
-            return
-        
         marker_array = MarkerArray()
-        for i, position in enumerate(positions):
+
+        if positions is not None:
             marker = Marker()
-            marker.header.frame_id = "map"
-            marker.header.stamp = Time().to_msg()
-            marker.ns = "clearance"
-            marker.id = i
-            marker.type = Marker.CYLINDER
-            marker.action = Marker.ADD
-            marker.pose.position = PointMsg()
-            p = utm2map(self.scenario_handler.origin_transformation, [position[0], position[1]])
-            marker.pose.position.x = p.x
-            marker.pose.position.y = p.y
-            marker.pose.position.z = self.scenario_handler.z_coordinate - 0.1
-            marker.scale.x = self._planner.vehicle_params.width
-            marker.scale.y = self._planner.vehicle_params.width
-            marker.scale.z = 0.01
-            marker.color.a = 1.0
-            marker.color.r = 0.0
-            marker.color.g = 1.0
-            marker.color.b = 0.0
+            marker.action = Marker.DELETEALL
+            marker_array.markers.append(marker)
+            for i, position in enumerate(positions):
+                marker = Marker()
+                marker.header.frame_id = "map"
+                marker.header.stamp = Time().to_msg()
+                marker.ns = "clearance"
+                marker.id = i
+                marker.type = Marker.CYLINDER
+                marker.action = Marker.ADD
+                marker.pose.position = PointMsg()
+                p = utm2map(self.scenario_handler.origin_transformation, [position[0], position[1]])
+                marker.pose.position.x = p.x
+                marker.pose.position.y = p.y
+                marker.pose.position.z = self.scenario_handler.z_coordinate - 0.1
+                marker.scale.x = 0.25
+                marker.scale.y = 0.25
+                marker.scale.z = 0.01
+                marker.color.a = 1.0
+                marker.color.r = 0.0
+                marker.color.g = 1.0
+                marker.color.b = 0.0
+                marker_array.markers.append(marker)
+        else: 
+            marker = Marker()
+            marker.action = Marker.DELETEALL
             marker_array.markers.append(marker)
 
         self._narrow_passage_clearance_pub.publish(marker_array)
