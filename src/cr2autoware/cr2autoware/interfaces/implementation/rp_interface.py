@@ -362,14 +362,6 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
 
         return reference_velocity
     
-    def publish_trajectory(self):
-        """
-        Publishes the planned trajectory to the ROS2 node.
-        """
-        # create trajectory message
-        aw_trajectory_msg = self._prepare_trajectory_msg(self.scenario_handler.origin_transformation, self.scenario_handler.z_coordinate)
-        self._narrow_passage_trajectroy_pub.publish(aw_trajectory_msg)
-    
     def publish_obstacles(self, multipolygon: MultiPolygon):
         """
         Publishes the obstacles in the narrow passage scenario to the ROS2 node.
