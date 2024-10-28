@@ -17,6 +17,7 @@ import numpy as np
 from pyproj import Proj
 import utm
 import yaml
+from shapely.geometry import Point, Polygon
 
 # ROS msgs
 from geometry_msgs.msg import Pose
@@ -521,7 +522,14 @@ class ScenarioHandler(BaseHandler):
         # list of AW object IDs in current perception message
         list_curr_aw_object_ids: List[UUID] = list()
 
+        # create perception range polygon around ego vehicle for object filtering
+        perception_range = self._perception_range()
+
         for obstacle in last_message.objects:
+            # check if obstacle is within the ego vehicle's perception range
+            if not self._is_in_perception_range(perception_range, obstacle.kinematics.initial_pose_with_covariance.pose.position):
+                continue
+
             # convert current state
             position = map2utm(
                 self._origin_transformation,
@@ -659,6 +667,67 @@ class ScenarioHandler(BaseHandler):
         # remove from object ID mapping
         for idx in list_removed_aw_object_ids:
             self._object_id_mapping.pop(idx)
+
+    def _perception_range(self) -> Polygon:
+        """
+        Get the perception range of the ego vehicle as a polygon.
+
+        :return: perception range
+        """
+        # perception range dimensions
+        # TODO: make perception range configurable with params file
+        perception_range_front = 150.0
+        perception_range_rear = 20.0
+        perception_range_side = 25.0  # half width
+
+        # get ego vehicle position and orientation
+        ego_vehicle_position = self._node.ego_vehicle_handler.current_vehicle_state.pose.pose.position
+        ego_vehicle_quaternion = self._node.ego_vehicle_handler.current_vehicle_state.pose.pose.orientation
+
+        # convert quaternion to orientation
+        ego_vehicle_orientation = quaternion2orientation(ego_vehicle_quaternion)
+
+        # calculate the corners of the perception rectangle
+        cos_theta = math.cos(ego_vehicle_orientation)
+        sin_theta = math.sin(ego_vehicle_orientation)
+
+        front_left = Point(
+            ego_vehicle_position.x + perception_range_front * cos_theta - perception_range_side * sin_theta,
+            ego_vehicle_position.y + perception_range_front * sin_theta + perception_range_side * cos_theta
+        )
+        front_right =  Point(
+            ego_vehicle_position.x + perception_range_front * cos_theta + perception_range_side * sin_theta,
+            ego_vehicle_position.y + perception_range_front * sin_theta - perception_range_side * cos_theta
+        )
+        rear_left = Point(
+            ego_vehicle_position.x - perception_range_rear * cos_theta - perception_range_side * sin_theta,
+            ego_vehicle_position.y - perception_range_rear * sin_theta + perception_range_side * cos_theta
+        )
+        rear_right = Point(
+            ego_vehicle_position.x - perception_range_rear * cos_theta + perception_range_side * sin_theta,
+            ego_vehicle_position.y - perception_range_rear * sin_theta - perception_range_side * cos_theta
+        )
+
+        # create a polygon for the perception 
+        # TODO: Visualization of the perception range in rviz
+        perception_polygon = Polygon([rear_left, front_left, front_right, rear_right])
+
+        return perception_polygon
+
+    @staticmethod
+    def _is_in_perception_range(perception_range: Polygon, obs_position: Pose) -> bool:
+        """
+        Check if the given obstacle position is within the ego vehicle's perception range.
+
+        :param perception_range: perception range of ego vehicle
+        :param obs_position: obstacle position to check
+        :return: True if the position is within the perception range, False otherwise
+        """   
+        obstacle_point = Point(obs_position.x, obs_position.y)
+
+        is_in_perception_range = perception_range.contains(obstacle_point)
+
+        return is_in_perception_range
 
     @staticmethod
     def _get_predicted_path(predicted_object: PredictedObject) -> PredictedPath:
