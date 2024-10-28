@@ -295,6 +295,7 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
             for obstacle_id in combined_obstacle_set:
                 obstacle = self.scenario.obstacle_by_id(obstacle_id)
                 if obstacle is not None:
+                    # TODO: Check if obstacle is dynamic
                     occupancy = obstacle.occupancy_at_time(0)
                     
                     # Convert occupancy to polygon
@@ -317,15 +318,11 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
                         else:
                             combined_polygon = combined_polygon.union(occupancy_polygon)
 
+        marker_normal = Marker()
         if combined_polygon is not None:
-            for position in positions:
-                # Calculate the distance to the combined polygon
-                position_point = PointShapely(position)
-                radius = position_point.distance(combined_polygon)
-                
-                # Update maximum radius
-                if radius < narrow_passage_radius:
-                    narrow_passage_radius = radius
+            # Calculate the minimum lateral distance from the trajectory points to the combined polygon
+            # TODO: ADD Marker for normal line
+            narrow_passage_radius, marker_normal = self.min_lateral_distance_local_normal(positions, combined_polygon)
 
             # get external velocity limits
             external_velocity_limit_max = kwargs.get("external_velocity_limit_max")
@@ -358,10 +355,76 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
 
         # Debugging: Publish obstacles, clearance and trajectory  
         self.publish_obstacles(combined_polygon)
-        self.publish_clearance(positions)
+        self.publish_clearance(positions, marker_normal)
 
         return reference_velocity
     
+    def min_lateral_distance_local_normal(self, trajectory_points, multipolygon):
+        """
+        Calculate the lateral distance between the trajectory points and the multipolygon.
+
+        :param trajectory_points: list of trajectory points
+        :param multipolygon: MultiPolygon of the obstacles in the narrow passage scenario
+        :return min_distance: minimum lateral distance between the trajectory points and the multipolygon
+        :return normal_marker: ROS Marker for the normal line
+        """
+
+        lateral_distances = []
+
+        for i in range(1, len(trajectory_points) - 1):
+
+            prev_point = trajectory_points[i - 1]
+            curr_point = trajectory_points[i]
+            next_point = trajectory_points[i + 1]
+            
+            # calculate tangent and normal
+            tangent = next_point - prev_point
+            tangent = tangent / np.linalg.norm(tangent)
+            normal = np.array([-tangent[1], tangent[0]])
+
+            # calculate normal line
+            trajectory_point = PointShapely(curr_point[0], curr_point[1])
+            normal_endpoint_pos = PointShapely(curr_point[0] + normal[0] * 1000, curr_point[1] + normal[1] * 1000)
+            normal_endpoint_neg = PointShapely(curr_point[0] - normal[0] * 1000, curr_point[1] - normal[1] * 1000)
+            normal_line = LineString([normal_endpoint_neg, normal_endpoint_pos])
+            
+            # check for intersection with multipolygon
+            intersection = normal_line.intersection(multipolygon)
+            
+            if not intersection.is_empty:
+                distance = trajectory_point.distance(intersection)
+                lateral_distances.append(distance)
+            
+        if lateral_distances:
+            min_distance = min(lateral_distances)
+        else:
+            min_distance = 1000.0
+            
+            # # Create marker for normal line
+            # normal_marker = Marker()
+            # normal_marker.header.frame_id = "map"
+            # normal_marker.type = Marker.ARROW
+            # normal_marker.action = Marker.ADD
+            # normal_marker.scale.x = 0.05 
+            # normal_marker.scale.y = 0.1 
+            # normal_marker.color.a = 1.0
+            # normal_marker.color.r = 1.0 
+            
+            # start_point = PointMsg()
+            # start_point.x = curr_point[0]
+            # start_point.y = curr_point[1]
+            # start_point.z = self.scenario_handler.z_coordinate
+
+            # end_point = PointMsg()
+            # end_point.x = normal_endpoint.x
+            # end_point.y = normal_endpoint.y
+            # end_point.z = self.scenario_handler.z_coordinate
+
+            # normal_marker.points = [start_point, end_point]
+        normal_marker = None
+                    
+        return min_distance, normal_marker
+
     def publish_obstacles(self, multipolygon: MultiPolygon):
         """
         Publishes the obstacles in the narrow passage scenario to the ROS2 node.
@@ -420,7 +483,7 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
 
         self._narrow_passage_obstacles_pub.publish(marker_array)
 
-    def publish_clearance(self, positions: List[Tuple[float, float]]):
+    def publish_clearance(self, positions: List[Tuple[float, float]], marker_normal):
         """
         Publishes the clearance of the narrow passage scenario to the ROS2 node.
 
@@ -432,6 +495,7 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
             marker = Marker()
             marker.action = Marker.DELETEALL
             marker_array.markers.append(marker)
+            # marker_array.markers.append(marker_normal)
             for i, position in enumerate(positions):
                 marker = Marker()
                 marker.header.frame_id = "map"
