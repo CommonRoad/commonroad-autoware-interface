@@ -61,6 +61,14 @@ To add a new topic publisher, add the specification here first.
     * Description: publish initial pose (when loading scenario from a CR file)
     * Topic: `/initialpose`
     * Message Type: `geometry_msgs.msg.PoseWithCovarianceStamped`
+* spec_cr_obstacles_pub:
+    * Description: CommonRoad scenario obstacles
+    * Topic: `/planning/scenario_planning/cr_obstacles`
+    * Message Type: `visualization_msgs.msg.MarkerArray`
+* spec_cr_scenario_box_pub:
+    * Description: CommonRoad scenario box for obstacles
+    * Topic: `/planning/scenario_planning/cr_scenario_box`
+    * Message Type: `visualization_msgs.msg.MarkerArray`
 """
 
 # ROS imports
@@ -157,3 +165,12 @@ spec_initial_pose_2d_pub = PublisherSpec(name="/initialpose",
                                          msg_type=PoseWithCovarianceStamped,
                                          depth=1)
 
+# publish CommonRoad scenario Obstacles
+spec_cr_obstacles_pub = PublisherSpec(name="/planning/scenario_planning/cr_obstacles",
+                                     msg_type=MarkerArray,
+                                     depth=1)
+
+# publish CommonRoad scenario Box for Obstacles
+spec_cr_scenario_box_pub = PublisherSpec(name="/planning/scenario_planning/cr_scenario_box",
+                                     msg_type=MarkerArray,
+                                     depth=1) 
