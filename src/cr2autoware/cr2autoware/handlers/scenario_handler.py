@@ -201,6 +201,10 @@ class ScenarioHandler(BaseHandler):
         self.safety_margin = self._get_param("trajectory_planner.safety_margin").double_value
         if self.safety_margin < 0.0:
             raise ValueError("Safety margin must be greater or equal to 0.0!")
+        # perception range dimensions for scenario objects from the ego vehicle
+        self.perception_range_front = self._get_param("scenario.perception_range_front").double_value
+        self.perception_range_rear = self._get_param("scenario.perception_range_rear").double_value
+        self.perception_range_side = self._get_param("scenario.perception_range_side").double_value
 
     def _read_map_config(self, map_path: str) -> Dict[str, Any]:
         """
@@ -704,12 +708,6 @@ class ScenarioHandler(BaseHandler):
 
         :return: perception range
         """
-        # perception range dimensions
-        # TODO: make perception range configurable with params file
-        perception_range_front = 150.0
-        perception_range_rear = 20.0
-        perception_range_side = 25.0  # half width
-
         # get ego vehicle position and orientation
         ego_vehicle_position = self._node.ego_vehicle_handler.current_vehicle_state.pose.pose.position
         ego_vehicle_quaternion = self._node.ego_vehicle_handler.current_vehicle_state.pose.pose.orientation
@@ -722,20 +720,20 @@ class ScenarioHandler(BaseHandler):
         sin_theta = math.sin(ego_vehicle_orientation)
 
         front_left = Point(
-            ego_vehicle_position.x + perception_range_front * cos_theta - perception_range_side * sin_theta,
-            ego_vehicle_position.y + perception_range_front * sin_theta + perception_range_side * cos_theta
+            ego_vehicle_position.x + self.perception_range_front * cos_theta - self.perception_range_side * sin_theta,
+            ego_vehicle_position.y + self.perception_range_front * sin_theta + self.perception_range_side * cos_theta
         )
         front_right =  Point(
-            ego_vehicle_position.x + perception_range_front * cos_theta + perception_range_side * sin_theta,
-            ego_vehicle_position.y + perception_range_front * sin_theta - perception_range_side * cos_theta
+            ego_vehicle_position.x + self.perception_range_front * cos_theta + self.perception_range_side * sin_theta,
+            ego_vehicle_position.y + self.perception_range_front * sin_theta - self.perception_range_side * cos_theta
         )
         rear_left = Point(
-            ego_vehicle_position.x - perception_range_rear * cos_theta - perception_range_side * sin_theta,
-            ego_vehicle_position.y - perception_range_rear * sin_theta + perception_range_side * cos_theta
+            ego_vehicle_position.x - self.perception_range_rear * cos_theta - self.perception_range_side * sin_theta,
+            ego_vehicle_position.y - self.perception_range_rear * sin_theta + self.perception_range_side * cos_theta
         )
         rear_right = Point(
-            ego_vehicle_position.x - perception_range_rear * cos_theta + perception_range_side * sin_theta,
-            ego_vehicle_position.y - perception_range_rear * sin_theta - perception_range_side * cos_theta
+            ego_vehicle_position.x - self.perception_range_rear * cos_theta + self.perception_range_side * sin_theta,
+            ego_vehicle_position.y - self.perception_range_rear * sin_theta - self.perception_range_side * cos_theta
         )
 
         # create a polygon for the perception 
