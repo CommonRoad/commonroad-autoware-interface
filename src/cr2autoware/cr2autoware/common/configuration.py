@@ -123,6 +123,11 @@ class ScenarioParams(BaseParams):
     # publish obstacles from CR scenario
     publish_obstacles: bool = True
 
+    # perception range for scenario objects from the ego vehicle (in meters)
+    perception_range_front: float = 100.0  # m
+    perception_range_rear: float = 20.0  # m
+    perception_range_side: float = 25.0  # m (half width)
+
     def __post_init__(self):
         """Initialize ROS params."""
         # declare ROS params

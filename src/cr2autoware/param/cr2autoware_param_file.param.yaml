@@ -15,6 +15,11 @@
       adjacencies: False
       publish_obstacles: True # publish static and dynamic obstacles from CommonRoad scenario
 
+      # perception range for scenario objects from the ego vehicle
+      perception_range_front: 100.0 # m
+      perception_range_rear: 20.0 # m
+      perception_range_side: 25.0 # m (half width)
+
     vehicle:
       # static parameters (e.g., wheel_base) are read from vehicle_info.param.yaml (see cr2autoware/configuration.py)
 
