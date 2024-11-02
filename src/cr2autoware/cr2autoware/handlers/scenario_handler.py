@@ -18,12 +18,14 @@ from pyproj import Proj
 import utm
 import yaml
 from shapely.geometry import Point, Polygon
+from visualization_msgs.msg import Marker, MarkerArray
 
 # ROS msgs
 from geometry_msgs.msg import Pose
 from geometry_msgs.msg import PoseStamped
 from geometry_msgs.msg import PoseWithCovarianceStamped
 from geometry_msgs.msg import Polygon as PolygonMsg
+from geometry_msgs.msg import Point as PointMsg
 from rclpy.publisher import Publisher
 from std_msgs.msg import Header
 
@@ -60,6 +62,7 @@ from crdesigner.map_conversion.map_conversion_interface import lanelet_to_common
 from .base import BaseHandler
 from ..common.utils.cr_conversion_utils import commonroad_shape_conversion
 from ..common.utils.cr_conversion_utils import commonroad_shape_updater
+from ..common.utils.cr_conversion_utils import commonroad_shape_to_marker
 from ..common.utils.cr_conversion_utils import get_classification_with_highest_probability
 from ..common.utils.cr_conversion_utils import set_traffic_light_cycle
 from ..common.utils.cr_conversion_utils import dict_autoware_to_cr_obstacle_type
@@ -72,6 +75,7 @@ from ..common.utils.transform import map2utm
 from ..common.utils.geometry import upsample_trajectory
 from ..common.utils.geometry import traj_linear_interpolate
 from ..common.ros_interface.create import create_subscription
+from ..common.ros_interface.create import create_publisher
 
 # Avoid circular imports
 if typing.TYPE_CHECKING:
@@ -81,12 +85,28 @@ if typing.TYPE_CHECKING:
 from ..common.ros_interface.specs_subscriptions import spec_objects_sub
 from ..common.ros_interface.specs_subscriptions import spec_traffic_signals_sub
 
+#publisher specifications
+from ..common.ros_interface.specs_publisher import spec_cr_obstacles_pub
+from ..common.ros_interface.specs_publisher import spec_cr_scenario_box_pub
+
 
 class ScenarioHandler(BaseHandler):
     """
     Handles communication with Autoware for CommonRoad Scenario relevant data.
 
     Keeps an up-to-date state of the current scenario in CommonRoad format.
+
+    ----------------
+    **Publishers:**
+
+    * spec_cr_obstacles_pub: 
+        * Description: CommonRoad scenario obstacles.
+        * Topic: `/planning/scenario_planning/cr_obstacles`
+        * Message Type: `visualization_msgs.msg.MarkerArray`
+    * spec_cr_scenario_box_pub:
+        * Description: CommonRoad scenario box for obstacles.
+        * Topic: `/planning/scenario_planning/cr_scenario_box`
+        * Message Type: `visualization_msgs.msg.MarkerArray`
 
     -------------------
     **Subscribers:**
@@ -416,7 +436,11 @@ class ScenarioHandler(BaseHandler):
 
     def _init_publishers(self) -> None:
         """Initialize publishers."""
-        pass
+        # publish CommonRoad scenario obstacles
+        self._pub_cr_obstacles = create_publisher(self._node, spec_cr_obstacles_pub)
+
+        # publish CommonRoad scenario box for obstacles
+        self._pub_cr_scenario_box = create_publisher(self._node, spec_cr_scenario_box_pub)
 
     @property
     def scenario(self) -> CRScenario:
@@ -524,6 +548,9 @@ class ScenarioHandler(BaseHandler):
 
         # create perception range polygon around ego vehicle for object filtering
         perception_range = self._perception_range()
+
+        # publish perception range as a MarkerArray message
+        self._publish_cr_scenario_box(perception_range)
 
         for obstacle in last_message.objects:
             # check if obstacle is within the ego vehicle's perception range
@@ -641,6 +668,9 @@ class ScenarioHandler(BaseHandler):
         # remove obstacles from scenario which are not in the current objects message
         self._remove_objects_from_scenario(list_curr_aw_object_ids)
 
+        # publish CommonRoad obstacles
+        self._publish_cr_obstacles(self._scenario.obstacles)
+
     def _remove_objects_from_scenario(self, list_curr_aw_object_ids: List[UUID]) -> None:
         """
         Object removal from the CommonRoad scenario.
@@ -709,10 +739,67 @@ class ScenarioHandler(BaseHandler):
         )
 
         # create a polygon for the perception 
-        # TODO: Visualization of the perception range in rviz
         perception_polygon = Polygon([rear_left, front_left, front_right, rear_right])
 
         return perception_polygon
+    
+    def _publish_cr_scenario_box(self, perception_range: Polygon) -> None:
+        """
+        Publish the perception range as a MarkerArray message.
+        """
+        marker_array = MarkerArray()
+        
+        marker = Marker()
+        marker.header.frame_id = "map"
+        marker.header.stamp = self._node.get_clock().now().to_msg()
+        marker.ns = "perception_range"
+        marker.id = 0
+        marker.pose.position.z = self._z_coordinate
+        marker.color.a = 1.0
+        marker.color.r = 0.0
+        marker.color.g = 1.0
+        marker.color.b = 1.0
+        marker.type = Marker.LINE_STRIP
+        marker.scale.x = 0.1
+        marker.scale.y = 0.1
+        marker.scale.z = 0.01
+        # first point of perception range is not the last point
+        # Perception Range box is in map frame (no transformation needed)
+        for x, y in perception_range.exterior.coords:
+            point = PointMsg()
+            point.x = x
+            point.y = y
+            point.z = self._z_coordinate
+            marker.points.append(point)
+        # add first point to close the polygon
+        point = PointMsg()
+        point.x = perception_range.exterior.coords[0][0]
+        point.y = perception_range.exterior.coords[0][1]
+        point.z = self._z_coordinate
+        marker.points.append(point)
+        marker_array.markers.append(marker)
+
+        # publish perception range
+        self._pub_cr_scenario_box.publish(marker_array)
+
+    def _publish_cr_obstacles(self, obstacles: List) -> None:
+        """
+        Publish CommonRoad obstacles as a MarkerArray message.
+        """
+
+        marker_array = MarkerArray()
+
+        del_marker = Marker()
+        del_marker.action = Marker.DELETEALL
+        marker_array.markers.append(del_marker)
+
+        for obstacle in obstacles:
+            marker = commonroad_shape_to_marker(obstacle, self._origin_transformation, self._z_coordinate)
+            marker.header.stamp = self._node.get_clock().now().to_msg()
+            marker_array.markers.append(marker)
+
+        # publish obstacles
+        self._pub_cr_obstacles.publish(marker_array)
 
     @staticmethod
     def _is_in_perception_range(perception_range: Polygon, obs_position: Pose) -> bool:

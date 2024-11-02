@@ -73,6 +73,7 @@ from uuid import UUID as PyUUID
 # third party imports
 import numpy as np
 from shapely.geometry import Polygon as PolygonShapely
+from visualization_msgs.msg import Marker # type: ignore
 
 # ROS imports
 import rclpy.logging as ros_logging # type: ignore
@@ -84,7 +85,7 @@ from commonroad.planning.planning_problem import PlanningProblem
 from commonroad.planning.planning_problem import PlanningProblemSet
 from commonroad.scenario.scenario import Scenario
 from commonroad.scenario.state import InitialState,CustomState
-from commonroad.scenario.obstacle import DynamicObstacle
+from commonroad.scenario.obstacle import Obstacle, DynamicObstacle
 from commonroad.scenario.trajectory import Trajectory as CRTrajectory
 from commonroad.prediction.prediction import TrajectoryPrediction
 from commonroad.scenario.obstacle import ObstacleType
@@ -102,6 +103,7 @@ from geometry_msgs.msg import Twist # type: ignore
 from geometry_msgs.msg import Pose # type: ignore
 from geometry_msgs.msg import Vector3 # type: ignore
 from geometry_msgs.msg import Polygon as PolygonMsg # type: ignore
+from geometry_msgs.msg import Point as PointMsg # type: ignore
 
 
 # own code base
@@ -253,6 +255,61 @@ def commonroad_shape_updater(
 
     else:
         raise TypeError("Unsupported CommonRoad shape type: " + str(dynamic_obstacle.obstacle_shape))
+    
+
+def commonroad_shape_to_marker(
+        cr_obstacle: Obstacle,
+        origin_transform: List[float],
+        z_coordinate: float
+) -> Marker:
+    """
+    Convert a CommonRoad shape to a ROS2 marker.
+
+    :param cr_obstacle: CommonRoad obstacle
+    :param origin_transform: origin transformation from Autoware to CommonRoad
+    :param z_coordinate: z-coordinate of the scenario
+    :return: ROS2 marker    
+    """
+    cr_shape = cr_obstacle.obstacle_shape
+
+    marker = Marker()
+    marker.header.frame_id = "map"
+    marker.ns = "obstacle"
+    marker.id = cr_obstacle.obstacle_id
+    marker.pose.position.z = z_coordinate
+    marker.color.a = 1.0
+    marker.color.r = 0.0
+    marker.color.g = 1.0
+    marker.color.b = 0.0
+    position = transform_utils.utm2map(origin_transform, cr_obstacle.initial_state.position)
+    marker.pose.position.x = position.x
+    marker.pose.position.y = position.y
+    marker.pose.orientation = transform_utils.orientation2quaternion(cr_obstacle.initial_state.orientation)
+    marker.scale.z = 0.01
+
+    if isinstance(cr_shape, Rectangle):
+        marker.type = Marker.CUBE
+        marker.scale.x = cr_shape.length
+        marker.scale.y = cr_shape.width
+    elif isinstance(cr_shape, Circle):
+        marker.type = Marker.SPHERE
+        marker.scale.x = 2 * cr_shape.radius
+        marker.scale.y = 2 * cr_shape.radius
+    elif isinstance(cr_shape, Polygon):
+        marker.type = Marker.LINE_STRIP
+        marker.scale.x = 0.1
+        marker.scale.y = 0.1
+        # first point of vertices is also the last point
+        for x, y in cr_shape.vertices:
+            point = PointMsg()
+            point.x = x
+            point.y = y
+            point.z = z_coordinate
+            marker.points.append(point)        
+    else:
+        raise TypeError("Unsupported CommonRoad shape type: " + str(cr_shape))
+    
+    return marker
 
 
 def create_buffered_footprint(
