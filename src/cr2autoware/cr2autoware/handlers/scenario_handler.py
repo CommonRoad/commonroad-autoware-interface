@@ -554,7 +554,7 @@ class ScenarioHandler(BaseHandler):
 
         for obstacle in last_message.objects:
             # check if obstacle is within the ego vehicle's perception range
-            if not self._is_in_perception_range(perception_range, obstacle.kinematics.initial_pose_with_covariance.pose.position):
+            if not self._is_in_perception_range(perception_range, obstacle):
                 continue
 
             # convert current state
@@ -801,20 +801,29 @@ class ScenarioHandler(BaseHandler):
         # publish obstacles
         self._pub_cr_obstacles.publish(marker_array)
 
-    @staticmethod
-    def _is_in_perception_range(perception_range: Polygon, obs_position: Pose) -> bool:
+    def _is_in_perception_range(self, perception_range: Polygon, obstacle: PredictedObject) -> bool:
         """
-        Check if the given obstacle position is within the ego vehicle's perception range.
+        Check if the given obstacle position is within the ego vehicle's or prediction's perception range.
 
         :param perception_range: perception range of ego vehicle
-        :param obs_position: obstacle position to check
+        :param obstacle: predicted object from perception
         :return: True if the position is within the perception range, False otherwise
-        """   
+        """
+        obs_position = obstacle.kinematics.initial_pose_with_covariance.pose.position   
         obstacle_point = Point(obs_position.x, obs_position.y)
 
-        is_in_perception_range = perception_range.contains(obstacle_point)
+        # check if obstacle is within the perception range
+        if perception_range.contains(obstacle_point):
+            return True
 
-        return is_in_perception_range
+        # check if predicted poses are within the perception range
+        predicted_path: PredictedPath = self._get_predicted_path(obstacle)
+        for pose in predicted_path.path:
+            obstacle_point = Point(pose.position.x, pose.position.y)
+            if perception_range.contains(obstacle_point):
+                return True
+        
+        return False
 
     @staticmethod
     def _get_predicted_path(predicted_object: PredictedObject) -> PredictedPath:
