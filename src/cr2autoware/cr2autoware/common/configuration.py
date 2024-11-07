@@ -123,7 +123,7 @@ class ScenarioParams(BaseParams):
     # publish obstacles from CR scenario
     publish_obstacles: bool = True
 
-    publish_cr_scenario_topics: True  # publish ROS topics for visualization of CommonRoad obstacles in RViz
+    publish_cr_scenario_topics: bool = True  # publish ROS topics for visualization of CommonRoad obstacles in RViz
     # Bounding box for Autoware to CommonRoad obstacle conversion from ego vehicle position
     cr_obstacle_box_front: float = 100.0  # m
     cr_obstacle_box_rear: float = 20.0  # m
