@@ -63,11 +63,11 @@ To add a new topic publisher, add the specification here first.
     * Message Type: `geometry_msgs.msg.PoseWithCovarianceStamped`
 * spec_cr_obstacles_pub:
     * Description: CommonRoad scenario obstacles
-    * Topic: `/planning/scenario_planning/cr_obstacles`
+    * Topic: `/planning/commonroad/cr_obstacles`
     * Message Type: `visualization_msgs.msg.MarkerArray`
-* spec_cr_scenario_box_pub:
+* spec_cr_obstacle_box_pub:
     * Description: CommonRoad scenario box for obstacles
-    * Topic: `/planning/scenario_planning/cr_scenario_box`
+    * Topic: `/planning/commonroad/cr_obstacle_box`
     * Message Type: `visualization_msgs.msg.MarkerArray`
 """
 
@@ -166,11 +166,11 @@ spec_initial_pose_2d_pub = PublisherSpec(name="/initialpose",
                                          depth=1)
 
 # publish CommonRoad scenario Obstacles
-spec_cr_obstacles_pub = PublisherSpec(name="/planning/scenario_planning/cr_obstacles",
+spec_cr_obstacles_pub = PublisherSpec(name="/planning/commonroad/cr_obstacles",
                                      msg_type=MarkerArray,
                                      depth=1)
 
-# publish CommonRoad scenario Box for Obstacles
-spec_cr_scenario_box_pub = PublisherSpec(name="/planning/scenario_planning/cr_scenario_box",
+# publish CommonRoad scenario box for obstacles
+spec_cr_obstacle_box_pub = PublisherSpec(name="/planning/commonroad/cr_obstacle_box",
                                      msg_type=MarkerArray,
                                      depth=1) 
