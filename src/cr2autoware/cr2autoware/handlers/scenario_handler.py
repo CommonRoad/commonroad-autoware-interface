@@ -63,6 +63,7 @@ from .base import BaseHandler
 from ..common.utils.cr_conversion_utils import commonroad_shape_conversion
 from ..common.utils.cr_conversion_utils import commonroad_shape_updater
 from ..common.utils.cr_conversion_utils import commonroad_shape_to_marker
+from ..common.utils.cr_conversion_utils import cr_obstacle_box_to_marker
 from ..common.utils.cr_conversion_utils import get_classification_with_highest_probability
 from ..common.utils.cr_conversion_utils import set_traffic_light_cycle
 from ..common.utils.cr_conversion_utils import dict_autoware_to_cr_obstacle_type
@@ -87,7 +88,7 @@ from ..common.ros_interface.specs_subscriptions import spec_traffic_signals_sub
 
 #publisher specifications
 from ..common.ros_interface.specs_publisher import spec_cr_obstacles_pub
-from ..common.ros_interface.specs_publisher import spec_cr_scenario_box_pub
+from ..common.ros_interface.specs_publisher import spec_cr_obstacle_box_pub
 
 
 class ScenarioHandler(BaseHandler):
@@ -101,11 +102,11 @@ class ScenarioHandler(BaseHandler):
 
     * spec_cr_obstacles_pub: 
         * Description: CommonRoad scenario obstacles.
-        * Topic: `/planning/scenario_planning/cr_obstacles`
+        * Topic: `/planning/commonroad/cr_obstacles`
         * Message Type: `visualization_msgs.msg.MarkerArray`
-    * spec_cr_scenario_box_pub:
+    * spec_cr_obstacle_box_pub:
         * Description: CommonRoad scenario box for obstacles.
-        * Topic: `/planning/scenario_planning/cr_scenario_box`
+        * Topic: `/planning/commonroad/cr_obstacle_box`
         * Message Type: `visualization_msgs.msg.MarkerArray`
 
     -------------------
@@ -201,10 +202,12 @@ class ScenarioHandler(BaseHandler):
         self.safety_margin = self._get_param("trajectory_planner.safety_margin").double_value
         if self.safety_margin < 0.0:
             raise ValueError("Safety margin must be greater or equal to 0.0!")
-        # perception range dimensions for scenario objects from the ego vehicle
-        self.perception_range_front = self._get_param("scenario.perception_range_front").double_value
-        self.perception_range_rear = self._get_param("scenario.perception_range_rear").double_value
-        self.perception_range_side = self._get_param("scenario.perception_range_side").double_value
+        # flag indicating if ROS topics visualizing the CR scenario should be published
+        self.publish_cr_scenario_topics = self._get_param("scenario.publish_cr_scenario_topics").bool_value
+        # CR obstacle box dimensions for scenario objects from the ego vehicle
+        self.cr_obstacle_box_front = self._get_param("scenario.cr_obstacle_box_front").double_value
+        self.cr_obstacle_box_rear = self._get_param("scenario.cr_obstacle_box_rear").double_value
+        self.cr_obstacle_box_side = self._get_param("scenario.cr_obstacle_box_side").double_value
 
     def _read_map_config(self, map_path: str) -> Dict[str, Any]:
         """
@@ -444,7 +447,7 @@ class ScenarioHandler(BaseHandler):
         self._pub_cr_obstacles = create_publisher(self._node, spec_cr_obstacles_pub)
 
         # publish CommonRoad scenario box for obstacles
-        self._pub_cr_scenario_box = create_publisher(self._node, spec_cr_scenario_box_pub)
+        self._pub_cr_obstacle_box = create_publisher(self._node, spec_cr_obstacle_box_pub)
 
     @property
     def scenario(self) -> CRScenario:
@@ -550,15 +553,12 @@ class ScenarioHandler(BaseHandler):
         # list of AW object IDs in current perception message
         list_curr_aw_object_ids: List[UUID] = list()
 
-        # create perception range polygon around ego vehicle for object filtering
-        perception_range = self._perception_range()
-
-        # publish perception range as a MarkerArray message
-        self._publish_cr_scenario_box(perception_range)
+        # create CR obstacle box polygon around ego vehicle for object filtering
+        cr_obstacle_box = self._cr_obstacle_box()
 
         for obstacle in last_message.objects:
-            # check if obstacle is within the ego vehicle's perception range
-            if not self._is_in_perception_range(perception_range, obstacle):
+            # check if obstacle is within the ego vehicle's CR obstacle box
+            if not self._is_in_cr_obstacle_box(cr_obstacle_box, obstacle):
                 continue
 
             # convert current state
@@ -672,8 +672,11 @@ class ScenarioHandler(BaseHandler):
         # remove obstacles from scenario which are not in the current objects message
         self._remove_objects_from_scenario(list_curr_aw_object_ids)
 
-        # publish CommonRoad obstacles
-        self._publish_cr_obstacles(self._scenario.obstacles)
+        if self.publish_cr_scenario_topics:
+            # publish CR obstacle box
+            self._publish_cr_obstacle_box(cr_obstacle_box)
+            # publish CommonRoad obstacles
+            self._publish_cr_obstacles(self._scenario.obstacles)
 
     def _remove_objects_from_scenario(self, list_curr_aw_object_ids: List[UUID]) -> None:
         """
@@ -702,11 +705,11 @@ class ScenarioHandler(BaseHandler):
         for idx in list_removed_aw_object_ids:
             self._object_id_mapping.pop(idx)
 
-    def _perception_range(self) -> Polygon:
+    def _cr_obstacle_box(self) -> Polygon:
         """
-        Get the perception range of the ego vehicle as a polygon.
+        Get the CR obstacle box of the ego vehicle as a polygon.
 
-        :return: perception range
+        :return: CR obstacle box
         """
         # get ego vehicle position and orientation
         ego_vehicle_position = self._node.ego_vehicle_handler.current_vehicle_state.pose.pose.position
@@ -720,20 +723,20 @@ class ScenarioHandler(BaseHandler):
         sin_theta = math.sin(ego_vehicle_orientation)
 
         front_left = Point(
-            ego_vehicle_position.x + self.perception_range_front * cos_theta - self.perception_range_side * sin_theta,
-            ego_vehicle_position.y + self.perception_range_front * sin_theta + self.perception_range_side * cos_theta
+            ego_vehicle_position.x + self.cr_obstacle_box_front * cos_theta - self.cr_obstacle_box_side * sin_theta,
+            ego_vehicle_position.y + self.cr_obstacle_box_front * sin_theta + self.cr_obstacle_box_side * cos_theta
         )
         front_right =  Point(
-            ego_vehicle_position.x + self.perception_range_front * cos_theta + self.perception_range_side * sin_theta,
-            ego_vehicle_position.y + self.perception_range_front * sin_theta - self.perception_range_side * cos_theta
+            ego_vehicle_position.x + self.cr_obstacle_box_front * cos_theta + self.cr_obstacle_box_side * sin_theta,
+            ego_vehicle_position.y + self.cr_obstacle_box_front * sin_theta - self.cr_obstacle_box_side * cos_theta
         )
         rear_left = Point(
-            ego_vehicle_position.x - self.perception_range_rear * cos_theta - self.perception_range_side * sin_theta,
-            ego_vehicle_position.y - self.perception_range_rear * sin_theta + self.perception_range_side * cos_theta
+            ego_vehicle_position.x - self.cr_obstacle_box_rear * cos_theta - self.cr_obstacle_box_side * sin_theta,
+            ego_vehicle_position.y - self.cr_obstacle_box_rear * sin_theta + self.cr_obstacle_box_side * cos_theta
         )
         rear_right = Point(
-            ego_vehicle_position.x - self.perception_range_rear * cos_theta + self.perception_range_side * sin_theta,
-            ego_vehicle_position.y - self.perception_range_rear * sin_theta - self.perception_range_side * cos_theta
+            ego_vehicle_position.x - self.cr_obstacle_box_rear * cos_theta + self.cr_obstacle_box_side * sin_theta,
+            ego_vehicle_position.y - self.cr_obstacle_box_rear * sin_theta - self.cr_obstacle_box_side * cos_theta
         )
 
         # create a polygon for the perception 
@@ -741,84 +744,62 @@ class ScenarioHandler(BaseHandler):
 
         return perception_polygon
     
-    def _publish_cr_scenario_box(self, perception_range: Polygon) -> None:
+    def _publish_cr_obstacle_box(self, cr_obstacle_box: Polygon) -> None:
         """
-        Publish the perception range as a MarkerArray message.
+        Publish the CR obstacle box as a MarkerArray message.
+
+        :param cr_obstacle_box: CR obstacle box of ego vehicle
         """
         marker_array = MarkerArray()
-        
-        marker = Marker()
-        marker.header.frame_id = "map"
-        marker.header.stamp = self._node.get_clock().now().to_msg()
-        marker.ns = "perception_range"
-        marker.id = 0
-        marker.pose.position.z = self._z_coordinate
-        marker.color.a = 1.0
-        marker.color.r = 0.0
-        marker.color.g = 1.0
-        marker.color.b = 1.0
-        marker.type = Marker.LINE_STRIP
-        marker.scale.x = 0.1
-        marker.scale.y = 0.1
-        marker.scale.z = 0.01
-        # first point of perception range is not the last point
-        # Perception Range box is in map frame (no transformation needed)
-        for x, y in perception_range.exterior.coords:
-            point = PointMsg()
-            point.x = x
-            point.y = y
-            point.z = self._z_coordinate
-            marker.points.append(point)
-        # add first point to close the polygon
-        point = PointMsg()
-        point.x = perception_range.exterior.coords[0][0]
-        point.y = perception_range.exterior.coords[0][1]
-        point.z = self._z_coordinate
-        marker.points.append(point)
+
+        time_stamp = self._node.get_clock().now().to_msg()
+        marker = cr_obstacle_box_to_marker(cr_obstacle_box, self._z_coordinate, time_stamp)
         marker_array.markers.append(marker)
 
-        # publish perception range
-        self._pub_cr_scenario_box.publish(marker_array)
+        # publish CR obstacle box
+        self._pub_cr_obstacle_box.publish(marker_array)
 
     def _publish_cr_obstacles(self, obstacles: List) -> None:
         """
         Publish CommonRoad obstacles as a MarkerArray message.
-        """
 
+        :param obstacles: list of CommonRoad obstacles
+        """
         marker_array = MarkerArray()
 
         del_marker = Marker()
         del_marker.action = Marker.DELETEALL
         marker_array.markers.append(del_marker)
 
+        time_stamp = self._node.get_clock().now().to_msg()
+
         for obstacle in obstacles:
-            marker = commonroad_shape_to_marker(obstacle, self._origin_transformation, self._z_coordinate)
-            marker.header.stamp = self._node.get_clock().now().to_msg()
+            marker = commonroad_shape_to_marker(obstacle, self._origin_transformation, self._z_coordinate, time_stamp)
             marker_array.markers.append(marker)
 
         # publish obstacles
         self._pub_cr_obstacles.publish(marker_array)
 
-    def _is_in_perception_range(self, perception_range: Polygon, obstacle: PredictedObject) -> bool:
+    def _is_in_cr_obstacle_box(self, cr_obstacle_box: Polygon, obstacle: PredictedObject) -> bool:
         """
-        Check if the given obstacle position is within the ego vehicle's or prediction's perception range.
+        Check if the given obstacle position is within the ego vehicle's or prediction's CR obstacle box.
 
-        :param perception_range: perception range of ego vehicle
+        :param cr_obstacle_box: CR obstacle box of ego vehicle
         :param obstacle: predicted object from perception
-        :return: True if the position is within the perception range, False otherwise
+        :return: True if the position is within the CR obstacle box, False otherwise
         """
         obs_position = obstacle.kinematics.initial_pose_with_covariance.pose.position   
         obstacle_point = Point(obs_position.x, obs_position.y)
 
-        # check if obstacle is within the perception range
-        if perception_range.contains(obstacle_point):
+        # check if obstacle is within the CR obstacle box
+        if cr_obstacle_box.contains(obstacle_point):
             return True
 
-        # check if predicted poses are within the perception range
+        # check if predicted poses are within the CR obstacle box
         predicted_path: PredictedPath = self._get_predicted_path(obstacle)
         for pose in predicted_path.path:
             obstacle_point = Point(pose.position.x, pose.position.y)
-            if perception_range.contains(obstacle_point):
+            if cr_obstacle_box.contains(obstacle_point):
                 return True
         
         return False

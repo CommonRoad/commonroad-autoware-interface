@@ -257,10 +257,56 @@ def commonroad_shape_updater(
         raise TypeError("Unsupported CommonRoad shape type: " + str(dynamic_obstacle.obstacle_shape))
     
 
+def cr_obstacle_box_to_marker(
+        cr_obstacle_box: Polygon,
+        z_coordinate: float,
+        time_stamp: Tuple[int, int]
+) -> Marker:
+    """
+    Converts the CommonRoad obstacle box to a ROS2 marker.
+
+    :param cr_obstacle_box: CommonRoad obstacle box
+    :param z_coordinate: z-coordinate of the scenario
+    :param time_stamp: time stamp of ROS2 node
+    :return: ROS2 marker
+    """
+    marker = Marker()
+    marker.header.frame_id = "map"
+    marker.header.stamp = time_stamp
+    marker.ns = "cr_obstacle_box"
+    marker.id = 0
+    marker.pose.position.z = z_coordinate
+    marker.color.a = 1.0
+    marker.color.r = 0.0
+    marker.color.g = 1.0
+    marker.color.b = 1.0
+    marker.type = Marker.LINE_STRIP
+    marker.scale.x = 0.1
+    marker.scale.y = 0.1
+    marker.scale.z = 0.01
+    # first point of CR obstacle box is not the last point
+    # CR obstacle box is in map frame (no transformation needed)
+    for x, y in cr_obstacle_box.exterior.coords:
+        point = PointMsg()
+        point.x = x
+        point.y = y
+        point.z = z_coordinate
+        marker.points.append(point)
+    # add first point to close the polygon
+    point = PointMsg()
+    point.x = cr_obstacle_box.exterior.coords[0][0]
+    point.y = cr_obstacle_box.exterior.coords[0][1]
+    point.z = z_coordinate
+    marker.points.append(point)
+
+    return marker
+
+
 def commonroad_shape_to_marker(
         cr_obstacle: Obstacle,
         origin_transform: List[float],
-        z_coordinate: float
+        z_coordinate: float,
+        time_stamp: Tuple[int, int]
 ) -> Marker:
     """
     Convert a CommonRoad shape to a ROS2 marker.
@@ -268,12 +314,14 @@ def commonroad_shape_to_marker(
     :param cr_obstacle: CommonRoad obstacle
     :param origin_transform: origin transformation from Autoware to CommonRoad
     :param z_coordinate: z-coordinate of the scenario
+    :param time_stamp: time stamp of ROS2 node
     :return: ROS2 marker    
     """
     cr_shape = cr_obstacle.obstacle_shape
 
     marker = Marker()
     marker.header.frame_id = "map"
+    marker.header.stamp = time_stamp
     marker.ns = "obstacle"
     marker.id = cr_obstacle.obstacle_id
     marker.pose.position.z = z_coordinate
