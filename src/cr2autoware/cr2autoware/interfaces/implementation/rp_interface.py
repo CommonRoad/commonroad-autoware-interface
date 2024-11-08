@@ -3,6 +3,7 @@ import numpy as np
 from typing import List, Set, Tuple, Optional
 from visualization_msgs.msg import Marker, MarkerArray
 from shapely.geometry import Point as PointShapely, MultiPolygon, LineString
+from scipy.spatial import cKDTree
 import time
 
 # commonroad imports
@@ -240,8 +241,9 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
         nearest_index = np.argmin(distances)
 
         # Filter reference_path to include only points after the nearest point
-        filtered_reference_path = self._planner.reference_path[nearest_index:]
-        positions = [filtered_reference_path[0]]
+        # -1 to get the point before the nearest point for tangent calculation
+        filtered_reference_path = self._planner.reference_path[(nearest_index-1):]
+        positions = np.array(filtered_reference_path[0])
         combined_distance: float = 0.0
         # calculate reaction distance, a look ahead distance for the vehicle to react to obstacles
         if current_state.velocity > 5.0:
@@ -253,11 +255,41 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
             point_distance = np.linalg.norm(filtered_reference_path[point] - filtered_reference_path[point - 1])
             combined_distance += point_distance
             if combined_distance < look_ahead_distance:
-                positions.append(filtered_reference_path[point])
+                positions = np.vstack([positions, filtered_reference_path[point]])
+            else:
+                # add the last point to the positions for the orientation calculation
+                positions = np.vstack([positions, filtered_reference_path[point]])
+                break
+
+        # calculate for each position the orientation of the vehicle
+        dt = np.dtype([('position', float, (2,)), ('orientation', float), ('normal', float, (2,2))])
+
+        extended_positions: List = []
+
+        for i in range(1, len(positions)-1):
+            prev_point = positions[i - 1]
+            curr_point = positions[i]
+            next_point = positions[i + 1] 
+            # calculate orientation of the vehicle
+            tangent = next_point - prev_point
+            tangent = tangent / np.linalg.norm(tangent)
+            orientation = np.arctan2(tangent[1], tangent[0])
+
+            # calculate normal line
+            normal = np.array([-tangent[1], tangent[0]])
+            normal_endpoint_pos = [curr_point[0] + normal[0] * 1000, curr_point[1] + normal[1] * 1000]
+            normal_endpoint_neg = [curr_point[0] - normal[0] * 1000, curr_point[1] - normal[1] * 1000]
+            normal = np.array([normal_endpoint_neg, normal_endpoint_pos])
+            
+            extended_positions.append((curr_point, orientation, normal))
+
+        extended_positions = np.array(extended_positions, dtype=dt)
+
+        positions = np.array(extended_positions['position'])
 
         #self._logger.debug(f"Positions: {positions}")
-        for position in positions:         
-            # TODO: check distance between two positions and if the distance is too large add intermediate points
+        for position in positions: 
+            # TODO: Refactor        
             # Get lanelet ids for the current position
             lanelet_ids = self.scenario.lanelet_network.find_lanelet_by_position([position])
 
@@ -281,48 +313,145 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
                     relevant_lanelets.add(right_adjacent_lanelet)
             
         # Merge obstacle sets from the relevant lanelets
+        # TODO: use np.array
         combined_obstacle_set = set()
         for lanelet in relevant_lanelets:
             # only consider obstacles on the first timestep
+            
             # TODO: Check if all obstacles are removed if they are not on the lanelet anymore
             if lanelet.dynamic_obstacles_on_lanelet:
                 _, obstacle_set = next(iter(lanelet.dynamic_obstacles_on_lanelet.items()))
                 combined_obstacle_set.update(obstacle_set)
     
         # Calculate the combined occupancy polygon for all obstacles on the relevant lanelets
+        static_obstacles = []
+        dynamic_obstacle = []
         combined_polygon = None    
         if combined_obstacle_set:
             for obstacle_id in combined_obstacle_set:
                 obstacle = self.scenario.obstacle_by_id(obstacle_id)
                 if obstacle is not None:
                     # TODO: Check if obstacle is dynamic
-                    occupancy = obstacle.occupancy_at_time(0)
-                    
-                    # Convert occupancy to polygon
-                    if isinstance(occupancy, Occupancy):
-                        shape = occupancy.shape
-                        occupancy_polygon = None
-                        if isinstance(shape, Rectangle):
-                            occupancy_polygon = occupancy.shape._shapely_polygon
-                        elif isinstance(shape, Polygon):
-                            occupancy_polygon = occupancy
-                        elif isinstance(shape, Circle):
-                            occupancy_polygon = occupancy.shape.shapely_object
-                        else:
-                            raise TypeError("Unsupported CommonRoad shape type: " + str(shape))
-                        
-                        # the union function returns a Polygon object if only one polygon is in the MultiPolygon
-                        # convert it to a MultiPolygon object
+                    initial_state = obstacle.state_at_time(0)
+                    if initial_state.velocity < 1.0:
+                        static_obstacles.append(obstacle_id)
+                        occupancy = obstacle.occupancy_at_time(0)
+                        # Convert occupancy to polygon
+                        if isinstance(occupancy, Occupancy):
+                            shape = occupancy.shape
+                            occupancy_polygon = None
+                            if isinstance(shape, Rectangle):
+                                occupancy_polygon = occupancy.shape.shapely_object
+                            elif isinstance(shape, Polygon):
+                                occupancy_polygon = occupancy.shape.shapely_object
+                            elif isinstance(shape, Circle):
+                                occupancy_polygon = occupancy.shape.shapely_object
+                            else:
+                                raise TypeError("Unsupported CommonRoad shape type: " + str(shape))
+                            
+                            # the union function returns a Polygon object if only one polygon is in the MultiPolygon
+                            # convert it to a MultiPolygon object
+                            if combined_polygon is None:
+                                combined_polygon = MultiPolygon([occupancy_polygon])
+                                # self._logger.debug(f"occupancy polygon: {occupancy_polygon}")
+                                # self._logger.debug(f"Combined polygon stat: {combined_polygon}")
+                            else:
+                                combined_polygon = combined_polygon.union(occupancy_polygon)
+                                # self._logger.debug(f"occupancy polygon: {occupancy_polygon}")
+                                # self._logger.debug(f"Combined polygon stat UPD: {combined_polygon}")
+                                        
+                    elif initial_state.velocity >= 1.0:
+                        #TODO: Calculate for every state in prediction the nearest point on the trajectory.
+                        dt_obstacle = np.dtype([('position', float, (2,)), ('orientation', float), ('time_step', int)])
+                        obstacle_positions: List = []
+                        i = 0
+                        while obstacle.state_at_time(i) is not None:
+                            state = obstacle.state_at_time(i)
+                            #CustomState(position=position, orientation=orientation, time_step=cnt_time_step)
+                            state_position = state.position
+                            state_orientation = state.orientation
+                            state_time_step = i
+                            obstacle_positions.append((state_position, state_orientation, state_time_step))
+                            i += 1
+
+                        obstacle_positions = np.array(obstacle_positions, dtype=dt_obstacle)
+                        # search for the nearest point on the trajectory
+                        positions_obs = np.array(obstacle_positions['position'])
+
+                        positions_traj = np.array(extended_positions['position'])
+                        timer_tree = time.perf_counter()
+                        tree = cKDTree(positions_traj)
+                        timer_tree_end = time.perf_counter()
+                        self._logger.debug(f"Time for tree: {timer_tree_end - timer_tree}")
+
+                        distance_nearest_point, indices = tree.query(positions_obs)
+                        timer_occ = 0.0
+                        obstacle_polygon = None
+                        for i in range(len(positions_obs)):
+                            # only consider obstacles that are close to the trajectory
+                            if distance_nearest_point[i] > 20.0:
+                                continue
+                            else:
+                                # check if the orientation of the vehicle is in the same direction as the trajectory point
+                                orientation_obs = obstacle_positions[i]['orientation']
+                                orientation_traj = extended_positions[indices[i]]['orientation']
+                                orientation_diff = np.abs(orientation_obs - orientation_traj)
+                                # check if the orientation difference is larger than 60 degrees
+                                if orientation_diff > np.pi/3:
+                                    dynamic_obstacle.append(obstacle_id)
+                                    # TODO: Create occupancy for intervals with orientation difference > 60 degrees
+                                    t_occ_1 = time.perf_counter()
+                                    occupancy = obstacle.occupancy_at_time(int(obstacle_positions[i]['time_step']))
+                                    t_occ_2 = time.perf_counter()
+                                    self._logger.debug(f"Time for occupancy: {t_occ_2 - t_occ_1}")
+                                    timer_occ += t_occ_2 - t_occ_1
+                                    # Convert occupancy to polygon
+                                    #self._logger.debug(f"Dynamic obstacle has other orientation and is considered in multipolygon")
+                                    #self._logger.debug(f"Obstacle_id: {obstacle_id}, time_step: {obstacle_positions[i]['time_step']}")
+
+                                    if isinstance(occupancy, Occupancy):
+                                        shape = occupancy.shape
+                                        occupancy_polygon = None
+                                        if isinstance(shape, Rectangle):
+                                            occupancy_polygon = occupancy.shape.shapely_object
+                                        elif isinstance(shape, Polygon):
+                                            occupancy_polygon = occupancy.shape.shapely_object
+                                        elif isinstance(shape, Circle):
+                                            occupancy_polygon = occupancy.shape.shapely_object
+                                        else:
+                                            raise TypeError("Unsupported CommonRoad shape type: " + str(shape))
+                                        
+                                        # the union function returns a Polygon object if only one polygon is in the MultiPolygon
+                                        # convert it to a MultiPolygon object
+                                        if obstacle_polygon is None:
+                                            obstacle_polygon = occupancy_polygon
+                                            # self._logger.debug(f"occupancy polygon: {occupancy_polygon}")
+                                            # self._logger.debug(f"Combined obstacle_polygon dyn: {combined_polygon}")
+                                        else:
+                                            obstacle_polygon = obstacle_polygon.union(occupancy_polygon)
+                                            # self._logger.debug(f"occupancy polygon: {occupancy_polygon}")
+                                            # self._logger.debug(f"Combined obstacle_polygon dyn UPD: {combined_polygon}")
                         if combined_polygon is None:
-                            combined_polygon = MultiPolygon([occupancy_polygon])
+                            combined_polygon = MultiPolygon([obstacle_polygon])
+                            # self._logger.debug(f"obstacle_polygon: {obstacle_polygon}")
+                            # self._logger.debug(f"Combined polygon dyn: {combined_polygon}")
                         else:
-                            combined_polygon = combined_polygon.union(occupancy_polygon)
+                            combined_polygon = combined_polygon.union(obstacle_polygon)
+                            # self._logger.debug(f"obstacle_polygon: {obstacle_polygon}")
+                            # self._logger.debug(f"Combined polygon dyn UPD: {combined_polygon}")
+                        self._logger.debug(f"Timer  for occupancy: {timer_occ}")
+
+                    else:
+                        raise ValueError("Obstacle velocity is not defined!")
+            #self._logger.debug(f"satic obstacles: {static_obstacles}")
+            #self._logger.debug(f"dynamic obstacles: {dynamic_obstacle}")
+
 
         marker_normal = Marker()
         if combined_polygon is not None:
             # Calculate the minimum lateral distance from the trajectory points to the combined polygon
             # TODO: ADD Marker for normal line
-            narrow_passage_radius, marker_normal = self.min_lateral_distance_local_normal(positions, combined_polygon)
+            narrow_passage_radius, marker_normal = self.min_lateral_distance_local_normal(extended_positions, combined_polygon)
 
             # get external velocity limits
             external_velocity_limit_max = kwargs.get("external_velocity_limit_max")
@@ -371,22 +500,11 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
 
         lateral_distances = []
 
-        for i in range(1, len(trajectory_points) - 1):
-
-            prev_point = trajectory_points[i - 1]
-            curr_point = trajectory_points[i]
-            next_point = trajectory_points[i + 1]
+        for point in trajectory_points:
             
-            # calculate tangent and normal
-            tangent = next_point - prev_point
-            tangent = tangent / np.linalg.norm(tangent)
-            normal = np.array([-tangent[1], tangent[0]])
-
-            # calculate normal line
-            trajectory_point = PointShapely(curr_point[0], curr_point[1])
-            normal_endpoint_pos = PointShapely(curr_point[0] + normal[0] * 1000, curr_point[1] + normal[1] * 1000)
-            normal_endpoint_neg = PointShapely(curr_point[0] - normal[0] * 1000, curr_point[1] - normal[1] * 1000)
-            normal_line = LineString([normal_endpoint_neg, normal_endpoint_pos])
+            trajectory_point = PointShapely(point['position'])
+            normal_points = point['normal']
+            normal_line = LineString([normal_points[0], normal_points[1]])
             
             # check for intersection with multipolygon
             intersection = normal_line.intersection(multipolygon)
