@@ -324,7 +324,7 @@ def commonroad_shape_to_marker(
     marker.header.stamp = time_stamp
     marker.ns = "obstacle"
     marker.id = cr_obstacle.obstacle_id
-    marker.pose.position.z = z_coordinate
+    marker.pose.position.z = z_coordinate - 0.05
     marker.color.a = 1.0
     marker.color.r = 0.0
     marker.color.g = 1.0
