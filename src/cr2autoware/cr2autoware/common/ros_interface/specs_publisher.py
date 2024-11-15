@@ -69,13 +69,13 @@ To add a new topic publisher, add the specification here first.
     * Description: CommonRoad scenario box for obstacles
     * Topic: `/planning/commonroad/cr_obstacle_box`
     * Message Type: `visualization_msgs.msg.MarkerArray`
-* spec_narrow_passage_obstacle_pub:
-    * Description: publish obstacles for narrow passage behavior planning
-    * Topic: `/planning/scenario_planning/narrow_passage/obstacles`
+* spec_lateral_clearance_obstacles_pub:
+    * Description: Lateral clearance function obstacles.
+    * Topic: `/planning/commonroad/lateral_clearance_obstacles`
     * Message Type: `visualization_msgs.msg.MarkerArray`
-* spec_narrow_passage_clearance_pub:
-    * Description: publish clearance for narrow passage behavior planning
-    * Topic: `/planning/scenario_planning/narrow_passage/clearance`
+* spec_lateral_clearance_pub:
+    * Description: Lateral clearance visualization.
+    * Topic: `/planning/commonroad/lateral_clearance`
     * Message Type: `visualization_msgs.msg.MarkerArray`
 """
 
@@ -181,19 +181,14 @@ spec_cr_obstacles_pub = PublisherSpec(name="/planning/commonroad/cr_obstacles",
 # publish CommonRoad scenario box for obstacles
 spec_cr_obstacle_box_pub = PublisherSpec(name="/planning/commonroad/cr_obstacle_box",
                                      msg_type=MarkerArray,
-                                     depth=1) 
+                                     depth=1)
 
-# publish trajectory for narrow passage behavior planning
-spec_narrow_passage_traj_pub = PublisherSpec(name="/planning/scenario_planning/narrow_passage/trajectory",
-                                             msg_type=AWTrajectory,
-                                             depth=1)
-
-# publish obstacles for narrow passage behavior planning
-spec_narrow_passage_obstacle_pub = PublisherSpec(name="/planning/scenario_planning/narrow_passage/obstacles",
+# publish obstacles for lateral clearance behavior planning
+spec_lateral_clearance_obstacles_pub = PublisherSpec(name="/planning/commonroad/lateral_clearance_obstacles",
                                                  msg_type=MarkerArray,
                                                  depth=1)
 
-# publish clearance for narrow passage behavior planning
-spec_narrow_passage_clearance_pub = PublisherSpec(name="/planning/scenario_planning/narrow_passage/clearance",
+# publish clearance for lateral clearance behavior planning
+spec_lateral_clearance_pub = PublisherSpec(name="/planning/commonroad/lateral_clearance",
                                                   msg_type=MarkerArray,
                                                   depth=1)

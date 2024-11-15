@@ -48,6 +48,14 @@
       replan_vel_deviation: 5.0             # velocity deviation to re-plan initial velocity in m/s
       replan_dist_deviation: 3.0            # distance deviation to re-plan from measured pose in m
 
+      # Parameter for lateral clearance calculation
+      dynamic_velocity_threshold: 1.0 # m/s
+      look_ahead_time: 4.0 # s
+      min_look_ahead_distance: 20.0 # m
+      time_threshold: 3.0 # s
+      min_reference_velocity: 1.0 # m/s
+      publish_lateral_clearance_topics: True
+
     rp_interface:
       rp_config_yaml: "../../../../src/universe/autoware.universe/planning/tum_commonroad_planning/dfg-car/src/cr2autoware/param/edgar_rp_config.yaml"
       d_min: -1.5

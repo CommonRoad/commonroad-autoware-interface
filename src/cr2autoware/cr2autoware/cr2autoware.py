@@ -89,8 +89,8 @@ from .common.ros_interface.specs_subscriptions import \
 from .common.ros_interface.specs_publisher import \
     spec_goal_pose_pub, spec_traj_pub, spec_aw_state_pub, spec_vehicle_engage_pub, spec_api_engage_pub, \
     spec_routing_state_pub, spec_route_pub, spec_velocity_pub, spec_initial_pose_pub, spec_goal_region_pub, \
-    spec_velocity_limit_pub, spec_velocity_limit_pub_vis, spec_narrow_passage_obstacle_pub, \
-    spec_narrow_passage_clearance_pub
+    spec_velocity_limit_pub, spec_velocity_limit_pub_vis, spec_lateral_clearance_obstacles_pub, \
+    spec_lateral_clearance_pub
 
 # service client specifications
 from .common.ros_interface.specs_clients import \
@@ -154,13 +154,13 @@ class Cr2Auto(Node):
         * Description: Maximum velocity limit for visualization in RVIZ.
         * Topic: `/planning/scenario_planning/current_max_velocity`
         * Message Type: `tier4_planning_msgs.msg.VelocityLimit`
-    * narrow_passage_obstacles_pub:
-        * Description: Narrow passage obstacles.
-        * Topic: `/planning/scenario_planning/narrow_passage/obstacles`
+    * lateral_clearance_obstacles_pub:
+        * Description: Lateral clearance function obstacles.
+        * Topic: `/planning/commonroad/lateral_clearance_obstacles`
         * Message Type: `visualization_msgs.msg.MarkerArray`
-    * narrow_passage_clearance_pub:
-        * Description: Narrow passage clearance circles.
-        * Topic: `/planning/scenario_planning/narrow_passage/clearance`
+    * lateral_clearance_pub:
+        * Description: Lateral clearance visualization.
+        * Topic: `/planning/commonroad/lateral_clearance`
         * Message Type: `visualization_msgs.msg.MarkerArray`
 
     ----------------
@@ -381,11 +381,10 @@ class Cr2Auto(Node):
         # (this separate topic is currently only subscribed by RVIZ)
         self.velocity_limit_pub_vis = create_publisher(self, spec_velocity_limit_pub_vis)
 
-        # Debug publisher for narrow passage detection
-        # publish narrow passage obstacles
-        self.narrow_passage_obstacles_pub = create_publisher(self, spec_narrow_passage_obstacle_pub)
-        # publish narrow passage clearance circles
-        self.narrow_passage_clearance_pub = create_publisher(self, spec_narrow_passage_clearance_pub)
+        # publish lateral clearance obstacles
+        self.lateral_clearance_obstacles_pub = create_publisher(self, spec_lateral_clearance_obstacles_pub)
+        # publish lateral clearance
+        self.lateral_clearance_pub = create_publisher(self, spec_lateral_clearance_pub)
 
         # ========= Service Clients =========
         # client for change to stop service call (only for publishing "stop" if goal arrived)
@@ -503,8 +502,8 @@ class Cr2Auto(Node):
                                             self.params.trajectory_planner,
                                             self.params.rp_interface,
                                             self.ego_vehicle_handler,
-                                            self.narrow_passage_obstacles_pub,
-                                            self.narrow_passage_clearance_pub)
+                                            self.lateral_clearance_obstacles_pub,
+                                            self.lateral_clearance_pub)
         else:
             self._logger.error("<Trajectory Planner Factory> Planner type is invalid")
 
@@ -668,8 +667,13 @@ class Cr2Auto(Node):
                             current_state=init_state,
                             goal=self.planning_problem.goal,
                             reference_velocity=ref_vel,
-                            external_velocity_limit_max=self.external_velocity_limit,
-                            external_velocity_limit_min=self.params.vehicle.min_velocity
+                            dynamic_velocity_threshold=self.params.trajectory_planner.dynamic_velocity_threshold,
+                            look_ahead_time=self.params.trajectory_planner.look_ahead_time,
+                            min_look_ahead_distance=self.params.trajectory_planner.min_look_ahead_distance,
+                            time_threshold=self.params.trajectory_planner.time_threshold,
+                            max_reference_velocity=self.external_velocity_limit,
+                            min_reference_velocity=self.params.trajectory_planner.min_reference_velocity,
+                            publish_lateral_clearance_topics=self.params.trajectory_planner.publish_lateral_clearance_topics
                             )
 
                         # publish trajectory

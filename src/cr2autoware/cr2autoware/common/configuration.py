@@ -306,6 +306,20 @@ class TrajectoryPlannerParams(BaseParams):
     # distance deviation to re-plan from measured pose in m
     replan_dist_deviation: float = 3.0
 
+    # Parameters for lateral clearance function
+    # threshold velocity to classify obstacles as static or dynamic (in m/s)
+    dynamic_velocity_threshold: float = 1.0
+    # look ahead time for lateral clearance function (in seconds)
+    look_ahead_time: float = 4.0
+    # minimum look ahead distance for lateral clearance function (in meters)
+    min_look_ahead_distance: float = 20.0
+    # time threshold to consider occupancies on different time steps (in seconds)
+    time_threshold: float = 3.0
+    # minimum reference velocity for lateral clearance function (in m/s)
+    min_reference_velocity: float = 1.0
+    # flag to publish lateral clearance topics
+    publish_lateral_clearance_topics: bool = True
+
     def __post_init__(self):
         """Initialize ROS params."""
         # declare ROS params
