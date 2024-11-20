@@ -1,27 +1,26 @@
 # third party imports
 import numpy as np
-from typing import List, Set, Tuple, Optional
-from visualization_msgs.msg import Marker, MarkerArray
-from shapely.geometry import Point, Polygon, MultiPolygon, LineString
 from scipy.spatial import cKDTree
+from shapely.geometry import LineString, MultiPolygon, Point, Polygon
 import time
-
-# commonroad imports
-from commonroad.scenario.scenario import Scenario
-from commonroad.scenario.state import TraceState
-from commonroad.scenario.lanelet import Lanelet
-from commonroad.planning.planning_problem import PlanningProblem
-from commonroad.prediction.prediction import Occupancy
+from typing import List, Optional, Set, Tuple
 
 # commonroad-dc
 import commonroad_dc.pycrcc as pycrcc
 
+# commonroad imports
+from commonroad.planning.planning_problem import PlanningProblem
+from commonroad.prediction.prediction import Occupancy
+from commonroad.scenario.lanelet import Lanelet
+from commonroad.scenario.scenario import Scenario
+from commonroad.scenario.state import TraceState
+
 # commonroad-rp imports
+from commonroad_rp.reactive_planner import ReactivePlanner
+from commonroad_rp.state import ReactivePlannerState
 from commonroad_rp.utility.config import ReactivePlannerConfiguration
 from commonroad_rp.utility.logger import initialize_logger
 from commonroad_rp.utility.utils_coordinate_system import CoordinateSystem
-from commonroad_rp.state import ReactivePlannerState
-from commonroad_rp.reactive_planner import ReactivePlanner
 
 # cr2autoware
 from cr2autoware.common.configuration import (
@@ -36,13 +35,14 @@ from cr2autoware.common.utils.transform import utm2map
 from cr2autoware.handlers.scenario_handler import ScenarioHandler
 from cr2autoware.interfaces.base.trajectory_planner_interface import TrajectoryPlannerInterface
 
-# ROS imports
-from rclpy.publisher import Publisher
-from rclpy.impl.rcutils_logger import RcutilsLogger
-from rclpy.time import Time
-
 # ROS messages
 from geometry_msgs.msg import Point as PointMsg
+from visualization_msgs.msg import Marker, MarkerArray
+
+# ROS imports
+from rclpy.impl.rcutils_logger import RcutilsLogger
+from rclpy.publisher import Publisher
+from rclpy.time import Time
 
 
 class ReactivePlannerInterface(TrajectoryPlannerInterface):
@@ -151,10 +151,14 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
         # if optimal trajectory is found, check lateral distance
         if self._cr_state_list:
             # function to set max velocity for lateral distance
-            reference_velocity = self.reference_velocity_based_on_lateral_clearance(current_state, self._cr_state_list, reference_velocity, **kwargs)
+            reference_velocity = self.reference_velocity_based_on_lateral_clearance(
+                current_state, self._cr_state_list, reference_velocity, **kwargs
+            )
 
         else:
-            self._logger.debug("No optimal trajectory found. Lateral distance check skipped!")
+            self._logger.debug(
+                "No optimal trajectory found. Lateral distance check skipped!"
+            )
 
         # set reference velocity for planner
         self._planner.set_desired_velocity(desired_velocity=reference_velocity, current_speed=init_state.velocity)
@@ -222,7 +226,7 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
         t_start = time.perf_counter()
         if reference_velocity is None:
             return None
-        
+
         # initialize parameters for lateral clearance
         # minimal lateral clearance radius in meters
         min_lateral_clearance: float = float('inf') 
@@ -296,9 +300,9 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
             normal_end_point_neg = point['position'] - normal * 100.0
             trajectory_positions[i]['normal'] = np.array([normal_end_point_pos, normal_end_point_neg])
 
-        #TODO: Currently, obstacles on lanelets is not working as intended, so all obstacles are considered
+        # TODO: Currently, obstacles on lanelets is not working as intended, so all obstacles are considered
         # # create set of relevant lanelets
-        # lanelet_ids = self.scenario.lanelet_network.find_lanelet_by_position(trajectory_positions["position"].tolist()) 
+        # lanelet_ids = self.scenario.lanelet_network.find_lanelet_by_position(trajectory_positions["position"].tolist())
         # # Collect all relevant lanelets
         # relevant_lanelets = set()
         # for lanelet_id in lanelet_ids:
@@ -313,7 +317,7 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
 
         # Merge obstacle sets from the relevant lanelets
         combined_obstacle_set = set()
-        #TODO: Currently, obstacles on lanelets is not working as intended, so all obstacles are considered
+        # TODO: Currently, obstacles on lanelets is not working as intended, so all obstacles are considered
         # for lanelet in relevant_lanelets:
         #     if lanelet.dynamic_obstacles_on_lanelet:
         #         for time_step, obstacle_set in lanelet.dynamic_obstacles_on_lanelet.items():
@@ -342,7 +346,7 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
                     # Convert occupancy to polygon
                     occupancy_polygon = occupancy.shape.shapely_object
                     obstacles_polygon = obstacles_polygon.union(occupancy_polygon)  
-                
+
                 # check if the obstacle is dynamic
                 elif initial_state.velocity >= dynamic_velocity_threshold:
                     # for dynamic obstacles, consider the occupancy for the look ahead time
@@ -354,10 +358,9 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
                         state_position = state.position
                         state_orientation = state.orientation
                         dyn_obstacles.append((obstacle_id, state_position, state_orientation, i, 0.0, 0))
-                
+
                 else:
                     raise ValueError("Obstacle velocity is not defined!")
-
 
         dyn_obstacles = np.array(dyn_obstacles, dtype=dt_dyn_obstacle)
 
@@ -377,7 +380,7 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
             # only consider obstacles, if the distance from the trajectory point to the dynamic obstacle is smaller than 20.0 m
             if dyn_obstacle['distance'] > 20.0:
                 continue
-            
+
             # only consider obstacles, if the time step of the dynamic obstacle is in similar range from the time step of the trajectory
             # convert time steps to seconds
             time_dyn_obs = dyn_obstacle['time_step'] * self.scenario.dt
@@ -397,7 +400,7 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
                     continue
                 occupancy = obstacle.occupancy_at_time(int(dyn_obstacle['time_step']))
                 occupancy_polygon = occupancy.shape.shapely_object
-                
+
                 # check if dyn_obstacle is the same as the previous dyn_obstacle (same obstacle id, different time step)
                 if prev_dyn_obstacle_id is not None and prev_dyn_obstacle_id != dyn_obstacle['obstacle_id']:
                     # obstacle id is different, add the previous obstacle polygon to the combined polygon
@@ -411,22 +414,22 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
         if not ob_polygon.is_empty:
             # add the last obstacle polygon to the combined polygon
             obstacles_polygon = obstacles_polygon.union(ob_polygon)
-        
+
         if not obstacles_polygon.is_empty:
             # Calculate the minimum lateral distance from the trajectory points to the combined polygon
             for point in trajectory_positions:
                 trajectory_point = Point(point['position'])
                 normal_points = point['normal']
                 normal_line = LineString([normal_points[0], normal_points[1]])
-                
+
                 # check for intersection with multipolygon
                 intersection = normal_line.intersection(obstacles_polygon)
                 point['intersection'] = intersection
-                
+
                 if not intersection.is_empty:
                     distance = trajectory_point.distance(intersection)
                     point['lateral_distance'] = distance
-            
+
             min_lateral_clearance = min(trajectory_positions['lateral_distance'])
 
             # set proposed reference velocity based on the lateral clearance
@@ -441,10 +444,9 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
                 # calculate normalized radius and use a quadratic function for velocity adjustment
                 normalized_radius = (min_lateral_clearance - min_distance) / (safe_distance - min_distance)
                 proposed_reference_velocity = min_reference_velocity + (max_reference_velocity - min_reference_velocity) * (normalized_radius)**2
-            
+
             reference_velocity = min(reference_velocity, proposed_reference_velocity)            
             self._logger.debug(f"Reference velocity: {reference_velocity*3.6} km/h")
-
 
         t_end = time.perf_counter()
         self._logger.debug(f"Time for lateral clearance velocity function: {t_end - t_start}")
@@ -474,7 +476,7 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
             else:
                 self._logger.error("Unsupported geometry type for multipolygon")
                 return
-            
+
             for i, polygon in enumerate(polygons):
                 marker = Marker()
                 marker.header.frame_id = "map"
@@ -504,7 +506,7 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
                     marker.points.append(p)
 
                 marker_array.markers.append(marker)
-                
+
         self._lateral_clearance_obstacles_pub.publish(marker_array)
 
     def publish_clearance(self, trajectory_points: np.array, min_distance: float, safe_distance: float):
@@ -564,7 +566,7 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
             normal_marker_green.color.r = 0.0
             normal_marker_green.color.g = 1.0
             normal_marker_green.color.b = 0.0
-            
+
             for i, point in enumerate(trajectory_points['position']):
                 # Create marker for trajectory points
                 traj_marker = Marker()
@@ -655,7 +657,7 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
                     # distance is between the width and double width of the vehicle, set color to yellow
                     normal_marker_yellow.points.append(start_point)
                     normal_marker_yellow.points.append(end_point)
-            
+
             marker_array.markers.append(normal_marker_red)
             marker_array.markers.append(normal_marker_yellow)
             marker_array.markers.append(normal_marker_green)
