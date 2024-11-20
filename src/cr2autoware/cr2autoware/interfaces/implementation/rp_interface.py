@@ -245,74 +245,71 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
         # flag to publish lateral clearance topics
         publish_lateral_clearance_topics: bool = kwargs.get("publish_lateral_clearance_topics")
 
+        # Get the reference path from the reactive planner
+        reference_path_cartesian = self._planner.reference_path
+        reference_path_curvilinear = self._planner.coordinate_system.ref_pos
+        reference_orientation_curvilinear = self._planner.coordinate_system.ref_theta
+
         # Get nearest point in the reference path to the current vehicle position
-        reference_path = np.array(self._planner.reference_path)
         current_position = np.array(current_state.position)
+        current_position_curvilinear = self._planner.coordinate_system.convert_to_curvilinear_coords(current_position[0], current_position[1])
+        nearest_index = np.argmin(np.abs(reference_path_curvilinear - current_position_curvilinear[0]))
 
-        ref_path_tree = cKDTree(reference_path)
-        _, nearest_index = ref_path_tree.query(current_position)
+        # filter the reference path from the nearest index to the end
+        reference_path_cartesian = reference_path_cartesian[nearest_index:]
+        reference_path_curvilinear = reference_path_curvilinear[nearest_index:]
+        reference_orientation_curvilinear = reference_orientation_curvilinear[nearest_index:]
 
-        # Filter reference_path to include only points after the nearest point
-        # -1 to get the point before the nearest point for tangent calculation
-        filtered_reference_path = self._planner.reference_path[(nearest_index-1):]
-        positions = np.array(filtered_reference_path[0])
-        combined_distance: float = 0.0
         # calculate reaction distance, a look ahead distance for the vehicle to react to obstacles
         look_ahead_distance = current_state.velocity * look_ahead_time
+        combined_distance: float = 0.0
+
         if look_ahead_distance < min_look_ahead_distance:
             look_ahead_distance = min_look_ahead_distance
 
-        for point in range(1, len(filtered_reference_path)):
-            point_distance = np.linalg.norm(filtered_reference_path[point] - filtered_reference_path[point - 1])
+        time_steps = [0]
+        for point in range(1, len(reference_path_curvilinear)):
+            point_distance = np.abs(reference_path_curvilinear[point] - reference_path_curvilinear[point - 1])
             combined_distance += point_distance
-            if combined_distance < look_ahead_distance:
-                positions = np.vstack([positions, filtered_reference_path[point]])
-            else:
-                # add the last point to the positions for the orientation calculation
-                positions = np.vstack([positions, filtered_reference_path[point]])
-                break
+            time_steps.append(point)
+            if combined_distance > look_ahead_distance:
+                break                
+
+        # calculate the reference_path_dt to check time steps for dynamic obstacles
+        trajectory_dt = look_ahead_time / (len(time_steps) - 1)
 
         # calculate for each position the orientation of the vehicle
-        dt_ref_traj = np.dtype([('position', float, (2,)), ('orientation', float), ('time_step', int), ('normal', float, (2,2)), ('lateral_distance', float), ('intersection', object)])
+        dt_ref_traj = np.dtype([('position', float, (2,)), ('position_curvilinear', float), ('orientation', float), ('time_step', int), ('normal', float, (2,2)), ('lateral_distance', float), ('intersection', object)])
+        trajectory_positions = np.zeros(len(time_steps), dtype=dt_ref_traj)
 
-        trajectory_positions: List = []
+        trajectory_positions['position'] = reference_path_cartesian[:len(time_steps)]
+        trajectory_positions['position_curvilinear'] = reference_path_curvilinear[:len(time_steps)]
+        trajectory_positions['orientation'] = reference_orientation_curvilinear[:len(time_steps)]
+        trajectory_positions['time_step'] = time_steps
+        trajectory_positions['lateral_distance'] = np.full(len(time_steps), min_lateral_clearance)
+        trajectory_positions['intersection'] = np.full(len(time_steps), None)
 
-        for i in range(1, len(positions)-1):
-            prev_point = positions[i - 1]
-            curr_point = positions[i]
-            next_point = positions[i + 1] 
-            # calculate orientation of the vehicle
-            tangent = next_point - prev_point
-            tangent = tangent / np.linalg.norm(tangent)
-            orientation = np.arctan2(tangent[1], tangent[0])
+        # calculate the normal endpoints for each trajectory point
+        for i, point in enumerate(trajectory_positions):
+            normal = np.array([np.cos(point['orientation'] + np.pi/2), np.sin(point['orientation'] + np.pi/2)])
+            normal_end_point_pos = point['position'] + normal * 100.0
+            normal_end_point_neg = point['position'] - normal * 100.0
+            trajectory_positions[i]['normal'] = np.array([normal_end_point_pos, normal_end_point_neg])
 
-            # time step of the trajectory point
-            time_step = i
-
-            # calculate normal line
-            normal = np.array([-tangent[1], tangent[0]])
-            # calculate normal line endpoints for clearance calculation
-            normal_endpoint_pos = [curr_point[0] + normal[0] * 100.0, curr_point[1] + normal[1] * 100.0]
-            normal_endpoint_neg = [curr_point[0] - normal[0] * 100.0, curr_point[1] - normal[1] * 100.0]
-            normal_radius = np.array([normal_endpoint_neg, normal_endpoint_pos])
-
-            trajectory_positions.append((curr_point, orientation, time_step, normal_radius, min_lateral_clearance, None))
-                       
-        trajectory_positions = np.array(trajectory_positions, dtype=dt_ref_traj)
-
-        # create set of relevant lanelets
-        lanelet_ids = self.scenario.lanelet_network.find_lanelet_by_position(trajectory_positions["position"].tolist()) 
-        # Collect all relevant lanelets
-        relevant_lanelets = set()
-        for lanelet_id in lanelet_ids:
-            lanelet = self.scenario.lanelet_network.find_lanelet_by_id(lanelet_id[0])
-            relevant_lanelets.add(lanelet)
-            if lanelet.adj_left is not None:
-                left_adjacent_lanelet = self.scenario.lanelet_network.find_lanelet_by_id(lanelet.adj_left)
-                relevant_lanelets.add(left_adjacent_lanelet)
-            if lanelet.adj_right is not None:
-                right_adjacent_lanelet = self.scenario.lanelet_network.find_lanelet_by_id(lanelet.adj_right)
-                relevant_lanelets.add(right_adjacent_lanelet)
+        #TODO: Currently, obstacles on lanelets is not working as intended, so all obstacles are considered
+        # # create set of relevant lanelets
+        # lanelet_ids = self.scenario.lanelet_network.find_lanelet_by_position(trajectory_positions["position"].tolist()) 
+        # # Collect all relevant lanelets
+        # relevant_lanelets = set()
+        # for lanelet_id in lanelet_ids:
+        #     lanelet = self.scenario.lanelet_network.find_lanelet_by_id(lanelet_id[0])
+        #     relevant_lanelets.add(lanelet)
+        #     if lanelet.adj_left is not None:
+        #         left_adjacent_lanelet = self.scenario.lanelet_network.find_lanelet_by_id(lanelet.adj_left)
+        #         relevant_lanelets.add(left_adjacent_lanelet)
+        #     if lanelet.adj_right is not None:
+        #         right_adjacent_lanelet = self.scenario.lanelet_network.find_lanelet_by_id(lanelet.adj_right)
+        #         relevant_lanelets.add(right_adjacent_lanelet)
 
         # Merge obstacle sets from the relevant lanelets
         combined_obstacle_set = set()
@@ -381,16 +378,18 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
             if dyn_obstacle['distance'] > 20.0:
                 continue
             
-            # only consider obstacles, if the time step of the dynamic obstacle is in similar range from the time step of the trajectory 
-            time_step_diff = np.abs(dyn_obstacle['time_step'] - trajectory_positions[dyn_obstacle['index']]['time_step'])
-            time_diff = time_step_diff * self.scenario.dt
+            # only consider obstacles, if the time step of the dynamic obstacle is in similar range from the time step of the trajectory
+            # convert time steps to seconds
+            time_dyn_obs = dyn_obstacle['time_step'] * self.scenario.dt
+            time_ref_traj = trajectory_positions[dyn_obstacle['index']]['time_step'] * trajectory_dt
+            time_diff = np.abs(time_dyn_obs - time_ref_traj)
             if time_diff > time_threshold:
                 continue
 
             # only consider obstacle, if the orientation of the dynamic obstacle is different from the orientation of the trajectory point
             orientation_dyn_obs = dyn_obstacle['orientation']
             orientation_traj = trajectory_positions[dyn_obstacle['index']]['orientation']
-            orientation_diff = np.abs(orientation_dyn_obs - orientation_traj)
+            orientation_diff = np.abs(np.arctan2(np.sin(orientation_dyn_obs - orientation_traj), np.cos(orientation_dyn_obs - orientation_traj)))
 
             if orientation_diff > np.pi/3:
                 obstacle = self.scenario.obstacle_by_id(dyn_obstacle['obstacle_id'])
