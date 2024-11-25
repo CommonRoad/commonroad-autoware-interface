@@ -616,6 +616,7 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
                         end_point = utm2map(self.scenario_handler.origin_transformation, [inter_x[1], inter_y[1]])
                 elif intersection.geom_type == "MultiLineString":
                     end_points = []
+                    check_end_points = True
                     linestrings = intersection.geoms
                     for line in linestrings:
                         inter_x, inter_y = line.xy
@@ -624,19 +625,20 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
                         if buffered_line.contains(trajectory_point):
                             start_point = utm2map(self.scenario_handler.origin_transformation, [inter_x[0], inter_y[0]])
                             end_point = utm2map(self.scenario_handler.origin_transformation, [inter_x[1], inter_y[1]])
+                            check_end_points = False
                             break
                         elif trajectory_point.distance(Point(inter_x[0], inter_y[0])) < trajectory_point.distance(Point(inter_x[1], inter_y[1])):
                             end_points.append(Point(inter_x[0], inter_y[0]))
                         else:
                             end_points.append(Point(inter_x[1], inter_y[1]))                            
                     # check which intersection point is closer to the trajectory point
-                    if end_points:
-                        min_distance = float('inf')
+                    if check_end_points:
+                        min_distance_to_traj = float('inf')
                         nearest_end_point = None
                         for end_point in end_points:
                             distance = trajectory_point.distance(end_point)
-                            if distance < min_distance:
-                                min_distance = distance
+                            if distance < min_distance_to_traj:
+                                min_distance_to_traj = distance
                                 nearest_end_point = end_point
                         start_point = utm2map(self.scenario_handler.origin_transformation, point)
                         end_point = utm2map(self.scenario_handler.origin_transformation, [nearest_end_point.x, nearest_end_point.y])
