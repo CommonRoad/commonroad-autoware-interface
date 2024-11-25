@@ -602,7 +602,7 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
                 elif intersection.geom_type == "LineString":
                     inter_x, inter_y = intersection.xy
                     # create a buffer around the intersection line, to check if trajectory point is on the intersection line
-                    intersection_buffered = intersection.buffer(0.1)
+                    intersection_buffered = intersection.buffer(0.1, quadsegs=1, cap_style=2)
                     # check which intersection point is closer to the trajectory point
                     if intersection_buffered.contains(trajectory_point):
                         # if obstacle is on reference path, normal line is the line between the two intersection points
@@ -620,7 +620,7 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
                     linestrings = intersection.geoms
                     for line in linestrings:
                         inter_x, inter_y = line.xy
-                        buffered_line = line.buffer(0.1)
+                        buffered_line = line.buffer(0.1, quadsegs=1, cap_style=2)
                         # check which intersection point is closer to the trajectory point
                         if buffered_line.contains(trajectory_point):
                             start_point = utm2map(self.scenario_handler.origin_transformation, [inter_x[0], inter_y[0]])
