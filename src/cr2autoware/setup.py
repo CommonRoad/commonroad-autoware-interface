@@ -6,7 +6,7 @@ package_name = 'cr2autoware'
 setup(
     # package info
     name=package_name,
-    version='0.1.0',
+    version='0.2.0',
     zip_safe=True,
     author='Cyber-Physical Systems Group, Technical University of Munich',
     author_email='commonroad@lists.lrz.de',
@@ -28,7 +28,7 @@ setup(
     python_requires='>=3.10',
     install_requires=[
     	'setuptools==69.0.2',
-    	'commonroad-io==2024.1',
+    	'commonroad-io>=2024.1',
     	'commonroad-drivability-checker==2024.1',
     	'commonroad-vehicle-models==3.0.2',
     	'commonroad-route-planner==2024.2.0',

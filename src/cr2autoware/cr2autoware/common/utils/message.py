@@ -18,9 +18,6 @@ from visualization_msgs.msg import Marker
 from visualization_msgs.msg import MarkerArray
 from std_msgs.msg import ColorRGBA
 
-# Autoware message imports
-from dummy_perception_publisher.msg import Object
-
 # commonroad-io imports
 from commonroad.geometry.shape import Circle
 from commonroad.geometry.shape import Polygon
@@ -156,29 +153,6 @@ def create_route_marker_msg(path: np.ndarray, velocities: np.ndarray, elevation:
     route_msg.markers.append(route)
     return route_msg
 
-
-def create_object_base_msg(header, origin_transformation, obstacle) -> Object:
-    """
-    Create a base Object message for static and dynamic obstacles.
-
-    :param header: header message for Object
-    :param origin_transformation: list or array with 2 elements
-    :param obstacle: CR obstacle
-    :return: new Object
-    """
-    object_msg = Object()
-    object_msg.header = header
-    pose = Pose()
-    pose.position = utm2map(origin_transformation, obstacle.initial_state.position)
-    pose.orientation = orientation2quaternion(obstacle.initial_state.orientation)
-    object_msg.initial_state.pose_covariance.pose = pose
-    object_msg.classification.label = 1
-    object_msg.classification.probability = 1.0
-    object_msg.shape.dimensions.x = obstacle.obstacle_shape.length
-    object_msg.shape.dimensions.y = obstacle.obstacle_shape.width
-    object_msg.shape.dimensions.z = 1.5
-
-    return object_msg
 
 
 def log_obstacle(object_msg, static) -> str:
