@@ -43,6 +43,6 @@ If you use our code for research, please cite our [paper](https://mediatum.ub.tu
 ---
 
 ## Contact Information
-- **Release:** 0.1.0
+- **Release:** 0.2.0
 - **Website:** http://commonroad.in.tum.de
 - **Email:** commonroad@lists.lrz.de

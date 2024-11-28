@@ -17,6 +17,7 @@ module in Autoware.
 - [Requirements and Dependencies](#link-requirements-and-dependencies)
 - [Setup](#wrench-setup)
 - [Launch](#rocket-launch-and-usage)
+- [Documentation](#books-documentation)
 - [Development Guide](#hammer-development-guide)
 - [Authors](#busts_in_silhouette-authors)
 - [Citation](#speech_balloon-citation)
@@ -69,10 +70,9 @@ We recommend running Autoware within a dockerized setup.
 
 #### Autoware
 
-**CR2AW was tested with Autoware version with release tag 2023.06, which is accessible [here](https://github.com/autowarefoundation/autoware/tree/release/2023.06).**
+**CR2AW was tested with Autoware.Universe version with release tag v1.0, which is accessible [here](https://github.com/autowarefoundation/autoware.universe/tree/v1.0).**
 
-_Note: We can not guarantee that CR2AW works with other versions of Autoware at this point. However, regular updates to 
-new  Autoware releases will follow soon._
+_Note: Updates to newer  Autoware releases will follow regularly._
 
 
 #### CommonRoad
@@ -126,35 +126,38 @@ individual modules run in their own docker containers, please refer to `README_F
 
 ## :rocket: Launch and Usage
 
-The **CR2AW** interface integrates into the standard launch procedure of the Autoware and has been tested both
-with the _Planning Simulation_ of Autoware and by running Autoware on our real vehicle [EDGAR](https://arxiv.org/pdf/2309.15492).
-Here we describe how to launch **CR2AW** with Autoware's _Planning Simulation_.
+The **CR2AW** interface integrates into the standard launch procedure of Autoware and has been tested both
+with the _Planning Simulation_ of Autoware and on our real vehicle [EDGAR](https://arxiv.org/pdf/2309.15492).
+Here we only describe how to launch **CR2AW** with Autoware's _Planning Simulation_.
 
 A tutorial on how to use the _Planning Simulation_ of Autoware is provided [here](https://autowarefoundation.github.io/autoware-documentation/main/tutorials/ad-hoc-simulation/planning-simulation/#placing-dummy-objects).
-Please make sure that you have gone through this tutorial beforehand and are able to use the standard Autoware version 
-with the _Planning Simulation_.
+Please make sure that you have gone through this tutorial beforehand.
 
-To replace the Autoware planning module by **CR2AW** and use a CommonRoad planner, the following steps should be performed.
+To replace the standard Autoware planning module by **CR2AW**, the following steps should be performed.
 
 ### Map conversion
-Autoware requires an HD map in the Lanelet2 format. Any custom Lanelet2 map can be used with Autoware, as described [here](https://autowarefoundation.github.io/autoware-documentation/main/tutorials/ad-hoc-simulation/planning-simulation/#want-to-try-autoware-with-your-custom-map).
-For **CR2AW**, we require the map in the CommonRoad format. Thus, we use the Lanelet2-CommonRoad map conversion from 
+Autoware requires an HD map in the _Lanelet2_ format (see [here](https://autowarefoundation.github.io/autoware-documentation/main/tutorials/ad-hoc-simulation/planning-simulation/#want-to-try-autoware-with-your-custom-map)).
+For **CR2AW**, we require the map in the _CommonRoad_ format. Thus, we use the Lanelet2-CommonRoad map conversion from 
 the [CommonRoad-Scenario-Designer](https://commonroad.in.tum.de/tools/scenario-designer). 
 We provide a script for the map conversion in `./src/cr2autoware/scripts/lanelet2cr.py`
 
-1. Change input path your map directory which contains
+1. Change input path in `lanelet2cr.py` to your map directory which contains
 
-    a) The lanelet2 map as a `*.osm` file
+    a) The lanelet2 map (`*.osm` file)
     
     b) A map configuration file `map_config.yaml` which specifies the lat/lon map origin of the lanelet2 map. 
        **Important: The lat/long origin must correspond to the origin coordinates of the associated MGRS grid cell in which
        your map is located.** Currently, only maps which lie within one MGRS grid cell can be used with Autoware.
 
 2. Run the conversion script
+   ```shell
+   python3 lanelet2cr.py
+   ```
 
-3. Check if the CommonRoad map (`*.xml` file) is in the map directory
+3. Check if the converted _CommonRoad_ map (`*.xml` file) is in the map directory
 
-In `/src/cr2autoware/data/sample-map-planning/` we provide the converted map and the `map_config.yaml` for the sample-map-planning used in the Autoware tutorials.
+In `/src/cr2autoware/data/sample-map-planning/` we provide the converted map and the `map_config.yaml` 
+for the sample-map-planning used in the Autoware tutorials.
 
 ### Launch CommonRoad Planning module
 Launching the CommonRoad Planning module within the _Planning Simulation_ is done similarly to the instructions in the Autoware 
@@ -180,6 +183,9 @@ We further assume that the `autoware/` directory is located in the home director
    ```
    where you replace `<YOUR_MAP_PATH>` accordingly.
 
+
+## :books: Documentation
+Please find a deployed version of the documentation [here](https://cps.pages.gitlab.lrz.de/dfg-car/).
 
 ## :hammer: Development guide
 
