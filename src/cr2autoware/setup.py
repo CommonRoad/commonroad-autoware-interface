@@ -31,7 +31,7 @@ setup(
     	'commonroad-io>=2024.1',
     	'commonroad-drivability-checker==2024.1',
     	'commonroad-vehicle-models==3.0.2',
-    	'commonroad-route-planner==2024.2.0',
+    	'commonroad-route-planner==2024.2.1',
     	'pyproj>=3.4.1',
     	'pyyaml==6.0',
     	'utm>=0.7.0'

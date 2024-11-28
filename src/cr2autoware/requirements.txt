@@ -8,4 +8,4 @@ shapely>=2.0.2
 commonroad-io>=2024.1
 commonroad-drivability-checker==2024.1
 commonroad-vehicle-models==3.0.2
-commonroad-route-planner==2024.2.0
+commonroad-route-planner==2024.2.1
