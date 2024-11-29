@@ -57,15 +57,15 @@ from crdesigner.map_conversion.map_conversion_interface import lanelet_to_common
 
 # cr2autoware
 from .base import BaseHandler
-from ..common.utils.type_mapping import aw_to_cr_shape
-from ..common.utils.type_mapping import aw_to_cr_shape_updater
-from ..common.utils.type_mapping import get_classification_with_highest_probability
-from ..common.utils.type_mapping import set_traffic_light_cycle
-from ..common.utils.type_mapping import aw_to_cr_obstacle_type
-from ..common.utils.type_mapping import aw_to_cr_traffic_light_color
-from ..common.utils.type_mapping import aw_to_cr_traffic_traffic_light_shape
-from ..common.utils.type_mapping import aw_to_cr_traffic_traffic_light_status
-from ..common.utils.type_mapping import uuid_from_ros_msg
+from ..common.utils.cr_conversion_utils import commonroad_shape_conversion
+from ..common.utils.cr_conversion_utils import commonroad_shape_updater
+from ..common.utils.cr_conversion_utils import get_classification_with_highest_probability
+from ..common.utils.cr_conversion_utils import set_traffic_light_cycle
+from ..common.utils.cr_conversion_utils import dict_autoware_to_cr_obstacle_type
+from ..common.utils.cr_conversion_utils import dict_autoware_to_commonroad_traffic_light_color
+from ..common.utils.cr_conversion_utils import dict_autoware_to_commonroad_traffic_light_shape
+from ..common.utils.cr_conversion_utils import dict_autoware_to_commonroad_traffic_light_status
+from ..common.utils.cr_conversion_utils import uuid_from_ros_msg
 from ..common.utils.transform import quaternion2orientation
 from ..common.utils.transform import map2utm
 from ..common.utils.geometry import upsample_trajectory
@@ -84,13 +84,34 @@ from ..common.ros_interface.specs_subscriptions import spec_traffic_signals_sub
 class ScenarioHandler(BaseHandler):
     """
     Handles communication with Autoware for CommonRoad Scenario relevant data.
-    Keeps an up to date state of the current scenario in CommonRoad format.
 
-    ======== Publishers:
+    Keeps an up-to-date state of the current scenario in CommonRoad format.
 
-    ======== Subscribers:
-    "/perception/object_recognition/objects" (subscribes to PredictedObjects messages)
-    "/perception/traffic_light_recognition/traffic_signals (subscribes to TrafficSignals messages)
+    -------------------
+    **Subscribers:**
+
+    * spec_objects_sub:
+        * Description: Subscribes to predicted objects from perception
+        * Topic: `/perception/object_recognition/objects`
+        * Message Type: `autoware_auto_perception_msgs.msg.PredictedObject`
+    * spec_traffic_signals_sub:
+        * Description: Subscribes to traffic lights from perception
+        * Topic: `/perception/traffic_light_recognition/traffic_signals`
+        * Message Type: `autoware_auto_perception_msgs.msg.TrafficSignalArray`
+
+    -------------------
+    :var MAP_PATH: path to the map directory containing the map_config.yaml file
+    :var LEFT_DRIVING: flag indicating if the map is for left driving
+    :var ADJACENCIES: flag indicating if the map contains adjacencies
+    :var _scenario: CommonRoad scenario
+    :var _dt: time step of the scenario
+    :var _origin_transformation: origin transformation between CommonRoad and Autoware map
+    :var _last_msg: last received message from perception
+    :var _object_id_mapping: mapping between Autoware object ID and CommonRoad object ID
+    :var _road_boundary: static road boundary collision object
+    :var _z_list: list of z-coordinates of initial and goal pose
+    :var _initialpose3d_z: z-coordinate of initial pose
+    :var _z_coordinate: current elevation (z-coordinate)
     """
 
     # Constants and parameters
@@ -144,6 +165,9 @@ class ScenarioHandler(BaseHandler):
     def _init_parameters(self) -> None:
         """
         Init scenario handler specific parameters from self._node
+
+        :raises ValueError: if the map path is not found
+        :raises VauleError: if safety margin is negative
         """
         self.MAP_PATH = self._get_param("general.map_path").string_value
         if not os.path.exists(self.MAP_PATH):
@@ -152,11 +176,20 @@ class ScenarioHandler(BaseHandler):
         self.LEFT_DRIVING = self._get_param("scenario.left_driving").bool_value
         self.ADJACENCIES = self._get_param("scenario.adjacencies").bool_value
         self._dt = self._get_param("scenario.dt").double_value
+        # safety margin for obstacle shapes
+        self.safety_margin = self._get_param("trajectory_planner.safety_margin").double_value
+        if self.safety_margin < 0.0:
+            raise ValueError("Safety margin must be greater or equal to 0.0!")
 
     def _read_map_config(self, map_path: str) -> Dict[str, Any]:
         """
-        Read the map config file to obtain the origin (lat/lon) of the local coorindates of the lanelet2 map
-        :param map_path path to directory containing the map_config.yaml file
+        Read the map config file to obtain the origin (lat/lon) of the local coordinates of the lanelet2 map.
+
+        :param map_path: path to directory containing the map_config.yaml file
+        :return: map configuration dictionary
+        :raises ValueError: if map origin can't be loaded and no YAML file exists in the map directory
+        :raises _logger.warn: if map origin is invalid (i.e., lat/lon values are out of range)
+        :raises KeyError: if `use_local_coordinates` parameter is not found in the map_config.yaml file
         """
         map_config = {}
 
@@ -202,7 +235,10 @@ class ScenarioHandler(BaseHandler):
 
     def _get_projection_string(self, map_config: Dict[str, Any]) -> str:
         """
-        Obtain the projection string based on the lat/lon origin of the Lanelet2 map
+        Obtain the projection string based on the lat/lon origin of the Lanelet2 map.
+
+        :param map_config: map configuration dictionary
+        :return: projection string
         """
         aw_origin_latitude = map_config["aw_origin_latitude"]
         aw_origin_longitude = map_config["aw_origin_longitude"]
@@ -215,8 +251,14 @@ class ScenarioHandler(BaseHandler):
         self, map_config: Dict[str, Any], projection: Proj, scenario: CRScenario
     ) -> List[Union[float, Any]]:
         """
-        Compute the origin transformation (i.e., translation between the local coordinates of the CommonRoad map and
-        the Autoware Lanelet2 map)
+        Compute the origin transformation.
+
+        (i.e., translation between the local coordinates of the CommonRoad map and the Autoware Lanelet2 map)
+
+        :param map_config: map configuration dictionary
+        :param projection: projection string
+        :param scenario: CommonRoad scenario
+        :return: origin transformation
         """
         aw_origin_x, aw_origin_y = projection(
             map_config["aw_origin_longitude"], map_config["aw_origin_latitude"]
@@ -259,8 +301,16 @@ class ScenarioHandler(BaseHandler):
     ) -> CRScenario:
         """
         Initialize the scenario either from a CommonRoad scenario file or from Autoware map.
-        Transforms Autoware map to CommonRoad scenario if no CommonRoad scenario file is found
-        in the `map_path` directory.
+
+        Transforms Autoware map to CommonRoad scenario if no CommonRoad scenario file is found  in the `map_path`
+        directory.
+
+        :param map_path: path to the map directory containing the map_config.yaml file
+        :param projection_string: projection string
+        :param left_driving: flag indicating if the map is for left driving
+        :param adjacencies: flag indicating if the map contains adjacencies
+        :param dt: time step of the scenario
+        :return: CommonRoad scenario
         """
         # find open street map file in folder map_path
         map_filename = list(glob.iglob(os.path.join(map_path, "*.[oO][sS][mM]")))[0]
@@ -279,7 +329,10 @@ class ScenarioHandler(BaseHandler):
     def _create_initial_road_boundary(self) -> pycrcc.CollisionObject:
         """
         Creates road boundary collision obstacles for the lanelet network of the loaded scenario.
+
         Currently, we assume that the lanelet network of the initial map is fixed.
+
+        :return: road boundary collision object
         """
         if self._scenario is None:
             self._logger.error("ScenarioHandler._create_initial_road_boundary(): No CR scenario given.")
@@ -293,6 +346,12 @@ class ScenarioHandler(BaseHandler):
         return road_boundary_collision_object
 
     def _build_scenario_from_commonroad(self, map_filename_cr: str) -> CRScenario:
+        """
+        Build the CommonRoad scenario from a CommonRoad scenario file.
+
+        :param map_filename_cr: CommonRoad scenario file
+        :return: CommonRoad scenario
+        """
         self._logger.info(
             "Found a CommonRoad scenario file inside the directory. "
             "Loading map from CommonRoad scenario file"
@@ -308,6 +367,16 @@ class ScenarioHandler(BaseHandler):
         adjacencies: bool,
         dt: float,
     ) -> CRScenario:
+        """
+        Build the CommonRoad scenario from an Autoware map.
+
+        :param map_filename: Autoware map file
+        :param projection_string: projection string
+        :param left_driving: flag indicating if the map is for left driving
+        :param adjacencies: flag indicating if the map contains adjacencies
+        :param dt: time step of the scenario
+        :return: CommonRoad scenario
+        """
         self._logger.info(
             "Could not find a CommonRoad scenario file inside the directory. "
             "Creating from autoware map via Lanelet2CommonRoad conversion instead"
@@ -330,6 +399,7 @@ class ScenarioHandler(BaseHandler):
         return scenario
 
     def _init_subscriptions(self) -> None:
+        """Initialize subscriptions."""
         # subscribe predicted objects from perception
         _ = create_subscription(self._node,
                                 spec_objects_sub,
@@ -344,37 +414,56 @@ class ScenarioHandler(BaseHandler):
                                 )
 
     def _init_publishers(self) -> None:
+        """Initialize publishers."""
         pass
 
     @property
     def scenario(self) -> CRScenario:
-        """ Getter for current CR scenario """
+        """
+        Getter for current CR scenario.
+
+        :return: CommonRoad scenario
+        """
         return self._scenario
 
     @property
     def lanelet_network(self) -> LaneletNetwork:
-        """ Getter for CR lanelet network """
+        """
+        Getter for CR lanelet network.
+
+        :return: lanelet network
+        """
         return self._scenario.lanelet_network
 
     @property
     def road_boundary(self) -> pycrcc.CollisionObject:
-        """ Getter for road boundary collision object """
+        """
+        Getter for road boundary collision object.
+
+        :return: road boundary collision object
+        """
         return self._road_boundary
 
     @property
     def origin_transformation(self) -> List[Union[float, Any]]:
-        """ Getter for the origin transformation """
+        """
+        Getter for the origin transformation.
+
+        :return: origin transformation
+        """
         return self._origin_transformation
 
     @property
     def z_coordinate(self) -> float:
-        """ Getter for the elevation / z-coordinate """
+        """
+        Getter for the elevation / z-coordinate.
+
+        :return: elevation (z-coordinate)
+        """
         return self._z_coordinate
 
-    def update_scenario(self):
-        """
-        Update the CommonRoad scenario using the perception/prediction input.
-        """
+    def update_scenario(self) -> None:
+        """Update the CommonRoad scenario using the perception/prediction input."""
         self._logger.info("Updating scenario")
 
         # log time
@@ -393,11 +482,11 @@ class ScenarioHandler(BaseHandler):
         if self._VERBOSE:
             self._print_summary(t_elapsed)
 
-    def _print_summary(self, t_elapsed: float):
+    def _print_summary(self, t_elapsed: float) -> None:
         """
         Prints current scenario update to console via ROS logger for debugging
 
-        :param t_elapsed elapsed scenario update time
+        :param t_elapsed: elapsed scenario update time
         """
         self._logger.debug(f"###### SCENARIO UPDATE")
         self._logger.debug(f"\t Scenario update took: {t_elapsed} s")
@@ -412,13 +501,15 @@ class ScenarioHandler(BaseHandler):
     def _process_objects(self) -> None:
         """
         Converts Autoware objects to CommonRoad dynamic obstacles and add them to the CommonRoad scenario.
-        The incoming objects are provided by the prediction module via the topic /perception/object_recognition/objects
-        For each object we convert the estimated state and shape as well as the predicted trajectory
+
+        The incoming objects are provided by the prediction module via the topic:
+        `/perception/object_recognition/objects`
+        For each object we convert the estimated state and shape as well as the predicted trajectory.
 
         Processing consists of three parts:
-        - Adding newly appearing objects to the scenario
-        - Updating existing objects (i.e., their state, shape and predicted trajectory)
-        - Removing disappearing objects from the scenario
+        * Adding newly appearing objects to the scenario
+        * Updating existing objects (i.e., their state, shape and predicted trajectory)
+        * Removing disappearing objects from the scenario
         """
         last_message = self._last_msg.get("dynamic_obstacle")  # message type: PredictedObjects
         if last_message is None:
@@ -441,7 +532,6 @@ class ScenarioHandler(BaseHandler):
             )
             velocity = obstacle.kinematics.initial_twist_with_covariance.twist.linear.x
             yaw_rate = obstacle.kinematics.initial_twist_with_covariance.twist.angular.z
-            shape_type = obstacle.shape.type
             width = obstacle.shape.dimensions.y
             length = obstacle.shape.dimensions.x
             footprint = obstacle.shape.footprint
@@ -500,7 +590,6 @@ class ScenarioHandler(BaseHandler):
                 self._add_dynamic_obstacle(
                     dynamic_obstacle_initial_state,
                     list_predicted_poses,
-                    shape_type,
                     width,
                     length,
                     footprint,
@@ -516,8 +605,8 @@ class ScenarioHandler(BaseHandler):
                 dynamic_obs = self._scenario.obstacle_by_id(object_id_cr)
 
                 # shape update
-                aw_to_cr_shape_updater(
-                    dynamic_obs, width, length, footprint
+                commonroad_shape_updater(
+                    dynamic_obs, width, length, footprint, self.safety_margin
                 )
 
                 # state update
@@ -544,8 +633,10 @@ class ScenarioHandler(BaseHandler):
         # remove obstacles from scenario which are not in the current objects message
         self._remove_objects_from_scenario(list_curr_aw_object_ids)
 
-    def _remove_objects_from_scenario(self, list_curr_aw_object_ids: List[UUID]):
+    def _remove_objects_from_scenario(self, list_curr_aw_object_ids: List[UUID]) -> None:
         """
+        Object removal from the CommonRoad scenario.
+
         Removes all objects from the CR scenario which are not present in the current objects message from the AW
         perception module. Objects are removed from the CR scenario and from the object ID mapping
 
@@ -572,8 +663,12 @@ class ScenarioHandler(BaseHandler):
     @staticmethod
     def _get_predicted_path(predicted_object: PredictedObject) -> PredictedPath:
         """
-        Retrieves the predicted path of an object. If multiple predicted paths are available, the prediction with the
-        highest confidence is returned
+        Retrieves the predicted path of an object.
+
+        If multiple predicted paths are available, the prediction with the highest confidence is returned
+
+        :param predicted_object: predicted object from perception
+        :return: predicted path with the highest confidence
         """
         highest_conf_val = 0
         highest_conf_idx = 0
@@ -585,11 +680,12 @@ class ScenarioHandler(BaseHandler):
 
         return predicted_object.kinematics.predicted_paths[highest_conf_idx]
 
-    def _pose_list_to_crtrajectory(self, time_step: int, list_poses: List[Pose]):
+    def _pose_list_to_crtrajectory(self, time_step: int, list_poses: List[Pose]) -> CRTrajectory:
         """
-        Converts a predicted obstacle path given as list of geometry_msgs/Pose into a CommonRoad trajectory type.
+        Converts a predicted obstacle path given as list of `geometry_msgs/Pose` into a CommonRoad trajectory type.
+
         :param time_step: initial time step of the input path
-        :param list_poses: input path given as a list of geometry_msgs/Pose (i.e., positions and orientations)
+        :param list_poses: input path given as a list of `geometry_msgs/Pose` (i.e., positions and orientations)
         :return CRTrajectory: trajectory in the CommonRoad format
         """
         # CommonRoad state list
@@ -680,7 +776,6 @@ class ScenarioHandler(BaseHandler):
         self,
         initial_state: InitialState,
         traj: List[Pose],
-        shape_type: int,
         width: float,
         length: float,
         footprint: PolygonMsg,
@@ -692,23 +787,24 @@ class ScenarioHandler(BaseHandler):
 
         :param initial_state: initial state of obstacle
         :param traj: trajectory of obstacle
-        :param shape_type: shape type of obstacle
         :param width: width of obstacle
         :param length: length of obstacle
+        :param footprint: footprint of obstacle
+        :param classification: classification of obstacle
         :param dynamic_obstacle_id: id of obstacle
         """
         # get initial time step
         time_step = initial_state.time_step
 
-        # convert obstacle shape
-        dynamic_obstacle_shape = aw_to_cr_shape(
-            shape_type, width, length, footprint
-        )
-
         # convert obstacle classification / type
-        dynamic_obstacle_type = aw_to_cr_obstacle_type[
+        dynamic_obstacle_type = dict_autoware_to_cr_obstacle_type[
             get_classification_with_highest_probability(classification)
         ]
+
+        # create shape of the obstacle
+        dynamic_obstacle_shape = commonroad_shape_conversion(
+            dynamic_obstacle_type, width, length, footprint, self.safety_margin
+        )
 
         if len(traj) > 2:
             # create the trajectory of the obstacle, starting at time_step
@@ -741,7 +837,8 @@ class ScenarioHandler(BaseHandler):
     def _process_traffic_lights(self) -> None:
         """
         Converts Autoware traffic lights to CommonRoad traffic lights and updates the CommonRoad scenario.
-        The incoming traffic lights are provided by the perception module via the topic /perception/traffic_lights
+
+        The incoming traffic lights are provided by the perception module via the topic: `/perception/traffic_lights`
         """
 
         last_message = self._last_msg.get("traffic_lights") # type: TrafficSignalArray
@@ -763,7 +860,7 @@ class ScenarioHandler(BaseHandler):
             # get traffic light from lanelet network
             traffic_light_cr = self.lanelet_network.find_traffic_light_by_id(traffic_signal_id)
 
-            # get traffic light element with highest confidence
+            # get traffic light element with the highest confidence
             traffic_light: TrafficLight = self._get_traffic_light(traffic_signal)
 
             # get traffic light status, color and shape
@@ -773,7 +870,7 @@ class ScenarioHandler(BaseHandler):
 
             # convert traffic light status
             try:
-                status_cr = aw_to_cr_traffic_traffic_light_status[status]
+                status_cr = dict_autoware_to_commonroad_traffic_light_status[status]
             except KeyError:
                 self._logger.error("Traffic light status not found in AW to CR status map!")
                 continue
@@ -782,7 +879,7 @@ class ScenarioHandler(BaseHandler):
             if status_cr is True:
                 # set traffic light color and cycle
                 try:
-                    color_cr = aw_to_cr_traffic_light_color[color]
+                    color_cr = dict_autoware_to_commonroad_traffic_light_color[color]
                 except KeyError:
                     self._logger.error("Traffic light color not found in AW to CR color map!")
                     continue
@@ -791,17 +888,17 @@ class ScenarioHandler(BaseHandler):
 
                 # set traffic light direction
                 try:
-                    shape_cr = aw_to_cr_traffic_traffic_light_shape[shape]
+                    shape_cr = dict_autoware_to_commonroad_traffic_light_shape[shape]
                 except KeyError:
                     self._logger.error("Traffic light shape not found in AW to CR shape map!")
                     continue
                 traffic_light_cr.direction = shape_cr
             else:
                 # set traffic light color and cycle to inactive
-                color_cr = aw_to_cr_traffic_light_color[99]
+                color_cr = dict_autoware_to_commonroad_traffic_light_color[99]
                 traffic_light_cr.color = color_cr
                 traffic_light_cr.traffic_light_cycle = set_traffic_light_cycle(color_cr)
-                traffic_light_cr.direction = aw_to_cr_traffic_traffic_light_shape[shape]
+                traffic_light_cr.direction = dict_autoware_to_commonroad_traffic_light_shape[shape]
 
             # set detected traffic light in perception message to active
             traffic_light_cr.active = True
@@ -811,14 +908,18 @@ class ScenarioHandler(BaseHandler):
             if traffic_light_l2n.active is True:
                 if traffic_light_l2n.traffic_light_id not in processed_traffic_light_ids:
                     traffic_light_l2n.active = False
-                    color_inactive = aw_to_cr_traffic_light_color[99]
+                    color_inactive = dict_autoware_to_commonroad_traffic_light_color[99]
                     traffic_light_l2n.traffic_light_cycle = set_traffic_light_cycle(color_inactive)
 
     @staticmethod
     def _get_traffic_light(traffic_signal: TrafficSignal) -> TrafficLight:
         """
-        Retrieves the traffic light with the highest confidence value from the perception message. If multiple traffic
-        lights are available, the traffic light with the highest confidence is returned.
+        Retrieves the traffic light with the highest confidence value from the perception message.
+
+        If multiple traffic lights are available, the traffic light with the highest confidence is returned.
+
+        :param traffic_signal: traffic signal message from perception
+        :return TrafficLight: traffic light with the highest confidence
         """
         highest_conf_val = 0
         highest_conf_idx = 0
@@ -831,12 +932,12 @@ class ScenarioHandler(BaseHandler):
         return traffic_signal.lights[highest_conf_idx]
 
     def compute_z_coordinate(self, new_initial_pose: Optional[PoseWithCovarianceStamped],
-                             new_goal_pose: Optional[PoseStamped]):
+                             new_goal_pose: Optional[PoseStamped]) -> None:
         """
         Approximation of the elevation (z-coordinate) of the scenario as the mean between initial_pose and goal_pose.
 
-        :param new_initial_pose the initial pose of the ego vehicle
-        :param new_goal_pose the desired goal pose
+        :param new_initial_pose: the initial pose of the ego vehicle
+        :param new_goal_pose: the desired goal pose
         """
         new_initial_pose_z = None
         new_goal_pose_z = None

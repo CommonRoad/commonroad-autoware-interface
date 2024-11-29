@@ -26,18 +26,41 @@ from cr2autoware.common.utils.transform import utm2map
 
 class VelocityPlanner:
     """
-    Class for velocity planner using the motion velocity smoother node from AW.Universe. The velocity planner converts
-    a planned reference path (polyline) to a reference trajectory by velocity information to the path (similar to
-    path-velocity-decomposition techniques in motion planning)
+    Class for velocity planner using the motion velocity smoother node from AW.Universe. 
+    
+    The velocity planner converts a planned reference path (polyline) to a reference trajectory by 
+    velocity information to the path (similar to path-velocity-decomposition techniques in motion planning)
 
-    ======== Publishers
-    To motion velocity smoother (input): /planning/scenario_planning/scenario_selector/trajectory
+    ---------------
+    **Publishers:**
 
-    ======== Subscribers
-    From motion velocity smoother (output): /planning/scenario_planning/trajectory_smoothed
+    * _ref_path_pub:
+        * Description: Publishes reference path with velocity profile to motion velocity smoother
+        * Topic: `/planning/scenario_planning/trajectory_smoothed`
+        * Message Type: `autoware_auto_planning_msgs/Trajectory`
+
+    ---------------
+    :var _ref_path_pub: reference to ROS2 publisher for reference path
+    :var _logger: reference to ROS2 logger
+    :var _verbose: constant for verbose logging
+    :var _is_velocity_planning_completed: bool to check if velocity planning is completed
+    :var _reference_trajectory: reference trajectory with velocity profile; trajectory is a (n x 3) numpy array,
+    where each row contains x, y, v for a certain point on the reference trajectory; Coordinates in AW map frame
+    :var _tail: tail of reference path behind goal position; Coordinates in AW map frame
+    :var _lookahead_dist: lookahead distance for velocity planning
+    :var _lookahead_time: lookahead time for velocity planning
     """
     def __init__(self, ref_path_pub: Publisher, logger: RcutilsLogger, verbose: bool,
                  lookahead_dist: float, lookahead_time: float):
+        """
+        Constructor for VelocityPlanner class.
+
+        :param ref_path_pub: ROS2 node publisher for reference path
+        :param logger: ROS2 node logger
+        :param verbose: Flag for verbose logging
+        :param lookahead_dist: Lookahead distance for velocity planning
+        :param lookahead_time: Lookahead time for velocity planning
+        """
 
         # initialize publisher to velocity planner
         self._ref_path_pub = ref_path_pub
@@ -69,16 +92,22 @@ class VelocityPlanner:
     @property
     def reference_trajectory(self) -> Optional[np.ndarray]:
         """
-        Computed reference trajectory after velocity planning
-        Coordinates in AW map frame
+        Computed reference trajectory after velocity planning.
+
+        Coordinates in AW map frame.
+
+        :return: reference trajectory
         """
         return self._reference_trajectory
 
     @property
     def reference_positions(self) -> Optional[np.ndarray]:
         """
-        Reference trajectory positions
-        Coordinates in AW map frame
+        Reference trajectory positions.
+
+        Coordinates in AW map frame.
+
+        :return: reference trajectory positions
         """
         if self._reference_trajectory is None:
             return None
@@ -87,25 +116,36 @@ class VelocityPlanner:
 
     @property
     def reference_velocities(self) -> Optional[np.ndarray]:
-        """Reference trajectory velocities"""
+        """
+        Reference trajectory velocities.
+
+        :return: reference trajectory velocities
+        """
         if self._reference_trajectory is None:
             return None
         else:
             return self._reference_trajectory[:, 2]
 
     @property
-    def is_velocity_planning_completed(self):
-        """indicates if velocity planning for latest published route is completed"""
+    def is_velocity_planning_completed(self) -> bool:
+        """
+        Indicates if velocity planning for latest published route is completed.
+        
+        :return: completion status of velocity planning
+        """
         return self._is_velocity_planning_completed
 
-    def plan(self, reference_path: np.ndarray, goal_pos: np.ndarray, origin_transformation: List):
+    def plan(self, reference_path: np.ndarray, goal_pos: np.ndarray, origin_transformation: List) -> None:
         """
-        Call velocity planner
-        Computes a velocity profile for a given reference path
-        Resulting reference trajectory (i.e., path with velocity information) is stored
-        :param reference_path in CR coordinates
-        :param goal_pos in CR coordinates
-        :param origin_transformation translation of origin between CR and AW map coordinates
+        Calls velocity planner.
+
+        Computes a velocity profile for a given reference path.
+        Resulting reference trajectory (i.e., path with velocity information) is stored.
+
+
+        :param reference_path: in CR coordinates
+        :param goal_pos: in CR coordinates
+        :param origin_transformation: translation of origin between CR and AW map coordinates
         """
         self._is_velocity_planning_completed = False
 
@@ -134,7 +174,13 @@ class VelocityPlanner:
         self._pub_ref_path(input_path, origin_transformation)
 
     def _prepare_traj_msg(self, input_path: np.ndarray, origin_transformation: List) -> AWTrajectory:
-        """converts reference path to AWTrajectory message type for publishing to Motion Velocity Smoother"""
+        """
+        Converts reference path to AWTrajectory message type for publishing to Motion Velocity Smoother.
+        
+        :param input_path: reference path in CR coordinates
+        :param origin_transformation: translation of origin between CR and AW map coordinates
+        :return: AWTrajectory message
+        """
         if self._verbose:
             self._logger.info("<Velocity planner>: Preparing reference path message for motion velocity smoother")
 
@@ -156,8 +202,13 @@ class VelocityPlanner:
 
         return traj
 
-    def _pub_ref_path(self, input_path: np.ndarray, origin_transformation: List):
-        """Publishes reference path to Motion Velocity Smoother"""
+    def _pub_ref_path(self, input_path: np.ndarray, origin_transformation: List) -> None:
+        """
+        Publishes reference path to Motion Velocity Smoother.
+        
+        :param input_path: reference path in CR coordinates
+        :param origin_transformation: translation of origin between CR and AW map coordinates
+        """
         traj_msg = self._prepare_traj_msg(input_path, origin_transformation)
 
         self._ref_path_pub.publish(traj_msg)
@@ -165,8 +216,12 @@ class VelocityPlanner:
         if self._verbose:
             self._logger.info("<Velocity planner>: Reference path published to motion velocity smoother.")
 
-    def smoothed_trajectory_callback(self, msg: AWTrajectory):
-        """Call back function which subscribes to output of motion velocity smoother"""
+    def smoothed_trajectory_callback(self, msg: AWTrajectory) -> None:
+        """
+        Call back function which subscribes to output of motion velocity smoother.
+        
+        :param msg: AWTrajectory message with velocity profile
+        """
         if self._verbose:
             self._logger.info("<Velocity Planner>: Path with velocity profile received from motion velocity smoother")
 
@@ -194,7 +249,14 @@ class VelocityPlanner:
         self._is_velocity_planning_completed = True
 
     def get_lookahead_velocity_for_current_state(self, curr_position, curr_velocity) -> Optional[float]:
-        """Gets velocity from velocity profile with lookahead for a given position and velocity"""
+        """
+        Gets velocity from velocity profile with lookahead for a given position and velocity.
+        
+        :param curr_position: current position of the vehicle
+        :param curr_velocity: current velocity of the vehicle
+        :return: velocity with lookahead
+        :raises _logger.error: if velocity planning is not completed
+        """
         if not self._is_velocity_planning_completed:
             self._logger.error("<Velocity Planner>: Velocity planning not completed: No velocity can be returned")
             return None
@@ -223,9 +285,11 @@ class VelocityPlanner:
     @staticmethod
     def _get_closest_point_idx_on_path(path: np.ndarray, position: np.ndarray) -> int:
         """
-        :param path 2D ndarray with Euclidean (x, y) positions of a path
-        :param single Euclidean point (x, y) given as a ndarray
-        :return idx of closest point on path
+        Get index of closest point on path to a given position.
+
+        :param path: 2D ndarray with Euclidean (x, y) positions of a path
+        :param single: Euclidean point (x, y) given as a ndarray
+        :return: idx of closest point on path
         """
         dist = np.linalg.norm(path-position, axis=1)
         closest_idx = np.argmin(dist)

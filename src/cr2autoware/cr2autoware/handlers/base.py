@@ -15,20 +15,34 @@ if typing.TYPE_CHECKING:
 class BaseHandler(ABC):
     """
     Abstract base class for handler classes.
-    Defines basic attributes and methods which need to be implemented in all handler classes.
 
-    ======== class variables:
-    _node: reference to CR2Auto ROS2 node
-    _logger: reference to ROS RcutilsLogger
-    _VERBOSE: constant for verbose loggging
+    Defines basic attributes and methods which need to be implemented in all handler classes. 
 
-    ======== methods:
-    _get_param(): get a ROS parameter value from _node
+    -------------------
+    **Handler Classes:**
 
-    ======== abstract methods:
-    _init_parameters(): retrieve required ROS params from node
-    _init_subscriptions(): initialize required subscribers
-    _init_publishers(): initialize required publishers
+    * [`DataGenerationHandler`](data_generation_handler.md)
+    * [`EgoVehicleHandler`](ego_vehicle_handler.md)
+    * [`PlanningProblemHandler`](planning_problem_handler.md)
+    * [`ScenarioHandler`](scenario_handler.md)
+    * [`SpotHandler`](spot_handler.md)
+
+    -------------------
+    **Methods:**
+    
+    * `_get_param(param_name:str)`: Helper function to get a ROS parameter value from self._node
+
+    -------------------
+    **Abstract Methods:**
+
+    * `_init_parameters()`: Retrieve required ROS params from self._node
+    * `_init_subscriptions()`: Initialize required subscribers for self._node
+    * `_init_publishers()`: Initialize required publishers for self._node
+
+    -------------------
+    :var _node: reference to CR2Auto ROS2 node
+    :var _logger: reference to ROS RcutilsLogger
+    :var _VERBOSE: constant for verbose loggging
     """
 
     # reference to node
@@ -39,6 +53,13 @@ class BaseHandler(ABC):
     _VERBOSE: bool = False
 
     def __init__(self, node: "Cr2Auto", logger: RcutilsLogger, verbose: bool):
+        """
+        Constructor for BaseHandler class.
+
+        :param node: reference to CR2Auto ROS2 node
+        :param logger: reference to ROS RcutilsLogger
+        :param verbose: flag for verbose logging
+        """
         self._node = node
         self._logger = logger
         self._VERBOSE = verbose
@@ -62,5 +83,10 @@ class BaseHandler(ABC):
         pass
 
     def _get_param(self, param_name:str) -> ParameterValue:
-        """Helper function to get a ROS parameter value from self._node"""
+        """
+        Helper function to get a ROS parameter value from self._node
+        
+        :param param_name: name of the ROS parameter
+        :return: value of the ROS parameter
+        """
         return self._node.get_parameter(param_name).get_parameter_value()

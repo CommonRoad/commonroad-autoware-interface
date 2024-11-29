@@ -1,7 +1,12 @@
 """
+Configuration module for CR2Auto node.
+======================================
+
 This module defines the parameter structure for the CR2Auto node.
+
 All ROS parameters are encapsulated within one dataclass CR2AutowareParams (with different sub-dataclasses) and are
 declared and set upon initialization of the node.
+---------------------------
 """
 
 # typing
@@ -27,12 +32,18 @@ if typing.TYPE_CHECKING:
 class BaseParams:
     """
     CR2Auto base parameters.
+
+    :var _node: reference to CR2Auto ROS node
     """
     # reference to CR2Auto ROS node
     _node: "Cr2Auto"
 
     def __getitem__(self, item: str) -> Any:
-        """Getter for base parameter value."""
+        """
+        Getter for base parameter value.
+
+        :param item: parameter name
+        """
         try:
             value = self.__getattribute__(item)
         except AttributeError as e:
@@ -40,14 +51,23 @@ class BaseParams:
         return value
 
     def __setitem__(self, key: str, value: Any):
-        """Setter for item."""
+        """
+        Setter for item.
+
+        :param key: parameter name
+        :param value: parameter value
+        """
         try:
             self.__setattr__(key, value)
         except AttributeError as e:
             raise KeyError(f"{key} is not a parameter of {self.__class__.__name__}") from e
 
     def _declare_ros_params(self, namespace: str):
-        """Function to declare ROS params in the associated ROS2 node (self._node) """
+        """
+        Function to declare ROS params in the associated ROS2 node (self._node).
+
+        :param namespace: namespace for ROS parameters
+        """
         for field_info in fields(self):
             # ignore _node field
             if not field_info.name.startswith('_'):
@@ -59,7 +79,17 @@ class BaseParams:
 
 @dataclass
 class GeneralParams(BaseParams):
-    """Class for general parameters"""
+    """
+    Class for general parameters.
+
+    :var map_path: path to map directory (Launch arg)
+    :var solution_file: path to CR solution file (Launch arg)
+    :var detailed_log: verbose ROS logging
+    :var write_scenario: write scenario to XML file
+    :var plot_scenario: plot CR scenario
+    :var store_trajectory: store driven trajectory as CR solution file
+    :var store_trajectory_file: path to store CR solution file
+    """
     # path to map directory (Launch arg)
     map_path: str = ""
     # path to CR solution file (Launch arg)
@@ -77,6 +107,7 @@ class GeneralParams(BaseParams):
     store_trajectory_file: str = "output/solutions/solution1.xml"
 
     def __post_init__(self):
+        """Initialize ROS params."""
         # declare ROS params
         self._declare_ros_params(namespace="general")
 
@@ -93,6 +124,7 @@ class ScenarioParams(BaseParams):
     publish_obstacles: bool = True
 
     def __post_init__(self):
+        """Initialize ROS params."""
         # declare ROS params
         self._declare_ros_params(namespace="scenario")
 
@@ -100,10 +132,26 @@ class ScenarioParams(BaseParams):
 @dataclass
 class VehicleParams(BaseParams):
     """
-    Class for handling vehicle parameters
-    - Static vehicle parameters are read from the vehicle_info.param.yaml file in the vehicle_description ROS package
-    - Additional static (e.g., rear axle distance) and dynamic (e.g., max-velocity) parameters are defined here and
+    Class for handling vehicle parameters.
+
+    * Static vehicle parameters are read from the vehicle_info.param.yaml file in the vehicle_description ROS package
+    * Additional static (e.g., rear axle distance) and dynamic (e.g., max-velocity) parameters are defined here and
       are declared as ROS parameters for the CR2Auto node
+
+    ---------------------------
+    :var vehicle_info_param_file: full path to vehicle_info.param.yaml file
+    :var wheel_base: wheel base of the vehicle
+    :var wheel_tread: wheel tread of the vehicle
+    :var front_overhang: front overhang of the vehicle
+    :var rear_overhang: rear overhang of the vehicle
+    :var left_overhang: left overhang of the vehicle
+    :var right_overhang: right overhang of the vehicle
+    :var max_steer_angle: maximum steering angle of the vehicle
+    :var wb_front_axle: front axle distance to center of gravity
+    :var wb_rear_axle: rear axle distance to center of gravity
+    :var max_velocity: maximum velocity of the vehicle
+    :var min_velocity: minimum velocity of the vehicle
+    :var max_acceleration: maximum acceleration of the vehicle
     """
     # full path to vehicle_info.param.yaml file
     vehicle_info_param_file: str = ""
@@ -128,6 +176,7 @@ class VehicleParams(BaseParams):
     max_acceleration: float = 10.0
 
     def __post_init__(self):
+        """Initialize ROS params."""
         # declare ROS params
         self._declare_ros_params(namespace="vehicle")
 
@@ -153,7 +202,13 @@ class VehicleParams(BaseParams):
 
 @dataclass
 class VelocityPlannerParams(BaseParams):
-    """Class for velocity planner parameters"""
+    """
+    Class for velocity planner parameters.
+
+    :var lookahead_dist: lookahead distance (in meters)
+    :var lookahead_time: lookahead time (in seconds)
+    :var init_velocity: initial velocity (in m/s) (TODO: not yet implemented -> remove?; should only be used for lanelet2 maps)
+    """
     # lookahead distance (in meters)
     lookahead_dist: float = 3.0
     # lookahead time (in seconds)
@@ -168,7 +223,14 @@ class VelocityPlannerParams(BaseParams):
 
 @dataclass
 class RPInterfaceParams(BaseParams):
-    """Class for reactive planner interface parameters"""
+    """
+    Class for reactive planner interface parameters.
+
+    :var rp_config_yaml: path to reactive planner yaml configuration
+    :var d_min:
+    :var d_max:
+    :var t_min:
+    """
     # path to folder with reactive planner yaml configuration
     rp_config_yaml: str = \
         "../../../../src/universe/autoware.universe/planning/tum_commonroad_planning/dfg-car/src/cr2autoware/param/edgar_rp_config.yaml"
@@ -179,6 +241,7 @@ class RPInterfaceParams(BaseParams):
     t_min: float = 0.4
 
     def __post_init__(self):
+        """Initialize ROS params."""
         # declare ROS params
         self._declare_ros_params(namespace="rp_interface")
 
@@ -186,7 +249,12 @@ class RPInterfaceParams(BaseParams):
         self.path_rp_config = get_absolute_path_from_package(relative_path=self.rp_config_yaml,
                                                              package_name="cr2autoware")
 
-    def get_ros_param(self, param_name: str):
+    def get_ros_param(self, param_name: str) -> Any:
+        """
+        Get ROS parameter value.
+
+        :param param_name: name of ROS parameter
+        """
         namespace = "rp_interface"
         ros_param_name = namespace + "." + param_name
         ros_param_value = self._node.get_parameter(ros_param_name).get_parameter_value()
@@ -206,7 +274,14 @@ class RPInterfaceParams(BaseParams):
 
 @dataclass
 class TrajectoryPlannerParams(BaseParams):
-    """Base Class for trajectory planner parameters"""
+    """
+    Base Class for trajectory planner parameters.
+
+    :var trajectory_planner_type: type of trajectory planner to use (1: reactive planner)
+    :var planner_update_time: re-planning time for cyclic re-planning (in seconds)
+    :var planning_horizon: planning horizon (in seconds)
+    :var safety_margin: safety buffer to obstacles (in meters)
+    """
     # type of trajectory planner to use (1: reactive planner)
     trajectory_planner_type: int = 1
 
@@ -214,8 +289,11 @@ class TrajectoryPlannerParams(BaseParams):
     planner_update_time: float = 0.5
     # planning horizon (in seconds)
     planning_horizon: float = 5.0
+    # safety buffer to obstacles (in meters)
+    safety_margin: float = 0.8
 
     def __post_init__(self):
+        """Initialize ROS params."""
         # declare ROS params
         self._declare_ros_params(namespace="trajectory_planner")
 
@@ -223,7 +301,15 @@ class TrajectoryPlannerParams(BaseParams):
 @dataclass
 class CR2AutowareParams:
     """
-    Main parameter class for the CR2Auto node
+    Main parameter class for the CR2Auto node.
+
+    :var _node: reference to ROS node
+    :var general: GeneralParams
+    :var scenario: ScenarioParams
+    :var vehicle: VehicleParams
+    :var velocity_planner: VelocityPlannerParams
+    :var trajectory_planner: TrajectoryPlannerParams
+    :var rp_interface: RPInterfaceParams
     """
     # reference to ROS node
     _node: "Cr2Auto"
@@ -237,6 +323,7 @@ class CR2AutowareParams:
     rp_interface: RPInterfaceParams = field(init=False)
 
     def __post_init__(self):
+        """Initialize subclasses and pass reference to node."""
         # initialize subclasses and pass reference to node
         self.general = GeneralParams(_node=self._node)
         self.scenario = ScenarioParams(_node=self._node)

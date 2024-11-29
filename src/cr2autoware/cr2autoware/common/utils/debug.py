@@ -1,3 +1,12 @@
+"""
+Debugging Utils
+====================
+
+This module provides debugging utilities for the CommonRoad to Autoware interface.
+
+---------------------------
+"""
+
 from typing import List
 
 from commonroad.geometry.shape import Polygon
@@ -13,23 +22,26 @@ vertices = [
 
 
 def _convert_vertex_list_to_polygons(vertices: List[List[float]]) -> List[Polygon]:
-    """Convert a list of vertices as returned by SPOT to a list of polygons.
+    """
+    Convert a list of vertices as returned by SPOT to a list of polygons.
 
     SPOT returns all polygons as one list of vertices that needs to be split.
     This function converts the list of vertices to a list of polygons by
     creating a separate polygon whenever a vertex is reached, which has the
     same x and y coordinates as a preceding vertex.
 
-    Example:
-        SPOT returns the following list of vertices:
-            [(0, 0), (1, 0), (1, 1), (0, 1), (0, 0), (2, 0), (2, 1), (0, 1), (2, 0)]
-        This list is converted to the following list of polygons:
-            [Polygon([(0, 0), (1, 0), (1, 1), (0, 1), (0, 0)]),
-                Polygon([(2, 0), (2, 1), (0, 1), (2, 0)])]
+    **Example:**
 
-    Raises:
-        ValueError: If the list of vertices is not closed correctly.
+    SPOT returns the following list of vertices::
 
+        [(0, 0), (1, 0), (1, 1), (0, 1), (0, 0), (2, 0), (2, 1), (0, 1), (2, 0)]
+
+    This list is converted to the following list of polygons::
+
+        [Polygon([(0, 0), (1, 0), (1, 1), (0, 1), (0, 0)]), Polygon([(2, 0), (2, 1), (0, 1), (2, 0)])]
+
+    ----------
+    :raises ValueError: If the list of vertices is not closed correctly.
     """
     shapes: List[Polygon] = []
     first_idx = 0

@@ -4,6 +4,7 @@ from enum import Enum
 from typing import List
 from typing import TYPE_CHECKING
 from typing import Any
+import datetime
 
 # third party imports
 import pickle
@@ -50,17 +51,54 @@ class SaverCommands(Enum):
 
 class DataGenerationHandler(BaseHandler):
     """
-    Saves the relevant topics as mcap rosbags
+    Saves the relevant topics as mcap rosbags.
 
-    ======== Writer subscribes to:
-    /planning/mission_planning/goal (subscribes to geometry_msgs/msg/PoseStamped messages)
-    /geometry_msgs/msg/PoseWithCovarianceStamped" (geometry_msgs/msg/PoseWithCovarianceStamped)
-    /planning/mission_planning/goal (geometry_msgs/msg/PoseStamped)
-    /planning/scenario_planning/trajectory_smoothed (autoware_auto_planning_msgs/msg/Trajectory)
-    /planning/scenario_planning/trajectory" (autoware_auto_planning_msgs/msg/Trajectory)
-    /localization/kinematic_state (nav_msgs/msg/Odometry)
-    /perception/object_recognition/objects" (autoware_auto_perception_msgs/msg/PredictedObjects)
-    /perception/traffic_light_recognition/traffic_signals (autoware_auto_perception_msgs/msg/TrafficSignalArray)
+    -------------------
+    **Subscribers:**
+
+    * _initial_pose3d_subscriber:
+        * Description: Initial pose of the vehicle
+        * Topic: `/initialpose3d`
+        * Message Type: `geometry_msgs.msg.PoseWithCovarianceStamped`
+    * _goal_pose_subscriber:
+        * Description: Goal pose of the vehicle
+        * Topic: `/planning/mission_planning/goal`
+        * Message Type: `geometry_msgs.msg.PoseStamped`
+    * _reference_trajectory_subscriber:
+        * Description: Reference trajectory with smoothed velocity profile
+        * Topic: `/planning/scenario_planning/trajectory_smoothed`
+        * Message Type: `autoware_auto_planning_msgs.msg.Trajectory`
+    * _planned_trajectory_subscriber:
+        * Description: Planned trajectory
+        * Topic: `/planning/scenario_planning/trajectory`
+        * Message Type: `autoware_auto_planning_msgs.msg.Trajectory`
+    * _driven_trajectory_subscriber:
+        * Description: Driven trajectory from localization
+        * Topic: `/localization/kinematic_state`
+        * Message Type: `nav_msgs.msg.Odometry`
+    * _predicted_objects_subscriber:
+        * Description: Predicted objects
+        * Topic: `/perception/object_recognition/objects`
+        * Message Type: `autoware_auto_perception_msgs.msg.PredictedObjects`
+    * _traffic_lights_subscriber:
+        * Description: Traffic lights
+        * Topic: `/perception/traffic_light_recognition/traffic_signals`
+        * Message Type: `autoware_auto_perception_msgs.msg.TrafficSignalArray`
+
+    -------------------
+    :var _command_status: command status for the saver
+    :var _save_path: absolute path where the data should be saved to
+    :var _save_id: id string for the origin transform and the mcap file
+    :var _writer: rosbag writer
+    :var _initial_pose3d_subscriber: subscriber for initial pose
+    :var _goal_pose_subscriber: subscriber for goal pose
+    :var _reference_trajectory_subscriber: subscriber for reference trajectory
+    :var _planned_trajectory_subscriber: subscriber for planned trajectory
+    :var _driven_trajectory_subscriber: subscriber for driven trajectory
+    :var _detected_objects_subscriber: subscriber for detected objects
+    :var _predicted_objects_subscriber: subscriber for predicted objects
+    :var _traffic_lights_subscriber: subscriber for traffic lights
+    :var _origin_transformation: coordinate transformation between autoware and commonroad
     """
     def __init__(self,
                  cr2aw_node: "Cr2Auto",
@@ -69,6 +107,8 @@ class DataGenerationHandler(BaseHandler):
                  origin_transformation: List[float]
                  ) -> None:
         """
+        Constructor for DataGenerationHandler class.
+
         :param cr2aw_node: ros2 node for cr2autoware interface
         :param save_path: absolute path where the data should be saved to.
         :param save_id: id string for the origin transform and the mcap file
@@ -125,6 +165,8 @@ class DataGenerationHandler(BaseHandler):
     @property
     def command_status(self) -> SaverCommands:
         """
+        Property for command status.
+
         :return: current command status
         """
         return self._command_status
@@ -133,6 +175,8 @@ class DataGenerationHandler(BaseHandler):
     @property
     def node(self) -> "Cr2Auto":
         """
+        Property for the cr2autoware node.
+
         :return: the cr2autoware node
         """
         return self._node
@@ -141,6 +185,8 @@ class DataGenerationHandler(BaseHandler):
     @property
     def save_path(self) -> str:
         """
+        Property for the save path.
+
         :return: save path
         """
         return self._save_path
@@ -161,9 +207,7 @@ class DataGenerationHandler(BaseHandler):
 
 
     def start_recording(self) -> None:
-        """
-        Starts recording topics that would otherwise be spammed constantly
-        """
+        """Starts recording topics that would otherwise be spammed constantly."""
         if (self._command_status is not SaverCommands.STOP):
             return
 
@@ -171,16 +215,21 @@ class DataGenerationHandler(BaseHandler):
 
 
     def stop_recording_and_save_data(self) -> None:
-        """
-        Stops recording and saves data
-        """
+        """Stops recording and saves data."""
         self._logger.info(f"Stopped recording data!")
         self._command_status = SaverCommands.STOP
         del self._writer
+        # init writer again for next recording with new save_id
+        self._save_id = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
+        self._init_writer()
+        self._logger.info(f"Initialized new writer for next recording!")
+        self.start_recording()
+        self._save_origin_transformation_to_pkl()
 
-    def _add_time_header_to_msg(self, msg: Any) ->  Any:
+    def _add_time_header_to_msg(self, msg: Any) -> Any:
         """
-        Adds a header an autoware msg
+        Adds a header an autoware msg.
+
         :param msg: msg to add header to
         """
         header = Header()
@@ -190,9 +239,7 @@ class DataGenerationHandler(BaseHandler):
 
 
     def _save_origin_transformation_to_pkl(self) -> None:
-        """
-        Saves origin transform to pkl
-        """
+        """Saves origin transform to pkl."""
         pkl_name: str = self.save_path + "/" + self._save_id + "_origin_transform.pkl"
         with open(pkl_name, 'wb') as f:
             pickle.dump(self.origin_transformation, f)
@@ -202,17 +249,13 @@ class DataGenerationHandler(BaseHandler):
 
     ####################### Implement not needed abstract methods ####################
     def _init_parameters(self) -> None:
-        """
-        Overides Abstact: Retrieve required ROS params from self._node
-        """
+        """Overides Abstact: Retrieve required ROS params from self._node."""
         # Does not need params
         pass
 
 
     def _init_publishers(self) -> None:
-        """
-        Overides AbstractInitialize required publishers for self._node
-        """
+        """Overides AbstractInitialize required publishers for self._node."""
         # Does not have a publisher
         pass
 
@@ -223,9 +266,7 @@ class DataGenerationHandler(BaseHandler):
 
     ###################################--- ROS2 Related --- #####################################################
     def _init_writer(self) -> None:
-        """
-        Creates topic writers
-        """
+        """Creates topic writers."""
         # Rosbag _writer
         self._writer = rosbag2_py.SequentialWriter()
 
@@ -289,10 +330,16 @@ class DataGenerationHandler(BaseHandler):
             )
         )
 
+        self._writer.create_topic(
+            rosbag2_py.TopicMetadata(
+                name="/perception/traffic_light_recognition/traffic_signals",
+                type="autoware_auto_perception_msgs/msg/TrafficSignalArray",
+                serialization_format="cdr"
+            )
+        )
+
     def _init_subscriptions(self) -> None:
-        """
-        Creates subscribers to relevant topics
-        """
+        """Creates subscribers to relevant topics."""
 
         # Initial pose
         self._initial_pose3d_subscriber = create_subscription(
@@ -356,6 +403,7 @@ class DataGenerationHandler(BaseHandler):
     def initial_pose3d_callback(self, msg: PoseWithCovarianceStamped) -> None:
         """
         Callback to initial pose data.
+
         :param msg: msg for 3d initial pose
         """
         msg = self._add_time_header_to_msg(msg)
@@ -368,7 +416,8 @@ class DataGenerationHandler(BaseHandler):
 
     def goal_pose_callback(self, msg: PoseStamped) -> None:
         """
-        Callback to gather goal pose data
+        Callback to gather goal pose data.
+
         :param msg: goal pose msg
         """
         msg = self._add_time_header_to_msg(msg)
@@ -379,7 +428,8 @@ class DataGenerationHandler(BaseHandler):
         )
     def reference_trajectory_callback(self, msg: AWTrajectory) -> None:
         """
-        Callback to gather reference trajectory data
+        Callback to gather reference trajectory data.
+
         :param msg: message reference trajectory with smoothed velocity
         """
         msg = self._add_time_header_to_msg(msg)
@@ -392,6 +442,7 @@ class DataGenerationHandler(BaseHandler):
     def planned_trajectory_callback(self, msg: AWTrajectory) -> None:
         """
         Callback to gather reference trajectory data.
+
         :param msg: planned trajectory msg
         """
         msg = self._add_time_header_to_msg(msg)
@@ -404,6 +455,7 @@ class DataGenerationHandler(BaseHandler):
     def driven_trajectory_callback(self, msg) -> None:
         """
         Callback to gather driven trajectory kinematic data.
+
         :param msg: msg for current kinematic state
         """
         if(self._command_status != SaverCommands.RUN):
@@ -419,6 +471,7 @@ class DataGenerationHandler(BaseHandler):
     def predicted_objects_callback(self, msg: PredictedObjects) -> None:
         """
         Callback to gather obstacle data from prediciton.
+
         :param msg: msg for predicted objects
         """
         if (self._command_status != SaverCommands.RUN):
@@ -434,6 +487,7 @@ class DataGenerationHandler(BaseHandler):
     def traffic_lights_callback(self, msg) -> None:
         """
         Callback to gather traffic light status.
+
         :param msg: msg for status of traffic lights
         """
         if (self._command_status != SaverCommands.RUN):

@@ -1,3 +1,11 @@
+"""
+Geometry Utils
+===========================
+
+This module contains geometry utility functions that are used throughout the package.
+
+---------------------------
+"""
 # standard
 from typing import List
 
@@ -10,8 +18,9 @@ from geometry_msgs.msg import Pose
 from geometry_msgs.msg import Quaternion
 
 
-def upsample_trajectory(traj: List[Point], dt_ratio: int):
-    """Compute upsampled trajectory list.
+def upsample_trajectory(traj: List[Point], dt_ratio: int) -> None:
+    """
+    Compute upsampled trajectory list.
 
     :param traj: trajectory to compute
     :param dt_ratio: dt_ratio
@@ -46,8 +55,9 @@ def upsample_trajectory(traj: List[Point], dt_ratio: int):
 def traj_linear_interpolate(point_1: Pose, point_2: Pose, smaller_dt: float, bigger_dt: float) -> Pose:
     """
     Interpolate a point between two points.
+
     :param point_1: point which will be smaller than interpolated point (on left-side)
-    :param point_1: point which will be bigger than interpolated point (on right-side)
+    :param point_2: point which will be bigger than interpolated point (on right-side)
     :param smaller_dt: time step for the point will be interpolated
     :param bigger_dt: time step for the points which will be used for interpolation
     :return: pose of the interpolated point

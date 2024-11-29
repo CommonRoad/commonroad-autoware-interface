@@ -1,6 +1,55 @@
 """
+ROS Interface Subscription Specification
+========================================
+
 This file holds specification descriptions for all topic subscriptions of CR2Auto node.
+
 To add a new topic subscription, add the specification here first.
+
+---------------------------
+**Subscriptions**:
+
+* spec_initial_pose_sub:
+    * Description: subscribe initial pose
+    * Topic: `/initialpose3d`
+    * Message Type: `geometry_msgs.msg.PoseWithCovarianceStamped`
+* spec_echo_back_goal_pose_sub:
+    * Description: subscribe echo back goal pose
+    * Topic: `/planning/mission_planning/echo_back_goal_pose`
+    * Message Type: `geometry_msgs.msg.PoseStamped`
+* spec_goal_pose_sub:
+    * Description: subscribe goal pose
+    * Topic: `/planning/mission_planning/goal`
+    * Message Type: `geometry_msgs.msg.PoseStamped`
+* spec_auto_button_sub:
+    * Description: subscribe autoware engage message
+    * Topic: `/autoware/engage`
+    * Message Type: `autoware_auto_vehicle_msgs.msg.Engage`
+* spec_velocity_limit_sub:
+    * Description: subscribe velocity limit from API (Note: Here we directly use the value from the API velocity limit
+    setter in RVIZ.)
+    * Topic: `/planning/scenario_planning/max_velocity_default`
+    * Message Type: `tier4_planning_msgs.msg.VelocityLimit`
+* spec_routing_state_sub:
+    * Description: subscribe routing state
+    * Topic: `/api/routing/state`
+    * Message Type: `autoware_adapi_v1_msgs.msg.RouteState`
+* spec_autoware_state_sub:
+    * Description: subscribe autoware state
+    * Topic: `/autoware/state`
+    * Message Type: `autoware_auto_system_msgs.msg.AutowareState`
+* spec_odometry:
+    * Description: subscribe current state from odometry (kinematic state)
+    * Topic: `/localization/kinematic_state`
+    * Message Type: `nav_msgs.msg.Odometry`
+* spec_curr_acc:
+    * Description: subscribe current acceleration (separate topic, currently not in /localization/kinematic_state)
+    * Topic: `/localization/acceleration`
+    * Message Type: `geometry_msgs.msg.AccelWithCovarianceStamped`
+* spec_objects_sub:
+    * Description: subscribe predicted objects from perception
+    * Topic: `/perception/object_recognition/objects`
+    * Message Type: `autoware_auto_perception_msgs.msg.PredictedObjects`
 """
 
 # ROS messages
@@ -88,6 +137,7 @@ spec_traj = SubscriptionSpec(
     depth=1
 )
 
+# subscribe objects from perception
 spec_objects_sub = SubscriptionSpec(
     name="/perception/object_recognition/objects",
     msg_type=PredictedObjects,
@@ -95,16 +145,7 @@ spec_objects_sub = SubscriptionSpec(
 )
 
 
-# TODO: merge with above and check in rosbag_saving_handler etc.
 # subscribe traffic signals from perception
-spec_traffic_lights = SubscriptionSpec(name="/perception/traffic_light_recognition/traffic_signals",
-                                            msg_type=TrafficSignalArray,
-                                            depth=1)
-
-
-
-
-# subscribes to traffic lights
 spec_traffic_lights = SubscriptionSpec(
     name="/perception/traffic_light_recognition/traffic_signals",
     msg_type=TrafficSignalArray,
