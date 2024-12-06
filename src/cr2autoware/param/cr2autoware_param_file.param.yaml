@@ -18,14 +18,14 @@
     vehicle:
       # static parameters (e.g., wheel_base) are read from vehicle_info.param.yaml (see cr2autoware/configuration.py)
 
-      # kinamatic single track params TODO: EDGAR values (make configurable)
-      wb_front_axle: 1.484 # meter
-      wb_rear_axle: 1.644 # meter
+      # kinematic single track params TODO: EDGAR values (make configurable)
+      wb_front_axle: 1.484 # CG to front axle dist in m
+      wb_rear_axle: 1.644 # CG to rear axle dist in m
 
       # other params
       max_velocity: 10.0 # m/s (TODO: not used?)
       min_velocity: 0.0 # m/s (TODO: not used?)
-      max_acceleration: 10.0  # m/s^2 (lon. acceleration limit for planning)
+      max_acceleration: 10.0  # lon. acceleration limit for planning in m/s^2
 
     velocity_planner:
       init_velocity: 5.0 # m/s - not yet implemented; should only be used for lanelet2 maps
@@ -33,10 +33,14 @@
       lookahead_time: 0.8 # s
 
     trajectory_planner:
-      trajectory_planner_type: 1 # 1: reactive planner
-      planner_update_time: 0.2 # run each x.x seconds
-      planning_horizon: 5.0
-      safety_margin: 0.8 # buffer distance to obstacles in m
+      trajectory_planner_type: 1            # 1: reactive planner
+      planner_update_time: 0.2              # run each x.x s
+      planning_horizon: 5.0                 # planning horizon in s
+      safety_margin: 0.8                    # buffer distance to obstacles in m
+      # re-planning parameters
+      replan_always_from_measured: False    # always re-plan from measured state
+      replan_vel_deviation: 5.0             # velocity deviation to re-plan initial velocity in m/s
+      replan_dist_deviation: 3.0            # distance deviation to re-plan from measured pose in m
 
     rp_interface:
       rp_config_yaml: "../../../../src/universe/autoware.universe/planning/tum_commonroad_planning/dfg-car/src/cr2autoware/param/edgar_rp_config.yaml"

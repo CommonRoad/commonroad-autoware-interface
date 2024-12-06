@@ -16,8 +16,14 @@ from commonroad_rp.state import ReactivePlannerState
 from commonroad_rp.reactive_planner import ReactivePlanner
 
 # cr2autoware
-from cr2autoware.common.configuration import RPInterfaceParams
-from cr2autoware.handlers.ego_vehicle_handler import EgoVehicleHandler, EgoVehicleState
+from cr2autoware.common.configuration import (
+    RPInterfaceParams,
+    TrajectoryPlannerParams
+)
+from cr2autoware.handlers.ego_vehicle_handler import (
+    EgoVehicleHandler,
+    EgoVehicleState
+)
 from cr2autoware.interfaces.base.trajectory_planner_interface import TrajectoryPlannerInterface
 
 # ROS imports
@@ -42,7 +48,7 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
                  planning_problem: PlanningProblem,
                  road_boundary: pycrcc.CollisionObject,
                  dt: float,
-                 horizon: float,
+                 traj_planner_params: TrajectoryPlannerParams,
                  rp_interface_params: RPInterfaceParams,
                  ego_vehicle_handler: EgoVehicleHandler):
         """
@@ -55,13 +61,18 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
         :param planning_problem: CommonRoad planning problem
         :param road_boundary: road boundary as a collision object
         :param dt: time step for the reactive planner
-        :param horizon: planning horizon for the reactive planner
+        :param traj_planner_params: General Trajectory Planner parameters
         :param rp_interface_params: Reactive Planner Interface parameters
         :param ego_vehicle_handler: Ego Vehicle Handler
         """
 
         # init parent class
-        super().__init__(traj_pub=traj_pub, logger=logger.get_child("rp_interface"), verbose=verbose)
+        super().__init__(
+            traj_pub=traj_pub,
+            traj_planner_params=traj_planner_params,
+            logger=logger.get_child("rp_interface"),
+            verbose=verbose
+        )
 
         # set scenario
         self.scenario = scenario
@@ -75,8 +86,8 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
 
         # overwrite time step and horizon
         rp_config.planning.dt = dt
-        rp_config.planning.planning_horizon = horizon
-        rp_config.planning.time_steps_computation = int(horizon/dt)
+        rp_config.planning.planning_horizon = traj_planner_params.planning_horizon
+        rp_config.planning.time_steps_computation = int(traj_planner_params.planning_horizon/dt)
 
         # overwrite vehicle params in planner config
         rp_config.vehicle.length = ego_vehicle_handler.vehicle_length
@@ -101,28 +112,27 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
         # init trajectory planner
         self._planner: ReactivePlanner = reactive_planner
 
-    def plan(self, current_state: EgoVehicleState, goal, reference_velocity=None, **kwargs) -> None:
+    def _plan(self, init_state: EgoVehicleState, goal, reference_velocity=None, **kwargs) -> None:
         """
-        Overrides plan method from base class and calls the planning algorithm of the reactive planner.
+        Implements _plan method from base class and calls the algorithm of the reactive planner.
 
-        
-        :param current_state: current state of the ego vehicle
+        :param init_state: current state of the ego vehicle
         :param goal: goal state of the ego vehicle
         :param reference_velocity: reference velocity for the planner
         :param kwargs: additional keyword arguments
         """
         # set reference velocity for planner
-        self._planner.set_desired_velocity(desired_velocity=reference_velocity, current_speed=current_state.velocity)
+        self._planner.set_desired_velocity(desired_velocity=reference_velocity, current_speed=init_state.velocity)
 
         # update collision checker (self.scenario is updated continuously as it is a reference to the scenario handler)
         self._planner.set_collision_checker(self.scenario, road_boundary_obstacle=self._road_boundary)
 
         # reset planner state
-        if not hasattr(current_state, "acceleration"):
+        if not hasattr(init_state, "acceleration"):
             # current_state uses acceleration localization (see ego_vehicle_handler)
-            current_state.acceleration = 0.0
+            init_state.acceleration = 0.0
         x0_planner_cart: ReactivePlannerState = ReactivePlannerState()
-        x0_planner_cart = current_state.convert_state_to_state(x0_planner_cart)
+        x0_planner_cart = init_state.convert_state_to_state(x0_planner_cart)
         self._planner.reset(initial_state_cart=x0_planner_cart,
                             initial_state_curv=None,
                             collision_checker=self._planner.collision_checker,
@@ -136,11 +146,15 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
             # add to planned trajectory
             self._cr_state_list = optimal_traj[0].state_list
 
-            # record planned state and input TODO check this
+            # update previously planned trajectory
+            self._prev_state_list = optimal_traj[0].state_list
+
+            # record planned state and input
             self._planner.record_state_and_input(optimal_traj[0].state_list[1])
         else:
-            # TODO: sample emergency brake trajectory if no trajectory is found
+            # TODO: sample emergency brake trajectory if no trajectory is found ?
             self._cr_state_list = None
+            self._prev_state_list = None
 
     def update(self, planning_problem: PlanningProblem = None, reference_path: np.ndarray = None) -> None:
         """
