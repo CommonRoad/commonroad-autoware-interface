@@ -292,6 +292,14 @@ class TrajectoryPlannerParams(BaseParams):
     # safety buffer to obstacles (in meters)
     safety_margin: float = 0.8
 
+    # re-planning parameters
+    # always re-plan from measured state
+    replan_always_from_measured: bool = False
+    # velocity deviation to re-plan initial velocity in m/s
+    replan_vel_deviation: float = 5.0
+    # distance deviation to re-plan from measured pose in m
+    replan_dist_deviation: float = 3.0
+
     def __post_init__(self):
         """Initialize ROS params."""
         # declare ROS params

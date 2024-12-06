@@ -1,6 +1,10 @@
 # standard imports
 from typing import List, Optional, Any
 from abc import ABC, abstractmethod
+import time
+
+# third party
+import numpy as np
 
 # ROS imports
 from rclpy.publisher import Publisher
@@ -18,6 +22,11 @@ from commonroad.planning.goal import GoalRegion
 from cr2autoware.handlers.ego_vehicle_handler import EgoVehicleState
 from cr2autoware.common.utils.transform import orientation2quaternion
 from cr2autoware.common.utils.transform import utm2map
+from cr2autoware.common.utils.trajectory_utils import (
+    get_closest_state,
+    get_closest_idx
+)
+from cr2autoware.common.configuration import TrajectoryPlannerParams
 
 
 class TrajectoryPlannerInterface(ABC):
@@ -30,7 +39,9 @@ class TrajectoryPlannerInterface(ABC):
     :var _logger: reference to ROS logger
     :var _verbose: constant for verbose logging
     :var _planner: reference to planner class
-    :var _cr_state_list: list of CommonRoad states
+    :var _traj_planner_params: trajectory planner params from config
+    :var _cr_state_list: planned trajectory as list of CommonRoad states
+    :var _prev_state_list: previous trajectory as list of CommonRoad states
     """
 
     # reference to trajectory publisher
@@ -40,7 +51,13 @@ class TrajectoryPlannerInterface(ABC):
     # verbose logging
     _verbose: bool
 
-    def __init__(self, traj_pub: Publisher, logger: RcutilsLogger, verbose: bool):
+    def __init__(
+            self,
+            traj_pub: Publisher,
+            traj_planner_params: TrajectoryPlannerParams,
+            logger: RcutilsLogger,
+            verbose: bool
+    ) -> None:
         """
         Constructor for TrajectoryPlannerInterface class.
 
@@ -55,11 +72,17 @@ class TrajectoryPlannerInterface(ABC):
         # set logging verbosity
         self._verbose = verbose
 
+        # trajectory planner parameters
+        self._traj_planner_params = traj_planner_params
+
         # initialize planner class (set in child class)
         self._planner: Any = None
 
-        # initialize CR trajectory state list
+        # current CR trajectory state list
         self._cr_state_list: Optional[List[TraceState]] = None
+
+        # store previous CR trajectory state list
+        self._prev_state_list: Optional[List[TraceState]] = None
 
     @property
     def cr_state_list(self) -> Optional[List[TraceState]]:
@@ -80,16 +103,80 @@ class TrajectoryPlannerInterface(ABC):
         """
         pass
 
-    @abstractmethod
     def plan(self, current_state: EgoVehicleState, goal: GoalRegion, **kwargs) -> None:
         """
-        Plans a trajectory. The planning algorithm is implemented in the respective planner (self._planner).
+        Calculates initial planner state for re-planning and plans a trajectory.
         
         :param current_state: Current ego vehicle state
         :param goal: Goal region
         :param kwargs: Additional keyword arguments
         """
+        # Calculate initial planner state for re-
+        t_start = time.perf_counter()
+        if self._traj_planner_params.replan_always_from_measured:
+            self._logger.debug("Re-planning from MEASURED state.")
+            init_state = current_state
+        else:
+            init_state = self._calc_init_planner_state(current_state)
+
+        # timer for init state update
+        t_elapsed = time.perf_counter() - t_start
+        self._logger.debug(f"\t Planner init state calculation took: {t_elapsed} s")
+
+        # call planner
+        self._plan(init_state, goal, **kwargs)
+
+    @abstractmethod
+    def _plan(self, init_state: EgoVehicleState, goal: GoalRegion, **kwargs) -> None:
+        """
+        Abstract method for planning trajectory.
+        The planning algorithm is implemented in the respective planner (self._planner).
+
+        :param init_state: Initial state for planning
+        :param goal: Goal region
+        :param kwargs: Additional keyword arguments
+        """
         pass
+
+    def _calc_init_planner_state(self, current_state: EgoVehicleState) -> EgoVehicleState:
+        """
+        Calculates the initial planner state for re-planning based the on current measured state and the trajectory
+        from the previous cycle.
+
+        :param current_state: Current measured ego vehicle state
+        :param vel_threshold: velocity deviation threshold for re-planning
+        """
+        if self._prev_state_list is not None:
+            # deviation thresholds
+            vel_threshold = self._traj_planner_params.replan_vel_deviation
+            dist_threshold = self._traj_planner_params.replan_dist_deviation
+
+            # get closest idx for position on previous trajectory
+            pos_array = np.array([state.position for state in self._prev_state_list])
+            closest_idx, closest_dist = get_closest_idx(pos_array, current_state.position)
+
+            # if distance deviation too large: re-plan from measured state
+            if closest_dist > dist_threshold:
+                self._logger.debug("Re-planning from MEASURED state.")
+                return current_state
+
+            # get closest interpolated state on previous trajectory
+            interp_state = get_closest_state(
+                traj=self._prev_state_list,
+                current_state=current_state,
+                closest_idx=closest_idx
+            )
+
+            # if velocity deviation too large: use measured velocity for re-planning
+            if np.abs(interp_state.velocity - current_state.velocity) > vel_threshold:
+                interp_state.velocity = current_state.velocity
+
+            # return interpolated state
+            self._logger.debug("Re-planning from PLANNED state.")
+            return interp_state
+        else:
+            return current_state
+
 
     def _prepare_trajectory_msg(self, origin_transformation: List, elevation: float) -> AWTrajectory:
         """
