@@ -62,7 +62,7 @@ from nav_msgs.msg import Odometry # type: ignore
 from autoware_auto_vehicle_msgs.msg import Engage  # type: ignore
 from autoware_auto_system_msgs.msg import AutowareState  # type: ignore
 from autoware_auto_perception_msgs.msg import PredictedObjects  # type: ignore
-from autoware_auto_perception_msgs.msg import TrafficSignalArray  # type: ignore
+from autoware_perception_msgs.msg import TrafficSignalArray  # type: ignore
 from autoware_auto_planning_msgs.msg import Trajectory # type: ignore
 
 # Autoware AdAPI message imports

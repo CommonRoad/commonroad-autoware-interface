@@ -327,6 +327,27 @@ class TrajectoryPlannerParams(BaseParams):
 
 
 @dataclass
+class BehaviorPlannerParams(BaseParams):
+    """
+    Base Class for behavior planner parameters.
+
+    :var traffic_light_perception_range: range for traffic light perception (in meters)
+    :var distance_to_stop_line: distance to stop before stop line (in meters)
+    :var max_comfort_deceleration: maximum deceleration for comfort stop (in m/s^2)
+    """
+    # Parameter for traffic light behavior module
+    # range for traffic light perception (in meters)
+    traffic_light_perception_range: float = 100.0
+    # distance to stop before stop line (in meters)
+    distance_to_stop_line: float = 5.0
+    # maximum deceleration for comfort stop (in m/s^2)
+    max_comfort_deceleration: float = 2.0
+
+    def __post_init__(self):
+        # declare ROS params
+        self._declare_ros_params(namespace="behavior_planner")
+
+@dataclass
 class CR2AutowareParams:
     """
     Main parameter class for the CR2Auto node.
@@ -338,6 +359,7 @@ class CR2AutowareParams:
     :var velocity_planner: VelocityPlannerParams
     :var trajectory_planner: TrajectoryPlannerParams
     :var rp_interface: RPInterfaceParams
+    :var behavior_planner: BehaviorPlannerParams
     """
     # reference to ROS node
     _node: "Cr2Auto"
@@ -349,6 +371,7 @@ class CR2AutowareParams:
     velocity_planner: VelocityPlannerParams = field(init=False)
     trajectory_planner: TrajectoryPlannerParams = field(init=False)
     rp_interface: RPInterfaceParams = field(init=False)
+    behavior_planner: BehaviorPlannerParams = field(init=False)
 
     def __post_init__(self):
         """Initialize subclasses and pass reference to node."""
@@ -359,3 +382,4 @@ class CR2AutowareParams:
         self.velocity_planner = VelocityPlannerParams(_node=self._node)
         self.trajectory_planner = TrajectoryPlannerParams(_node=self._node)
         self.rp_interface = RPInterfaceParams(_node=self._node)
+        self.behavior_planner = BehaviorPlannerParams(_node=self._node)

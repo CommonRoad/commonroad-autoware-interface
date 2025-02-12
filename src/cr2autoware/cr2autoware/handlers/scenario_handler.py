@@ -27,6 +27,7 @@ from geometry_msgs.msg import PoseWithCovarianceStamped
 from geometry_msgs.msg import Polygon as PolygonMsg
 from geometry_msgs.msg import Point as PointMsg
 from rclpy.publisher import Publisher
+from rclpy.time import Time
 from std_msgs.msg import Header
 
 # Autoware msgs
@@ -34,9 +35,9 @@ from autoware_auto_perception_msgs.msg import PredictedObjects  # type: ignore
 from autoware_auto_perception_msgs.msg import PredictedObject  # type: ignore
 from autoware_auto_perception_msgs.msg import ObjectClassification  # type: ignore
 from autoware_auto_perception_msgs.msg import PredictedPath  # type: ignore
-from autoware_auto_perception_msgs.msg import TrafficSignalArray  # type: ignore
-from autoware_auto_perception_msgs.msg import TrafficSignal  # type: ignore
-from autoware_auto_perception_msgs.msg import TrafficLight  # type: ignore
+from autoware_perception_msgs.msg import TrafficSignalArray  # type: ignore
+from autoware_perception_msgs.msg import TrafficSignal  # type: ignore
+from autoware_perception_msgs.msg import TrafficSignalElement  # type: ignore
 
 # commonroad-io imports
 from commonroad.common.file_reader import CommonRoadFileReader
@@ -119,7 +120,7 @@ class ScenarioHandler(BaseHandler):
     * spec_traffic_signals_sub:
         * Description: Subscribes to traffic lights from perception
         * Topic: `/perception/traffic_light_recognition/traffic_signals`
-        * Message Type: `autoware_auto_perception_msgs.msg.TrafficSignalArray`
+        * Message Type: `autoware_perception_msgs.msg.TrafficSignalArray`
 
     -------------------
     :var MAP_PATH: path to the map directory containing the map_config.yaml file
@@ -493,6 +494,24 @@ class ScenarioHandler(BaseHandler):
         :return: elevation (z-coordinate)
         """
         return self._z_coordinate
+    
+    @property
+    def time_step(self) -> float:
+        """
+        Getter for the time step of the scenario.
+
+        :return: time step
+        """
+        return self._dt
+    
+    @property
+    def ros_time(self) -> Time:
+        """
+        Getter for the current ROS time.
+
+        :return: current ROS time
+        """
+        return self._node.get_clock().now().to_msg()
 
     def update_scenario(self) -> None:
         """Update the CommonRoad scenario using the perception/prediction input."""
@@ -986,10 +1005,12 @@ class ScenarioHandler(BaseHandler):
         """
         Converts Autoware traffic lights to CommonRoad traffic lights and updates the CommonRoad scenario.
 
-        The incoming traffic lights are provided by the perception module via the topic: `/perception/traffic_lights`
+        The incoming traffic lights are provided by the perception module via the topic: `/perception/traffic_light_recognition/traffic_signals`
         """
 
         last_message = self._last_msg.get("traffic_lights") # type: TrafficSignalArray
+
+        self._logger.debug("Processing traffic lights" + str(last_message))
 
         if last_message is None:
             return
@@ -1000,7 +1021,11 @@ class ScenarioHandler(BaseHandler):
         # process all traffic lights from perception message
         for traffic_signal in last_message.signals:
             # get traffic light ID
-            traffic_signal_id = traffic_signal.map_primitive_id
+            traffic_signal_id = traffic_signal.traffic_signal_id
+
+            # TEMPORARY: FOR BEHAVIOR PLANNING TESTING:
+            if traffic_signal_id == -99868:
+                traffic_signal_id = 103374
 
             # add traffic light ID to processed list
             processed_traffic_light_ids.append(traffic_signal_id)
@@ -1009,7 +1034,7 @@ class ScenarioHandler(BaseHandler):
             traffic_light_cr = self.lanelet_network.find_traffic_light_by_id(traffic_signal_id)
 
             # get traffic light element with the highest confidence
-            traffic_light: TrafficLight = self._get_traffic_light(traffic_signal)
+            traffic_light: TrafficSignalElement = self._get_traffic_light(traffic_signal)
 
             # get traffic light status, color and shape
             status = traffic_light.status
@@ -1052,15 +1077,15 @@ class ScenarioHandler(BaseHandler):
             traffic_light_cr.active = True
 
         # set traffic light active state to False and traffic light cycle to inactive for all traffic lights that are not in the perception message
-        for traffic_light_l2n in self.lanelet_network.traffic_lights:
-            if traffic_light_l2n.active is True:
-                if traffic_light_l2n.traffic_light_id not in processed_traffic_light_ids:
-                    traffic_light_l2n.active = False
+        for traffic_light_ln in self.lanelet_network.traffic_lights:
+            if traffic_light_ln.active is True:
+                if traffic_light_ln.traffic_light_id not in processed_traffic_light_ids:
+                    traffic_light_ln.active = False
                     color_inactive = dict_autoware_to_commonroad_traffic_light_color[99]
-                    traffic_light_l2n.traffic_light_cycle = set_traffic_light_cycle(color_inactive)
+                    traffic_light_ln.traffic_light_cycle = set_traffic_light_cycle(color_inactive)
 
     @staticmethod
-    def _get_traffic_light(traffic_signal: TrafficSignal) -> TrafficLight:
+    def _get_traffic_light(traffic_signal: TrafficSignal) -> TrafficSignalElement:
         """
         Retrieves the traffic light with the highest confidence value from the perception message.
 
@@ -1071,13 +1096,13 @@ class ScenarioHandler(BaseHandler):
         """
         highest_conf_val = 0
         highest_conf_idx = 0
-        for i in range(len(traffic_signal.lights)):
-            conf_val = traffic_signal.lights[i].confidence
+        for i in range(len(traffic_signal.elements)):
+            conf_val = traffic_signal.elements[i].confidence
             if conf_val > highest_conf_val:
                 highest_conf_val = conf_val
                 highest_conf_idx = i
 
-        return traffic_signal.lights[highest_conf_idx]
+        return traffic_signal.elements[highest_conf_idx]
 
     def compute_z_coordinate(self, new_initial_pose: Optional[PoseWithCovarianceStamped],
                              new_goal_pose: Optional[PoseStamped]) -> None:

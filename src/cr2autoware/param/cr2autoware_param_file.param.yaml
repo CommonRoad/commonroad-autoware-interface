@@ -62,3 +62,8 @@
       d_max: 1.5
       # minimum time sampling in s (t_max is given by planning horizon)
       t_min: 5.0
+
+    behavior_planner:
+      traffic_light_perception_range: 100.0  # m
+      distance_to_stop_line: 5.0  # m
+      max_comfort_deceleration: 2.0  # m/s^2

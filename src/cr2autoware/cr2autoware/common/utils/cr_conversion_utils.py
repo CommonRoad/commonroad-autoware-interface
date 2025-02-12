@@ -139,7 +139,6 @@ dict_autoware_to_commonroad_traffic_light_color: Dict[int, TrafficLightState] = 
     99: TrafficLightState.INACTIVE,  # no AW state: represents a detected traffic light that is not active
 
     # additional states Autoware:
-    # 18: UNKNOWN,
     # 4: WHITE,
     # additional states CommonRoad:
     # TrafficLightState.RED_YELLOW
@@ -148,31 +147,29 @@ dict_autoware_to_commonroad_traffic_light_color: Dict[int, TrafficLightState] = 
 
 
 dict_autoware_to_commonroad_traffic_light_shape: Dict[int, TrafficLightDirection] = {
-    5: TrafficLightDirection.ALL,  # AW: CIRCLE
-    6: TrafficLightDirection.LEFT,  # AW: LEFT_ARROW
-    7: TrafficLightDirection.RIGHT,  # AW: RIGHT_ARROW
-    8: TrafficLightDirection.STRAIGHT,  # AW: UP_ARROW
-    9: TrafficLightDirection.LEFT_STRAIGHT,  # AW: UP_LEFT_ARROW
-    10: TrafficLightDirection.STRAIGHT_RIGHT,  # AW: UP_RIGHT_ARROW
+    1: TrafficLightDirection.ALL,  # AW: CIRCLE
+    2: TrafficLightDirection.LEFT,  # AW: LEFT_ARROW
+    3: TrafficLightDirection.RIGHT,  # AW: RIGHT_ARROW
+    4: TrafficLightDirection.STRAIGHT,  # AW: UP_ARROW
+    5: TrafficLightDirection.LEFT_STRAIGHT,  # AW: UP_LEFT_ARROW
+    6: TrafficLightDirection.STRAIGHT_RIGHT,  # AW: UP_RIGHT_ARROW
 
     # additional states Autoware:
-    # 11: DOWN_ARROW
-    # 12: DOWN_LEFT_ARROW
-    # 13: DOWN_RIGHT_ARROW
-    # 18: UNKNOWN,
-    # 0: CROSS,
+    # 7: DOWN_ARROW
+    # 8: DOWN_LEFT_ARROW
+    # 9: DOWN_RIGHT_ARROW
+    # 10: CROSS,
     # additional states CommonRoad:
     # TrafficLightDirection.LEFT_RIGHT
 }
 
 
 dict_autoware_to_commonroad_traffic_light_status: Dict[int, bool] = {
-    15: False,  # AW: SOLID_OFF
-    16: True,  # AW: SOLID_ON
+    1: False,  # AW: SOLID_OFF
+    2: True,  # AW: SOLID_ON
 
     # additional states Autoware:
-    # 17: FLASHING
-    # 18: UNKNOWN
+    # 3: FLASHING
 }
 
 

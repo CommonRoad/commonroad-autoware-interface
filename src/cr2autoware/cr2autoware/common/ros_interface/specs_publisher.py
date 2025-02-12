@@ -70,12 +70,16 @@ To add a new topic publisher, add the specification here first.
     * Topic: `/planning/commonroad/cr_obstacle_box`
     * Message Type: `visualization_msgs.msg.MarkerArray`
 * spec_lateral_clearance_obstacles_pub:
-    * Description: Lateral clearance function obstacles.
+    * Description: Lateral clearance function obstacles
     * Topic: `/planning/commonroad/lateral_clearance_obstacles`
     * Message Type: `visualization_msgs.msg.MarkerArray`
 * spec_lateral_clearance_pub:
-    * Description: Lateral clearance visualization.
+    * Description: Lateral clearance visualization
     * Topic: `/planning/commonroad/lateral_clearance`
+    * Message Type: `visualization_msgs.msg.MarkerArray`
+* spec_traffic_light_marker_pub:
+    * Description: Traffic light stop_line and stop_point
+    * Topic: `/planning/commonroad/behavior_planning/traffic_light_marker`
     * Message Type: `visualization_msgs.msg.MarkerArray`
 """
 
@@ -192,3 +196,11 @@ spec_lateral_clearance_obstacles_pub = PublisherSpec(name="/planning/commonroad/
 spec_lateral_clearance_pub = PublisherSpec(name="/planning/commonroad/lateral_clearance",
                                                   msg_type=MarkerArray,
                                                   depth=1)
+
+# =========================================
+# List of all publisher in Behavior Tree
+
+# publish traffic light stop_line and stop_point
+spec_traffic_light_marker_pub = PublisherSpec(name="/planning/commonroad/behavior_planning/traffic_light_marker",
+                                                msg_type=MarkerArray,
+                                                depth=1)

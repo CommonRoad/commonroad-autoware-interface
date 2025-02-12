@@ -27,11 +27,11 @@ from cr2autoware.common.configuration import (
     RPInterfaceParams,
     TrajectoryPlannerParams
 )
+from cr2autoware.common.utils.transform import utm2map
 from cr2autoware.handlers.ego_vehicle_handler import (
     EgoVehicleHandler,
     EgoVehicleState
 )
-from cr2autoware.common.utils.transform import utm2map
 from cr2autoware.handlers.scenario_handler import ScenarioHandler
 from cr2autoware.interfaces.base.trajectory_planner_interface import TrajectoryPlannerInterface
 
@@ -152,7 +152,7 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
         if self._cr_state_list:
             # function to set max velocity for lateral distance
             reference_velocity = self.reference_velocity_based_on_lateral_clearance(
-                current_state, self._cr_state_list, reference_velocity, **kwargs
+                init_state, self._cr_state_list, reference_velocity, **kwargs
             )
 
         else:

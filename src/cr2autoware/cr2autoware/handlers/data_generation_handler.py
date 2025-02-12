@@ -490,15 +490,16 @@ class DataGenerationHandler(BaseHandler):
 
         :param msg: msg for status of traffic lights
         """
-        if (self._command_status != SaverCommands.RUN):
-            return
+        # if (self._command_status != SaverCommands.RUN):
+        #     return
 
-        msg = self._add_time_header_to_msg(msg)
-        self._writer.write(
-            "/perception/traffic_light_recognition/traffic_signals",
-            serialize_message(msg),
-            1
-        )
+        # msg = self._add_time_header_to_msg(msg)
+        # self._writer.write(
+        #     "/perception/traffic_light_recognition/traffic_signals",
+        #     serialize_message(msg),
+        #     1
+        # )
+        pass
 
 
 
