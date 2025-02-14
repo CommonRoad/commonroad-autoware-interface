@@ -765,6 +765,13 @@ class ErrorHandlingAction(TrafficLightBehavior):
     # TODO: Implement Error Handling
 
     def update(self):
+        # When Traffic Light is inactive, or other errors occur, the vehicle should continue driving (e.g. car stops behind the stop line)
+
+        # When in Error State, velocity profile is not changed
+        self.outputs.velocity_profile = self.inputs.velocity_profile_without_traffic_lights
+
+    
+        # Delete all markers
         marker_array = MarkerArray()
         del_marker = Marker()
         del_marker.action = Marker.DELETEALL

@@ -230,12 +230,6 @@ class BehaviorPlanner:
 
         velocity_path = self.behavior_tree.velocity_profile
 
-        if self.reference_trajectory is not None:
-            self._logger.info("Velocity profile: " + str(len(self.reference_velocities)))
-            self._logger.info("Velocity path: " +  str(self.reference_velocities))
-            self._logger.info("Reference path: " +  str(len(self.reference_positions)))
-            self._logger.info("input path: " +  str(len(input_path)))
-
         # Call _pub_ref_path
         self._pub_ref_path(input_path, velocity_path, self.origin_transformation)
 
@@ -281,6 +275,9 @@ class BehaviorPlanner:
         # compute orientations
         orientations = compute_orientation_from_polyline(input_path)
 
+        if len(input_path) != len(velocity_path):
+            raise ValueError("Length of input path and velocity path should be equal")
+            
         for i in range(0, len(input_path)):
             velocity = float(velocity_path[i])
             new_point = TrajectoryPoint()

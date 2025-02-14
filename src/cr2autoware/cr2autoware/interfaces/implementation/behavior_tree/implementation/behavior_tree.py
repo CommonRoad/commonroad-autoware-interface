@@ -99,20 +99,32 @@ class BehaviorTree(BaseTree):
 
         # save the last velocity profile
         if self.outputs.exists("velocity_profile"):
-            self.inputs.last_velocity_profile = self.outputs.velocity_profile
+            # Check if the planning cycle is new
+            if len(input_path) == len(self.outputs.velocity_profile):
+                self.logger.debug("Length of the input path and the last velocity profile are equal")
+                new_planning_cycle = False
+            else:
+                self.logger.debug("Length of the input path and the last velocity profile are not equal")
+                new_planning_cycle = True
+
+            if not new_planning_cycle:
+                self.logger.debug("Velocity profile from the last planning cycle is available")
+                self.inputs.last_velocity_profile = self.outputs.velocity_profile
+            else:
+                self.logger.debug("Velocity profile from the last planning cycle is not available")
+                self.inputs.last_velocity_profile = None
+
         else:
             self.logger.debug("No velocity profile available from the last planning cycle")
             self.inputs.last_velocity_profile = None
 
         # Get the velocity profile without traffic lights
         # TODO: For Concept create array of lenght of the path and fill it with 20 m/s
-        velocity_profile_without_traffic_lights = np.full(len(input_path), 20)
+        velocity_profile_without_traffic_lights = np.full(len(input_path), 20.0)
 
         # Create velocity profile for traffic lights
         # Velocity profile includes all modules that influence the velocity profile but the traffic lights module
         self.blackboard.modules.traffic_lights.inputs.velocity_profile_without_traffic_lights = velocity_profile_without_traffic_lights
-        
-        self.output_tree_in_log()
 
 
     def plan(self) -> None:
@@ -127,6 +139,8 @@ class BehaviorTree(BaseTree):
         
         self._update_velocity_profile()
 
+        # self.output_tree_in_log()
+
         # Return the velocity profile
         return self.outputs.velocity_profile
 
@@ -136,7 +150,7 @@ class BehaviorTree(BaseTree):
 
             self.outputs.velocity_profile = global_velocity_profile
         else:
-            self.outputs.velocity_profile = np.full(len(self.inputs.input_path), 20)
+            self.outputs.velocity_profile = np.full(len(self.inputs.input_path), 20.0)
     
     def output_tree_in_log(self):
         #self.logger.debug(py_trees.display.unicode_tree(self.root, show_status=True))
