@@ -486,8 +486,16 @@ class StopPointAheadCondition(TrafficLightBehavior):
     def update(self):
         self._logger.debug("Updating StopPointAheadCondition")
 
+        #TODO: When vehicle stops, it is behind the stop point, but should not continue driving
+        # Check if the stop point is ahead of the vehicle
+        # If the stop point is ahead of the vehicle, return SUCCESS
+        # If curren velocity is low, also return SUCCESS
+        current_velocity = self.global_inputs.current_state.velocity
+        comfort_point_velocity = 3.0
         stop_point_ahead = self.inputs.stop_point_ahead
         if stop_point_ahead:
+            return Status.SUCCESS
+        elif current_velocity <= comfort_point_velocity:
             return Status.SUCCESS
         else:
             return Status.FAILURE
@@ -560,7 +568,9 @@ class EmergencyBrakingAction(TrafficLightBehavior):
         #     distance_to_stop_point = np.linalg.norm(input_path_curvilinear[i] - target_stop_position)
         #     velocity_profile[i] = current_velocity - (current_velocity / distance_to_stop_line) * distance_to_stop_point
         # Set the velocity profile for the stop point and all points behind to zero
-        velocity_profile[stop_point_index:] = 0.0
+
+        # Set the velocity profile for all points zero
+        velocity_profile[current_position_index:] = 0.0
 
         self._logger.debug("Velocity Profile: " + str(velocity_profile))
 
@@ -630,6 +640,11 @@ class ComfortBrakingAction(TrafficLightBehavior):
         #     distance_to_stop_point = np.linalg.norm(input_path_curvilinear[i] - target_stop_position)
         #     velocity_profile[i] = current_velocity - (current_velocity / distance_to_stop_line) * distance_to_stop_point
         # Set the velocity profile for the stop point and all points behind to zero
+        comfort_point_index = stop_point_index - 20
+        comfort_point_velocity = 3.0
+
+        velocity_profile[comfort_point_index:stop_point_index] = comfort_point_velocity
+
         velocity_profile[stop_point_index:] = 0.0
 
         self._logger.debug("Velocity Profile: " + str(velocity_profile))
