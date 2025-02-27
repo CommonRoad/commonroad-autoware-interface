@@ -898,16 +898,9 @@ class Cr2Auto(Node):
                     aw_stamp = self.last_msg_aw_stamp
                     aw_state = self.last_msg_aw_state
 
-            # Clear route if AutowareState is PLANNING or WAITING_FOR_ENGAGE
-            if aw_state == AutowareState.PLANNING or aw_state == AutowareState.WAITING_FOR_ENGAGE:
+            # Clear route if AutowareState is PLANNING or WAITING_FOR_ENGAGE or DRIVING
+            if aw_state == AutowareState.PLANNING or aw_state == AutowareState.WAITING_FOR_ENGAGE or aw_state == AutowareState.DRIVING:
                 self._logger.info("Clearing route!")
-                self.state_machine.process_event(ClearRouteEvent(self.state_machine, self))
-
-            # Clear route if AutowareState is DRIVING: This is equivalent to first pressing STOP button and then
-            # clearing the route
-            elif aw_state == AutowareState.DRIVING:
-                self._logger.info("Clear route while driving!")
-                self.waiting_for_velocity_0 = True
                 self.state_machine.process_event(ClearRouteEvent(self.state_machine, self))
 
     def clear_route(self) -> None:
@@ -993,9 +986,8 @@ class Cr2Auto(Node):
             start_time = time.time()
             while abs(init_state.velocity) > 0.01:
                 init_state = self.ego_vehicle_handler.ego_vehicle_state
-                # self._logger.debug("Stop initiated! Velocity is not zero.")
-                self._logger.debug("Velocity: " + str(init_state.velocity))
-                if time.time() - start_time > 15:
+                self._logger.debug("Stop initiated! Velocity: " + str(init_state.velocity))
+                if time.time() - start_time > 15.0:
                     self._logger.error("Stop initiated! Velocity is not zero. Timeout!")
                     break
                 time.sleep(0.5)
