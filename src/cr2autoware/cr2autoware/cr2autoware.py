@@ -733,7 +733,9 @@ class Cr2Auto(Node):
                 time_threshold=self.params.trajectory_planner.time_threshold,
                 max_reference_velocity=self.external_velocity_limit,
                 min_reference_velocity=self.params.trajectory_planner.min_reference_velocity,
-                publish_lateral_clearance_topics=self.params.trajectory_planner.publish_lateral_clearance_topics
+                publish_lateral_clearance_topics=self.params.trajectory_planner.publish_lateral_clearance_topics,
+                d_min=self.behavior_planner.output_d_min,
+                d_max=self.behavior_planner.output_d_max,
                 )
 
             # publish trajectory

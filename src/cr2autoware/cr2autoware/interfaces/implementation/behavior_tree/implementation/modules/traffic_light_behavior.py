@@ -3,9 +3,10 @@ from ...base.base_tree import BaseTree
 from py_trees.behaviour import Behaviour
 from py_trees.common import Status
 from py_trees.composites import Sequence, Selector, Parallel
-from commonroad.scenario.scenario import Scenario
+from commonroad.scenario.scenario import Scenario, Lanelet
 from commonroad.scenario.traffic_light import TrafficLight, TrafficLightState
 from cr2autoware.common.configuration import BehaviorPlannerParams
+from cr2autoware.common.configuration import CR2AutowareParams
 from commonroad_rp.utility.utils_coordinate_system import CoordinateSystem
 from typing import List, Set, Dict
 import numpy as np
@@ -105,6 +106,7 @@ class TrafficLightBehavior(Behaviour):
     def init_blackboard(self, name):
         # Global Blackboard
         self.blackboard = py_trees.blackboard.Client(name=(name + "Blackboard"))
+        self.blackboard.register_key("global_params", access=py_trees.common.Access.READ)
         self.blackboard.register_key("params", access=py_trees.common.Access.READ)
 
         # Register keys for Global Inputs
@@ -136,8 +138,11 @@ class TrafficLightBehavior(Behaviour):
         self.outputs = py_trees.blackboard.Client(name=(name + "Outputs"), namespace="/modules/traffic_lights/outputs")
         self.outputs.register_key("velocity_profile", access=py_trees.common.Access.WRITE)
         self.outputs.register_key("traffic_light_marker_array", access=py_trees.common.Access.WRITE)
+        self.outputs.register_key("d_min", access=py_trees.common.Access.WRITE)
+        self.outputs.register_key("d_max", access=py_trees.common.Access.WRITE)
 
         # Init Parameter
+        self.global_params: CR2AutowareParams = self.blackboard.global_params
         self.params: BehaviorPlannerParams = self.blackboard.params
 
     def setup(self):
@@ -312,10 +317,51 @@ class TrafficLightOutOfRangeCondition(TrafficLightBehavior):
             # TODO: For now, we assume that there is max one traffic light in range
             self.inputs.traffic_lights_in_range = {min_distance_id: traffic_lights_in_range[min_distance_id]}
             self.inputs.current_traffic_light_id = min_distance_id
+
+            # TODO: Refactor no Overtake before traffic light in own module/function
+            # Traffic light in range, so lateral offset restriction required (overtake not allowed)
+            relevant_lanelets = self.inputs.relevant_lanelets
+
+            # Get minimal width of the lanelets
+            min_width = None
+            for lanelet_id in relevant_lanelets:
+                lanelet = self.global_inputs.scenario.lanelet_network.find_lanelet_by_id(lanelet_id)
+                width = minimum_width_lanelet(lanelet)
+                self._logger.debug("Lanelet id: " + str(lanelet_id) + ", width: " + str(width))
+
+                if min_width is None or width < min_width:
+                    min_width = width
+            
+            self._logger.debug("Min width: " + str(min_width))
+
+            # Get the vehicle width
+            vehicle_width = self.global_params.vehicle.wheel_tread + self.global_params.vehicle.right_overhang + self.global_params.vehicle.left_overhang
+            # Get default lateral offset
+            default_d_min = self.global_params.rp_interface.d_min
+            default_d_max = self.global_params.rp_interface.d_max
+
+            # Calculate the lateral offset restriction
+            d_abs = (min_width - vehicle_width) / 2
+            if d_abs < 0.5:
+                d_abs = 0.5
+            if d_abs < np.abs(default_d_min):
+                self.outputs.d_min = -d_abs
+            else:
+                self.outputs.d_min = None
+            
+            if d_abs < np.abs(default_d_max):
+                self.outputs.d_max = d_abs
+            else:
+                self.outputs.d_max = None
+
             return Status.FAILURE
         else:
             # if no traffic light is in range, output the input velocity profile
             self.outputs.velocity_profile = self.inputs.velocity_profile_without_traffic_lights
+
+            # No traffic light in range, so no latteral offset restriction required (overtake allowed)
+            self.outputs.d_min = None
+            self.outputs.d_max = None
             return Status.SUCCESS
 
     def terminate(self, new_status):
@@ -781,3 +827,18 @@ class ErrorHandlingAction(TrafficLightBehavior):
 
     def terminate(self, new_status):
         self._logger.debug("Terminating ErrorHandlingAction to " + str(new_status))
+
+
+# Utils
+
+def minimum_width_lanelet(lanelet: Lanelet) -> float:
+    """
+    Calculate the minimum width of the lanelet by finding the minimum distance between left and right vertices.
+
+    :param lanelet: lanelet of a CommonRoad scenario
+    :return: The minimum width of the lanelet.
+    """
+    left_vertices = lanelet.left_vertices
+    right_vertices = lanelet.right_vertices
+    widths = np.linalg.norm(left_vertices - right_vertices, axis=1)
+    return np.min(widths)

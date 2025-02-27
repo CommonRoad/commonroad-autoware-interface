@@ -37,10 +37,18 @@ class BehaviorTree(BaseTree):
 
         # Register keys for Outputs
         self.outputs.register_key("velocity_profile", access=py_trees.common.Access.WRITE)
+        self.outputs.register_key("d_min", access=py_trees.common.Access.WRITE)
+        self.outputs.register_key("d_max", access=py_trees.common.Access.WRITE)
+
+        # Initialize necessary outputs
+        self.outputs.d_min = None
+        self.outputs.d_max = None
 
         # Register keys for Modules
         self.blackboard.register_key("/modules/traffic_lights/inputs/velocity_profile_without_traffic_lights", access=py_trees.common.Access.WRITE)
         self.blackboard.register_key("/modules/traffic_lights/outputs/velocity_profile", access=py_trees.common.Access.READ)
+        self.blackboard.register_key("/modules/traffic_lights/outputs/d_min", access=py_trees.common.Access.READ)
+        self.blackboard.register_key("/modules/traffic_lights/outputs/d_max", access=py_trees.common.Access.READ)
 
         # After initialization, create the behavior tree
         self.root = self.create_behavior_tree()
@@ -139,6 +147,8 @@ class BehaviorTree(BaseTree):
         
         self._update_velocity_profile()
 
+        self._update_lateral_offset_d()
+
         # self.output_tree_in_log()
 
         # Return the velocity profile
@@ -151,6 +161,26 @@ class BehaviorTree(BaseTree):
             self.outputs.velocity_profile = global_velocity_profile
         else:
             self.outputs.velocity_profile = np.full(len(self.inputs.input_path), 20.0)
+    
+    def _update_lateral_offset_d(self):
+        """
+        Update the lateral offset d in the blackboard. 
+
+        This parameter is used in the reactive planner to calculate the minimum and maximum lateral offset d for trajectory planning.
+        """
+
+        if self.blackboard.exists("/modules/traffic_lights/outputs/d_min"):
+            self.outputs.d_min = self.blackboard.modules.traffic_lights.outputs.d_min
+        else:
+            self.outputs.d_min = None
+
+        if self.blackboard.exists("/modules/traffic_lights/outputs/d_max"):
+            self.outputs.d_max = self.blackboard.modules.traffic_lights.outputs.d_max
+        else:
+            self.outputs.d_max = None
+        
+        self.logger.debug(f"Updated d_min: {self.outputs.d_min}")
+        self.logger.debug(f"Updated d_max: {self.outputs.d_max}")
     
     def output_tree_in_log(self):
         #self.logger.debug(py_trees.display.unicode_tree(self.root, show_status=True))

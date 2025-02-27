@@ -132,8 +132,11 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
 
         # adjust sampling settings from ROS params
         reactive_planner.set_t_sampling_parameters(t_min=rp_interface_params.get_ros_param("t_min"))
-        reactive_planner.set_d_sampling_parameters(delta_d_min=rp_interface_params.get_ros_param("d_min"),
-                                                   delta_d_max=rp_interface_params.get_ros_param("d_max"))
+
+        self.default_d_min = rp_interface_params.get_ros_param("d_min")
+        self.default_d_max = rp_interface_params.get_ros_param("d_max")
+        reactive_planner.set_d_sampling_parameters(delta_d_min=self.default_d_min,
+                                                   delta_d_max=self.default_d_max)
 
         # init trajectory planner
         self._planner: ReactivePlanner = reactive_planner
@@ -159,6 +162,17 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
             self._logger.debug(
                 "No optimal trajectory found. Lateral distance check skipped!"
             )
+
+        # adjust sapling settings from behavior planner
+        d_min: float = kwargs.get("d_min")
+        d_max: float = kwargs.get("d_max")
+        if d_min is not None and d_max is not None:
+            # overwrite d_min and d_max from behavior planner
+            self._planner.set_d_sampling_parameters(delta_d_min=d_min, delta_d_max=d_max)
+        else:
+            # use default d_min and d_max from ROS params
+            self._planner.set_d_sampling_parameters(delta_d_min=self.default_d_min,
+                                                   delta_d_max=self.default_d_max)
 
         # set reference velocity for planner
         self._planner.set_desired_velocity(desired_velocity=reference_velocity, current_speed=init_state.velocity)

@@ -193,6 +193,13 @@ class BehaviorPlanner:
     def path_in_curvilinear(self) -> np.ndarray:
         return self._co.ref_pos
 
+    @property
+    def output_d_min(self) -> float:
+        return self.behavior_tree.outputs.d_min
+
+    @property
+    def output_d_max(self) -> float:
+        return self.behavior_tree.outputs.d_max
 
     def plan(self, reference_path: np.ndarray, goal_pos: np.ndarray, scenario: Scenario, current_state: EgoVehicleState) -> None:
         """
