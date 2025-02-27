@@ -60,7 +60,7 @@ class BehaviorPlanner:
     :var _lookahead_dist: lookahead distance for velocity planning
     :var _lookahead_time: lookahead time for velocity planning
     """
-    def __init__(self, ref_path_pub: Publisher, traffic_light_marker_pub: Publisher, logger: RcutilsLogger, verbose: bool,
+    def __init__(self, ref_path_pub: Publisher, traffic_light_marker_pub: Publisher, lateral_clearance_pub: Publisher, lateral_clearance_obstacles_pub: Publisher, logger: RcutilsLogger, verbose: bool,
                  lookahead_dist: float, lookahead_time: float, origin_transformation: List, params: BehaviorPlannerParams, scenario_handler: ScenarioHandler) -> None:
         """
         TODO:**WIP**
@@ -78,6 +78,8 @@ class BehaviorPlanner:
         # initialize publisher to behavior planner
         self._ref_path_pub = ref_path_pub
         self._traffic_light_marker_pub = traffic_light_marker_pub
+        self._lateral_clearance_pub = lateral_clearance_pub
+        self._lateral_clearance_obstacles_pub = lateral_clearance_obstacles_pub
 
         self._verbose = verbose
         self._logger = logger
@@ -103,6 +105,10 @@ class BehaviorPlanner:
         # Register keys for ROS Publisher
         self.blackboard.register_key("/modules/traffic_lights/outputs/traffic_light_marker_array", access=py_trees.common.Access.WRITE)
         self.blackboard.modules.traffic_lights.outputs.traffic_light_marker_array = MarkerArray()
+        self.blackboard.register_key("/modules/lateral_clearance/outputs/lateral_clearance_marker_array", access=py_trees.common.Access.WRITE)
+        self.blackboard.modules.lateral_clearance.outputs.lateral_clearance_marker_array = MarkerArray()
+        self.blackboard.register_key("/modules/lateral_clearance/outputs/lateral_clearance_obstacles_marker_array", access=py_trees.common.Access.WRITE)
+        self.blackboard.modules.lateral_clearance.outputs.lateral_clearance_obstacles_marker_array = MarkerArray()
 
         # Initialize the Behavior Tree
         self.behavior_tree = BehaviorTree(self._logger, self._verbose)
@@ -236,6 +242,7 @@ class BehaviorPlanner:
         
         # Create Curvilinear Coordinate System for preprocessing
         self.set_reference_path(input_path)
+
         # Prepare Inputs for Behavior Planner
         self.behavior_tree.preprocessing(
             scenario,
@@ -261,6 +268,9 @@ class BehaviorPlanner:
 
         # Publish traffic light marker
         self._pub_traffic_light_marker()
+
+        # Publish lateral clearance velocity adjuster marker
+        self._pub_lateral_clearance_marker()
     
     def _behavior_planner(self, input_path: np.ndarray, origin_transformation: List) -> np.ndarray:
         """
@@ -333,6 +343,10 @@ class BehaviorPlanner:
     
     def _pub_traffic_light_marker(self) -> None:
         self._traffic_light_marker_pub.publish(self.blackboard.modules.traffic_lights.outputs.traffic_light_marker_array)
+
+    def _pub_lateral_clearance_marker(self) -> None:
+        self._lateral_clearance_pub.publish(self.blackboard.modules.lateral_clearance.outputs.lateral_clearance_marker_array)
+        self._lateral_clearance_obstacles_pub.publish(self.blackboard.modules.lateral_clearance.outputs.lateral_clearance_obstacles_marker_array)
 
     def smoothed_trajectory_callback(self, msg: AWTrajectory) -> None:
         """

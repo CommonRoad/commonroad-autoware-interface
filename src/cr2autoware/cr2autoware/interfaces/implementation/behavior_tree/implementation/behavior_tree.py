@@ -37,6 +37,7 @@ class BehaviorTree(BaseTree):
         self.inputs.register_key("current_time_msg", access=py_trees.common.Access.WRITE)
         self.inputs.register_key("current_position_index", access=py_trees.common.Access.WRITE)
         self.inputs.register_key("input_path_orientation", access=py_trees.common.Access.WRITE)
+        self.inputs.register_key("velocity_limit", access=py_trees.common.Access.WRITE)
 
         # Register keys for Outputs
         self.outputs.register_key("velocity_profile", access=py_trees.common.Access.WRITE)
@@ -52,6 +53,9 @@ class BehaviorTree(BaseTree):
         self.blackboard.register_key("/modules/traffic_lights/outputs/velocity_profile", access=py_trees.common.Access.READ)
         self.blackboard.register_key("/modules/traffic_lights/outputs/d_min", access=py_trees.common.Access.READ)
         self.blackboard.register_key("/modules/traffic_lights/outputs/d_max", access=py_trees.common.Access.READ)
+        self.blackboard.register_key("params", access=py_trees.common.Access.READ)
+        
+        self.params: BehaviorPlannerParams = self.blackboard.params
 
         # After initialization, create the behavior tree
         self.root = self.create_behavior_tree()
@@ -135,8 +139,8 @@ class BehaviorTree(BaseTree):
             self.inputs.last_velocity_profile = None
 
         # Get the velocity profile without traffic lights
-        # TODO: For Concept create array of lenght of the path and fill it with 20 m/s
-        velocity_profile_without_traffic_lights = np.full(len(input_path), 20.0)
+        # TODO: For Concept create array of lenght of the path and fill it with the velocity limit
+        velocity_profile_without_traffic_lights = self._create_velocity_profile(no_traffic_lights=True)
 
         # Create velocity profile for traffic lights
         # Velocity profile includes all modules that influence the velocity profile but the traffic lights module
@@ -173,14 +177,26 @@ class BehaviorTree(BaseTree):
         # Return the velocity profile
         return self.outputs.velocity_profile
 
-    def _update_velocity_profile(self):
-        if self.blackboard.exists("/modules/traffic_lights/outputs/velocity_profile"):
-            global_velocity_profile = self.blackboard.modules.traffic_lights.outputs.velocity_profile
+    def _update_velocity_profile(self) -> None:
+        
+        velocity_profile_update = self._create_velocity_profile()
+        
+        self.outputs.velocity_profile = velocity_profile_update
 
-            self.outputs.velocity_profile = global_velocity_profile
-        else:
-            self.outputs.velocity_profile = np.full(len(self.inputs.input_path), 20.0)
-    
+    def _create_velocity_profile(self, no_traffic_lights: bool = False) -> np.ndarray:
+        check_profiles: List[np.ndarray] = []
+        if self.blackboard.exists("/modules/traffic_lights/outputs/velocity_profile") and not no_traffic_lights:
+            check_profiles.append(self.blackboard.modules.traffic_lights.outputs.velocity_profile)
+        if self.blackboard.exists("/modules/lateral_clearance/outputs/velocity_profile"):
+            check_profiles.append(self.blackboard.modules.lateral_clearance.outputs.velocity_profile)
+
+        velocity_profile = np.full(len(self.inputs.input_path), self.params.velocity_limit)
+        for profile in check_profiles:
+            velocity_profile = np.minimum(velocity_profile, profile)
+        
+        return velocity_profile
+
+
     def _update_lateral_offset_d(self):
         """
         Update the lateral offset d in the blackboard. 

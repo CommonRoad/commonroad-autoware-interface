@@ -335,6 +335,9 @@ class BehaviorPlannerParams(BaseParams):
     :var distance_to_stop_line: distance to stop before stop line (in meters)
     :var max_comfort_deceleration: maximum deceleration for comfort stop (in m/s^2)
     """
+    # General parameters
+    velocity_limit: float = 20.0  # m/s
+
     # Parameter for traffic light behavior module
     # range for traffic light perception (in meters)
     traffic_light_perception_range: float = 100.0

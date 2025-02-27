@@ -513,6 +513,8 @@ class Cr2Auto(Node):
         self.behavior_planner = BehaviorPlanner(
             self.velocity_pub,
             self.traffic_light_marker_pub,
+            self.lateral_clearance_pub,
+            self.lateral_clearance_obstacles_pub,
             self._logger,
             self.verbose,
             self.get_parameter("velocity_planner.lookahead_dist").get_parameter_value().double_value,
@@ -671,7 +673,8 @@ class Cr2Auto(Node):
         self.behavior_planner.plan(self.route_planner.reference_path, 
                                     _goal_pos_cr,
                                     self.scenario_handler.scenario,
-                                    self.ego_vehicle_handler.ego_vehicle_state)
+                                    self.ego_vehicle_handler.ego_vehicle_state,
+                                    )
 
         # wait for trajectory to be computed in AW Motion Velocity Smoother
         start_time = time.time()

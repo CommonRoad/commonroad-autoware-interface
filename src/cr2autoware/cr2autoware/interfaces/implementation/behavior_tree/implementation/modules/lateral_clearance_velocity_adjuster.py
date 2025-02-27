@@ -9,6 +9,9 @@ import time
 from scipy.spatial import cKDTree
 from shapely.geometry import LineString, MultiPolygon, Point, Polygon
 
+# commonroad imports
+from commonroad.scenario.scenario import Scenario
+
 # cr2autoware
 from cr2autoware.common.utils.transform import utm2map
 from cr2autoware.handlers.ego_vehicle_handler import EgoVehicleState
@@ -60,6 +63,7 @@ class LateralClearanceVelocityAdjuster(Behaviour):
         self.global_inputs.register_key("current_time_msg", access=py_trees.common.Access.READ)
         self.global_inputs.register_key("current_position_index", access=py_trees.common.Access.READ)
         self.global_inputs.register_key("input_path_orientation", access=py_trees.common.Access.READ)
+        self.global_inputs.register_key("velocity_limit", access=py_trees.common.Access.READ)
 
         # Register keys for Module Inputs
         self.inputs = py_trees.blackboard.Client(name=(name + "Inputs"), namespace="/modules/lateral_clearance/inputs")
@@ -68,6 +72,9 @@ class LateralClearanceVelocityAdjuster(Behaviour):
 
         # Register keys for Module Outputs
         self.outputs = py_trees.blackboard.Client(name=(name + "Outputs"), namespace="/modules/lateral_clearance/outputs")
+        self.outputs.register_key("velocity_profile", access=py_trees.common.Access.WRITE)
+        self.outputs.register_key("lateral_clearance_marker_array", access=py_trees.common.Access.WRITE)
+        self.outputs.register_key("lateral_clearance_obstacles_marker_array", access=py_trees.common.Access.WRITE)
        
         # Init Parameter
         self.global_params: CR2AutowareParams = self.blackboard.global_params
@@ -86,19 +93,11 @@ class LateralClearanceVelocityAdjuster(Behaviour):
         All static obstacles and dynamic obstacles on relevant lanelets, with different orientations, and within a limited time to the reference path are merged into 
         a combined occupancy polygon. The distance between the filtered reference path and the combined occupancy polygon is calculated. Based on this distance, 
         the reference velocity is adjusted.
-
-        :param current_state: current state of the ego vehicle
-        :param cr_state_list: list of states in the optimal trajectory
-        :param reference_velocity: reference velocity for the planner
-        :return: adjusted reference velocity based on the lateral clearance
         """
         t_start = time.perf_counter()
-        if reference_velocity is None:
-            return None
 
         # initialize parameters for lateral clearance
-        # minimal lateral clearance radius in meters
-        min_lateral_clearance: float = float('inf') 
+        scenario: Scenario = self.global_inputs.scenario
         # minimal velocity (in m/s) for dynamic obstacles, otherwise they are considered as static obstacles
         dynamic_velocity_threshold: float = self.params.dynamic_velocity_threshold
         # look ahead time (in seconds) for the vehicle to react to obstacles
@@ -106,12 +105,12 @@ class LateralClearanceVelocityAdjuster(Behaviour):
         # minimal look ahead distance (in meters) for the vehicle to react to obstacles
         min_look_ahead_distance: float = self.params.min_look_ahead_distance
         # maximal time step for prediction of dynamic obstacles
-        max_time_step: int = int(look_ahead_time / self.scenario.dt)
+        max_time_step: int = int(look_ahead_time / scenario.dt)
         # time threshold (in seconds) for intersection of trajectories of ego vehicle and dynamic obstacles
         time_threshold: float = self.params.time_threshold
         # get velocity limits in m/s
-        max_reference_velocity: float = self.params.min_reference_velocity
-        min_reference_velocity: float = self.params.max_reference_velocity
+        max_reference_velocity: float = self.global_inputs.velocity_limit
+        min_reference_velocity: float = self.params.min_reference_velocity
         # initialize minimum and safe distance (radius) for lateral clearance in meters
         vehicle_width: float = self.global_params.vehicle.wheel_tread + self.global_params.vehicle.right_overhang + self.global_params.vehicle.left_overhang
         min_distance: float = vehicle_width * 0.5
@@ -152,15 +151,16 @@ class LateralClearanceVelocityAdjuster(Behaviour):
         trajectory_dt = look_ahead_time / (len(time_steps) - 1)
 
         # calculate for each position the orientation of the vehicle
-        dt_ref_traj = np.dtype([('position', float, (2,)), ('position_curvilinear', float), ('orientation', float), ('time_step', int), ('normal', float, (2,2)), ('lateral_distance', float), ('intersection', object)])
+        dt_ref_traj = np.dtype([('position', float, (2,)), ('position_curvilinear', float), ('orientation', float), ('time_step', int), ('normal', float, (2,2)), ('lateral_distance', float), ('intersection', object), ('velocity', float)])
         trajectory_positions = np.zeros(len(time_steps), dtype=dt_ref_traj)
 
         trajectory_positions['position'] = reference_path_cartesian[:len(time_steps)]
         trajectory_positions['position_curvilinear'] = reference_path_curvilinear[:len(time_steps)]
         trajectory_positions['orientation'] = reference_orientation_curvilinear[:len(time_steps)]
         trajectory_positions['time_step'] = time_steps
-        trajectory_positions['lateral_distance'] = np.full(len(time_steps), min_lateral_clearance)
+        trajectory_positions['lateral_distance'] = np.full(len(time_steps), float('inf'))
         trajectory_positions['intersection'] = np.full(len(time_steps), None)
+        trajectory_positions['velocity'] = np.full(len(time_steps), float('inf'))
 
         # calculate the normal endpoints for each trajectory point
         for i, point in enumerate(trajectory_positions):
@@ -171,17 +171,17 @@ class LateralClearanceVelocityAdjuster(Behaviour):
 
         # TODO: Currently, obstacles on lanelets is not working as intended, so all obstacles are considered
         # # create set of relevant lanelets
-        # lanelet_ids = self.scenario.lanelet_network.find_lanelet_by_position(trajectory_positions["position"].tolist())
+        # lanelet_ids = scenario.lanelet_network.find_lanelet_by_position(trajectory_positions["position"].tolist())
         # # Collect all relevant lanelets
         # relevant_lanelets = set()
         # for lanelet_id in lanelet_ids:
-        #     lanelet = self.scenario.lanelet_network.find_lanelet_by_id(lanelet_id[0])
+        #     lanelet = scenario.lanelet_network.find_lanelet_by_id(lanelet_id[0])
         #     relevant_lanelets.add(lanelet)
         #     if lanelet.adj_left is not None:
-        #         left_adjacent_lanelet = self.scenario.lanelet_network.find_lanelet_by_id(lanelet.adj_left)
+        #         left_adjacent_lanelet = scenario.lanelet_network.find_lanelet_by_id(lanelet.adj_left)
         #         relevant_lanelets.add(left_adjacent_lanelet)
         #     if lanelet.adj_right is not None:
-        #         right_adjacent_lanelet = self.scenario.lanelet_network.find_lanelet_by_id(lanelet.adj_right)
+        #         right_adjacent_lanelet = scenario.lanelet_network.find_lanelet_by_id(lanelet.adj_right)
         #         relevant_lanelets.add(right_adjacent_lanelet)
 
         # Merge obstacle sets from the relevant lanelets
@@ -193,8 +193,8 @@ class LateralClearanceVelocityAdjuster(Behaviour):
         #             combined_obstacle_set.update(obstacle_set)
         #             if time_step >= max_time_step:
         #                 break
-        if self.scenario.dynamic_obstacles is not None:
-            for obs in self.scenario.dynamic_obstacles:
+        if scenario.dynamic_obstacles is not None:
+            for obs in scenario.dynamic_obstacles:
                 combined_obstacle_set.add(obs.obstacle_id)
 
         # Calculate the combined occupancy polygon for all obstacles on the relevant lanelets
@@ -203,7 +203,7 @@ class LateralClearanceVelocityAdjuster(Behaviour):
         dyn_obstacles = []
         if combined_obstacle_set:
             for obstacle_id in combined_obstacle_set:
-                obstacle = self.scenario.obstacle_by_id(obstacle_id)
+                obstacle = scenario.obstacle_by_id(obstacle_id)
                 if obstacle is None:
                     continue
 
@@ -252,7 +252,7 @@ class LateralClearanceVelocityAdjuster(Behaviour):
 
             # only consider obstacles, if the time step of the dynamic obstacle is in similar range from the time step of the trajectory
             # convert time steps to seconds
-            time_dyn_obs = dyn_obstacle['time_step'] * self.scenario.dt
+            time_dyn_obs = dyn_obstacle['time_step'] * scenario.dt
             time_ref_traj = trajectory_positions[dyn_obstacle['index']]['time_step'] * trajectory_dt
             time_diff = np.abs(time_dyn_obs - time_ref_traj)
             if time_diff > time_threshold:
@@ -264,7 +264,7 @@ class LateralClearanceVelocityAdjuster(Behaviour):
             orientation_diff = np.abs(np.arctan2(np.sin(orientation_dyn_obs - orientation_traj), np.cos(orientation_dyn_obs - orientation_traj)))
 
             if orientation_diff > np.pi/3:
-                obstacle = self.scenario.obstacle_by_id(dyn_obstacle['obstacle_id'])
+                obstacle = scenario.obstacle_by_id(dyn_obstacle['obstacle_id'])
                 if obstacle is None:
                     continue
                 occupancy = obstacle.occupancy_at_time(int(dyn_obstacle['time_step']))
@@ -299,23 +299,27 @@ class LateralClearanceVelocityAdjuster(Behaviour):
                     distance = trajectory_point.distance(intersection)
                     point['lateral_distance'] = distance
 
-            min_lateral_clearance = min(trajectory_positions['lateral_distance'])
+                # set proposed reference velocity based on the lateral clearance
+                if distance < min_distance:
+                    # lateral clearance is smaller than the minimal distance, set reference velocity to minimum
+                    proposed_reference_velocity = min_reference_velocity
+                elif distance > safe_distance:
+                    # lateral clearance is larger than the safe distance, set reference velocity to maximum
+                    proposed_reference_velocity = max_reference_velocity
+                else:
+                    # lateral clearance is between the minimal and safe distance
+                    # calculate normalized radius and use a quadratic function for velocity adjustment
+                    normalized_radius = (distance - min_distance) / (safe_distance - min_distance)
+                    proposed_reference_velocity = min_reference_velocity + (max_reference_velocity - min_reference_velocity) * (normalized_radius)**2
 
-            # set proposed reference velocity based on the lateral clearance
-            if min_lateral_clearance < min_distance:
-                # lateral clearance is smaller than the minimal distance, set reference velocity to minimum
-                proposed_reference_velocity = min_reference_velocity
-            elif min_lateral_clearance > safe_distance:
-                # lateral clearance is larger than the safe distance, set reference velocity to maximum
-                proposed_reference_velocity = max_reference_velocity
-            else:
-                # lateral clearance is between the minimal and safe distance
-                # calculate normalized radius and use a quadratic function for velocity adjustment
-                normalized_radius = (min_lateral_clearance - min_distance) / (safe_distance - min_distance)
-                proposed_reference_velocity = min_reference_velocity + (max_reference_velocity - min_reference_velocity) * (normalized_radius)**2
+                point['velocity'] = proposed_reference_velocity
 
-            reference_velocity = min(reference_velocity, proposed_reference_velocity)            
-            self._logger.debug(f"Reference velocity: {reference_velocity*3.6} km/h")
+        # set the velocity profile with lateral clearance to the blackboard
+        velocity_profile = np.full(len(reference_path_curvilinear), float('inf'))
+        start_index = current_position_index+1
+        end_index = len(trajectory_positions)
+        velocity_profile[start_index:end_index] = trajectory_positions['velocity']
+        self.outputs.velocity_profile = velocity_profile
 
         t_end = time.perf_counter()
         self._logger.debug(f"Time for lateral clearance velocity function: {t_end - t_start}")
@@ -323,7 +327,7 @@ class LateralClearanceVelocityAdjuster(Behaviour):
             self.publish_obstacles(obstacles_polygon)
             self.publish_clearance(trajectory_positions, min_distance, safe_distance)
 
-        return reference_velocity
+        return py_trees.common.Status.SUCCESS
 
     def publish_obstacles(self, multipolygon: MultiPolygon):
         """
@@ -345,6 +349,9 @@ class LateralClearanceVelocityAdjuster(Behaviour):
             else:
                 self._logger.error("Unsupported geometry type for multipolygon")
                 return
+            
+            origin_transformation = self.global_inputs.origin_transformation
+            z_coordinate = self.global_inputs.z_coordinate
 
             for i, polygon in enumerate(polygons):
                 marker = Marker()
@@ -363,20 +370,20 @@ class LateralClearanceVelocityAdjuster(Behaviour):
 
                 # Add points of the polygon to the marker
                 for x, y in polygon.exterior.coords:
-                    p = utm2map(self.scenario_handler.origin_transformation, [x, y])
-                    p.z = self.scenario_handler.z_coordinate
+                    p = utm2map(origin_transformation, [x, y])
+                    p.z = z_coordinate
                     marker.points.append(p)
 
                 # Add first point again to close the polygon
                 if len(polygon.exterior.coords) > 0:
                     first_point = polygon.exterior.coords[0]
-                    p = utm2map(self.scenario_handler.origin_transformation, [first_point[0], first_point[1]])
-                    p.z = self.scenario_handler.z_coordinate
+                    p = utm2map(origin_transformation, [first_point[0], first_point[1]])
+                    p.z = z_coordinate
                     marker.points.append(p)
 
                 marker_array.markers.append(marker)
 
-        self._lateral_clearance_obstacles_pub.publish(marker_array)
+        self.outputs.lateral_clearance_obstacles_marker_array = marker_array
 
     def publish_clearance(self, trajectory_points: np.array, min_distance: float, safe_distance: float):
         """
@@ -436,6 +443,9 @@ class LateralClearanceVelocityAdjuster(Behaviour):
             normal_marker_green.color.g = 1.0
             normal_marker_green.color.b = 0.0
 
+            origin_transformation = self.global_inputs.origin_transformation
+            z_coordinate = self.global_inputs.z_coordinate
+
             for i, point in enumerate(trajectory_points['position']):
                 # Create marker for trajectory points
                 traj_marker = Marker()
@@ -446,10 +456,10 @@ class LateralClearanceVelocityAdjuster(Behaviour):
                 traj_marker.type = Marker.CYLINDER
                 traj_marker.action = Marker.ADD
                 traj_marker.pose.position = PointMsg()
-                p = utm2map(self.scenario_handler.origin_transformation, [point[0], point[1]])
+                p = utm2map(origin_transformation, [point[0], point[1]])
                 traj_marker.pose.position.x = p.x
                 traj_marker.pose.position.y = p.y
-                traj_marker.pose.position.z = self.scenario_handler.z_coordinate - 0.1
+                traj_marker.pose.position.z = z_coordinate - 0.1
                 traj_marker.scale.x = 0.25
                 traj_marker.scale.y = 0.25
                 traj_marker.scale.z = 0.01
@@ -466,8 +476,8 @@ class LateralClearanceVelocityAdjuster(Behaviour):
                 if intersection is None or intersection.is_empty:
                     continue
                 elif intersection.geom_type == "Point":
-                    start_point = utm2map(self.scenario_handler.origin_transformation, point)
-                    end_point = utm2map(self.scenario_handler.origin_transformation, [intersection.x, intersection.y])
+                    start_point = utm2map(origin_transformation, point)
+                    end_point = utm2map(origin_transformation, [intersection.x, intersection.y])
                 elif intersection.geom_type == "LineString":
                     inter_x, inter_y = intersection.xy
                     # create a buffer around the intersection line, to check if trajectory point is on the intersection line
@@ -475,14 +485,14 @@ class LateralClearanceVelocityAdjuster(Behaviour):
                     # check which intersection point is closer to the trajectory point
                     if intersection_buffered.contains(trajectory_point):
                         # if obstacle is on reference path, normal line is the line between the two intersection points
-                        start_point = utm2map(self.scenario_handler.origin_transformation, [inter_x[0], inter_y[0]])
-                        end_point = utm2map(self.scenario_handler.origin_transformation, [inter_x[1], inter_y[1]])
+                        start_point = utm2map(origin_transformation, [inter_x[0], inter_y[0]])
+                        end_point = utm2map(origin_transformation, [inter_x[1], inter_y[1]])
                     elif trajectory_point.distance(Point(inter_x[0], inter_y[0])) < trajectory_point.distance(Point(inter_x[1], inter_y[1])):
-                        start_point = utm2map(self.scenario_handler.origin_transformation, point)
-                        end_point = utm2map(self.scenario_handler.origin_transformation, [inter_x[0], inter_y[0]])
+                        start_point = utm2map(origin_transformation, point)
+                        end_point = utm2map(origin_transformation, [inter_x[0], inter_y[0]])
                     else:
-                        start_point = utm2map(self.scenario_handler.origin_transformation, point)
-                        end_point = utm2map(self.scenario_handler.origin_transformation, [inter_x[1], inter_y[1]])
+                        start_point = utm2map(origin_transformation, point)
+                        end_point = utm2map(origin_transformation, [inter_x[1], inter_y[1]])
                 elif intersection.geom_type == "MultiLineString":
                     end_points = []
                     check_end_points = True
@@ -492,8 +502,8 @@ class LateralClearanceVelocityAdjuster(Behaviour):
                         buffered_line = line.buffer(0.1, quadsegs=1, cap_style=2)
                         # check which intersection point is closer to the trajectory point
                         if buffered_line.contains(trajectory_point):
-                            start_point = utm2map(self.scenario_handler.origin_transformation, [inter_x[0], inter_y[0]])
-                            end_point = utm2map(self.scenario_handler.origin_transformation, [inter_x[1], inter_y[1]])
+                            start_point = utm2map(origin_transformation, [inter_x[0], inter_y[0]])
+                            end_point = utm2map(origin_transformation, [inter_x[1], inter_y[1]])
                             check_end_points = False
                             break
                         elif trajectory_point.distance(Point(inter_x[0], inter_y[0])) < trajectory_point.distance(Point(inter_x[1], inter_y[1])):
@@ -509,11 +519,11 @@ class LateralClearanceVelocityAdjuster(Behaviour):
                             if distance < min_distance_to_traj:
                                 min_distance_to_traj = distance
                                 nearest_end_point = end_point
-                        start_point = utm2map(self.scenario_handler.origin_transformation, point)
-                        end_point = utm2map(self.scenario_handler.origin_transformation, [nearest_end_point.x, nearest_end_point.y])
+                        start_point = utm2map(origin_transformation, point)
+                        end_point = utm2map(origin_transformation, [nearest_end_point.x, nearest_end_point.y])
 
-                start_point.z = self.scenario_handler.z_coordinate
-                end_point.z = self.scenario_handler.z_coordinate
+                start_point.z = z_coordinate
+                end_point.z = z_coordinate
 
                 # change color depending on the lateral distance
                 if trajectory_points['lateral_distance'][i] < min_distance:
@@ -533,8 +543,7 @@ class LateralClearanceVelocityAdjuster(Behaviour):
             marker_array.markers.append(normal_marker_yellow)
             marker_array.markers.append(normal_marker_green)
 
-        self._lateral_clearance_pub.publish(marker_array)
-
+        self.outputs.lateral_clearance_marker_array = marker_array
 
     def terminate(self, new_status):
         pass
