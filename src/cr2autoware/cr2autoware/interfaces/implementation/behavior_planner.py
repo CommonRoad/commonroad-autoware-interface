@@ -193,6 +193,11 @@ class BehaviorPlanner:
     def path_in_curvilinear(self) -> np.ndarray:
         return self._co.ref_pos
 
+# Copied from Reactive Planner
+    @property
+    def path_orientation(self) -> np.ndarray:
+        return self._co.ref_theta
+
     @property
     def output_d_min(self) -> float:
         return self.behavior_tree.outputs.d_min
@@ -241,6 +246,7 @@ class BehaviorPlanner:
             self.origin_transformation,
             self.scenario_handler.z_coordinate,
             self.scenario_handler.ros_time,
+            self.path_orientation,
             )
 
         # Call Behavior Planner

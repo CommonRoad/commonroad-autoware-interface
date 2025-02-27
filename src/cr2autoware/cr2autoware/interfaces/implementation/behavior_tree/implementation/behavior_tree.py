@@ -5,6 +5,7 @@ from py_trees.behaviour import Behaviour
 from py_trees.common import Status
 from py_trees.composites import Sequence, Selector, Parallel
 from .modules.traffic_light_behavior import TrafficLightsTree
+from .modules.lateral_clearance_velocity_adjuster import LateralClearanceVelocityAdjuster
 from commonroad.scenario.scenario import Scenario
 from  cr2autoware.common.configuration import BehaviorPlannerParams
 from cr2autoware.handlers.ego_vehicle_handler import EgoVehicleState
@@ -35,6 +36,7 @@ class BehaviorTree(BaseTree):
         self.inputs.register_key("z_coordinate", access=py_trees.common.Access.WRITE)
         self.inputs.register_key("current_time_msg", access=py_trees.common.Access.WRITE)
         self.inputs.register_key("current_position_index", access=py_trees.common.Access.WRITE)
+        self.inputs.register_key("input_path_orientation", access=py_trees.common.Access.WRITE)
 
         # Register keys for Outputs
         self.outputs.register_key("velocity_profile", access=py_trees.common.Access.WRITE)
@@ -80,9 +82,11 @@ class BehaviorTree(BaseTree):
 
         # Initialize Sub Modules
         self.traffic_light_module = TrafficLightsTree(self.logger, self.verbose)
+        self.lateral_clearance_velocity_adjuster = LateralClearanceVelocityAdjuster(self.logger, self.verbose)
         
         # Add sub-trees or behaviors here
         root.add_child(self.traffic_light_module.root)
+        root.add_child(self.lateral_clearance_velocity_adjuster.root)
         
         return root
 
@@ -93,7 +97,7 @@ class BehaviorTree(BaseTree):
     #     self.traffic_light_params.register_key("traffic_light_perception_range", access=py_trees.common.Access.WRITE)
     #     self.traffic_light_params.traffic_light_perception_range = params.traffic_light_perception_range
 
-    def preprocessing(self, scenario: Scenario, current_state: EgoVehicleState, input_path: np.ndarray, coordinate_system: CoordinateSystem, input_path_curvilinear: np.ndarray, origin_transformation: List, z_coordinate: float, ros_time_msg: Time) -> None:
+    def preprocessing(self, scenario: Scenario, current_state: EgoVehicleState, input_path: np.ndarray, coordinate_system: CoordinateSystem, input_path_curvilinear: np.ndarray, origin_transformation: List, z_coordinate: float, ros_time_msg: Time, input_path_orientation: np.ndarray) -> None:
         # TODO: Match last input path with current input_path and match the velocity profile, 
         # TODO: so that both paths and profiles are aligned and can be compared in the behavior tree
         self.inputs.scenario = scenario = scenario
@@ -107,6 +111,7 @@ class BehaviorTree(BaseTree):
         self.inputs.z_coordinate = z_coordinate
         self.inputs.current_time_msg = ros_time_msg
         self.inputs.current_position_index = self._calculate_current_position_index(current_position_curvilinear, input_path_curvilinear)
+        self.inputs.input_path_orientation = input_path_orientation
 
         # save the last velocity profile
         if self.outputs.exists("velocity_profile"):
