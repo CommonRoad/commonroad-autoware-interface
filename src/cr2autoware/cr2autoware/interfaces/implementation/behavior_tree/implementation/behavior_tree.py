@@ -34,6 +34,7 @@ class BehaviorTree(BaseTree):
         self.inputs.register_key("current_position_curvilinear", access=py_trees.common.Access.WRITE)
         self.inputs.register_key("z_coordinate", access=py_trees.common.Access.WRITE)
         self.inputs.register_key("current_time_msg", access=py_trees.common.Access.WRITE)
+        self.inputs.register_key("current_position_index", access=py_trees.common.Access.WRITE)
 
         # Register keys for Outputs
         self.outputs.register_key("velocity_profile", access=py_trees.common.Access.WRITE)
@@ -101,9 +102,11 @@ class BehaviorTree(BaseTree):
         self.inputs.coordinate_system = coordinate_system
         self.inputs.input_path_curvilinear = input_path_curvilinear
         self.inputs.origin_transformation = origin_transformation
-        self.inputs.current_position_curvilinear = coordinate_system.convert_to_curvilinear_coords(current_state.position[0], current_state.position[1])
+        current_position_curvilinear = coordinate_system.convert_to_curvilinear_coords(current_state.position[0], current_state.position[1])
+        self.inputs.current_position_curvilinear = current_position_curvilinear
         self.inputs.z_coordinate = z_coordinate
         self.inputs.current_time_msg = ros_time_msg
+        self.inputs.current_position_index = self._calculate_current_position_index(current_position_curvilinear, input_path_curvilinear)
 
         # save the last velocity profile
         if self.outputs.exists("velocity_profile"):
@@ -133,6 +136,17 @@ class BehaviorTree(BaseTree):
         # Create velocity profile for traffic lights
         # Velocity profile includes all modules that influence the velocity profile but the traffic lights module
         self.blackboard.modules.traffic_lights.inputs.velocity_profile_without_traffic_lights = velocity_profile_without_traffic_lights
+
+    def _calculate_current_position_index(self, current_position_curvilinear: np.ndarray, input_path_curvilinear: np.ndarray) -> int:
+        """
+        Calculate the index of the current position in the input path.
+
+        :param current_position_curvilinear: Current position in curvilinear coordinates
+        :param input_path_curvilinear: Input path in curvilinear coordinates
+        :return: Index of the current position in the input path
+        """
+        distances = np.abs(input_path_curvilinear - current_position_curvilinear[0])
+        return np.argmin(distances)
 
 
     def plan(self) -> None:

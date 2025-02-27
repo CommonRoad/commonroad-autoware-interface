@@ -121,6 +121,7 @@ class TrafficLightBehavior(Behaviour):
         self.global_inputs.register_key("current_position_curvilinear", access=py_trees.common.Access.READ)
         self.global_inputs.register_key("z_coordinate", access=py_trees.common.Access.READ)
         self.global_inputs.register_key("current_time_msg", access=py_trees.common.Access.READ)
+        self.global_inputs.register_key("current_position_index", access=py_trees.common.Access.READ)
 
         # Register keys for Module Inputs
         self.inputs = py_trees.blackboard.Client(name=(name + "Inputs"), namespace="/modules/traffic_lights/inputs")
@@ -200,8 +201,17 @@ class TrafficLightUpdateAction(TrafficLightBehavior):
 
         # TrafficLight Position gives wrong position, so we take the position of the lanelet the traffic light is assigned to
         # Get all lanelets that are on the path and save them in the blackboard.
-        self.logger.debug("input_path: " + str(self.global_inputs.input_path_curvilinear))
-        path: List[np.ndarray] = [np.array(p) for p in self.global_inputs.input_path]
+        # TODO: Get Relevant Lanelets as Global Input (refactor in preprocessing), also other modules need this information
+        # TODO: previous points as parameter
+        # Get the start index of the relevant input path, also consider the last points/meters behind the vehicle
+        consider_previous_points = 10
+        start_index = self.global_inputs.current_position_index - consider_previous_points
+        self._logger.debug("Start Index: " + str(start_index))
+        if start_index < 0:
+            start_index = 0
+        relevant_input_path: List[List[float]] = self.global_inputs.input_path[start_index:]
+        self._logger.debug("Relevant Input Path: " + str(relevant_input_path))
+        path: List[np.ndarray] = [np.array(p) for p in relevant_input_path]
         relevant_lanelets_nested_list: List[List[int]] = scenario.lanelet_network.find_lanelet_by_position(path)
         # Transform the lanelet ids from the nested list to a set
         relevant_lanelets: Set[int] = set()
