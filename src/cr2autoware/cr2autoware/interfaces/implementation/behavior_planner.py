@@ -86,6 +86,9 @@ class BehaviorPlanner:
             self._logger.info("<Behavior Planner>: Initializing planner with lookahead distance "
                               + str(lookahead_dist) + " and lookahead time " + str(lookahead_time))
 
+        # variable indicates if velocity planning for latest published route is completed
+        self._is_velocity_planning_completed = False
+
         # init reference trajectory (ref path with velocity)
         # reference trajectory is a (n x 3) numpy array, where each row contains x, y, v for a certain
         # point on the reference trajectory
@@ -171,6 +174,15 @@ class BehaviorPlanner:
         else:
             return self._reference_trajectory[:, 2]
 
+    @property
+    def is_velocity_planning_completed(self) -> bool:
+        """
+        Indicates if velocity planning for latest published route is completed.
+        
+        :return: completion status of velocity planning
+        """
+        return self._is_velocity_planning_completed
+
 # Copied from Reactive Planner
     @property
     def coordinate_system(self) -> CoordinateSystem:
@@ -193,6 +205,7 @@ class BehaviorPlanner:
         :param reference_path: in CR coordinates
         :param goal_pos: in CR coordinates
         """
+        self._is_velocity_planning_completed = False
 
         if self._verbose:
             self._logger.info("<Velocity planner>: Planning velocity profile")
@@ -341,6 +354,7 @@ class BehaviorPlanner:
 
         # get reference trajectory
         self._reference_trajectory = np.concatenate((positions_arr, velocities_arr.reshape(_len_vel_arr, 1)), axis=1)
+        self._is_velocity_planning_completed = True
 
     def get_lookahead_velocity_for_current_state(self, curr_position, curr_velocity) -> Optional[float]:
         """

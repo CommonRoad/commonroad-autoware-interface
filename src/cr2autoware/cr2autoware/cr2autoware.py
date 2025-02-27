@@ -676,7 +676,7 @@ class Cr2Auto(Node):
         # wait for trajectory to be computed in AW Motion Velocity Smoother
         start_time = time.time()
         timeout_velocity_planning = 1.0
-        while not self.velocity_planner.is_velocity_planning_completed:
+        while not self.behavior_planner.is_velocity_planning_completed:
             time.sleep(0.01)
             if time.time() - start_time > timeout_velocity_planning:
                 raise Exception("Velocity planning not completed in time!")
