@@ -646,7 +646,12 @@ class Cr2Auto(Node):
                                        planning_problem=self.planning_problem)
  
         # wait for trajectory to be computed in AW Motion Velocity Smoother
-        time.sleep(0.1)
+        start_time = time.time()
+        timeout_velocity_planning = 1.0
+        while not self.velocity_planner.is_velocity_planning_completed:
+            time.sleep(0.01)
+            if time.time() - start_time > timeout_velocity_planning:
+                raise Exception("Velocity planning not completed in time!")
 
         # publish current reference path
         point_list = self.velocity_planner.reference_positions
@@ -669,7 +674,12 @@ class Cr2Auto(Node):
                                     self.ego_vehicle_handler.ego_vehicle_state)
 
         # wait for trajectory to be computed in AW Motion Velocity Smoother
-        time.sleep(0.1)
+        start_time = time.time()
+        timeout_velocity_planning = 1.0
+        while not self.velocity_planner.is_velocity_planning_completed:
+            time.sleep(0.01)
+            if time.time() - start_time > timeout_velocity_planning:
+                raise Exception("Velocity planning not completed in time!")
 
         # publish current reference path
         point_list = self.behavior_planner.reference_positions
@@ -692,9 +702,15 @@ class Cr2Auto(Node):
             init_state.velocity = 0.01
 
         if self.trajectory_planner_type == 1:  # Reactive Planner
-            reference_velocity = self.velocity_planner.get_lookahead_velocity_for_current_state(
+            if self.engage_status == True:
+                reference_velocity = self.behavior_planner.get_lookahead_velocity_for_current_state(
                     self.ego_vehicle_handler.current_vehicle_state.pose.pose.position,
                     self.ego_vehicle_handler.ego_vehicle_state.velocity)
+            else:
+                reference_velocity = self.velocity_planner.get_lookahead_velocity_for_current_state(
+                    self.ego_vehicle_handler.current_vehicle_state.pose.pose.position,
+                    self.ego_vehicle_handler.current_vehicle_state.twist.twist.linear.x)
+
             if reference_velocity < 0.3:
                 reference_velocity = 0.0
             elif reference_velocity < 1.0:
