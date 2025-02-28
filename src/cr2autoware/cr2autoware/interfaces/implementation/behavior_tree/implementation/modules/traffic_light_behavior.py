@@ -352,6 +352,7 @@ class TrafficLightOutOfRangeCondition(TrafficLightBehavior):
 
             # Calculate the lateral offset restriction
             d_abs = (min_width - vehicle_width) / 2
+            # TODO: Parameterize the minimum d parameter!
             if d_abs < 0.5:
                 d_abs = 0.5
             if d_abs < np.abs(default_d_min):

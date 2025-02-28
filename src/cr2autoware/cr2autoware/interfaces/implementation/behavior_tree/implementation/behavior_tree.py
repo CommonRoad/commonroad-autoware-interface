@@ -5,7 +5,7 @@ from py_trees.behaviour import Behaviour
 from py_trees.common import Status
 from py_trees.composites import Sequence, Selector, Parallel
 from .modules.traffic_light_behavior import TrafficLightsTree
-from .modules.lateral_clearance_velocity_adjuster import LateralClearanceVelocityAdjuster
+from .modules.lateral_clearance_velocity_adjuster import LateralClearanceVelocityAdjusterTree
 from commonroad.scenario.scenario import Scenario
 from  cr2autoware.common.configuration import BehaviorPlannerParams
 from cr2autoware.handlers.ego_vehicle_handler import EgoVehicleState
@@ -37,7 +37,6 @@ class BehaviorTree(BaseTree):
         self.inputs.register_key("current_time_msg", access=py_trees.common.Access.WRITE)
         self.inputs.register_key("current_position_index", access=py_trees.common.Access.WRITE)
         self.inputs.register_key("input_path_orientation", access=py_trees.common.Access.WRITE)
-        self.inputs.register_key("velocity_limit", access=py_trees.common.Access.WRITE)
 
         # Register keys for Outputs
         self.outputs.register_key("velocity_profile", access=py_trees.common.Access.WRITE)
@@ -53,6 +52,7 @@ class BehaviorTree(BaseTree):
         self.blackboard.register_key("/modules/traffic_lights/outputs/velocity_profile", access=py_trees.common.Access.READ)
         self.blackboard.register_key("/modules/traffic_lights/outputs/d_min", access=py_trees.common.Access.READ)
         self.blackboard.register_key("/modules/traffic_lights/outputs/d_max", access=py_trees.common.Access.READ)
+        self.blackboard.register_key("/modules/lateral_clearance/outputs/velocity_profile", access=py_trees.common.Access.READ)
         self.blackboard.register_key("params", access=py_trees.common.Access.READ)
         
         self.params: BehaviorPlannerParams = self.blackboard.params
@@ -86,7 +86,7 @@ class BehaviorTree(BaseTree):
 
         # Initialize Sub Modules
         self.traffic_light_module = TrafficLightsTree(self.logger, self.verbose)
-        self.lateral_clearance_velocity_adjuster = LateralClearanceVelocityAdjuster(self.logger, self.verbose)
+        self.lateral_clearance_velocity_adjuster = LateralClearanceVelocityAdjusterTree(self.logger, self.verbose)
         
         # Add sub-trees or behaviors here
         root.add_child(self.traffic_light_module.root)

@@ -26,14 +26,14 @@ from rclpy.time import Time
 from geometry_msgs.msg import Point as PointMsg
 from visualization_msgs.msg import Marker, MarkerArray
 
-class LateralClearanceVelocityAdjuster(BaseTree):
+class LateralClearanceVelocityAdjusterTree(BaseTree):
     def __init__(self, logger: RcutilsLogger, verbose: bool, config=None):
-        super(LateralClearanceVelocityAdjuster, self).__init__(logger, verbose, config)
+        super(LateralClearanceVelocityAdjusterTree, self).__init__(logger, verbose, config)
         self.root = self.create_behavior_tree()
     
     def create_behavior_tree(self):
-        root = LateralClearanceVelocityAdjuster("LateralClearanceVelocityAdjuster", memory=False)
-
+        root = LateralClearanceVelocityAdjuster(name="LateralClearanceVelocityAdjuster", logger=self.logger)
+        return root
 
 
 class LateralClearanceVelocityAdjuster(Behaviour):
@@ -41,7 +41,7 @@ class LateralClearanceVelocityAdjuster(Behaviour):
         super().__init__(name)
         self._logger = logger
 
-        self.init_blackboard()
+        self.init_blackboard(name)
 
     def init_blackboard(self, name):
         # Global Blackboard
@@ -63,7 +63,6 @@ class LateralClearanceVelocityAdjuster(Behaviour):
         self.global_inputs.register_key("current_time_msg", access=py_trees.common.Access.READ)
         self.global_inputs.register_key("current_position_index", access=py_trees.common.Access.READ)
         self.global_inputs.register_key("input_path_orientation", access=py_trees.common.Access.READ)
-        self.global_inputs.register_key("velocity_limit", access=py_trees.common.Access.READ)
 
         # Register keys for Module Inputs
         self.inputs = py_trees.blackboard.Client(name=(name + "Inputs"), namespace="/modules/lateral_clearance/inputs")
@@ -109,7 +108,7 @@ class LateralClearanceVelocityAdjuster(Behaviour):
         # time threshold (in seconds) for intersection of trajectories of ego vehicle and dynamic obstacles
         time_threshold: float = self.params.time_threshold
         # get velocity limits in m/s
-        max_reference_velocity: float = self.global_inputs.velocity_limit
+        max_reference_velocity: float = self.params.velocity_limit
         min_reference_velocity: float = self.params.min_reference_velocity
         # initialize minimum and safe distance (radius) for lateral clearance in meters
         vehicle_width: float = self.global_params.vehicle.wheel_tread + self.global_params.vehicle.right_overhang + self.global_params.vehicle.left_overhang
