@@ -294,6 +294,7 @@ class LateralClearanceVelocityAdjuster(Behaviour):
                 intersection = normal_line.intersection(obstacles_polygon)
                 point['intersection'] = intersection
 
+                distance = float('inf')
                 if not intersection.is_empty:
                     distance = trajectory_point.distance(intersection)
                     point['lateral_distance'] = distance
@@ -314,9 +315,11 @@ class LateralClearanceVelocityAdjuster(Behaviour):
                 point['velocity'] = proposed_reference_velocity
 
         # set the velocity profile with lateral clearance to the blackboard
-        velocity_profile = np.full(len(reference_path_curvilinear), float('inf'))
-        start_index = current_position_index+1
-        end_index = len(trajectory_positions)
+        velocity_profile = np.full(len(self.global_inputs.input_path), float('inf'))
+        # save the velocity profile with lateral clearance to the blackboard
+        start_index = current_position_index
+        end_index = start_index + len(trajectory_positions)
+
         velocity_profile[start_index:end_index] = trajectory_positions['velocity']
         self.outputs.velocity_profile = velocity_profile
 

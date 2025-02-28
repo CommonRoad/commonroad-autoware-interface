@@ -64,6 +64,9 @@ class BehaviorTree(BaseTree):
         self._printed_tree = False
         self.output_tree_in_log()
 
+        # new planning cycle
+        self.new_planning_cycle = True
+
 
     @property
     def velocity_profile(self):
@@ -122,12 +125,12 @@ class BehaviorTree(BaseTree):
             # Check if the planning cycle is new
             if len(input_path) == len(self.outputs.velocity_profile):
                 self.logger.debug("Length of the input path and the last velocity profile are equal")
-                new_planning_cycle = False
+                self.new_planning_cycle = False
             else:
                 self.logger.debug("Length of the input path and the last velocity profile are not equal")
-                new_planning_cycle = True
+                self.new_planning_cycle = True
 
-            if not new_planning_cycle:
+            if not self.new_planning_cycle:
                 self.logger.debug("Velocity profile from the last planning cycle is available")
                 self.inputs.last_velocity_profile = self.outputs.velocity_profile
             else:
@@ -185,15 +188,23 @@ class BehaviorTree(BaseTree):
 
     def _create_velocity_profile(self, no_traffic_lights: bool = False) -> np.ndarray:
         check_profiles: List[np.ndarray] = []
-        if self.blackboard.exists("/modules/traffic_lights/outputs/velocity_profile") and not no_traffic_lights:
-            check_profiles.append(self.blackboard.modules.traffic_lights.outputs.velocity_profile)
-        if self.blackboard.exists("/modules/lateral_clearance/outputs/velocity_profile"):
-            check_profiles.append(self.blackboard.modules.lateral_clearance.outputs.velocity_profile)
+        # only consider the velocity profile from modules if the planning cycle is not new
+        if not self.new_planning_cycle:
+            if self.blackboard.exists("/modules/traffic_lights/outputs/velocity_profile") and not no_traffic_lights:
+                self.logger.debug(f"Traffic lights velocity profile: {(self.blackboard.modules.traffic_lights.outputs.velocity_profile)}")
+                self.logger.debug(f"Length of velocity profile from traffic lights: {len(self.blackboard.modules.traffic_lights.outputs.velocity_profile)}")
+                check_profiles.append(self.blackboard.modules.traffic_lights.outputs.velocity_profile)
+            if self.blackboard.exists("/modules/lateral_clearance/outputs/velocity_profile"):
+                self.logger.debug(f"Lateral clearance velocity profile: {(self.blackboard.modules.lateral_clearance.outputs.velocity_profile)}")
+                self.logger.debug(f"Length of velocity profile from lateral clearance: {len(self.blackboard.modules.lateral_clearance.outputs.velocity_profile)}")
+                check_profiles.append(self.blackboard.modules.lateral_clearance.outputs.velocity_profile)
 
         velocity_profile = np.full(len(self.inputs.input_path), self.params.velocity_limit)
+        self.logger.debug("Velocity profile: " + str(velocity_profile))
+        self.logger.debug(f"Length of velocity profile: {len(velocity_profile)}")
         for profile in check_profiles:
             velocity_profile = np.minimum(velocity_profile, profile)
-        
+        self.logger.debug("Updated velocity profile: " + str(velocity_profile))
         return velocity_profile
 
 

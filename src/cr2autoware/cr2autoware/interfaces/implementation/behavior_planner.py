@@ -29,6 +29,7 @@ from commonroad_rp.utility.utils_coordinate_system import CoordinateSystem
 
 from cr2autoware.handlers.ego_vehicle_handler import EgoVehicleState
 from commonroad.scenario.scenario import Scenario
+from scipy.interpolate import interp1d
 
 import py_trees
 from visualization_msgs.msg import MarkerArray
@@ -196,6 +197,10 @@ class BehaviorPlanner:
     @property
     def coordinate_system(self) -> CoordinateSystem:
         return self._co
+    
+    @property
+    def path_in_cartesian(self) -> np.ndarray:
+        return self._co.reference
 
 # Copied from Reactive Planner
     @property
@@ -250,7 +255,7 @@ class BehaviorPlanner:
         self.behavior_tree.preprocessing(
             scenario,
             current_state,
-            input_path,
+            self.path_in_cartesian,
             self.coordinate_system,
             self.path_in_curvilinear,
             self.origin_transformation,
@@ -264,7 +269,7 @@ class BehaviorPlanner:
 
         self.behavior_tree.prepare_output()
 
-        velocity_path = self.behavior_tree.velocity_profile
+        velocity_path = self.convert_velocity_profile(self.path_in_cartesian, self.behavior_tree.velocity_profile, input_path)
 
         # Call _pub_ref_path
         self._pub_ref_path(input_path, velocity_path, self.origin_transformation)
@@ -350,6 +355,36 @@ class BehaviorPlanner:
     def _pub_lateral_clearance_marker(self) -> None:
         self._lateral_clearance_pub.publish(self.blackboard.modules.lateral_clearance.outputs.lateral_clearance_marker_array)
         self._lateral_clearance_obstacles_pub.publish(self.blackboard.modules.lateral_clearance.outputs.lateral_clearance_obstacles_marker_array)
+
+    def convert_velocity_profile(self, source_path: np.ndarray, source_velocity_profile: np.ndarray, target_path: np.ndarray) -> np.ndarray:
+        """
+        Convert and Interpolate a velocity profile from a source_path to a velocity_profile for a target_path.
+        
+        :param velocity_profile: velocity profile from behavior planner
+        :return: velocity profile for reference path
+        """
+        def compute_cumulative_distance(path):
+            """Compute cumulative distances for a path."""
+            diffs = np.diff(path, axis=0)
+            segment_lengths = np.linalg.norm(diffs, axis=1)
+            return np.concatenate(([0], np.cumsum(segment_lengths)))
+
+        # Compute cumulative distances
+        source_distances = compute_cumulative_distance(source_path)
+        self._logger.debug("Source distances: " + str(source_distances))
+        target_distances = compute_cumulative_distance(target_path)
+        self._logger.debug("Target distances: " + str(target_distances))
+
+        # Create an interpolation function
+        velocity_interp = interp1d(source_distances, source_velocity_profile, kind='linear', fill_value="extrapolate")
+
+        # Interpolate velocities for path2
+        velocity_path = velocity_interp(target_distances)
+        
+        self._logger.debug("Source velocities: " + str(source_velocity_profile))
+        self._logger.debug("Velocity path: " + str(velocity_path))
+
+        return velocity_path
 
     def smoothed_trajectory_callback(self, msg: AWTrajectory) -> None:
         """
