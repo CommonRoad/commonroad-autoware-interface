@@ -520,7 +520,7 @@ class Cr2Auto(Node):
             self.get_parameter("velocity_planner.lookahead_dist").get_parameter_value().double_value,
             self.get_parameter("velocity_planner.lookahead_time").get_parameter_value().double_value,
             self.origin_transformation,
-            self.params.behavior_planner,
+            self.params,
             self.scenario_handler,
         )
  

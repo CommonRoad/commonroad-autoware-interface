@@ -23,7 +23,7 @@ from commonroad_dc.geometry.util import compute_orientation_from_polyline
 from cr2autoware.common.utils.transform import orientation2quaternion
 from cr2autoware.common.utils.transform import utm2map
 from cr2autoware.interfaces.implementation.behavior_tree.implementation.behavior_tree import BehaviorTree
-from cr2autoware.common.configuration import BehaviorPlannerParams
+from cr2autoware.common.configuration import BehaviorPlannerParams, CR2AutowareParams
 from cr2autoware.handlers.scenario_handler import ScenarioHandler
 from commonroad_rp.utility.utils_coordinate_system import CoordinateSystem
 
@@ -61,7 +61,7 @@ class BehaviorPlanner:
     :var _lookahead_time: lookahead time for velocity planning
     """
     def __init__(self, ref_path_pub: Publisher, traffic_light_marker_pub: Publisher, lateral_clearance_pub: Publisher, lateral_clearance_obstacles_pub: Publisher, logger: RcutilsLogger, verbose: bool,
-                 lookahead_dist: float, lookahead_time: float, origin_transformation: List, params: BehaviorPlannerParams, scenario_handler: ScenarioHandler) -> None:
+                 lookahead_dist: float, lookahead_time: float, origin_transformation: List, global_params: CR2AutowareParams, scenario_handler: ScenarioHandler) -> None:
         """
         TODO:**WIP**
         Constructor for VelocityPlanner class.
@@ -98,10 +98,13 @@ class BehaviorPlanner:
         self._reference_trajectory: Optional[np.ndarray] = None
 
         # Init Parameter
-        self.params: BehaviorPlannerParams = params
+        self.global_params: CR2AutowareParams = global_params
+        self.params: BehaviorPlannerParams = self.global_params.behavior_planner
         self.blackboard = py_trees.blackboard.Client(name="GlobalBehaviorTreeBlackboard")
         self.blackboard.register_key("params", access=py_trees.common.Access.WRITE)
         self.blackboard.params = self.params
+        self.blackboard.register_key("global_params", access=py_trees.common.Access.WRITE)
+        self.blackboard.global_params = self.global_params
         # Register keys for ROS Publisher
         self.blackboard.register_key("/modules/traffic_lights/outputs/traffic_light_marker_array", access=py_trees.common.Access.WRITE)
         self.blackboard.modules.traffic_lights.outputs.traffic_light_marker_array = MarkerArray()
