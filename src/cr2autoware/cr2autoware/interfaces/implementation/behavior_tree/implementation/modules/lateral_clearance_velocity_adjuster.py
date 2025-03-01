@@ -4,6 +4,7 @@ from py_trees.common import Status
 from py_trees.behaviour import Behaviour
 from py_trees.composites import Sequence, Selector
 from typing import List, Set, Dict
+from ...behavior_utils import copy_from_blackboard
 import numpy as np
 import time
 from scipy.spatial import cKDTree
@@ -63,10 +64,10 @@ class LateralClearanceVelocityAdjuster(Behaviour):
         self.global_inputs.register_key("current_time_msg", access=py_trees.common.Access.READ)
         self.global_inputs.register_key("current_position_index", access=py_trees.common.Access.READ)
         self.global_inputs.register_key("input_path_orientation", access=py_trees.common.Access.READ)
+        self.global_inputs.register_key("empty_velocity_profile", access=py_trees.common.Access.READ)
 
         # Register keys for Module Inputs
         self.inputs = py_trees.blackboard.Client(name=(name + "Inputs"), namespace="/modules/lateral_clearance/inputs")
-        self.inputs.register_key("velocity_profile_without_lateral_clearance", access=py_trees.common.Access.WRITE)        
         self.inputs.register_key("lateral_clearance_path", access=py_trees.common.Access.WRITE)
 
         # Register keys for Module Outputs
@@ -78,7 +79,7 @@ class LateralClearanceVelocityAdjuster(Behaviour):
         # Init Parameter
         self.global_params: CR2AutowareParams = self.blackboard.global_params
         self.params: BehaviorPlannerParams = self.blackboard.params
-    
+
     def setup(self):
         pass
 
@@ -315,7 +316,7 @@ class LateralClearanceVelocityAdjuster(Behaviour):
                 point['velocity'] = proposed_reference_velocity
 
         # set the velocity profile with lateral clearance to the blackboard
-        velocity_profile = np.full(len(self.global_inputs.input_path), float('inf'))
+        velocity_profile = copy_from_blackboard(self.global_inputs.empty_velocity_profile)
         # save the velocity profile with lateral clearance to the blackboard
         start_index = current_position_index
         end_index = start_index + len(trajectory_positions)

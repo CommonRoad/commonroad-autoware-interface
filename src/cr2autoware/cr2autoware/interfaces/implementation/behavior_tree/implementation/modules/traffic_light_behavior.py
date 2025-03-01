@@ -9,6 +9,7 @@ from cr2autoware.common.configuration import BehaviorPlannerParams
 from cr2autoware.common.configuration import CR2AutowareParams
 from commonroad_rp.utility.utils_coordinate_system import CoordinateSystem
 from typing import List, Set, Dict
+from ...behavior_utils import copy_from_blackboard
 import numpy as np
 from rclpy.impl.rcutils_logger import RcutilsLogger
 from shapely.geometry import Point, Polygon
@@ -122,6 +123,7 @@ class TrafficLightBehavior(Behaviour):
         self.global_inputs.register_key("z_coordinate", access=py_trees.common.Access.READ)
         self.global_inputs.register_key("current_time_msg", access=py_trees.common.Access.READ)
         self.global_inputs.register_key("current_position_index", access=py_trees.common.Access.READ)
+        self.global_inputs.register_key("empty_velocity_profile", access=py_trees.common.Access.READ)
 
         # Register keys for Module Inputs
         self.inputs = py_trees.blackboard.Client(name=(name + "Inputs"), namespace="/modules/traffic_lights/inputs")
@@ -368,7 +370,9 @@ class TrafficLightOutOfRangeCondition(TrafficLightBehavior):
             return Status.FAILURE
         else:
             # if no traffic light is in range, output the input velocity profile
-            self.outputs.velocity_profile = self.inputs.velocity_profile_without_traffic_lights
+
+            self.outputs.velocity_profile = copy_from_blackboard(self.global_inputs.empty_velocity_profile)
+
 
             # No traffic light in range, so no latteral offset restriction required (overtake allowed)
             self.outputs.d_min = None
@@ -474,6 +478,8 @@ class StopPointCalculationAction(TrafficLightBehavior):
 
     def update(self):
         self._logger.debug("Updating StopPointCalculationAction")
+
+        # TODO: Use the velocity profile to calculate the perfect stop point
 
         traffic_lights_in_range: Dict[int, np.ndarray] = self.inputs.traffic_lights_in_range
         traffic_light_id = self.inputs.current_traffic_light_id
@@ -616,7 +622,7 @@ class EmergencyBrakingAction(TrafficLightBehavior):
         stop_point_index = np.argmin(np.abs(input_path_curvilinear - target_stop_position))
         # Define the new velocity profile
         # TODO: WHICH VELOCITY PROFILE SHOULD BE USED?
-        velocity_profile = self.inputs.velocity_profile_without_traffic_lights
+        velocity_profile = copy_from_blackboard(self.global_inputs.empty_velocity_profile)
         # Set the velocity profile for the current position
         # TODO:
         # velocity_profile[current_position_index] = current_velocity
@@ -627,9 +633,7 @@ class EmergencyBrakingAction(TrafficLightBehavior):
         # Set the velocity profile for the stop point and all points behind to zero
 
         # Set the velocity profile for all points zero
-        velocity_profile[current_position_index:] = 0.0
-
-        self._logger.debug("Velocity Profile: " + str(velocity_profile))
+        velocity_profile[:] = 0.0
 
         self.outputs.velocity_profile = velocity_profile
 
@@ -652,7 +656,7 @@ class ContinueDrivingAction(TrafficLightBehavior):
 
     def update(self):
         self._logger.debug("Updating ContinueDrivingAction")
-        self.outputs.velocity_profile = self.inputs.velocity_profile_without_traffic_lights
+        self.outputs.velocity_profile = copy_from_blackboard(self.global_inputs.empty_velocity_profile)
         return Status.SUCCESS
         
     def terminate(self, new_status):
@@ -673,22 +677,23 @@ class ComfortBrakingAction(TrafficLightBehavior):
     def update(self):
         self._logger.debug("Updating ComfortBrakingAction")
 
-        current_position = self.global_inputs.current_position_curvilinear
-        current_velocity = self.global_inputs.current_state.velocity
+        #current_position = self.global_inputs.current_position_curvilinear
+        #current_velocity = self.global_inputs.current_state.velocity
         target_stop_position = self.inputs.target_stop_position
 
-        distance_to_stop_line = np.linalg.norm(target_stop_position - current_position)
+        #distance_to_stop_line = np.linalg.norm(target_stop_position - current_position)
         # Now calculate the new velocity profile with the comfort braking
         # for current position the current velocity is set, for the stop point the velocity is set to zero
         # in between we use a linear deceleration
         # Get the index of the current position in the input path
         input_path_curvilinear = self.global_inputs.input_path_curvilinear
-        current_position_index = np.argmin(np.abs(input_path_curvilinear - current_position[0]))
+        #current_position_index = np.argmin(np.abs(input_path_curvilinear - current_position[0]))
         # Get the index of the stop point in the input path
         stop_point_index = np.argmin(np.abs(input_path_curvilinear - target_stop_position))
         # Define the new velocity profile
         # TODO: WHICH VELOCITY PROFILE SHOULD BE USED?
-        velocity_profile = self.inputs.velocity_profile_without_traffic_lights
+        velocity_profile = copy_from_blackboard(self.global_inputs.empty_velocity_profile)
+
         # Set the velocity profile for the current position
         # TODO:
         # velocity_profile[current_position_index] = current_velocity
@@ -703,8 +708,6 @@ class ComfortBrakingAction(TrafficLightBehavior):
         velocity_profile[comfort_point_index:stop_point_index] = comfort_point_velocity
 
         velocity_profile[stop_point_index:] = 0.0
-
-        self._logger.debug("Velocity Profile: " + str(velocity_profile))
 
         self.outputs.velocity_profile = velocity_profile
 
@@ -825,7 +828,7 @@ class ErrorHandlingAction(TrafficLightBehavior):
         # When Traffic Light is inactive, or other errors occur, the vehicle should continue driving (e.g. car stops behind the stop line)
 
         # When in Error State, velocity profile is not changed
-        self.outputs.velocity_profile = self.inputs.velocity_profile_without_traffic_lights
+        self.outputs.velocity_profile = copy_from_blackboard(self.global_inputs.empty_velocity_profile)
 
     
         # Delete all markers

@@ -152,16 +152,16 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
         """
         # check for lateral distance scenario
         # if optimal trajectory is found, check lateral distance
-        if self._cr_state_list:
-            # function to set max velocity for lateral distance
-            reference_velocity = self.reference_velocity_based_on_lateral_clearance(
-                init_state, self._cr_state_list, reference_velocity, **kwargs
-            )
+        # if self._cr_state_list:
+        #     # function to set max velocity for lateral distance
+        #     reference_velocity = self.reference_velocity_based_on_lateral_clearance(
+        #         init_state, self._cr_state_list, reference_velocity, **kwargs
+        #     )
 
-        else:
-            self._logger.debug(
-                "No optimal trajectory found. Lateral distance check skipped!"
-            )
+        # else:
+        #     self._logger.debug(
+        #         "No optimal trajectory found. Lateral distance check skipped!"
+        #     )
 
         # adjust sapling settings from behavior planner
         d_min: float = kwargs.get("d_min")

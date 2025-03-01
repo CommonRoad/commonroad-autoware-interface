@@ -371,9 +371,9 @@ class BehaviorPlanner:
 
         # Compute cumulative distances
         source_distances = compute_cumulative_distance(source_path)
-        self._logger.debug("Source distances: " + str(source_distances))
+        self._logger.debug("Lenght source distances: " + str(len(source_distances)))
         target_distances = compute_cumulative_distance(target_path)
-        self._logger.debug("Target distances: " + str(target_distances))
+        self._logger.debug("Length target distances: " + str(len(target_distances)))
 
         # Create an interpolation function
         velocity_interp = interp1d(source_distances, source_velocity_profile, kind='linear', fill_value="extrapolate")
@@ -432,6 +432,9 @@ class BehaviorPlanner:
         """
 
         curr_position_arr = np.array([curr_position.x, curr_position.y])
+
+        self._logger.debug("Current position: " + str(curr_position_arr))
+        self._logger.debug("reference_positions: " + str(self.reference_positions))
 
         closest_idx = self._get_closest_point_idx_on_path(self.reference_positions, curr_position_arr)
         lookahead_dist = self._lookahead_dist + self._lookahead_time * curr_velocity
