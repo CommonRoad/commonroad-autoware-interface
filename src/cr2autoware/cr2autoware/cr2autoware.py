@@ -547,13 +547,11 @@ class Cr2Auto(Node):
                                             self.verbose,
                                             self.scenario,
                                             self.planning_problem,
-                                            self.scenario_handler,
+                                            self.scenario_handler.road_boundary,
                                             self.scenario.dt,
                                             self.params.trajectory_planner,
                                             self.params.rp_interface,
-                                            self.ego_vehicle_handler,
-                                            self.lateral_clearance_obstacles_pub,
-                                            self.lateral_clearance_pub)
+                                            self.ego_vehicle_handler)
         else:
             self._logger.error("<Trajectory Planner Factory> Planner type is invalid")
 
@@ -730,13 +728,6 @@ class Cr2Auto(Node):
                 current_state=init_state,
                 goal=self.planning_problem.goal,
                 reference_velocity=ref_vel,
-                dynamic_velocity_threshold=self.params.trajectory_planner.dynamic_velocity_threshold,
-                look_ahead_time=self.params.trajectory_planner.look_ahead_time,
-                min_look_ahead_distance=self.params.trajectory_planner.min_look_ahead_distance,
-                time_threshold=self.params.trajectory_planner.time_threshold,
-                max_reference_velocity=self.external_velocity_limit,
-                min_reference_velocity=self.params.trajectory_planner.min_reference_velocity,
-                publish_lateral_clearance_topics=self.params.trajectory_planner.publish_lateral_clearance_topics,
                 d_min=self.behavior_planner.output_d_min,
                 d_max=self.behavior_planner.output_d_max,
                 )
