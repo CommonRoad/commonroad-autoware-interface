@@ -159,6 +159,7 @@ class TrafficLightBehavior(Behaviour):
         self.inputs.register_key("decision_point", access=py_trees.common.Access.WRITE)
         self.inputs.register_key("decision_point_ahead", access=py_trees.common.Access.WRITE)
         self.inputs.register_key("velocity_profile_without_traffic_lights", access=py_trees.common.Access.READ)
+        self.inputs.register_key("safe_stop", access=py_trees.common.Access.WRITE)
 
         # Register keys for Module Outputs
         self.outputs = py_trees.blackboard.Client(name=(name + "Outputs"), namespace="/modules/traffic_lights/outputs")
@@ -439,6 +440,8 @@ class YellowLightCondition(TrafficLightBehavior):
         if traffic_light.active and traffic_light.color == TrafficLightState.YELLOW:
             return Status.SUCCESS
         else:
+            # If the traffic light is not yellow, or switches from yellow to another color, reset the safe stop flag
+            self.inputs.safe_stop = False
             return Status.FAILURE
         
     def terminate(self, new_status):
@@ -533,6 +536,7 @@ class DecisionPointCalculationAction(TrafficLightBehavior):
     """
     def __init__(self, name, logger: RcutilsLogger):
         super().__init__(name, logger)
+        self.inputs.safe_stop = False
 
     def setup(self):
         self._logger.debug("Setting up DecisionPointCalculationAction")
@@ -561,10 +565,42 @@ class DecisionPointCalculationAction(TrafficLightBehavior):
 
         # Calculate the braking distance, also consider the system delay
         braking_distance = (current_velocity ** 2) / (2 * self.params.max_comfort_deceleration) + self.params.system_delay * current_velocity
+        braking_distance = max(braking_distance, 0.0)
 
         # Calculate the decision point
         decision_point = current_position_curvilinear[0] + (distance - braking_distance)
-        if distance < 0.0:
+
+        if distance >= braking_distance:
+            # Vehicle has not reached the decision point yet
+            # Breaking distance is smaller than the distance to the stop line
+            decision_point_ahead = True
+
+        # Vehicle passed the decision point, but did not reach the stop line yet
+        # Consider the case that the vehicle is almost standing
+        elif distance + self.params.stop_line_overrun_tolerance >= 0.0:
+            # Vehicle is standing or almost standing:
+            if current_velocity < 1.5:
+                # Vehicle is almost standing
+                if distance + self.params.stop_line_overrun_tolerance >= braking_distance:
+                    # Vehicle can brake within the overrun tolerance
+                    # For this case, the vehicle should stop
+                    decision_point_ahead = True
+                    self.inputs.safe_stop = True
+                else:
+                    # Vehicle can not brake within the overrun tolerance
+                    # For this case, the vehicle should continue driving
+                    decision_point_ahead = False
+
+            # Vehicle is moving
+            else:
+                # Breaking distance is greater than the distance to the stop line
+                # Vehicle should contine driving
+                if not self.inputs.safe_stop:
+                    decision_point_ahead = False
+                else:
+                    # Safe stop is performed, keep the decision point ahead
+                    decision_point_ahead = True
+        elif distance < 0.0:
             # Vehicle already passed the stop Line
             # check if the decision point is behind the stop line overrun tolerance
             distance_vehicle_origin_to_stop_line = current_position_curvilinear[0] - stop_line_position[0]
@@ -573,19 +609,12 @@ class DecisionPointCalculationAction(TrafficLightBehavior):
                 # No decision_point calculation required
                 return Status.FAILURE
 
-            # Vehicle already passed the stop line and decision point
-            decision_point_ahead = False
-
-        elif distance >= braking_distance:
-            # Vehicle has not reached the decision point yet
-            # Breaking distance is smaller than the distance to the stop line
-            decision_point_ahead = True
-
-        else:
-            # Vehicle already reached the decision point
-            # Breaking distance is greater than the distance to the stop line
-            # Vehicle should contine driving
-            decision_point_ahead = False
+            if self.inputs.safe_stop:
+                # Safe stop is performed, keep the decision point ahead
+                decision_point_ahead = True
+            else:
+                # Vehicle already passed the stop line and decision point
+                decision_point_ahead = False
 
         # Save the hold position in the blackboard
         self.inputs.target_stop_position = stop_line_position[0] - distance_stop_line_vehicle_origin
