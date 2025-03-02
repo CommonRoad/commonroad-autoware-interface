@@ -19,10 +19,16 @@ from cr2autoware.common.utils.transform import utm2map
 from geometry_msgs.msg import Point as PointMsg
 
 
-# TODO: Create for each Behavior Module own Behavior Base Class with own Blackboard Clients for better maintainability
 class TrafficLightsTree(BaseTree):
-    def __init__(self, logger: RcutilsLogger, verbose: bool, config=None):
-        super(TrafficLightsTree, self).__init__(logger, verbose, config)
+    """
+    Submodule for traffic light handling.
+
+    :var logger: ROS2 node logger
+    :var verbose: Flag for verbose logging
+    :var root: Root node of the behavior tree
+    """
+    def __init__(self, logger: RcutilsLogger, verbose: bool):
+        super(TrafficLightsTree, self).__init__(logger, verbose)
         self.root = self.create_behavior_tree()
 
     def create_behavior_tree(self):
@@ -51,8 +57,8 @@ class TrafficLightsTree(BaseTree):
         red_condition = RedLightCondition(name="Red", logger=self.logger)
         green_condition = GreenLightCondition(name="Green", logger=self.logger)
 
-        stop_point_calculation_yellow = StopPointCalculationAction(name="StopPointCalculationActionYellow", logger=self.logger)
-        stop_point_calculation_red = StopPointCalculationAction(name="StopPointCalculationActionRed", logger=self.logger)
+        decision_point_calculation_yellow = DecisionPointCalculationAction(name="DecisionPointCalculationActionYellow", logger=self.logger)
+        decision_point_calculation_red = DecisionPointCalculationAction(name="DecisionPointCalculationActionRed", logger=self.logger)
         yellow_light_handling = Selector(name="YellowLightHandling", memory=False)
         red_light_handling = Selector(name="RedLightHandling", memory=False)
 
@@ -61,13 +67,13 @@ class TrafficLightsTree(BaseTree):
         emergency_stop = Sequence(name="EmergencyStop", memory=False)
         no_stop = Sequence(name="NoStop", memory=False)
 
-        stop_point_ahead_yellow = StopPointAheadCondition(name="StopPointAheadYellow", logger=self.logger)
-        stop_point_ahead_red = StopPointAheadCondition(name="StopPointAheadRed", logger=self.logger)
+        decision_point_ahead_yellow = DecisionPointAheadCondition(name="DecisionPointAheadYellow", logger=self.logger)
+        decision_point_ahead_red = DecisionPointAheadCondition(name="DecisionPointAheadRed", logger=self.logger)
         comfort_braking_yellow = ComfortBrakingAction(name="ComfortBrakingYellow", logger=self.logger)
         comfort_braking_red = ComfortBrakingAction(name="ComfortBrakingRed", logger=self.logger)
 
-        stop_point_behind_yellow = StopPointBehindCondition(name="StopPointBehindYellow", logger=self.logger)
-        stop_point_behind_red = StopPointBehindCondition(name="StopPointBehindRed", logger=self.logger)
+        decision_point_behind_yellow = DecisionPointBehindCondition(name="DecisionPointBehindYellow", logger=self.logger)
+        decision_point_behind_red = DecisionPointBehindCondition(name="DecisionPointBehindRed", logger=self.logger)
         emergency_braking = EmergencyBrakingAction(name="EmergencyBraking", logger=self.logger)
         continue_driving_yellow = ContinueDrivingAction(name="ContinueDrivingYellow", logger=self.logger)
         continue_driving_green = ContinueDrivingAction(name="ContinueDrivingGreen", logger=self.logger)
@@ -77,16 +83,16 @@ class TrafficLightsTree(BaseTree):
         publish_rviz_marker_red = PublishRVIZMarker(name="PublishRVIZMarkerRed", logger=self.logger)
 
         # Add children to the tree
-        comfort_stop_yellow.add_children([stop_point_ahead_yellow, comfort_braking_yellow])
-        comfort_stop_red.add_children([stop_point_ahead_red, comfort_braking_red])
-        no_stop.add_children([stop_point_behind_yellow, continue_driving_yellow])
-        emergency_stop.add_children([stop_point_behind_red, emergency_braking])
+        comfort_stop_yellow.add_children([decision_point_ahead_yellow, comfort_braking_yellow])
+        comfort_stop_red.add_children([decision_point_ahead_red, comfort_braking_red])
+        no_stop.add_children([decision_point_behind_yellow, continue_driving_yellow])
+        emergency_stop.add_children([decision_point_behind_red, emergency_braking])
 
         yellow_light_handling.add_children([comfort_stop_yellow, no_stop])
         red_light_handling.add_children([comfort_stop_red, emergency_stop])
 
-        yellow_light.add_children([yellow_condition, stop_point_calculation_yellow, yellow_light_handling, publish_rviz_marker_yellow])
-        red_light.add_children([red_condition, stop_point_calculation_red, red_light_handling, publish_rviz_marker_red])
+        yellow_light.add_children([yellow_condition, decision_point_calculation_yellow, yellow_light_handling, publish_rviz_marker_yellow])
+        red_light.add_children([red_condition, decision_point_calculation_red, red_light_handling, publish_rviz_marker_red])
         green_light.add_children([green_condition, continue_driving_green, publish_rviz_marker_green])
 
         traffic_light_handling.add_children([yellow_light, red_light, green_light])
@@ -98,13 +104,30 @@ class TrafficLightsTree(BaseTree):
         return root
 
 class TrafficLightBehavior(Behaviour):
+    """
+    Base class for traffic light behavior.
+
+    :var name: Name of the behavior node
+    :var logger: ROS2 node logger
+    :var blackboard: Blackboard for the behavior tree
+    :var global_inputs: Blackboard client for global inputs
+    :var inputs: Blackboard client for module inputs
+    :var outputs: Blackboard client for module outputs
+    :var global_params: CR2AutowareParams
+    :var params: BehaviorPlannerParams
+    """
     def __init__(self, name, logger: RcutilsLogger):
         super().__init__(name)
         self._logger = logger
 
         self.init_blackboard(name)
 
-    def init_blackboard(self, name):
+    def init_blackboard(self, name) -> None:
+        """
+        Initialize the blackboard parameters.
+
+        :param name: Name of the behavior node
+        """
         # Global Blackboard
         self.blackboard = py_trees.blackboard.Client(name=(name + "Blackboard"))
         self.blackboard.register_key("global_params", access=py_trees.common.Access.READ)
@@ -133,8 +156,8 @@ class TrafficLightBehavior(Behaviour):
         self.inputs.register_key("target_stop_position", access=py_trees.common.Access.WRITE)
         self.inputs.register_key("traffic_light_lanelet_mapping", access=py_trees.common.Access.WRITE)
         self.inputs.register_key("traffic_lights_in_range", access=py_trees.common.Access.WRITE)
-        self.inputs.register_key("stop_point", access=py_trees.common.Access.WRITE)
-        self.inputs.register_key("stop_point_ahead", access=py_trees.common.Access.WRITE)
+        self.inputs.register_key("decision_point", access=py_trees.common.Access.WRITE)
+        self.inputs.register_key("decision_point_ahead", access=py_trees.common.Access.WRITE)
         self.inputs.register_key("velocity_profile_without_traffic_lights", access=py_trees.common.Access.READ)
 
         # Register keys for Module Outputs
@@ -148,48 +171,38 @@ class TrafficLightBehavior(Behaviour):
         self.global_params: CR2AutowareParams = self.blackboard.global_params
         self.params: BehaviorPlannerParams = self.blackboard.params
 
-    def setup(self):
+    def setup(self) -> None:
         pass
 
-    def initialise(self):
+    def initialise(self) -> None:
         pass
 
     @abstractmethod
     def update(self) -> Status:
         pass
 
-    def terminate(self, new_status):
+    def terminate(self, new_status) -> None:
         pass
 
 
 class TrafficLightUpdateAction(TrafficLightBehavior):
+    """
+    Action to update the relevant traffic lights and lanelets.
+
+    :var logger: ROS2 node logger
+    :var blackboard: Blackboard for behavior tree
+    :var global_inputs: Blackboard client for global inputs
+    :var inputs: Blackboard client for module inputs
+    :var outputs: Blackboard client for module outputs
+    :var global_params: CR2AutowareParams
+    :var params: BehaviorPlannerParams
+    """
     def __init__(self, name, logger: RcutilsLogger):
         super().__init__(name, logger)
         self.inputs.traffic_light_lanelet_mapping = {}
 
 
     def setup(self):
-            #TODO: Setup Method is not called!!
-            # self._logger.debug("Setting up TrafficLightUpdate")
-            # # create traffic light lanelet mapping
-            # self._logger.debug("Creating traffic light lanelet mapping")
-            # scenario: Scenario = self.global_inputs.get("scenario")
-            # traffic_light_lanelet_mapping: Dict[int, int] = {}  # key: traffic light id, value: lanelet id
-            # for lanelet_id in scenario.lanelet_network.lanelets:
-            #     lanelet = scenario.lanelet_network.find_lanelet_by_id(lanelet_id)
-            #     for traffic_light_id in lanelet.traffic_lights:
-            #         # Check if traffic light is already in the mapping
-            #         if traffic_light_id in traffic_light_lanelet_mapping:
-            #             raise ValueError("Traffic light is already assigned to another lanelet! Traffic light id: " + str(traffic_light_id)
-            #                              + ", lanelet id: " + str(lanelet_id) + ", already assigned lanelet id: " 
-            #                              + str(traffic_light_lanelet_mapping[traffic_light_id])
-            #                              )
-                    
-            #         traffic_light_lanelet_mapping[traffic_light_id] = lanelet_id
-        
-            # self.inputs.traffic_light_lanelet_mapping = traffic_light_lanelet_mapping
-        
-            # self._logger.debug("Traffic light lanelet mapping: " + str(traffic_light_lanelet_mapping))
             pass
     
 
@@ -203,16 +216,12 @@ class TrafficLightUpdateAction(TrafficLightBehavior):
 
         # TrafficLight Position gives wrong position, so we take the position of the lanelet the traffic light is assigned to
         # Get all lanelets that are on the path and save them in the blackboard.
-        # TODO: Get Relevant Lanelets as Global Input (refactor in preprocessing), also other modules need this information
-        # TODO: previous points as parameter
-        # Get the start index of the relevant input path, also consider the last points/meters behind the vehicle
-        consider_previous_points = 10
+        # Get the start index of the relevant input path, also consider previous points, depending on the stop line overrun tolerance
+        consider_previous_points = int(np.ceil(self.params.stop_line_overrun_tolerance))
         start_index = self.global_inputs.current_position_index - consider_previous_points
-        self._logger.debug("Start Index: " + str(start_index))
         if start_index < 0:
             start_index = 0
         relevant_input_path: List[List[float]] = self.global_inputs.input_path[start_index:]
-        self._logger.debug("Relevant Input Path: " + str(relevant_input_path))
         path: List[np.ndarray] = [np.array(p) for p in relevant_input_path]
         relevant_lanelets_nested_list: List[List[int]] = scenario.lanelet_network.find_lanelet_by_position(path)
         # Transform the lanelet ids from the nested list to a set
@@ -240,7 +249,10 @@ class TrafficLightUpdateAction(TrafficLightBehavior):
 
         for lanelet_id in relevant_lanelets:
             lanelet = scenario.lanelet_network.find_lanelet_by_id(lanelet_id)
-            # In current scenario, no stop line is defined, so we take the first vertex of the lanelet as stop line
+            #TODO: ADD STOP LINE HANDLING here
+
+            
+            # If no stop line is defined in the scenario, we take the first vertex of the lanelet as stop line
             # Calculate the nearest stop line position to the vehicle
             stop_line_position_0 = lanelet.center_vertices[0]
             stop_line_position_end = lanelet.center_vertices[-1]
@@ -251,28 +263,27 @@ class TrafficLightUpdateAction(TrafficLightBehavior):
                 self._logger.warning("Stop line position is not in the projection domain! Stop line position: " + str(stop_line_position_0) + " and " + str(stop_line_position_end))
                 continue
             elif not point_in_projection_domain(stop_line_position_0, coordinate_system):
-                stop_line_position = stop_line_position_end
+                stop_line_position_curvilinear = coordinate_system.convert_to_curvilinear_coords(stop_line_position_end[0], stop_line_position_end[1])
             elif not point_in_projection_domain(stop_line_position_end, coordinate_system):
-                stop_line_position = stop_line_position_0
+                stop_line_position_curvilinear = coordinate_system.convert_to_curvilinear_coords(stop_line_position_0[0], stop_line_position_0[1])
             else:
                 stop_line_position_0_curv = coordinate_system.convert_to_curvilinear_coords(stop_line_position_0[0], stop_line_position_0[1])
                 stop_line_position_end_curv = coordinate_system.convert_to_curvilinear_coords(stop_line_position_end[0], stop_line_position_end[1])
                 # Check which stop line is closer to the vehicle
                 if stop_line_position_0_curv[0] < stop_line_position_end_curv[0]:
-                    stop_line_position = stop_line_position_0
+                    stop_line_position_curvilinear = stop_line_position_0_curv
                 else:
-                    stop_line_position = stop_line_position_end
+                    stop_line_position_curvilinear = stop_line_position_end_curv
 
-            stop_line_position_curvilinear = coordinate_system.convert_to_curvilinear_coords(stop_line_position[0], stop_line_position[1])
             for traffic_light_id in lanelet.traffic_lights:
+                # Check if the traffic light is already assigned to another lanelet
                 if traffic_light_id in relevant_traffic_lights:
                     self._logger.warning("Traffic light is already assigned to another lanelet! Traffic light id: " + str(traffic_light_id)
                                      + ", lanelet id: " + str(lanelet_id))
                     # Check which stop line is closer to the vehicle
-                    stop_line_position_current = relevant_traffic_lights[traffic_light_id]
-                    stop_line_position_new = stop_line_position_curvilinear
+                    relevant_stop_line_position_curvilinear = relevant_traffic_lights[traffic_light_id]
                     # Check which stop line is closer to the vehicle
-                    if stop_line_position_current[0] < stop_line_position_new[0]:
+                    if relevant_stop_line_position_curvilinear[0] < stop_line_position_curvilinear[0]:
                         # Continue with the current stop line, if the current stop line is closer to the vehicle
                         continue
 
@@ -287,6 +298,17 @@ class TrafficLightUpdateAction(TrafficLightBehavior):
         self._logger.debug("Terminating TrafficLightUpdate to " + str(new_status))
 
 class TrafficLightOutOfRangeCondition(TrafficLightBehavior):
+    """
+    Condition Node. Checks if there are traffic lights in range.
+
+    :var logger: ROS2 node logger
+    :var blackboard: Blackboard for behavior tree
+    :var global_inputs: Blackboard client for global inputs
+    :var inputs: Blackboard client for module inputs
+    :var outputs: Blackboard client for module outputs
+    :var global_params: CR2AutowareParams
+    :var params: BehaviorPlannerParams
+    """
     def __init__(self, name, logger: RcutilsLogger):
         super().__init__(name, logger)
 
@@ -306,10 +328,8 @@ class TrafficLightOutOfRangeCondition(TrafficLightBehavior):
         traffic_lights_in_range: Dict[int, np.ndarray] = {} # key: traffic light id, value: stop_line_position
 
         for traffic_light_id, stop_line_position in relevant_traffic_lights.items():
-            # TODO: Take the reference path with curviliniear coordinates into account and check the distance
-            # between the current position and the stop line position
             # TODO: For now, we assume that there is max one traffic light in range
-            # Get nearest traffic light:
+            # Get nearest traffic light index:
             min_distance_id = None
             min_distance = None
 
@@ -319,18 +339,18 @@ class TrafficLightOutOfRangeCondition(TrafficLightBehavior):
                     min_distance = distance
                     min_distance_id = traffic_light_id
                 traffic_lights_in_range[traffic_light_id] = stop_line_position
-            
 
-
-        # Check if there are traffic lights in range
-        # If there are traffic lights in range, save them in the blackboard and return FAILURE
-        # If there are no traffic lights in range, return SUCCESS
+        # Check if there is a traffic light in range
         if len(traffic_lights_in_range) > 0:
             # TODO: For now, we assume that there is max one traffic light in range
+            # traffic light in range, save it in the blackboard and return FAILURE
             self.inputs.traffic_lights_in_range = {min_distance_id: traffic_lights_in_range[min_distance_id]}
             self.inputs.current_traffic_light_id = min_distance_id
 
-            # TODO: Refactor no Overtake before traffic light in own module/function
+            ############################################################################################
+            # NO OVERTAKE BEFORE TRAFFIC LIGHT
+            ############################################################################################
+            # TODO: Refactor no overtake before traffic light in own module/function
             # Traffic light in range, so lateral offset restriction required (overtake not allowed)
             relevant_lanelets = self.inputs.relevant_lanelets
 
@@ -354,9 +374,10 @@ class TrafficLightOutOfRangeCondition(TrafficLightBehavior):
 
             # Calculate the lateral offset restriction
             d_abs = (min_width - vehicle_width) / 2
-            # TODO: Parameterize the minimum d parameter!
-            if d_abs < 0.5:
-                d_abs = 0.5
+            # Keep a minimal buffer for safe trajectory planning
+            d_min_buffer = self.params.d_minimal_buffer
+            if d_abs < d_min_buffer:
+                d_abs = d_min_buffer
             if d_abs < np.abs(default_d_min):
                 self.outputs.d_min = -d_abs
             else:
@@ -367,16 +388,20 @@ class TrafficLightOutOfRangeCondition(TrafficLightBehavior):
             else:
                 self.outputs.d_max = None
 
+            ################################################################################################
+            # END NO OVERTAKE BEFORE TRAFFIC LIGHT
+            ################################################################################################
+
             return Status.FAILURE
         else:
-            # if no traffic light is in range, output the input velocity profile
-
+            # no traffic light in range, output the empty velocity profile, return SUCCESS
             self.outputs.velocity_profile = copy_from_blackboard(self.global_inputs.empty_velocity_profile)
 
-
+            ############################################################################################
             # No traffic light in range, so no latteral offset restriction required (overtake allowed)
             self.outputs.d_min = None
             self.outputs.d_max = None
+            ############################################################################################
             return Status.SUCCESS
 
     def terminate(self, new_status):
@@ -384,9 +409,19 @@ class TrafficLightOutOfRangeCondition(TrafficLightBehavior):
 
 
 class YellowLightCondition(TrafficLightBehavior):
+    """
+    Condition Node. Checks if current traffic light is active and yellow.
+
+    :var logger: ROS2 node logger
+    :var blackboard: Blackboard for behavior tree
+    :var global_inputs: Blackboard client for global inputs
+    :var inputs: Blackboard client for module inputs
+    :var outputs: Blackboard client for module outputs
+    :var global_params: CR2AutowareParams
+    :var params: BehaviorPlannerParams
+    """
     def __init__(self, name, logger: RcutilsLogger):
         super().__init__(name, logger)
-
 
     def setup(self):
         self._logger.debug("Setting up YellowLightCondition")
@@ -411,9 +446,19 @@ class YellowLightCondition(TrafficLightBehavior):
 
 
 class RedLightCondition(TrafficLightBehavior):
+    """
+    Condition Node. Checks if current traffic light is active and red.
+
+    :var logger: ROS2 node logger
+    :var blackboard: Blackboard for behavior tree
+    :var global_inputs: Blackboard client for global inputs
+    :var inputs: Blackboard client for module inputs
+    :var outputs: Blackboard client for module outputs
+    :var global_params: CR2AutowareParams
+    :var params: BehaviorPlannerParams
+    """
     def __init__(self, name, logger: RcutilsLogger):
         super().__init__(name, logger)
-
 
     def setup(self):
         self._logger.debug("Setting up RedLightCondition")
@@ -438,10 +483,19 @@ class RedLightCondition(TrafficLightBehavior):
 
 
 class GreenLightCondition(TrafficLightBehavior):
+    """
+    Condition Node. Checks if current traffic light is active and green.
+
+    :var logger: ROS2 node logger
+    :var blackboard: Blackboard for behavior tree
+    :var global_inputs: Blackboard client for global inputs
+    :var inputs: Blackboard client for module inputs
+    :var outputs: Blackboard client for module outputs
+    :var global_params: CR2AutowareParams
+    :var params: BehaviorPlannerParams
+    """
     def __init__(self, name, logger: RcutilsLogger):
         super().__init__(name, logger)
-
-
 
     def setup(self):
         self._logger.debug("Setting up GreenLightCondition")
@@ -465,21 +519,29 @@ class GreenLightCondition(TrafficLightBehavior):
         self._logger.debug("Terminating GreenLightCondition to " + str(new_status))
 
 
-class StopPointCalculationAction(TrafficLightBehavior):
+class DecisionPointCalculationAction(TrafficLightBehavior):
+    """
+    Action Node. Calculates the decision point for the vehicle in front of the traffic light.
+
+    :var logger: ROS2 node logger
+    :var blackboard: Blackboard for behavior tree
+    :var global_inputs: Blackboard client for global inputs
+    :var inputs: Blackboard client for module inputs
+    :var outputs: Blackboard client for module outputs
+    :var global_params: CR2AutowareParams
+    :var params: BehaviorPlannerParams
+    """
     def __init__(self, name, logger: RcutilsLogger):
         super().__init__(name, logger)
 
-
     def setup(self):
-        self._logger.debug("Setting up StopPointCalculationAction")
+        self._logger.debug("Setting up DecisionPointCalculationAction")
 
     def initialise(self):
-        self._logger.debug("Initialising StopPointCalculationAction")
+        self._logger.debug("Initialising DecisionPointCalculationAction")
 
     def update(self):
-        self._logger.debug("Updating StopPointCalculationAction")
-
-        # TODO: Use the velocity profile to calculate the perfect stop point
+        self._logger.debug("Updating DecisionPointCalculationAction")
 
         traffic_lights_in_range: Dict[int, np.ndarray] = self.inputs.traffic_lights_in_range
         traffic_light_id = self.inputs.current_traffic_light_id
@@ -489,113 +551,138 @@ class StopPointCalculationAction(TrafficLightBehavior):
         # Get the current position of the vehicle
         current_position_curvilinear = self.global_inputs.current_position_curvilinear
         current_velocity = self.global_inputs.current_state.velocity
-        self._logger.debug("Current Velocity: " + str(current_velocity))
 
         # Calculate the distance between the current position and the stop line position
-        # Also consider the parameter for distance to stop line
-        distance_to_stop_line = self.params.distance_to_stop_line
-        distance = (stop_line_position[0] - distance_to_stop_line - current_position_curvilinear[0])
+        # Also consider vehicle front bumper to vehicle origin and the additional parameter distance_stop_line_to_vehicle_front_bumper
+        # vehicle origin is on the rear axle
+        front_bumper_to_vehicle_origin = self.global_params.vehicle.front_overhang + self.global_params.vehicle.wheel_base
+        distance_stop_line_vehicle_origin = self.params.distance_stop_line_to_vehicle_front_bumper + front_bumper_to_vehicle_origin
+        distance = (stop_line_position[0] - distance_stop_line_vehicle_origin - current_position_curvilinear[0])
 
-        self._logger.debug("Distance to Stop Line: " + str(distance))
-        # Calculate the braking distance
-        braking_distance = (current_velocity ** 2) / (2 * self.params.max_comfort_deceleration)
-        self._logger.debug("Braking Distance: " + str(braking_distance))
-        # Calculate the stop point
-        stop_point = current_position_curvilinear[0] + (distance - braking_distance)
+        # Calculate the braking distance, also consider the system delay
+        braking_distance = (current_velocity ** 2) / (2 * self.params.max_comfort_deceleration) + self.params.system_delay * current_velocity
+
+        # Calculate the decision point
+        decision_point = current_position_curvilinear[0] + (distance - braking_distance)
         if distance < 0.0:
             # Vehicle already passed the stop Line
-            # check if the stop point is behind the stop line, without distance to stop line parameter
-            distance_to_stop_line = (stop_line_position[0] - current_position_curvilinear[0])
-            if distance_to_stop_line < -5.0:
-                # Vehicle already passed the stop line
-                # Go into Error Handling
-                # TODO: Add Error Handling
+            # check if the decision point is behind the stop line overrun tolerance
+            distance_vehicle_origin_to_stop_line = current_position_curvilinear[0] - stop_line_position[0]
+            if distance_vehicle_origin_to_stop_line > self.params.stop_line_overrun_tolerance:
+                # Vehicle already passed the stop line and overrun tolerance
+                # No decision_point calculation required
                 return Status.FAILURE
-            stop_point_ahead = False
+
+            # Vehicle already passed the stop line and decision point
+            decision_point_ahead = False
 
         elif distance >= braking_distance:
-            # Vehicle has not reached the stop point yet
+            # Vehicle has not reached the decision point yet
             # Breaking distance is smaller than the distance to the stop line
-            stop_point_ahead = True
+            decision_point_ahead = True
+
         else:
-            # Vehicle already reached the stop point
+            # Vehicle already reached the decision point
             # Breaking distance is greater than the distance to the stop line
-            stop_point_ahead = False
+            # Vehicle should contine driving
+            decision_point_ahead = False
 
         # Save the hold position in the blackboard
-        self.inputs.target_stop_position = stop_line_position[0] - distance_to_stop_line
-        # Save the stop point in the blackboard
-        self.inputs.stop_point = stop_point
-        self.inputs.stop_point_ahead = stop_point_ahead
-        
+        self.inputs.target_stop_position = stop_line_position[0] - distance_stop_line_vehicle_origin
+        # Save the decision point in the blackboard
+        self.inputs.decision_point = decision_point
+        self.inputs.decision_point_ahead = decision_point_ahead
 
         return Status.SUCCESS
         
     def terminate(self, new_status):
-        self._logger.debug("Terminating StopPointCalculationAction to " + str(new_status))
+        self._logger.debug("Terminating DecisionPointCalculationAction to " + str(new_status))
 
 
-class StopPointAheadCondition(TrafficLightBehavior):
+class DecisionPointAheadCondition(TrafficLightBehavior):
+    """
+    Condition Node. Checks if the decision point is ahead of the vehicle.
+
+    :var logger: ROS2 node logger
+    :var blackboard: Blackboard for behavior tree
+    :var global_inputs: Blackboard client for global inputs
+    :var inputs: Blackboard client for module inputs
+    :var outputs: Blackboard client for module outputs
+    :var global_params: CR2AutowareParams
+    :var params: BehaviorPlannerParams
+    """
     def __init__(self, name, logger: RcutilsLogger):
         super().__init__(name, logger)
 
-    
     def setup(self):
-        self._logger.debug("Setting up StopPointAheadCondition")
+        self._logger.debug("Setting up DecisionPointAheadCondition")
 
     def initialise(self):
-        self._logger.debug("Initialising StopPointAheadCondition")
+        self._logger.debug("Initialising DecisionPointAheadCondition")
 
     def update(self):
-        self._logger.debug("Updating StopPointAheadCondition")
+        self._logger.debug("Updating DecisionPointAheadCondition")
 
-        #TODO: When vehicle stops, it is behind the stop point, but should not continue driving
-        # Check if the stop point is ahead of the vehicle
-        # If the stop point is ahead of the vehicle, return SUCCESS
-        # If curren velocity is low, also return SUCCESS
-        current_velocity = self.global_inputs.current_state.velocity
-        comfort_point_velocity = 3.0
-        stop_point_ahead = self.inputs.stop_point_ahead
-        if stop_point_ahead:
-            return Status.SUCCESS
-        elif current_velocity <= comfort_point_velocity:
+        # Check if the decision point is ahead of the vehicle
+        decision_point_ahead = self.inputs.decision_point_ahead
+        if decision_point_ahead:
             return Status.SUCCESS
         else:
             return Status.FAILURE
         
     def terminate(self, new_status):
-        self._logger.debug("Terminating StopPointAheadCondition to " + str(new_status))
+        self._logger.debug("Terminating DecisionPointAheadCondition to " + str(new_status))
 
 
-class StopPointBehindCondition(TrafficLightBehavior):
+class DecisionPointBehindCondition(TrafficLightBehavior):
+    """
+    Condition Node. Checks if the decision point is behind the vehicle.
+
+    :var logger: ROS2 node logger
+    :var blackboard: Blackboard for behavior tree
+    :var global_inputs: Blackboard client for global inputs
+    :var inputs: Blackboard client for module inputs
+    :var outputs: Blackboard client for module outputs
+    :var global_params: CR2AutowareParams
+    :var params: BehaviorPlannerParams
+    """
     def __init__(self, name, logger: RcutilsLogger):
         super().__init__(name, logger)
 
-    
     def setup(self):
-        self._logger.debug("Setting up StopPointBehindCondition")
+        self._logger.debug("Setting up DecisionPointBehindCondition")
 
     def initialise(self):
-        self._logger.debug("Initialising StopPointBehindCondition")
+        self._logger.debug("Initialising DecisionPointBehindCondition")
 
     def update(self):
-        self._logger.debug("Updating StopPointBehindCondition")
+        self._logger.debug("Updating DecisionPointBehindCondition")
 
-        stop_point_ahead = self.inputs.stop_point_ahead
-        if not stop_point_ahead:
+        decision_point_ahead = self.inputs.decision_point_ahead
+        if not decision_point_ahead:
             return Status.SUCCESS
         else:
             return Status.FAILURE
         
     def terminate(self, new_status):
-        self._logger.debug("Terminating StopPointBehindCondition to " + str(new_status))
+        self._logger.debug("Terminating DecisionPointBehindCondition to " + str(new_status))
 
 
 class EmergencyBrakingAction(TrafficLightBehavior):
+    """
+    Action Node. Calculates the velocity profile for emergency braking.
+
+    :var logger: ROS2 node logger
+    :var blackboard: Blackboard for behavior tree
+    :var global_inputs: Blackboard client for global inputs
+    :var inputs: Blackboard client for module inputs
+    :var outputs: Blackboard client for module outputs
+    :var global_params: CR2AutowareParams
+    :var params: BehaviorPlannerParams
+    """
     def __init__(self, name, logger: RcutilsLogger):
         super().__init__(name, logger)
 
-    
     def setup(self):
         self._logger.debug("Setting up EmergencyBrakingAction")
 
@@ -607,33 +694,24 @@ class EmergencyBrakingAction(TrafficLightBehavior):
 
         # TODO: WIP, this is comfort braking, not emergency braking
 
-        current_position = self.global_inputs.current_position_curvilinear
-        current_velocity = self.global_inputs.current_state.velocity
         target_stop_position = self.inputs.target_stop_position
-
-        distance_to_stop_line = np.linalg.norm(target_stop_position - current_position)
-        # Now calculate the new velocity profile with the comfort braking
-        # for current position the current velocity is set, for the stop point the velocity is set to zero
-        # in between we use a linear deceleration
-        # Get the index of the current position in the input path
         input_path_curvilinear = self.global_inputs.input_path_curvilinear
-        current_position_index = np.argmin(np.abs(input_path_curvilinear - current_position[0]))
-        # Get the index of the stop point in the input path
+
+        # Get the index of the decision point in the input path
         stop_point_index = np.argmin(np.abs(input_path_curvilinear - target_stop_position))
         # Define the new velocity profile
-        # TODO: WHICH VELOCITY PROFILE SHOULD BE USED?
         velocity_profile = copy_from_blackboard(self.global_inputs.empty_velocity_profile)
-        # Set the velocity profile for the current position
-        # TODO:
-        # velocity_profile[current_position_index] = current_velocity
-        # # Linear deceleration between current position and stop point
-        # for i in range(current_position_index + 1, stop_point_index):
-        #     distance_to_stop_point = np.linalg.norm(input_path_curvilinear[i] - target_stop_position)
-        #     velocity_profile[i] = current_velocity - (current_velocity / distance_to_stop_line) * distance_to_stop_point
-        # Set the velocity profile for the stop point and all points behind to zero
 
-        # Set the velocity profile for all points zero
-        velocity_profile[:] = 0.0
+        # Set the velocity profile for the decision point and all points behind to zero
+        velocity_profile[stop_point_index:] = 0.0
+
+        # Calculate a rollout velocity profile for comfort braking
+        if self.params.comfort_rollout:
+            comfort_rollout_distance_int = int(np.ceil(self.params.comfort_rollout_distance))
+            comfort_rollout_index = stop_point_index - comfort_rollout_distance_int
+            if comfort_rollout_index < 0:
+                comfort_rollout_index = 0
+            velocity_profile[comfort_rollout_index:stop_point_index] = self.params.comfort_rollout_speed
 
         self.outputs.velocity_profile = velocity_profile
 
@@ -644,10 +722,20 @@ class EmergencyBrakingAction(TrafficLightBehavior):
 
 
 class ContinueDrivingAction(TrafficLightBehavior):
+    """
+    Action Node. Sets the velocity profile for continuing driving.
+
+    :var logger: ROS2 node logger
+    :var blackboard: Blackboard for behavior tree
+    :var global_inputs: Blackboard client for global inputs
+    :var inputs: Blackboard client for module inputs
+    :var outputs: Blackboard client for module outputs
+    :var global_params: CR2AutowareParams
+    :var params: BehaviorPlannerParams
+    """
     def __init__(self, name, logger: RcutilsLogger):
         super().__init__(name, logger)
-
-    
+   
     def setup(self):
         self._logger.debug("Setting up ContinueDrivingAction")
 
@@ -664,10 +752,20 @@ class ContinueDrivingAction(TrafficLightBehavior):
 
 
 class ComfortBrakingAction(TrafficLightBehavior):
+    """
+    Action Node. Calculates the velocity profile for comfort braking.
+
+    :var logger: ROS2 node logger
+    :var blackboard: Blackboard for behavior tree
+    :var global_inputs: Blackboard client for global inputs
+    :var inputs: Blackboard client for module inputs
+    :var outputs: Blackboard client for module outputs
+    :var global_params: CR2AutowareParams
+    :var params: BehaviorPlannerParams
+    """
     def __init__(self, name, logger: RcutilsLogger):
         super().__init__(name, logger)
 
-    
     def setup(self):
         self._logger.debug("Setting up ComfortBrakingAction")
 
@@ -677,37 +775,24 @@ class ComfortBrakingAction(TrafficLightBehavior):
     def update(self):
         self._logger.debug("Updating ComfortBrakingAction")
 
-        #current_position = self.global_inputs.current_position_curvilinear
-        #current_velocity = self.global_inputs.current_state.velocity
         target_stop_position = self.inputs.target_stop_position
-
-        #distance_to_stop_line = np.linalg.norm(target_stop_position - current_position)
-        # Now calculate the new velocity profile with the comfort braking
-        # for current position the current velocity is set, for the stop point the velocity is set to zero
-        # in between we use a linear deceleration
-        # Get the index of the current position in the input path
         input_path_curvilinear = self.global_inputs.input_path_curvilinear
-        #current_position_index = np.argmin(np.abs(input_path_curvilinear - current_position[0]))
-        # Get the index of the stop point in the input path
+
+        # Get the index of the decision point in the input path
         stop_point_index = np.argmin(np.abs(input_path_curvilinear - target_stop_position))
         # Define the new velocity profile
-        # TODO: WHICH VELOCITY PROFILE SHOULD BE USED?
         velocity_profile = copy_from_blackboard(self.global_inputs.empty_velocity_profile)
 
-        # Set the velocity profile for the current position
-        # TODO:
-        # velocity_profile[current_position_index] = current_velocity
-        # # Linear deceleration between current position and stop point
-        # for i in range(current_position_index + 1, stop_point_index):
-        #     distance_to_stop_point = np.linalg.norm(input_path_curvilinear[i] - target_stop_position)
-        #     velocity_profile[i] = current_velocity - (current_velocity / distance_to_stop_line) * distance_to_stop_point
-        # Set the velocity profile for the stop point and all points behind to zero
-        comfort_point_index = stop_point_index - 20
-        comfort_point_velocity = 3.0
-
-        velocity_profile[comfort_point_index:stop_point_index] = comfort_point_velocity
-
+        # Set the velocity profile for the decision point and all points behind to zero
         velocity_profile[stop_point_index:] = 0.0
+
+        # Calculate a rollout velocity profile for comfort braking
+        if self.params.comfort_rollout:
+            comfort_rollout_distance_int = int(np.ceil(self.params.comfort_rollout_distance))
+            comfort_rollout_index = stop_point_index - comfort_rollout_distance_int
+            if comfort_rollout_index < 0:
+                comfort_rollout_index = 0
+            velocity_profile[comfort_rollout_index:stop_point_index] = self.params.comfort_rollout_speed
 
         self.outputs.velocity_profile = velocity_profile
 
@@ -718,6 +803,17 @@ class ComfortBrakingAction(TrafficLightBehavior):
     
 
 class PublishRVIZMarker(TrafficLightBehavior):
+    """
+    Visualization Node for RVIZ. Publishes the stop line and decision point as markers in RVIZ.
+
+    :var logger: ROS2 node logger
+    :var blackboard: Blackboard for behavior tree
+    :var global_inputs: Blackboard client for global inputs
+    :var inputs: Blackboard client for module inputs
+    :var outputs: Blackboard client for module outputs
+    :var global_params: CR2AutowareParams
+    :var params: BehaviorPlannerParams
+    """
     def __init__(self, name, logger: RcutilsLogger):
         super().__init__(name, logger)
     
@@ -737,21 +833,21 @@ class PublishRVIZMarker(TrafficLightBehavior):
 
         try: 
             stop_line_curv = self.inputs.target_stop_position
-            stop_point_curv = self.inputs.stop_point
+            decision_point_curv = self.inputs.decision_point
 
             stop_line = coordinate_system.convert_to_cartesian_coords(stop_line_curv, 0.0)
             self._logger.debug("Stop Line: " + str(stop_line))
-            stop_point = coordinate_system.convert_to_cartesian_coords(stop_point_curv, 0.0)
-            self._logger.debug("Stop Point: " + str(stop_point))
+            decision_point = coordinate_system.convert_to_cartesian_coords(decision_point_curv, 0.0)
+            self._logger.debug("Decision Point: " + str(decision_point))
 
         except:
             stop_line = None
-            stop_point = None
+            decision_point = None
 
         z = self.global_inputs.get("z_coordinate")
         
-        positions = [stop_line, stop_point]
-        text = ["StopLine", "StopPoint"]
+        positions = [stop_line, decision_point]
+        text = ["StopLine", "DecisionPoint"]
         positions_aw = []
         # convert positions to AW coordinate system
         for pos in positions:
@@ -819,10 +915,25 @@ class PublishRVIZMarker(TrafficLightBehavior):
 
 
 class ErrorHandlingAction(TrafficLightBehavior):
+    """
+    Action Node. Handles errors that occur during the traffic light behavior.
+
+    :var logger: ROS2 node logger
+    :var blackboard: Blackboard for behavior tree
+    :var global_inputs: Blackboard client for global inputs
+    :var inputs: Blackboard client for module inputs
+    :var outputs: Blackboard client for module outputs
+    :var global_params: CR2AutowareParams
+    :var params: BehaviorPlannerParams
+    """
     def __init__(self, name, logger: RcutilsLogger):
         super().__init__(name, logger)
 
-    # TODO: Implement Error Handling
+    def setup(self):
+        self._logger.debug("Setting up ErrorHandlingAction")
+
+    def initialise(self):
+        self._logger.debug("Initialising ErrorHandlingAction")
 
     def update(self):
         # When Traffic Light is inactive, or other errors occur, the vehicle should continue driving (e.g. car stops behind the stop line)
@@ -830,7 +941,6 @@ class ErrorHandlingAction(TrafficLightBehavior):
         # When in Error State, velocity profile is not changed
         self.outputs.velocity_profile = copy_from_blackboard(self.global_inputs.empty_velocity_profile)
 
-    
         # Delete all markers
         marker_array = MarkerArray()
         del_marker = Marker()

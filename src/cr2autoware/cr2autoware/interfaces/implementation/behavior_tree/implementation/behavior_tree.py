@@ -17,8 +17,36 @@ from ..behavior_utils import copy_from_blackboard
 
 class BehaviorTree(BaseTree):
 
-    def __init__(self, logger: RcutilsLogger, verbose: bool, config=None):
-        super(BehaviorTree, self).__init__(logger, verbose, config)
+    def __init__(self, logger: RcutilsLogger, verbose: bool):
+        """
+        Main behavior tree for the behavior planning.
+
+        The behavior tree consits of various behavior modules that influence the velocity profile and lateral offset (d) for trajectory planning. 
+        It is built and managed using the py_trees package.
+
+        ----------------
+        **Behavior Modules:**
+
+        * Traffic lights module:
+            * Class: TrafficLightsTree
+            * Description: The module calculates the velocity profile for the input path considering the traffic lights.
+        * Lateral clearance velocity adjuster module:
+            * Class: LateralClearanceVelocityAdjusterTree
+            * Description: The module adjusts the velocity profile considering the lateral clearance function.
+
+        ----------------
+        :var logger: ROS2 node logger
+        :var verbose: Flag for verbose logging
+        :var blackboard: Blackboard for the behavior tree
+        :var inputs: Blackboard client for inputs
+        :var outputs: Blackboard client for outputs
+        :var traffic_light_module: Traffic lights module
+        :var lateral_clearance_velocity_adjuster: Lateral clearance velocity adjuster module
+        :var root: Root node of the behavior tree
+        :var _printed_tree: Flag for printing the tree in the log
+        :var new_planning_cycle: Flag for a new planning cycle
+        """
+        super(BehaviorTree, self).__init__(logger, verbose)
         # Initialize the blackboard
         # Create blackboard clients
         self.blackboard = py_trees.blackboard.Client(name="GlobalBehaviorTreeBlackboard")
@@ -57,6 +85,7 @@ class BehaviorTree(BaseTree):
         self.blackboard.register_key("/modules/lateral_clearance/outputs/velocity_profile", access=py_trees.common.Access.READ)
         self.blackboard.register_key("params", access=py_trees.common.Access.READ)
         
+        # Get the parameters
         self.params: BehaviorPlannerParams = self.blackboard.params
 
         # After initialization, create the behavior tree
@@ -69,24 +98,24 @@ class BehaviorTree(BaseTree):
         # new planning cycle
         self.new_planning_cycle = True
 
-
     @property
     def velocity_profile(self):
+        """
+        Velocity profile of the input path. 
+        
+        The velocity profile is calculated by the behavior tree and can be passed to the AW velocity smoother.
+        :return: Velocity profile of the input path
+        """
         return copy_from_blackboard(self.outputs.velocity_profile)
 
-    def default_config(self):
-        return {
-            "root": {
-                "type": "Sequence",
-                "name": "MainBehaviorTree",
-                "children": [
-                    {"type": "TrafficLightTree"}
-                    # Add more sub-trees or behaviors here
-                ]
-            }
-        }
-
     def create_behavior_tree(self):
+        """
+        Create the behavior tree for the behavior planner.
+
+        Add the sub-trees or behaviors here.
+
+        :return: Behavior tree root
+        """
         root = Parallel("MainBehaviorTree", policy=py_trees.common.ParallelPolicy.SuccessOnAll(synchronise=True))
 
         # Initialize Sub Modules
@@ -99,16 +128,23 @@ class BehaviorTree(BaseTree):
         
         return root
 
-    # def init_parameters(self, params: BehaviorPlannerParams):
-
-    #     # Init Traffic Light Parameters
-    #     self.traffic_light_params = py_trees.blackboard.Client(name="TrafficLightParams", namespace="/modules/traffic_lights/params")
-    #     self.traffic_light_params.register_key("traffic_light_perception_range", access=py_trees.common.Access.WRITE)
-    #     self.traffic_light_params.traffic_light_perception_range = params.traffic_light_perception_range
-
     def preprocessing(self, scenario: Scenario, current_state: EgoVehicleState, input_path: np.ndarray, coordinate_system: CoordinateSystem, input_path_curvilinear: np.ndarray, origin_transformation: List, z_coordinate: float, ros_time_msg: Time, input_path_orientation: np.ndarray) -> None:
-        # TODO: Match last input path with current input_path and match the velocity profile, 
-        # TODO: so that both paths and profiles are aligned and can be compared in the behavior tree
+        """
+        Preprocess the input data for the behavior planner.
+
+        All necessary data is stored in the blackboard and can be accessed by the behavior tree. Also, data from the last planning cycle is processed and stored in the blackboard.
+
+        :param scenario: CommonRoad scenario
+        :param current_state: Current state of the ego vehicle
+        :param input_path: Input path for the behavior planner
+        :param coordinate_system: Coordinate system
+        :param input_path_curvilinear: Input path in curvilinear coordinates
+        :param origin_transformation: Origin transformation
+        :param z_coordinate: Z coordinate
+        :param ros_time_msg: ROS time message
+        :param input_path_orientation: Input path orientation
+        """
+        # Store the input data in the blackboard
         self.inputs.scenario = scenario = scenario
         self.inputs.current_state = current_state
         self.inputs.input_path = input_path
@@ -122,6 +158,8 @@ class BehaviorTree(BaseTree):
         self.inputs.current_position_index = self._calculate_current_position_index(current_position_curvilinear, input_path_curvilinear)
         self.inputs.input_path_orientation = input_path_orientation
         self.inputs.empty_velocity_profile = np.full(len(input_path), float("inf"))
+
+        # Preprocess the data from the last planning cycle:
 
         # save the last velocity profile
         if self.outputs.exists("velocity_profile"):
@@ -144,17 +182,15 @@ class BehaviorTree(BaseTree):
             self.logger.debug("No velocity profile available from the last planning cycle")
             self.inputs.last_velocity_profile = None
 
-        # Get the velocity profile without traffic lights
-        # TODO: For Concept create array of lenght of the path and fill it with the velocity limit
-        velocity_profile_without_traffic_lights = self._create_velocity_profile(no_traffic_lights=True)
-
         # Create velocity profile for traffic lights
         # Velocity profile includes all modules that influence the velocity profile but the traffic lights module
-        self.blackboard.modules.traffic_lights.inputs.velocity_profile_without_traffic_lights = velocity_profile_without_traffic_lights
+        self.blackboard.modules.traffic_lights.inputs.velocity_profile_without_traffic_lights = self._create_velocity_profile(new_planning_cycle=self.new_planning_cycle, no_traffic_lights=True)
 
     def _calculate_current_position_index(self, current_position_curvilinear: np.ndarray, input_path_curvilinear: np.ndarray) -> int:
         """
         Calculate the index of the current position in the input path.
+
+        For calculation, the curvilinear coordinates are used.
 
         :param current_position_curvilinear: Current position in curvilinear coordinates
         :param input_path_curvilinear: Input path in curvilinear coordinates
@@ -165,28 +201,35 @@ class BehaviorTree(BaseTree):
 
     def plan(self) -> None:
         """
+        Behavior planner planning cycle.
         """
         # Tick the behavior tree
         self.tick_once()
 
-    def prepare_output(self) -> np.ndarray:
-        
-        self._update_velocity_profile()
+    def prepare_output(self) -> None:
+        """
+        Prepare the output of the behavior planner.
 
+        Update global output variables of the behavior planner and store them in the blackboard.
+        """
+        # Update the velocity profile
+        self.outputs.velocity_profile = self._create_velocity_profile()
+
+        # Update the lateral offset d
         self._update_lateral_offset_d()
 
-        # self.output_tree_in_log()
+        # For debugging purposes:
+        self.output_tree_in_log()
 
-    def _update_velocity_profile(self) -> None:
-        
-        velocity_profile_update = self._create_velocity_profile()
-        
-        self.outputs.velocity_profile = velocity_profile_update
+    def _create_velocity_profile(self, new_planning_cycle: bool = False, no_traffic_lights: bool = False) -> np.ndarray:
+        """
+        Combine the velocity profiles from the different modules to one global velocity profile for the behavior planner.
 
-    def _create_velocity_profile(self, no_traffic_lights: bool = False) -> np.ndarray:
+        :param no_traffic_lights: If True, the velocity profile from the traffic lights module is not considered
+        """
         check_profiles: List[np.ndarray] = []
-        # only consider the velocity profile from modules if the planning cycle is not new
-        if not self.new_planning_cycle:
+        # skip velocity profile from modules we preprocess in a new planning cycle
+        if not new_planning_cycle:
             if self.blackboard.exists("/modules/traffic_lights/outputs/velocity_profile") and not no_traffic_lights:
                 #self.logger.debug(f"Traffic lights velocity profile: {(self.blackboard.modules.traffic_lights.outputs.velocity_profile)}")
                 #self.logger.debug(f"Length of velocity profile from traffic lights: {len(self.blackboard.modules.traffic_lights.outputs.velocity_profile)}")
@@ -200,10 +243,19 @@ class BehaviorTree(BaseTree):
         #self.logger.debug("Velocity profile: " + str(velocity_profile))
         #self.logger.debug(f"Length of velocity profile: {len(velocity_profile)}")
         for profile in check_profiles:
-            velocity_profile = np.minimum(velocity_profile, profile)
+            try:
+                velocity_profile = np.minimum(velocity_profile, profile)
+            except ValueError as e:
+                self.logger.error(f"Error in combining velocity profiles: {e}")
+                self.logger.error(f"Length of velocity profile: {len(velocity_profile)}")
+                self.logger.error(f"Length of profile: {len(profile)}")
+                self.logger.error(f"Velocity profile: {velocity_profile}")
+                self.logger.error(f"Profile: {profile}")
+                self.logger.error(f"Check profiles: {check_profiles}")
+                raise e
         self.logger.debug("Updated velocity profile: " + str(velocity_profile))
-        return velocity_profile
 
+        return velocity_profile
 
     def _update_lateral_offset_d(self):
         """
@@ -226,16 +278,19 @@ class BehaviorTree(BaseTree):
         self.logger.debug(f"Updated d_max: {self.outputs.d_max}")
     
     def output_tree_in_log(self):
+        """
+        For Debugging purposes: Output the behavior tree in the log.
+        """
         #self.logger.debug(py_trees.display.unicode_tree(self.root, show_status=True))
-        self.logger.debug(py_trees.display.unicode_blackboard())
+        # self.logger.debug(py_trees.display.unicode_blackboard())
         # self.logger.debug(py_trees.display.unicode_blackboard(display_only_key_metadata=True))
         # self.logger.debug(py_trees.display.unicode_blackboard_activity_stream())
         # Only for debugging purposes
-        # if not self._printed_tree:
-        #     parent_directory = '/autoware/src/universe/autoware.universe/planning/tum_commonroad_planning/dfg-car/src/cr2autoware/cr2autoware/interfaces/implementation/behavior_tree'
-        #     py_trees.display.render_dot_tree(self.root,
-        #                                     visibility_level=py_trees.common.VisibilityLevel.DETAIL,
-        #                                     name='behavior_tree', 
-        #                                     target_directory=parent_directory,
-        #                                     )
-        #     self._printed_tree = True
+        if not self._printed_tree:
+            parent_directory = '/autoware/src/universe/autoware.universe/planning/tum_commonroad_planning/dfg-car/src/cr2autoware/cr2autoware/interfaces/implementation/behavior_tree'
+            py_trees.display.render_dot_tree(self.root,
+                                            visibility_level=py_trees.common.VisibilityLevel.DETAIL,
+                                            name='behavior_tree', 
+                                            target_directory=parent_directory,
+                                            )
+            self._printed_tree = True

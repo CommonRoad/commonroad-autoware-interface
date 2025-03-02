@@ -339,20 +339,32 @@ class BehaviorPlannerParams(BaseParams):
     velocity_limit: float = 20.0  # m/s
 
     # Parameter for traffic light behavior module
+    # tolerance for stop line overrun from vehicle origin (in meters)
+    stop_line_overrun_tolerance: float = 3.0
     # range for traffic light perception (in meters)
     traffic_light_perception_range: float = 100.0
-    # distance to stop before stop line (in meters)
-    distance_to_stop_line: float = 5.0
+    # distance between stop line and vehicle front bumper (in meters)
+    distance_stop_line_to_vehicle_front_bumper: float = 1.0
     # maximum deceleration for comfort stop (in m/s^2)
     max_comfort_deceleration: float = 2.0
+    # system delay for braking distance calculation (in seconds)
+    system_delay: float = 0.0
+    # minimal buffer for lateral offset trajectory planner (in meters)
+    d_minimal_buffer: float = 0.5
+    # Activate comfort rollout stopping procedure
+    comfort_rollout: bool = True
+    # Rollout distance for comfort stopping procedure (in meters)
+    comfort_rollout_distance: float = 10.0
+    # Maximum rollout speed for comfort stopping procedure (in m/s)
+    comfort_rollout_speed: float = 3.0
 
     # Parameters for lateral clearance velocity adjuster
     # threshold velocity to classify obstacles as static or dynamic (in m/s)
     dynamic_velocity_threshold: float = 1.0
     # look ahead time for lateral clearance function (in seconds)
-    look_ahead_time: float = 4.0
+    look_ahead_time: float = 10.0
     # minimum look ahead distance for lateral clearance function (in meters)
-    min_look_ahead_distance: float = 20.0
+    min_look_ahead_distance: float = 50.0
     # time threshold to consider occupancies on different time steps (in seconds)
     time_threshold: float = 3.0
     # minimum reference velocity for lateral clearance function (in m/s)

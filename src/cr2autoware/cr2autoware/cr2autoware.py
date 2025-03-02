@@ -161,11 +161,11 @@ class Cr2Auto(Node):
         * Message Type: `tier4_planning_msgs.msg.VelocityLimit`
     * lateral_clearance_obstacles_pub:
         * Description: Lateral clearance function obstacles.
-        * Topic: `/planning/commonroad/lateral_clearance_obstacles`
+        * Topic: `/planning/commonroad/behavior_planning/lateral_clearance_obstacles`
         * Message Type: `visualization_msgs.msg.MarkerArray`
     * lateral_clearance_pub:
         * Description: Lateral clearance visualization.
-        * Topic: `/planning/commonroad/lateral_clearance`
+        * Topic: `/planning/commonroad/behavior_planning/lateral_clearance`
         * Message Type: `visualization_msgs.msg.MarkerArray`
     * traffic_light_marker_pub:
         * Description: Traffic light visualization.

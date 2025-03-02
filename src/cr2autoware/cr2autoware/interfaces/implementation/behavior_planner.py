@@ -144,19 +144,6 @@ class BehaviorPlanner:
         :return: reference trajectory
         """
         return self._reference_trajectory
-    
-    # @reference_trajectory.setter
-    # def reference_trajectory(self, trajectory: np.ndarray) -> None:
-    #     """
-    #     Setter for reference trajectory.
-
-    #     :param trajectory: reference trajectory
-    #     """
-    #     assert isinstance(trajectory, np.ndarray), "Reference trajectory should be a numpy array"
-    #     assert trajectory.shape[0] > 0, "Reference trajectory should have at least one point"
-    #     assert trajectory.shape[1] == 3, "Reference trajectory should have 3 columns (x, y, v)"
-
-    #     self._reference_trajectory = trajectory
 
     @property
     def reference_positions(self) -> Optional[np.ndarray]:

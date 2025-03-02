@@ -48,14 +48,6 @@
       replan_vel_deviation: 5.0             # velocity deviation to re-plan initial velocity in m/s
       replan_dist_deviation: 3.0            # distance deviation to re-plan from measured pose in m
 
-      # Parameter for lateral clearance calculation
-      dynamic_velocity_threshold: 1.0 # m/s
-      look_ahead_time: 4.0 # s
-      min_look_ahead_distance: 20.0 # m
-      time_threshold: 3.0 # s
-      min_reference_velocity: 1.0 # m/s
-      publish_lateral_clearance_topics: True
-
     rp_interface:
       rp_config_yaml: "../../../../src/universe/autoware.universe/planning/tum_commonroad_planning/dfg-car/src/cr2autoware/param/edgar_rp_config.yaml"
       d_min: -1.5
@@ -64,6 +56,24 @@
       t_min: 5.0
 
     behavior_planner:
+      # general parameters
+      velocity_limit: 20.0  # m/s
+
+      # traffic light module
+      stop_line_overrun_tolerance: 3.0  # m
       traffic_light_perception_range: 100.0  # m
-      distance_to_stop_line: 5.0  # m
+      distance_stop_line_to_vehicle_front_bumper: 1.0  # m
       max_comfort_deceleration: 2.0  # m/s^2
+      system_delay: 0.0  # s
+      d_minimal_buffer: 0.5  # m
+      comfort_rollout: True
+      comfort_rollout_distance: 10.0  # m
+      comfort_rollout_speed: 3.0  # m/s
+
+      # lateral clearance velocity adjuster
+      dynamic_velocity_threshold: 1.0  # m/s
+      look_ahead_time: 10.0  # s
+      min_look_ahead_distance: 50.0  # m
+      time_threshold: 3.0  # s
+      min_reference_velocity: 1.0  # m/s
+      publish_lateral_clearance_topics: True

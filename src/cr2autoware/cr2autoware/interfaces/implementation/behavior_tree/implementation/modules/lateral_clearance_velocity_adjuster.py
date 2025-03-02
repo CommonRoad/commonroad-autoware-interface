@@ -2,8 +2,6 @@ import py_trees
 from ...base.base_tree import BaseTree
 from py_trees.common import Status
 from py_trees.behaviour import Behaviour
-from py_trees.composites import Sequence, Selector
-from typing import List, Set, Dict
 from ...behavior_utils import copy_from_blackboard
 import numpy as np
 import time
@@ -16,9 +14,8 @@ from commonroad.scenario.scenario import Scenario
 # cr2autoware
 from cr2autoware.common.utils.transform import utm2map
 from cr2autoware.handlers.ego_vehicle_handler import EgoVehicleState
-
-from abc import abstractmethod
 from cr2autoware.common.configuration import CR2AutowareParams, BehaviorPlannerParams
+
 # ROS imports
 from rclpy.impl.rcutils_logger import RcutilsLogger
 from rclpy.time import Time
@@ -28,8 +25,15 @@ from geometry_msgs.msg import Point as PointMsg
 from visualization_msgs.msg import Marker, MarkerArray
 
 class LateralClearanceVelocityAdjusterTree(BaseTree):
-    def __init__(self, logger: RcutilsLogger, verbose: bool, config=None):
-        super(LateralClearanceVelocityAdjusterTree, self).__init__(logger, verbose, config)
+    """
+    Submodule for lateral clearance velocity adjusting.
+
+    :var logger: ROS2 node logger
+    :var verbose: Flag for verbose logging
+    :var root: Root node of the behavior tree    
+    """
+    def __init__(self, logger: RcutilsLogger, verbose: bool):
+        super(LateralClearanceVelocityAdjusterTree, self).__init__(logger, verbose)
         self.root = self.create_behavior_tree()
     
     def create_behavior_tree(self):
@@ -38,6 +42,18 @@ class LateralClearanceVelocityAdjusterTree(BaseTree):
 
 
 class LateralClearanceVelocityAdjuster(Behaviour):
+    """
+    Behavior Node for lateral clearance velocity adjusting.
+
+    :var name: Name of the behavior node
+    :var logger: ROS2 node logger
+    :var blackboard: Blackboard for the behavior tree
+    :var global_inputs: Blackboard client for global inputs
+    :var inputs: Blackboard client for module inputs
+    :var outputs: Blackboard client for module outputs
+    :var global_params: CR2AutowareParams
+    :var params: BehaviorPlannerParams
+    """
     def __init__(self, name: str, logger: RcutilsLogger):
         super().__init__(name)
         self._logger = logger
@@ -45,6 +61,11 @@ class LateralClearanceVelocityAdjuster(Behaviour):
         self.init_blackboard(name)
 
     def init_blackboard(self, name):
+        """
+        Initialize the blackboard parameters.
+
+        :param name: Name of the behavior node
+        """
         # Global Blackboard
         self.blackboard = py_trees.blackboard.Client(name=(name + "Blackboard"))
         self.blackboard.register_key("global_params", access=py_trees.common.Access.READ)
@@ -80,10 +101,10 @@ class LateralClearanceVelocityAdjuster(Behaviour):
         self.global_params: CR2AutowareParams = self.blackboard.global_params
         self.params: BehaviorPlannerParams = self.blackboard.params
 
-    def setup(self):
+    def setup(self) -> None:
         pass
 
-    def initialise(self):
+    def initialise(self) -> None:
         pass
 
     def update(self) -> Status:
@@ -548,7 +569,7 @@ class LateralClearanceVelocityAdjuster(Behaviour):
 
         self.outputs.lateral_clearance_marker_array = marker_array
 
-    def terminate(self, new_status):
+    def terminate(self, new_status) -> None:
         pass
 
 
