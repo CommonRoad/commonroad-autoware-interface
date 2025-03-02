@@ -969,7 +969,7 @@ class PublishRVIZMarker(TrafficLightBehavior):
         marker.ns = "traffic_light"
         marker.points = []
         for pos in positions_aw_lines:
-            marker.points.append(PointMsg(x=pos.x, y=pos.y, z=(z+2.5)))
+            marker.points.append(PointMsg(x=pos.x, y=pos.y, z=z))
 
         marker_array.markers.append(marker)
 
@@ -989,7 +989,7 @@ class PublishRVIZMarker(TrafficLightBehavior):
             text_marker.ns = text[positions_aw.index(pos)] + " " + str(traffic_light_id)
             text_marker.pose.position.x = pos.x
             text_marker.pose.position.y = pos.y + 0.3
-            text_marker.pose.position.z = z + 2.5
+            text_marker.pose.position.z = z
             marker_array.markers.append(text_marker)
         
         self.outputs.traffic_light_marker_array = marker_array
@@ -1032,11 +1032,82 @@ class ErrorHandlingAction(TrafficLightBehavior):
         # When in Error State, velocity profile is not changed
         self.outputs.velocity_profile = copy_from_blackboard(self.global_inputs.empty_velocity_profile)
 
-        # Delete all markers
+        # Publish blue marker for error handling
+        traffic_light_id = self.inputs.current_traffic_light_id
+        coordinate_system: CoordinateSystem = self.global_inputs.get("coordinate_system")
+        
+        try:
+            stop_line_curv = copy_from_blackboard(self.inputs.stop_line_position_curvilinear)
+            stop_line_cartesian = coordinate_system.convert_to_cartesian_coords(stop_line_curv[0], 0.0)
+            self._logger.debug("Stop Line: " + str(stop_line_cartesian))
+
+            stop_line_cart_min = coordinate_system.convert_to_cartesian_coords(stop_line_curv[0], -1.5)
+            stop_line_cart_max = coordinate_system.convert_to_cartesian_coords(stop_line_curv[0], 1.5)
+        except:
+            stop_line_cartesian = None
+            stop_line_cart_min = None
+            stop_line_cart_max = None
+
+        z = self.global_inputs.get("z_coordinate")
+        
+        positions_lines = [stop_line_cart_min, stop_line_cart_max]
+        positions_text = [stop_line_cartesian]
+        text = ["StopLine ErrorHandling"]
+        positions_aw_lines = []
+        positions_aw = []
+
+        # convert positions to AW coordinate system
+        for pos in positions_lines:
+            if pos is None:
+                continue
+            positions_aw_lines.append(utm2map(self.global_inputs.get("origin_transformation"), pos))
+
+        for pos in positions_text:
+            if pos is None:
+                continue
+            positions_aw.append(utm2map(self.global_inputs.get("origin_transformation"), pos))
+
         marker_array = MarkerArray()
         del_marker = Marker()
         del_marker.action = Marker.DELETEALL
         marker_array.markers.append(del_marker)
+        marker = Marker()
+        marker.header.frame_id = "map"
+        marker.header.stamp = self.global_inputs.get("current_time_msg")
+        marker.type = Marker.LINE_LIST
+        marker.action = Marker.ADD
+        marker.scale.x = 0.5
+        marker.color.a = 1.0
+        marker.color.r = 0.0
+        marker.color.g = 0.0
+        marker.color.b = 1.0
+        marker.id = traffic_light_id
+        marker.ns = "traffic_light"
+        marker.points = []
+        for pos in positions_aw_lines:
+            marker.points.append(PointMsg(x=pos.x, y=pos.y, z=z))
+
+        marker_array.markers.append(marker)
+
+        for pos in positions_aw:
+            text_marker = Marker()
+            text_marker.header.frame_id = "map"
+            text_marker.header.stamp = self.global_inputs.get("current_time_msg")
+            text_marker.type = Marker.TEXT_VIEW_FACING
+            text_marker.action = Marker.ADD
+            text_marker.scale.z = 0.5
+            text_marker.color.a = 1.0
+            text_marker.color.r = 1.0
+            text_marker.color.g = 1.0
+            text_marker.color.b = 1.0
+            text_marker.text = text[positions_aw.index(pos)] + " " + str(traffic_light_id)
+            text_marker.id = -traffic_light_id
+            text_marker.ns = text[positions_aw.index(pos)] + " " + str(traffic_light_id)
+            text_marker.pose.position.x = pos.x
+            text_marker.pose.position.y = pos.y + 0.3
+            text_marker.pose.position.z = z
+            marker_array.markers.append(text_marker)
+
         self.outputs.traffic_light_marker_array = marker_array
         return Status.SUCCESS
 
