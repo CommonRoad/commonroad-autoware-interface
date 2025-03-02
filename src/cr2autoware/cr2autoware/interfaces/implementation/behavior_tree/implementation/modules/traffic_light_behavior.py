@@ -47,7 +47,9 @@ class TrafficLightsTree(BaseTree):
         error_handling = ErrorHandlingAction(name="ErrorHandlingAction", logger=self.logger)
 
         # Traffic light handling
-        traffic_light_handling = Selector(name="TrafficLightHandling", memory=False)
+        traffic_light_handling = Sequence(name="TrafficLightHandling", memory=False)
+
+        handle_traffic_light_cycle = Selector(name="HandleTrafficLightCycle", memory=False)
 
         yellow_light = Sequence(name="YellowLight", memory=False)
         red_light = Sequence(name="RedLight", memory=False)
@@ -57,24 +59,18 @@ class TrafficLightsTree(BaseTree):
         red_condition = RedLightCondition(name="Red", logger=self.logger)
         green_condition = GreenLightCondition(name="Green", logger=self.logger)
 
+        stop_position_calculation = StopPositionCalculationAction(name="StopPositionCalculationAction", logger=self.logger)
         decision_point_calculation_yellow = DecisionPointCalculationAction(name="DecisionPointCalculationActionYellow", logger=self.logger)
-        decision_point_calculation_red = DecisionPointCalculationAction(name="DecisionPointCalculationActionRed", logger=self.logger)
         yellow_light_handling = Selector(name="YellowLightHandling", memory=False)
-        red_light_handling = Selector(name="RedLightHandling", memory=False)
 
         comfort_stop_yellow = Sequence(name="ComfortStopYellow", memory=False)
-        comfort_stop_red = Sequence(name="ComfortStopRed", memory=False)
-        emergency_stop = Sequence(name="EmergencyStop", memory=False)
         no_stop = Sequence(name="NoStop", memory=False)
 
         decision_point_ahead_yellow = DecisionPointAheadCondition(name="DecisionPointAheadYellow", logger=self.logger)
-        decision_point_ahead_red = DecisionPointAheadCondition(name="DecisionPointAheadRed", logger=self.logger)
         comfort_braking_yellow = ComfortBrakingAction(name="ComfortBrakingYellow", logger=self.logger)
         comfort_braking_red = ComfortBrakingAction(name="ComfortBrakingRed", logger=self.logger)
 
         decision_point_behind_yellow = DecisionPointBehindCondition(name="DecisionPointBehindYellow", logger=self.logger)
-        decision_point_behind_red = DecisionPointBehindCondition(name="DecisionPointBehindRed", logger=self.logger)
-        emergency_braking = EmergencyBrakingAction(name="EmergencyBraking", logger=self.logger)
         continue_driving_yellow = ContinueDrivingAction(name="ContinueDrivingYellow", logger=self.logger)
         continue_driving_green = ContinueDrivingAction(name="ContinueDrivingGreen", logger=self.logger)
 
@@ -84,18 +80,17 @@ class TrafficLightsTree(BaseTree):
 
         # Add children to the tree
         comfort_stop_yellow.add_children([decision_point_ahead_yellow, comfort_braking_yellow])
-        comfort_stop_red.add_children([decision_point_ahead_red, comfort_braking_red])
         no_stop.add_children([decision_point_behind_yellow, continue_driving_yellow])
-        emergency_stop.add_children([decision_point_behind_red, emergency_braking])
 
         yellow_light_handling.add_children([comfort_stop_yellow, no_stop])
-        red_light_handling.add_children([comfort_stop_red, emergency_stop])
 
         yellow_light.add_children([yellow_condition, decision_point_calculation_yellow, yellow_light_handling, publish_rviz_marker_yellow])
-        red_light.add_children([red_condition, decision_point_calculation_red, red_light_handling, publish_rviz_marker_red])
+        red_light.add_children([red_condition, comfort_braking_red, publish_rviz_marker_red])
         green_light.add_children([green_condition, continue_driving_green, publish_rviz_marker_green])
 
-        traffic_light_handling.add_children([yellow_light, red_light, green_light])
+        handle_traffic_light_cycle.add_children([yellow_light, red_light, green_light])
+
+        traffic_light_handling.add_children([stop_position_calculation, handle_traffic_light_cycle])
 
         check_for_traffic_lights.add_children([traffic_light_out_of_range, traffic_light_handling, error_handling])
 
@@ -160,6 +155,8 @@ class TrafficLightBehavior(Behaviour):
         self.inputs.register_key("decision_point_ahead", access=py_trees.common.Access.WRITE)
         self.inputs.register_key("velocity_profile_without_traffic_lights", access=py_trees.common.Access.READ)
         self.inputs.register_key("safe_stop", access=py_trees.common.Access.WRITE)
+        self.inputs.register_key("stop_line_position_curvilinear", access=py_trees.common.Access.WRITE)
+        self.inputs.register_key("distance_stop_line_vehicle_origin", access=py_trees.common.Access.WRITE)
 
         # Register keys for Module Outputs
         self.outputs = py_trees.blackboard.Client(name=(name + "Outputs"), namespace="/modules/traffic_lights/outputs")
@@ -521,6 +518,51 @@ class GreenLightCondition(TrafficLightBehavior):
     def terminate(self, new_status):
         self._logger.debug("Terminating GreenLightCondition to " + str(new_status))
 
+class StopPositionCalculationAction(TrafficLightBehavior):
+    """
+    Action Node. Calculates the decision point for the vehicle in front of the traffic light.
+
+    :var logger: ROS2 node logger
+    :var blackboard: Blackboard for behavior tree
+    :var global_inputs: Blackboard client for global inputs
+    :var inputs: Blackboard client for module inputs
+    :var outputs: Blackboard client for module outputs
+    :var global_params: CR2AutowareParams
+    :var params: BehaviorPlannerParams
+    """
+    def __init__(self, name, logger: RcutilsLogger):
+        super().__init__(name, logger)
+        self.inputs.safe_stop = False
+
+    def setup(self):
+        self._logger.debug("Setting up StopPositionCalculationAction")
+
+    def initialise(self):
+        self._logger.debug("Initialising StopPositionCalculationAction")
+
+    def update(self):
+        self._logger.debug("Updating StopPositionCalculationAction")
+
+        traffic_lights_in_range: Dict[int, np.ndarray] = self.inputs.traffic_lights_in_range
+        traffic_light_id = self.inputs.current_traffic_light_id
+        # Get the stop line position of the traffic light
+        stop_line_position_curvilinear = traffic_lights_in_range[traffic_light_id]
+
+        # Calculate the distance between the current position and the stop line position
+        # Also consider vehicle front bumper to vehicle origin and the additional parameter distance_stop_line_to_vehicle_front_bumper
+        # vehicle origin is on the rear axle
+        front_bumper_to_vehicle_origin = self.global_params.vehicle.front_overhang + self.global_params.vehicle.wheel_base
+        distance_stop_line_vehicle_origin = self.params.distance_stop_line_to_vehicle_front_bumper + front_bumper_to_vehicle_origin
+        self.inputs.distance_stop_line_vehicle_origin = distance_stop_line_vehicle_origin
+
+        # Save the hold position in the blackboard
+        self.inputs.stop_line_position_curvilinear = stop_line_position_curvilinear
+        self.inputs.target_stop_position = stop_line_position_curvilinear[0] - distance_stop_line_vehicle_origin
+
+        return Status.SUCCESS
+        
+    def terminate(self, new_status):
+        self._logger.debug("Terminating StopPositionCalculationAction to " + str(new_status))
 
 class DecisionPointCalculationAction(TrafficLightBehavior):
     """
@@ -547,20 +589,15 @@ class DecisionPointCalculationAction(TrafficLightBehavior):
     def update(self):
         self._logger.debug("Updating DecisionPointCalculationAction")
 
-        traffic_lights_in_range: Dict[int, np.ndarray] = self.inputs.traffic_lights_in_range
-        traffic_light_id = self.inputs.current_traffic_light_id
         # Get the stop line position of the traffic light
-        stop_line_position = traffic_lights_in_range[traffic_light_id]
+        stop_line_position = self.inputs.stop_line_position_curvilinear
 
         # Get the current position of the vehicle
         current_position_curvilinear = self.global_inputs.current_position_curvilinear
         current_velocity = self.global_inputs.current_state.velocity
 
         # Calculate the distance between the current position and the stop line position
-        # Also consider vehicle front bumper to vehicle origin and the additional parameter distance_stop_line_to_vehicle_front_bumper
-        # vehicle origin is on the rear axle
-        front_bumper_to_vehicle_origin = self.global_params.vehicle.front_overhang + self.global_params.vehicle.wheel_base
-        distance_stop_line_vehicle_origin = self.params.distance_stop_line_to_vehicle_front_bumper + front_bumper_to_vehicle_origin
+        distance_stop_line_vehicle_origin = self.inputs.distance_stop_line_vehicle_origin
         distance = (stop_line_position[0] - distance_stop_line_vehicle_origin - current_position_curvilinear[0])
 
         # Calculate the braking distance, also consider the system delay
@@ -859,40 +896,60 @@ class PublishRVIZMarker(TrafficLightBehavior):
         traffic_light_id = self.inputs.current_traffic_light_id
         traffic_light = scenario.lanelet_network.find_traffic_light_by_id(traffic_light_id)
         coordinate_system: CoordinateSystem = self.global_inputs.get("coordinate_system")
+        
+        try:
+            stop_line_curv = copy_from_blackboard(self.inputs.stop_line_position_curvilinear)
+            stop_line_cartesian = coordinate_system.convert_to_cartesian_coords(stop_line_curv[0], 0.0)
+            self._logger.debug("Stop Line: " + str(stop_line_cartesian))
 
-        try: 
-            stop_line_curv = self.inputs.target_stop_position
-            decision_point_curv = self.inputs.decision_point
-
-            stop_line = coordinate_system.convert_to_cartesian_coords(stop_line_curv, 0.0)
-            self._logger.debug("Stop Line: " + str(stop_line))
-            decision_point = coordinate_system.convert_to_cartesian_coords(decision_point_curv, 0.0)
-            self._logger.debug("Decision Point: " + str(decision_point))
-
+            stop_line_cart_min = coordinate_system.convert_to_cartesian_coords(stop_line_curv[0], -1.5)
+            stop_line_cart_max = coordinate_system.convert_to_cartesian_coords(stop_line_curv[0], 1.5)
         except:
-            stop_line = None
-            decision_point = None
+            stop_line_cartesian = None
+            stop_line_cart_min = None
+            stop_line_cart_max = None
+        
+        try: 
+            decision_point_curv = copy_from_blackboard(self.inputs.decision_point)
+            decision_point_cartesian = coordinate_system.convert_to_cartesian_coords(decision_point_curv, 0.0)
+            self._logger.debug("Decision Point: " + str(decision_point_cartesian))
+
+            decision_point_cart_min = coordinate_system.convert_to_cartesian_coords(decision_point_curv, -1.5)
+            decision_point_cart_max = coordinate_system.convert_to_cartesian_coords(decision_point_curv, 1.5)
+        except:
+            decision_point_cartesian = None
+            decision_point_cart_min = None
+            decision_point_cart_max = None
 
         z = self.global_inputs.get("z_coordinate")
         
-        positions = [stop_line, decision_point]
+        positions_lines = [stop_line_cart_min, stop_line_cart_max, decision_point_cart_min, decision_point_cart_max]
+        positions_text = [stop_line_cartesian, decision_point_cartesian]
         text = ["StopLine", "DecisionPoint"]
+        positions_aw_lines = []
         positions_aw = []
+
         # convert positions to AW coordinate system
-        for pos in positions:
+        for pos in positions_lines:
+            if pos is None:
+                continue
+            positions_aw_lines.append(utm2map(self.global_inputs.get("origin_transformation"), pos))
+
+        for pos in positions_text:
             if pos is None:
                 continue
             positions_aw.append(utm2map(self.global_inputs.get("origin_transformation"), pos))
 
         marker_array = MarkerArray()
+        del_marker = Marker()
+        del_marker.action = Marker.DELETEALL
+        marker_array.markers.append(del_marker)
         marker = Marker()
         marker.header.frame_id = "map"
         marker.header.stamp = self.global_inputs.get("current_time_msg")
-        marker.type = Marker.SPHERE_LIST
+        marker.type = Marker.LINE_LIST
         marker.action = Marker.ADD
-        marker.scale.x = 0.3
-        marker.scale.y = 0.3
-        marker.scale.z = 0.3
+        marker.scale.x = 0.5
         marker.color.a = 1.0
 
         if traffic_light.color == TrafficLightState.RED or traffic_light.color == TrafficLightState.RED_YELLOW:
@@ -911,7 +968,7 @@ class PublishRVIZMarker(TrafficLightBehavior):
         marker.id = traffic_light_id
         marker.ns = "traffic_light"
         marker.points = []
-        for pos in positions_aw:
+        for pos in positions_aw_lines:
             marker.points.append(PointMsg(x=pos.x, y=pos.y, z=(z+2.5)))
 
         marker_array.markers.append(marker)
@@ -936,6 +993,11 @@ class PublishRVIZMarker(TrafficLightBehavior):
             marker_array.markers.append(text_marker)
         
         self.outputs.traffic_light_marker_array = marker_array
+
+        # TODO: WIP, reset blackboard values for next cycle
+        self.inputs.stop_line_position_curvilinear = None
+        self.inputs.target_stop_position = None
+        self.inputs.decision_point = None
             
         return Status.SUCCESS
         
