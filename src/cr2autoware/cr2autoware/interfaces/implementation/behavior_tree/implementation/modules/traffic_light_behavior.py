@@ -9,6 +9,7 @@ from cr2autoware.common.configuration import BehaviorPlannerParams
 from cr2autoware.common.configuration import CR2AutowareParams
 from commonroad_rp.utility.utils_coordinate_system import CoordinateSystem
 from typing import List, Set, Dict
+import copy
 from ...behavior_utils import copy_from_blackboard
 import numpy as np
 from rclpy.impl.rcutils_logger import RcutilsLogger
@@ -991,7 +992,68 @@ class PublishRVIZMarker(TrafficLightBehavior):
             text_marker.pose.position.y = pos.y + 0.3
             text_marker.pose.position.z = z
             marker_array.markers.append(text_marker)
+
+        ################################################################################################
+        # NO OVERTAKE Marker
+
+        if self.outputs.exists("d_min") and self.outputs.exists("d_max"):
+            if self.outputs.d_min is not None and self.outputs.d_max is not None:
+
+                input_path_curvilinear = self.global_inputs.input_path_curvilinear
+                current_position_index = self.global_inputs.current_position_index
+                coordinate_system: CoordinateSystem = self.global_inputs.coordinate_system
+
+                path = input_path_curvilinear[current_position_index:]
+
+                d_min_vehicle = self.outputs.d_min - 0.5 * (self.global_params.vehicle.wheel_tread + self.global_params.vehicle.right_overhang + self.global_params.vehicle.left_overhang)
+                d_max_vehicle = self.outputs.d_max + 0.5 * (self.global_params.vehicle.wheel_tread + self.global_params.vehicle.right_overhang + self.global_params.vehicle.left_overhang)
+                
+                min_path: List[np.ndarray] = []
+                max_path: List[np.ndarray] = []
+                for point in path:
+                    point_cart_min = coordinate_system.convert_to_cartesian_coords(point, d_min_vehicle)
+                    try:
+                        point_cart_min_aw = utm2map(self.global_inputs.get("origin_transformation"), point_cart_min)
+                        point_cart_min_aw_msg = PointMsg(x=point_cart_min_aw.x, y=point_cart_min_aw.y, z=z)
+                        min_path.append(point_cart_min_aw_msg)
+                    except:
+                        pass
+                    point_cart_max = coordinate_system.convert_to_cartesian_coords(point, d_max_vehicle)
+                    try:
+                        point_cart_max_aw = utm2map(self.global_inputs.get("origin_transformation"), point_cart_max)
+                        point_cart_max_aw_msg = PointMsg(x=point_cart_max_aw.x, y=point_cart_max_aw.y, z=z)
+                        max_path.append(point_cart_max_aw_msg)
+                    except:
+                        pass
+
+                no_overtake_marker = Marker()
+                no_overtake_marker.header.frame_id = "map"
+                no_overtake_marker.header.stamp = self.global_inputs.get("current_time_msg")
+                no_overtake_marker.type = Marker.LINE_STRIP
+                no_overtake_marker.action = Marker.ADD
+                no_overtake_marker.scale.x = 0.1
+                no_overtake_marker.color.a = 1.0
+                no_overtake_marker.color.r = 1.0
+                no_overtake_marker.color.g = 1.0
+                no_overtake_marker.color.b = 1.0
+                
+                no_overtake_marker_min = copy.deepcopy(no_overtake_marker)
+                no_overtake_marker_max = copy.deepcopy(no_overtake_marker)
+
+                no_overtake_marker_min.id = 11
+                no_overtake_marker_min.ns = "no_overtake_min"
+                no_overtake_marker_min.points = min_path
+                
+                no_overtake_marker_max.id = 12
+                no_overtake_marker_max.ns = "no_overtake_max"
+                no_overtake_marker_max.points = max_path
+
+
+                marker_array.markers.append(no_overtake_marker_min)
+                marker_array.markers.append(no_overtake_marker_max)
         
+        ################################################################################################
+
         self.outputs.traffic_light_marker_array = marker_array
 
         # TODO: WIP, reset blackboard values for next cycle
