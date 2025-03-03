@@ -200,6 +200,10 @@ class TrafficLightUpdateAction(TrafficLightBehavior):
         super().__init__(name, logger)
         self.inputs.traffic_light_lanelet_mapping = {}
 
+        # Calculate the distance between the stop line and the vehicle origin
+        front_bumper_to_vehicle_origin = self.global_params.vehicle.front_overhang + self.global_params.vehicle.wheel_base
+        distance_stop_line_vehicle_origin = self.params.distance_stop_line_to_vehicle_front_bumper + front_bumper_to_vehicle_origin
+        self.inputs.distance_stop_line_vehicle_origin = distance_stop_line_vehicle_origin
 
     def setup(self):
             pass
@@ -332,7 +336,15 @@ class TrafficLightOutOfRangeCondition(TrafficLightBehavior):
             min_distance_id = None
             min_distance = None
 
-            distance = current_position[0] - stop_line_position[0]
+            distance = stop_line_position[0] - self.inputs.distance_stop_line_vehicle_origin - current_position[0]
+            # Check if traffic light has been passed
+            if distance < 0.0:
+                self._logger.debug("Stop line has been passed! Check if overrun tolerance is exceeded. Traffic light id: " + str(traffic_light_id))
+
+                if np.abs(distance) > self.params.stop_line_overrun_tolerance:
+                    self._logger.debug("Traffic light overrun tolerance exceeded! Traffic light id: " + str(traffic_light_id))
+                    continue
+
             if distance < traffic_light_perception_range:
                 if min_distance is None or distance < min_distance:
                     min_distance = distance
@@ -395,6 +407,13 @@ class TrafficLightOutOfRangeCondition(TrafficLightBehavior):
         else:
             # no traffic light in range, output the empty velocity profile, return SUCCESS
             self.outputs.velocity_profile = copy_from_blackboard(self.global_inputs.empty_velocity_profile)
+            
+            # Publish empty marker array
+            marker_array = MarkerArray()
+            del_marker = Marker()
+            del_marker.action = Marker.DELETEALL
+            marker_array.markers.append(del_marker)
+            self.outputs.traffic_light_marker_array = marker_array
 
             ############################################################################################
             # No traffic light in range, so no latteral offset restriction required (overtake allowed)
@@ -549,16 +568,9 @@ class StopPositionCalculationAction(TrafficLightBehavior):
         # Get the stop line position of the traffic light
         stop_line_position_curvilinear = traffic_lights_in_range[traffic_light_id]
 
-        # Calculate the distance between the current position and the stop line position
-        # Also consider vehicle front bumper to vehicle origin and the additional parameter distance_stop_line_to_vehicle_front_bumper
-        # vehicle origin is on the rear axle
-        front_bumper_to_vehicle_origin = self.global_params.vehicle.front_overhang + self.global_params.vehicle.wheel_base
-        distance_stop_line_vehicle_origin = self.params.distance_stop_line_to_vehicle_front_bumper + front_bumper_to_vehicle_origin
-        self.inputs.distance_stop_line_vehicle_origin = distance_stop_line_vehicle_origin
-
         # Save the hold position in the blackboard
         self.inputs.stop_line_position_curvilinear = stop_line_position_curvilinear
-        self.inputs.target_stop_position = stop_line_position_curvilinear[0] - distance_stop_line_vehicle_origin
+        self.inputs.target_stop_position = stop_line_position_curvilinear[0] - self.inputs.distance_stop_line_vehicle_origin
 
         return Status.SUCCESS
         
@@ -598,8 +610,7 @@ class DecisionPointCalculationAction(TrafficLightBehavior):
         current_velocity = self.global_inputs.current_state.velocity
 
         # Calculate the distance between the current position and the stop line position
-        distance_stop_line_vehicle_origin = self.inputs.distance_stop_line_vehicle_origin
-        distance = (stop_line_position[0] - distance_stop_line_vehicle_origin - current_position_curvilinear[0])
+        distance = (stop_line_position[0] - self.inputs.distance_stop_line_vehicle_origin - current_position_curvilinear[0])
 
         # Calculate the braking distance, also consider the system delay
         braking_distance = (current_velocity ** 2) / (2 * self.params.max_comfort_deceleration) + self.params.system_delay * current_velocity
@@ -655,7 +666,7 @@ class DecisionPointCalculationAction(TrafficLightBehavior):
                 decision_point_ahead = False
 
         # Save the hold position in the blackboard
-        self.inputs.target_stop_position = stop_line_position[0] - distance_stop_line_vehicle_origin
+        self.inputs.target_stop_position = stop_line_position[0] - self.inputs.distance_stop_line_vehicle_origin
         # Save the decision point in the blackboard
         self.inputs.decision_point = decision_point
         self.inputs.decision_point_ahead = decision_point_ahead
