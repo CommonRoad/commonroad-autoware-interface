@@ -34,6 +34,7 @@ from scipy.interpolate import interp1d
 import py_trees
 from visualization_msgs.msg import MarkerArray
 
+from .velocity_planner import VelocityPlanner
 
 class BehaviorPlanner:
     """
@@ -62,7 +63,7 @@ class BehaviorPlanner:
     :var _lookahead_time: lookahead time for velocity planning
     """
     def __init__(self, ref_path_pub: Publisher, traffic_light_marker_pub: Publisher, lateral_clearance_pub: Publisher, lateral_clearance_obstacles_pub: Publisher, logger: RcutilsLogger, verbose: bool,
-                 lookahead_dist: float, lookahead_time: float, origin_transformation: List, global_params: CR2AutowareParams, scenario_handler: ScenarioHandler) -> None:
+                 lookahead_dist: float, lookahead_time: float, origin_transformation: List, global_params: CR2AutowareParams, scenario_handler: ScenarioHandler, velocity_planner: VelocityPlanner) -> None:
         """
         TODO:**WIP**
         Constructor for VelocityPlanner class.
@@ -134,6 +135,9 @@ class BehaviorPlanner:
         # coordinate system & collision checker
         self._co: Optional[CoordinateSystem] = None
 
+        # velocity planner
+        self.velocity_planner = velocity_planner
+
     @property
     def reference_trajectory(self) -> Optional[np.ndarray]:
         """
@@ -155,7 +159,8 @@ class BehaviorPlanner:
         :return: reference trajectory positions
         """
         if self._reference_trajectory is None:
-            return None
+            self._logger.warning("Taking reference positions from velocity planner!")
+            return self.velocity_planner.reference_positions
         else:
             return self._reference_trajectory[:, 0:2]
 
@@ -167,7 +172,8 @@ class BehaviorPlanner:
         :return: reference trajectory velocities
         """
         if self._reference_trajectory is None:
-            return None
+            self._logger.warning("Taking reference velocities from velocity planner!")
+            return self.velocity_planner.reference_velocities
         else:
             return self._reference_trajectory[:, 2]
 
@@ -419,9 +425,6 @@ class BehaviorPlanner:
         """
 
         curr_position_arr = np.array([curr_position.x, curr_position.y])
-
-        self._logger.debug("Current position: " + str(curr_position_arr))
-        self._logger.debug("reference_positions: " + str(self.reference_positions))
 
         closest_idx = self._get_closest_point_idx_on_path(self.reference_positions, curr_position_arr)
         lookahead_dist = self._lookahead_dist + self._lookahead_time * curr_velocity

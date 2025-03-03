@@ -522,6 +522,7 @@ class Cr2Auto(Node):
             self.origin_transformation,
             self.params,
             self.scenario_handler,
+            self.velocity_planner,
         )
  
         # subscribe trajectory from motion velocity smoother
@@ -688,6 +689,8 @@ class Cr2Auto(Node):
         # call publisher
         self.route_planner.publish(point_list, reference_velocities,
                                     self.scenario_handler.z_coordinate)
+        end_time = time.time()
+        self._logger.info(f"Behavior planning took {end_time - start_time} seconds")
         
     def publish_trajectory(self) -> None:
         """Plan and publish trajectory."""
