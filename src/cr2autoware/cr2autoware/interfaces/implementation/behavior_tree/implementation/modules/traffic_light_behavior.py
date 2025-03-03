@@ -912,7 +912,6 @@ class PublishRVIZMarker(TrafficLightBehavior):
         try:
             stop_line_curv = copy_from_blackboard(self.inputs.stop_line_position_curvilinear)
             stop_line_cartesian = coordinate_system.convert_to_cartesian_coords(stop_line_curv[0], 0.0)
-            self._logger.debug("Stop Line: " + str(stop_line_cartesian))
 
             stop_line_cart_min = coordinate_system.convert_to_cartesian_coords(stop_line_curv[0], -1.5)
             stop_line_cart_max = coordinate_system.convert_to_cartesian_coords(stop_line_curv[0], 1.5)
@@ -924,7 +923,6 @@ class PublishRVIZMarker(TrafficLightBehavior):
         try: 
             decision_point_curv = copy_from_blackboard(self.inputs.decision_point)
             decision_point_cartesian = coordinate_system.convert_to_cartesian_coords(decision_point_curv, 0.0)
-            self._logger.debug("Decision Point: " + str(decision_point_cartesian))
 
             decision_point_cart_min = coordinate_system.convert_to_cartesian_coords(decision_point_curv, -1.5)
             decision_point_cart_max = coordinate_system.convert_to_cartesian_coords(decision_point_curv, 1.5)
@@ -1112,7 +1110,6 @@ class ErrorHandlingAction(TrafficLightBehavior):
         try:
             stop_line_curv = copy_from_blackboard(self.inputs.stop_line_position_curvilinear)
             stop_line_cartesian = coordinate_system.convert_to_cartesian_coords(stop_line_curv[0], 0.0)
-            self._logger.debug("Stop Line: " + str(stop_line_cartesian))
 
             stop_line_cart_min = coordinate_system.convert_to_cartesian_coords(stop_line_curv[0], -1.5)
             stop_line_cart_max = coordinate_system.convert_to_cartesian_coords(stop_line_curv[0], 1.5)

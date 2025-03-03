@@ -253,7 +253,7 @@ class BehaviorTree(BaseTree):
                 self.logger.error(f"Profile: {profile}")
                 self.logger.error(f"Check profiles: {check_profiles}")
                 raise e
-        self.logger.debug("Updated velocity profile: " + str(velocity_profile))
+        # self.logger.debug("Updated velocity profile: " + str(velocity_profile))
 
         return velocity_profile
 

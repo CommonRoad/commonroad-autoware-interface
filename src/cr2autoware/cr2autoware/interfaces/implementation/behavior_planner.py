@@ -364,18 +364,13 @@ class BehaviorPlanner:
 
         # Compute cumulative distances
         source_distances = compute_cumulative_distance(source_path)
-        self._logger.debug("Lenght source distances: " + str(len(source_distances)))
         target_distances = compute_cumulative_distance(target_path)
-        self._logger.debug("Length target distances: " + str(len(target_distances)))
 
         # Create an interpolation function
         velocity_interp = interp1d(source_distances, source_velocity_profile, kind='linear', fill_value="extrapolate")
 
         # Interpolate velocities for path2
         velocity_path = velocity_interp(target_distances)
-        
-        self._logger.debug("Source velocities: " + str(source_velocity_profile))
-        self._logger.debug("Velocity path: " + str(velocity_path))
 
         return velocity_path
 
