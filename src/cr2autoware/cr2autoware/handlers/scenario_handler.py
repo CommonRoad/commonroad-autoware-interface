@@ -1023,10 +1023,6 @@ class ScenarioHandler(BaseHandler):
             # get traffic light ID
             traffic_signal_id = traffic_signal.traffic_signal_id
 
-            # TEMPORARY: FOR BEHAVIOR PLANNING TESTING:
-            if traffic_signal_id == -99868:
-                traffic_signal_id = 103374
-
             # add traffic light ID to processed list
             processed_traffic_light_ids.append(traffic_signal_id)
 
