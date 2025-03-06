@@ -18,6 +18,7 @@ from abc import abstractmethod
 from visualization_msgs.msg import MarkerArray, Marker
 from cr2autoware.common.utils.transform import utm2map
 from geometry_msgs.msg import Point as PointMsg
+from shapely.geometry import LineString
 
 
 class TrafficLightsTree(BaseTree):
@@ -249,48 +250,84 @@ class TrafficLightUpdateAction(TrafficLightBehavior):
         # Get all traffic lights that are on the path and save them in the blackboard.
 
         relevant_traffic_lights: Dict[int, np.ndarray] = {} # key: traffic light id, value: stop_line_position
-
-        for lanelet_id in relevant_lanelets:
-            lanelet = scenario.lanelet_network.find_lanelet_by_id(lanelet_id)
-            #TODO: ADD STOP LINE HANDLING here
-
-            
+        if self.params.no_stop_line_in_map:
             # If no stop line is defined in the scenario, we take the first vertex of the lanelet as stop line
-            # Calculate the nearest stop line position to the vehicle
-            stop_line_position_0 = lanelet.center_vertices[0]
-            stop_line_position_end = lanelet.center_vertices[-1]
 
-            # Transfrom the stop line position in curviliniear coordinates
-            if not point_in_projection_domain(stop_line_position_0, coordinate_system) and not point_in_projection_domain(stop_line_position_end, coordinate_system):
-                self._logger.warning("Lanlet id: " + str(lanelet_id) + " is not in the projection domain!")
-                self._logger.warning("Stop line position is not in the projection domain! Stop line position: " + str(stop_line_position_0) + " and " + str(stop_line_position_end))
-                continue
-            elif not point_in_projection_domain(stop_line_position_0, coordinate_system):
-                stop_line_position_curvilinear = coordinate_system.convert_to_curvilinear_coords(stop_line_position_end[0], stop_line_position_end[1])
-            elif not point_in_projection_domain(stop_line_position_end, coordinate_system):
-                stop_line_position_curvilinear = coordinate_system.convert_to_curvilinear_coords(stop_line_position_0[0], stop_line_position_0[1])
-            else:
-                stop_line_position_0_curv = coordinate_system.convert_to_curvilinear_coords(stop_line_position_0[0], stop_line_position_0[1])
-                stop_line_position_end_curv = coordinate_system.convert_to_curvilinear_coords(stop_line_position_end[0], stop_line_position_end[1])
-                # Check which stop line is closer to the vehicle
-                if stop_line_position_0_curv[0] < stop_line_position_end_curv[0]:
-                    stop_line_position_curvilinear = stop_line_position_0_curv
+            for lanelet_id in relevant_lanelets:
+                lanelet = scenario.lanelet_network.find_lanelet_by_id(lanelet_id)
+
+                # Calculate the nearest stop line position to the vehicle
+                stop_line_position_0 = lanelet.center_vertices[0]
+                stop_line_position_end = lanelet.center_vertices[-1]
+
+                # Transfrom the stop line position in curviliniear coordinates
+                if not point_in_projection_domain(stop_line_position_0, coordinate_system) and not point_in_projection_domain(stop_line_position_end, coordinate_system):
+                    self._logger.warning("Lanlet id: " + str(lanelet_id) + " is not in the projection domain!")
+                    self._logger.warning("Stop line position is not in the projection domain! Stop line position: " + str(stop_line_position_0) + " and " + str(stop_line_position_end))
+                    continue
+                elif not point_in_projection_domain(stop_line_position_0, coordinate_system):
+                    stop_line_position_curvilinear = coordinate_system.convert_to_curvilinear_coords(stop_line_position_end[0], stop_line_position_end[1])
+                elif not point_in_projection_domain(stop_line_position_end, coordinate_system):
+                    stop_line_position_curvilinear = coordinate_system.convert_to_curvilinear_coords(stop_line_position_0[0], stop_line_position_0[1])
                 else:
-                    stop_line_position_curvilinear = stop_line_position_end_curv
-
-            for traffic_light_id in lanelet.traffic_lights:
-                # Check if the traffic light is already assigned to another lanelet
-                if traffic_light_id in relevant_traffic_lights:
-                    self._logger.warning("Traffic light is already assigned to another lanelet! Traffic light id: " + str(traffic_light_id)
-                                     + ", lanelet id: " + str(lanelet_id))
+                    stop_line_position_0_curv = coordinate_system.convert_to_curvilinear_coords(stop_line_position_0[0], stop_line_position_0[1])
+                    stop_line_position_end_curv = coordinate_system.convert_to_curvilinear_coords(stop_line_position_end[0], stop_line_position_end[1])
                     # Check which stop line is closer to the vehicle
-                    relevant_stop_line_position_curvilinear = relevant_traffic_lights[traffic_light_id]
-                    # Check which stop line is closer to the vehicle
-                    if relevant_stop_line_position_curvilinear[0] < stop_line_position_curvilinear[0]:
-                        # Continue with the current stop line, if the current stop line is closer to the vehicle
+                    if stop_line_position_0_curv[0] < stop_line_position_end_curv[0]:
+                        stop_line_position_curvilinear = stop_line_position_0_curv
+                    else:
+                        stop_line_position_curvilinear = stop_line_position_end_curv
+                
+                # skip if one of the stop line positions is not in the projection domain -> wrong lanelet
+                    if np.abs(stop_line_position_curvilinear[1]) > 1.0:
                         continue
 
-                relevant_traffic_lights[traffic_light_id] = stop_line_position_curvilinear
+                for traffic_light_id in lanelet.traffic_lights:
+                    # Check if the traffic light is already assigned to another lanelet
+                    if traffic_light_id in relevant_traffic_lights:
+                        self._logger.warning("Traffic light is already assigned to another lanelet! Traffic light id: " + str(traffic_light_id)
+                                        + ", lanelet id: " + str(lanelet_id))
+                        # Check which stop line is closer to the vehicle
+                        relevant_stop_line_position_curvilinear = relevant_traffic_lights[traffic_light_id]
+                        # Check which stop line is closer to the vehicle
+                        if relevant_stop_line_position_curvilinear[0] < stop_line_position_curvilinear[0]:
+                            # Continue with the current stop line, if the current stop line is closer to the vehicle
+                            continue
+                    
+                    relevant_traffic_lights[traffic_light_id] = stop_line_position_curvilinear
+        
+        else:
+            # If a stop line is defined in the scenario, we take the stop line as stop line
+            # Calculate the nearest stop line position to the vehicle
+
+            for lanelet_id in relevant_lanelets:
+                lanelet = scenario.lanelet_network.find_lanelet_by_id(lanelet_id)
+
+                # Calculate the nearest stop line position to the vehicle
+                if lanelet.stop_line is None:
+                    self._logger.debug("Lanelet id: " + str(lanelet_id) + " has no stop line!")
+                    continue
+                else:
+                    # check if stop line crosses the reference path
+                    stop_line = LineString([(lanelet.stop_line.start[0], lanelet.stop_line.start[1]), (lanelet.stop_line.end[0], lanelet.stop_line.end[1])])
+
+                    reference_path = LineString([(point[0], point[1]) for point in relevant_input_path])
+
+                    if stop_line.intersects(reference_path):
+                        # Get the intersection point
+                        stop_line_point = stop_line.intersection(reference_path)
+                        stop_line_position = np.array([stop_line_point.x, stop_line_point.y])
+                        if not point_in_projection_domain(stop_line_position, coordinate_system):
+                            self._logger.warning("Stop line position is not in the projection domain! Stop line position: " + str(stop_line_position))
+                            continue
+                        else:
+                            stop_line_position_curvilinear = coordinate_system.convert_to_curvilinear_coords(stop_line_position[0], stop_line_position[1])
+                            self._logger.debug("Stop line position: " + str(stop_line_position_curvilinear))
+                            for traffic_light in lanelet.stop_line.traffic_light_ref:
+                                relevant_traffic_lights[traffic_light] = stop_line_position_curvilinear
+                    else:
+                        self._logger.debug("Stop line does not intersect the reference path! Lanelet id: " + str(lanelet_id))
+                        continue
 
         self.inputs.relevant_traffic_lights = relevant_traffic_lights
         self._logger.debug("Relevant Traffic Lights: " + str(relevant_traffic_lights))
@@ -330,11 +367,12 @@ class TrafficLightOutOfRangeCondition(TrafficLightBehavior):
         # Get all traffic lights that are in range and save them in the blackboard.
         traffic_lights_in_range: Dict[int, np.ndarray] = {} # key: traffic light id, value: stop_line_position
 
+
+        # TODO: For now, we assume that there is max one traffic light in range
+        # Get nearest traffic light index:
+        min_distance_id = None
+        min_distance = None        
         for traffic_light_id, stop_line_position in relevant_traffic_lights.items():
-            # TODO: For now, we assume that there is max one traffic light in range
-            # Get nearest traffic light index:
-            min_distance_id = None
-            min_distance = None
 
             distance = stop_line_position[0] - self.inputs.distance_stop_line_vehicle_origin - current_position[0]
             # Check if traffic light has been passed
@@ -345,10 +383,14 @@ class TrafficLightOutOfRangeCondition(TrafficLightBehavior):
                     self._logger.debug("Traffic light overrun tolerance exceeded! Traffic light id: " + str(traffic_light_id))
                     continue
 
+            # Check if traffic light is in range
             if distance < traffic_light_perception_range:
                 if min_distance is None or distance < min_distance:
                     min_distance = distance
                     min_distance_id = traffic_light_id
+                elif distance == min_distance:
+                    self._logger.warning("Multiple traffic lights with the same distance to the vehicle! Traffic light id: " + str(traffic_light_id))
+                    self._logger.warning("StopLine has more than one traffic light assigned!")
                 traffic_lights_in_range[traffic_light_id] = stop_line_position
 
         # Check if there is a traffic light in range

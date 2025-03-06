@@ -60,6 +60,7 @@
       velocity_limit: 20.0  # m/s
 
       # traffic light module
+      no_stop_line_in_map: False
       stop_line_overrun_tolerance: 3.0  # m
       traffic_light_perception_range: 100.0  # m
       distance_stop_line_to_vehicle_front_bumper: 1.0  # m

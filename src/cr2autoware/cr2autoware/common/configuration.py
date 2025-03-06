@@ -339,6 +339,8 @@ class BehaviorPlannerParams(BaseParams):
     velocity_limit: float = 20.0  # m/s
 
     # Parameter for traffic light behavior module
+    # If no stop lines are specified in the map, the module will stop at the beginning of the lanelet
+    no_stop_line_in_map: bool = False
     # tolerance for stop line overrun from vehicle origin (in meters)
     stop_line_overrun_tolerance: float = 3.0
     # range for traffic light perception (in meters)
