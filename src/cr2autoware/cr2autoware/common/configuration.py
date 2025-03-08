@@ -361,6 +361,10 @@ class BehaviorPlannerParams(BaseParams):
     comfort_rollout_speed: float = 3.0
 
     # Parameters for lateral clearance velocity adjuster
+    # Front buffer for lateral clearance velocity adjuster (in meters)
+    front_buffer: float = 1.0
+    # Rear buffer for lateral clearance velocity adjuster (in meters)
+    rear_buffer: float = 1.0
     # threshold velocity to classify obstacles as static or dynamic (in m/s)
     dynamic_velocity_threshold: float = 1.0
     # look ahead time for lateral clearance function (in seconds)

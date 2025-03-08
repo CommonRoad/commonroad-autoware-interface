@@ -336,13 +336,30 @@ class LateralClearanceVelocityAdjuster(Behaviour):
 
                 point['velocity'] = proposed_reference_velocity
 
+        # Adjust the velocity profile and consider vehicle length and buffer
+        vehicle_front_to_origin = self.global_params.vehicle.front_overhang + self.global_params.vehicle.wheel_base
+        vehicle_origin_to_rear = self.global_params.vehicle.rear_overhang
+        buffer_front = self.params.front_buffer
+        buffer_rear = self.params.rear_buffer
+
+        trajectory_lenght = len(trajectory_positions)
+        adjusted_velocity_profile = np.full(trajectory_lenght, float('inf'))
+
+        for i in range(trajectory_lenght):
+            # Calculate the indices considering the vehicle length and buffer
+            front_index = min(trajectory_lenght - 1, i + int(np.ceil(buffer_front + vehicle_front_to_origin)))
+            rear_index = max(0, i - int(np.ceil(vehicle_origin_to_rear + buffer_rear)))
+
+            # Apply the proposed velocity to the adjusted profile
+            adjusted_velocity_profile[rear_index:front_index + 1] = np.minimum(adjusted_velocity_profile[rear_index:front_index + 1], trajectory_positions['velocity'][i])
+
         # set the velocity profile with lateral clearance to the blackboard
         velocity_profile = copy_from_blackboard(self.global_inputs.empty_velocity_profile)
         # save the velocity profile with lateral clearance to the blackboard
         start_index = current_position_index
-        end_index = start_index + len(trajectory_positions)
+        end_index = start_index + len(adjusted_velocity_profile)
 
-        velocity_profile[start_index:end_index] = trajectory_positions['velocity']
+        velocity_profile[start_index:end_index] = adjusted_velocity_profile[:len(velocity_profile[start_index:end_index])]
         self.outputs.velocity_profile = velocity_profile
 
         t_end = time.perf_counter()

@@ -72,6 +72,8 @@
       comfort_rollout_speed: 3.0  # m/s
 
       # lateral clearance velocity adjuster
+      front_buffer: 1.0  # m
+      rear_buffer: 1.0  # m
       dynamic_velocity_threshold: 1.0  # m/s
       look_ahead_time: 10.0  # s
       min_look_ahead_distance: 50.0  # m
