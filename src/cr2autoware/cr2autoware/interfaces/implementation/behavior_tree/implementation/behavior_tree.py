@@ -289,7 +289,7 @@ class BehaviorTree(BaseTree):
         # self.logger.debug(py_trees.display.unicode_blackboard_activity_stream())
         # Only for debugging purposes
         if not self._printed_tree:
-            parent_directory = '/autoware/src/universe/autoware.universe/planning/tum_commonroad_planning/dfg-car/src/cr2autoware/cr2autoware/interfaces/implementation/behavior_tree'
+            parent_directory = '/autoware/src/universe/autoware.universe/planning/tum_commonroad_planning/dfg-car/src/cr2autoware/cr2autoware/interfaces/implementation/behavior_tree/output/behavior_tree'
             py_trees.display.render_dot_tree(self.root,
                                             visibility_level=py_trees.common.VisibilityLevel.DETAIL,
                                             name='behavior_tree', 

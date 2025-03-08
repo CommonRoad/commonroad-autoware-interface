@@ -19,6 +19,8 @@ from visualization_msgs.msg import MarkerArray, Marker
 from cr2autoware.common.utils.transform import utm2map
 from geometry_msgs.msg import Point as PointMsg
 from shapely.geometry import LineString
+import matplotlib.pyplot as plt
+import time
 
 
 class TrafficLightsTree(BaseTree):
@@ -634,12 +636,50 @@ class DecisionPointCalculationAction(TrafficLightBehavior):
     def __init__(self, name, logger: RcutilsLogger):
         super().__init__(name, logger)
         self.inputs.safe_stop = False
+        self.iteration_data = []
+        self.last_plot_time = time.time()
 
     def setup(self):
         self._logger.debug("Setting up DecisionPointCalculationAction")
 
     def initialise(self):
         self._logger.debug("Initialising DecisionPointCalculationAction")
+
+    def plot_decision_graph(self):
+        """
+        Plots a graph with distance on the x-axis and velocity on the y-axis, with the decision point.
+        """
+        plt.figure(figsize=(10, 6))
+        
+        # Define x and y axis ranges
+        x_range = np.linspace(-self.params.stop_line_overrun_tolerance, self.params.traffic_light_perception_range, 100)
+        y_range = np.linspace(0, 70 / 3.6, 100)  # 70 km/h in m/s
+
+        # Plot the decision line
+        braking_distance = (y_range ** 2) / (2 * self.params.max_comfort_deceleration) + self.params.system_delay * y_range
+        plt.plot(braking_distance, y_range, 'r--', label='Decision Line')
+
+        # Plot the pass yellow light line
+        yellow_light_time = 2.7
+        pass_yellow_light_line = x_range / yellow_light_time
+        plt.plot(x_range, pass_yellow_light_line, 'g--', label='Pass Yellow Light Line')
+
+        # Plot the iteration data
+        for i, (distance, velocity) in enumerate(self.iteration_data):
+            plt.scatter(distance, velocity, label=f'Iteration {i+1}' if i == 0 else "")
+            plt.text(distance, velocity, str(i+1))
+
+        plt.xlabel('Distance to Stop Line (m)')
+        plt.ylabel('Velocity (m/s)')
+        plt.title('Decision Graph')
+        plt.legend()
+        plt.grid(True)
+        
+        parent_directory = '/autoware/src/universe/autoware.universe/planning/tum_commonroad_planning/dfg-car/src/cr2autoware/cr2autoware/interfaces/implementation/behavior_tree/output/traffic_light_module'
+
+        # Save the plot as an SVG file
+        plt.savefig(parent_directory + '/decision_graph.svg')
+        plt.close()
 
     def update(self):
         self._logger.debug("Updating DecisionPointCalculationAction")
@@ -712,6 +752,15 @@ class DecisionPointCalculationAction(TrafficLightBehavior):
         # Save the decision point in the blackboard
         self.inputs.decision_point = decision_point
         self.inputs.decision_point_ahead = decision_point_ahead
+
+        # Store the current velocity and distance to the stop line
+        if current_velocity > 0.1:
+            self.iteration_data.append((distance, current_velocity))
+
+        # Plot the graph every 20 seconds
+        if time.time() - self.last_plot_time > 20:
+            self.plot_decision_graph()
+            self.last_plot_time = time.time()
 
         return Status.SUCCESS
         
