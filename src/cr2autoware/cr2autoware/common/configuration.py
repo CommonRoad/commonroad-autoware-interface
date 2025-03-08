@@ -339,6 +339,8 @@ class BehaviorPlannerParams(BaseParams):
     velocity_limit: float = 20.0  # m/s
 
     # Parameter for traffic light behavior module
+    # activate traffic light behavior module
+    traffic_light_behavior: bool = True
     # If no stop lines are specified in the map, the module will stop at the beginning of the lanelet
     no_stop_line_in_map: bool = False
     # tolerance for stop line overrun from vehicle origin (in meters)
@@ -361,6 +363,8 @@ class BehaviorPlannerParams(BaseParams):
     comfort_rollout_speed: float = 3.0
 
     # Parameters for lateral clearance velocity adjuster
+    # activate lateral clearance velocity adjuster
+    lateral_clearance_velocity_adjuster: bool = True
     # Front buffer for lateral clearance velocity adjuster (in meters)
     front_buffer: float = 1.0
     # Rear buffer for lateral clearance velocity adjuster (in meters)

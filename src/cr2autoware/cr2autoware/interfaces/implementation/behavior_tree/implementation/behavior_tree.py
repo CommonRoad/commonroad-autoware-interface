@@ -123,8 +123,10 @@ class BehaviorTree(BaseTree):
         self.lateral_clearance_velocity_adjuster = LateralClearanceVelocityAdjusterTree(self.logger, self.verbose)
         
         # Add sub-trees or behaviors here
-        root.add_child(self.traffic_light_module.root)
-        root.add_child(self.lateral_clearance_velocity_adjuster.root)
+        if self.params.traffic_light_behavior:
+            root.add_child(self.traffic_light_module.root)
+        if self.params.lateral_clearance_velocity_adjuster:
+            root.add_child(self.lateral_clearance_velocity_adjuster.root)
         
         return root
 

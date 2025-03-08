@@ -60,6 +60,7 @@
       velocity_limit: 20.0  # m/s
 
       # traffic light module
+      traffic_light_behavior: True
       no_stop_line_in_map: False
       stop_line_overrun_tolerance: 3.0  # m
       traffic_light_perception_range: 100.0  # m
@@ -72,6 +73,7 @@
       comfort_rollout_speed: 3.0  # m/s
 
       # lateral clearance velocity adjuster
+      lateral_clearance_velocity_adjuster: True
       front_buffer: 1.0  # m
       rear_buffer: 1.0  # m
       dynamic_velocity_threshold: 1.0  # m/s
