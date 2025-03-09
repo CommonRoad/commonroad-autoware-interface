@@ -341,6 +341,8 @@ class BehaviorPlannerParams(BaseParams):
     # Parameter for traffic light behavior module
     # activate traffic light behavior module
     traffic_light_behavior: bool = True
+    # Yellow light phase time (in seconds)
+    yellow_light_time: float = 3.0
     # If no stop lines are specified in the map, the module will stop at the beginning of the lanelet
     no_stop_line_in_map: bool = False
     # tolerance for stop line overrun from vehicle origin (in meters)
@@ -361,6 +363,8 @@ class BehaviorPlannerParams(BaseParams):
     comfort_rollout_distance: float = 10.0
     # Maximum rollout speed for comfort stopping procedure (in m/s)
     comfort_rollout_speed: float = 3.0
+    # Rollout distance for yellow light stopping procedure (in meters)
+    yellow_light_rollout_distance: float = 0.0
 
     # Parameters for lateral clearance velocity adjuster
     # activate lateral clearance velocity adjuster

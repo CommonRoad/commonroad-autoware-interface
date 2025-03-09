@@ -7,6 +7,7 @@ from commonroad.scenario.scenario import Scenario, Lanelet
 from commonroad.scenario.traffic_light import TrafficLight, TrafficLightState
 from cr2autoware.common.configuration import BehaviorPlannerParams
 from cr2autoware.common.configuration import CR2AutowareParams
+from cr2autoware.interfaces.implementation.behavior_tree.behavior_utils import calculate_current_position_index, minimum_width_lanelet
 from commonroad_rp.utility.utils_coordinate_system import CoordinateSystem
 from typing import List, Set, Dict
 import copy
@@ -20,7 +21,7 @@ from cr2autoware.common.utils.transform import utm2map
 from geometry_msgs.msg import Point as PointMsg
 from shapely.geometry import LineString
 import matplotlib.pyplot as plt
-import time
+import json
 
 
 class TrafficLightsTree(BaseTree):
@@ -64,17 +65,17 @@ class TrafficLightsTree(BaseTree):
         green_condition = GreenLightCondition(name="Green", logger=self.logger)
 
         stop_position_calculation = StopPositionCalculationAction(name="StopPositionCalculationAction", logger=self.logger)
-        decision_point_calculation_yellow = DecisionPointCalculationAction(name="DecisionPointCalculationActionYellow", logger=self.logger)
+        yellow_light_decision = YellowLightDecisionAction(name="YellowLightDecision", logger=self.logger)
         yellow_light_handling = Selector(name="YellowLightHandling", memory=False)
 
         comfort_stop_yellow = Sequence(name="ComfortStopYellow", memory=False)
         no_stop = Sequence(name="NoStop", memory=False)
 
-        decision_point_ahead_yellow = DecisionPointAheadCondition(name="DecisionPointAheadYellow", logger=self.logger)
+        brake_at_yellow_light = BrakeAtYellowLightCondition(name="BrakeAtYellowLight", logger=self.logger)
         comfort_braking_yellow = ComfortBrakingAction(name="ComfortBrakingYellow", logger=self.logger)
         comfort_braking_red = ComfortBrakingAction(name="ComfortBrakingRed", logger=self.logger)
 
-        decision_point_behind_yellow = DecisionPointBehindCondition(name="DecisionPointBehindYellow", logger=self.logger)
+        continue_driving_at_yellow_light = ContinueDrivingAtYellowLightCondition(name="ContinueDrivingAtYellowLight", logger=self.logger)
         continue_driving_yellow = ContinueDrivingAction(name="ContinueDrivingYellow", logger=self.logger)
         continue_driving_green = ContinueDrivingAction(name="ContinueDrivingGreen", logger=self.logger)
 
@@ -83,12 +84,12 @@ class TrafficLightsTree(BaseTree):
         publish_rviz_marker_red = PublishRVIZMarker(name="PublishRVIZMarkerRed", logger=self.logger)
 
         # Add children to the tree
-        comfort_stop_yellow.add_children([decision_point_ahead_yellow, comfort_braking_yellow])
-        no_stop.add_children([decision_point_behind_yellow, continue_driving_yellow])
+        comfort_stop_yellow.add_children([brake_at_yellow_light, comfort_braking_yellow])
+        no_stop.add_children([continue_driving_at_yellow_light, continue_driving_yellow])
 
         yellow_light_handling.add_children([comfort_stop_yellow, no_stop])
 
-        yellow_light.add_children([yellow_condition, decision_point_calculation_yellow, yellow_light_handling, publish_rviz_marker_yellow])
+        yellow_light.add_children([yellow_condition, yellow_light_decision, yellow_light_handling, publish_rviz_marker_yellow])
         red_light.add_children([red_condition, comfort_braking_red, publish_rviz_marker_red])
         green_light.add_children([green_condition, continue_driving_green, publish_rviz_marker_green])
 
@@ -156,11 +157,13 @@ class TrafficLightBehavior(Behaviour):
         self.inputs.register_key("traffic_light_lanelet_mapping", access=py_trees.common.Access.WRITE)
         self.inputs.register_key("traffic_lights_in_range", access=py_trees.common.Access.WRITE)
         self.inputs.register_key("decision_point", access=py_trees.common.Access.WRITE)
-        self.inputs.register_key("decision_point_ahead", access=py_trees.common.Access.WRITE)
+        self.inputs.register_key("brake_at_yellow_light", access=py_trees.common.Access.WRITE)
         self.inputs.register_key("velocity_profile_without_traffic_lights", access=py_trees.common.Access.READ)
-        self.inputs.register_key("safe_stop", access=py_trees.common.Access.WRITE)
+        self.inputs.register_key("force_stop", access=py_trees.common.Access.WRITE)
         self.inputs.register_key("stop_line_position_curvilinear", access=py_trees.common.Access.WRITE)
         self.inputs.register_key("distance_stop_line_vehicle_origin", access=py_trees.common.Access.WRITE)
+        self.inputs.register_key("target_stop_position_index", access=py_trees.common.Access.WRITE)
+        self.inputs.register_key("yellow_light_id", access=py_trees.common.Access.WRITE)
 
         # Register keys for Module Outputs
         self.outputs = py_trees.blackboard.Client(name=(name + "Outputs"), namespace="/modules/traffic_lights/outputs")
@@ -501,8 +504,9 @@ class YellowLightCondition(TrafficLightBehavior):
         if traffic_light.active and traffic_light.color == TrafficLightState.YELLOW:
             return Status.SUCCESS
         else:
-            # If the traffic light is not yellow, or switches from yellow to another color, reset the safe stop flag
-            self.inputs.safe_stop = False
+            # If the traffic light is not yellow, or switches from yellow to another color, reset the safe stop flag and the yellow light id
+            self.inputs.force_stop = False
+            self.inputs.yellow_light_id = None
             return Status.FAILURE
         
     def terminate(self, new_status):
@@ -596,7 +600,7 @@ class StopPositionCalculationAction(TrafficLightBehavior):
     """
     def __init__(self, name, logger: RcutilsLogger):
         super().__init__(name, logger)
-        self.inputs.safe_stop = False
+        self.inputs.force_stop = False
 
     def setup(self):
         self._logger.debug("Setting up StopPositionCalculationAction")
@@ -615,13 +619,14 @@ class StopPositionCalculationAction(TrafficLightBehavior):
         # Save the hold position in the blackboard
         self.inputs.stop_line_position_curvilinear = stop_line_position_curvilinear
         self.inputs.target_stop_position = stop_line_position_curvilinear[0] - self.inputs.distance_stop_line_vehicle_origin
+        self.inputs.target_stop_position_index = calculate_current_position_index(np.array([self.inputs.target_stop_position]), self.global_inputs.input_path_curvilinear)
 
         return Status.SUCCESS
         
     def terminate(self, new_status):
         self._logger.debug("Terminating StopPositionCalculationAction to " + str(new_status))
 
-class DecisionPointCalculationAction(TrafficLightBehavior):
+class YellowLightDecisionAction(TrafficLightBehavior):
     """
     Action Node. Calculates the decision point for the vehicle in front of the traffic light.
 
@@ -635,9 +640,12 @@ class DecisionPointCalculationAction(TrafficLightBehavior):
     """
     def __init__(self, name, logger: RcutilsLogger):
         super().__init__(name, logger)
-        self.inputs.safe_stop = False
+        self.inputs.force_stop = False
+        self.inputs.yellow_light_id = None
+        self.first_position_index = None
+        self.min_pass_line_velo = None
         self.iteration_data = []
-        self.last_plot_time = time.time()
+        self.average_velocity = None
 
     def setup(self):
         self._logger.debug("Setting up DecisionPointCalculationAction")
@@ -656,30 +664,97 @@ class DecisionPointCalculationAction(TrafficLightBehavior):
         y_range = np.linspace(0, 70 / 3.6, 100)  # 70 km/h in m/s
 
         # Plot the decision line
-        braking_distance = (y_range ** 2) / (2 * self.params.max_comfort_deceleration) + self.params.system_delay * y_range
-        plt.plot(braking_distance, y_range, 'r--', label='Decision Line')
+        comfort_braking_x = [self.comfort_braking_distance(velocity) for velocity in y_range]
+        plt.plot(comfort_braking_x, y_range, color='#FF8C00', label='Comfort Braking Line')
 
         # Plot the pass yellow light line
-        yellow_light_time = 2.7
-        pass_yellow_light_line = x_range / yellow_light_time
-        plt.plot(x_range, pass_yellow_light_line, 'g--', label='Pass Yellow Light Line')
+        min_pass_line_y = [self.min_pass_line_velocity(distance) for distance in x_range]
+        plt.plot(x_range, min_pass_line_y, color='#FFA500', label='Pass Yellow Light')
 
         # Plot the iteration data
-        for i, (distance, velocity) in enumerate(self.iteration_data):
+        for i, (distance, velocity, average_velocity) in enumerate(self.iteration_data):
             plt.scatter(distance, velocity, label=f'Iteration {i+1}' if i == 0 else "")
             plt.text(distance, velocity, str(i+1))
 
+            if average_velocity is not None:
+                plt.scatter(distance, average_velocity, label=f'Average Velocity {i+1}' if i == 0 else "")
+                plt.text(distance, average_velocity, str(i+1)+".avg")
+
         plt.xlabel('Distance to Stop Line (m)')
         plt.ylabel('Velocity (m/s)')
-        plt.title('Decision Graph')
+        plt.title('YellowLightDecision')
         plt.legend()
         plt.grid(True)
         
         parent_directory = '/autoware/src/universe/autoware.universe/planning/tum_commonroad_planning/dfg-car/src/cr2autoware/cr2autoware/interfaces/implementation/behavior_tree/output/traffic_light_module'
 
         # Save the plot as an SVG file
-        plt.savefig(parent_directory + '/decision_graph.svg')
+        plt.savefig(parent_directory + '/yellow_light_decision.svg')
         plt.close()
+
+        # Save datato json file
+        with open(parent_directory + '/yellow_light_decision.json', 'w') as f:
+            json.dump({
+                "x_axis": x_range.tolist(),
+                "y_axis": y_range.tolist(),
+                "comfort_braking_x": comfort_braking_x,
+                "comfort_braking_y": y_range.tolist(),
+                "min_pass_line_x": x_range.tolist(),
+                "min_pass_line_y": min_pass_line_y,
+                "iterations": [i for i in range(1, len(self.iteration_data)+1)],
+                "distance": [data[0] for data in self.iteration_data],
+                "velocity": [data[1] for data in self.iteration_data],
+                "average_velocity": [data[2] for data in self.iteration_data]
+            }, f, indent=4)
+    
+    def comfort_braking_distance(self, current_velocity: float) -> float:
+        """
+        Calculate the braking distance for a given velocity with the maximum comfort deceleration. Also consider the system delay.
+
+        :param current_velocity: Current velocity of the vehicle
+        :return: Braking distance
+        """
+        braking_distance = self.params.yellow_light_rollout_distance + (current_velocity ** 2) / (2 * self.params.max_comfort_deceleration) + self.params.system_delay * current_velocity
+        return max(braking_distance, 0.0)
+
+    def min_pass_line_velocity(self, distance: float) -> float:
+        """
+        Calculate the minimum velocity to pass the yellow light line at a given distance.
+
+        :param distance: Distance to the stop line
+        :return: Minimum velocity to pass the yellow light line
+        """
+        return max(distance / (self.params.yellow_light_time - self.params.system_delay), 0.0)
+    
+    def check_for_min_pass_line_velocity(self) -> bool:
+        """
+        Check if the current velocity is greater than the minimum velocity to pass the yellow light line.
+
+        :param distance: Distance to the stop line
+        :param current_velocity: Current velocity of the vehicle
+        :return: True, if the vehicle can pass the yellow light line
+        """
+        # Get the path from the current position to the stop line
+        velocity_profile = copy_from_blackboard(self.inputs.velocity_profile_without_traffic_lights)
+        # TODO: Call Velocity Smoother for more accurate velocity profile, currently "target velocity" is used
+        relevant_profile: np.ndarray = velocity_profile[self.first_position_index:(self.inputs.target_stop_position_index + 1)]
+
+        # Get mean velocity of the relevant profile
+        average_velocity = np.mean(relevant_profile)
+        self.average_velocity = average_velocity
+        self._logger.debug("Average Velocity: " + str(average_velocity))
+        return average_velocity > self.min_pass_line_velo
+    
+    def check_for_comfort_braking_distance(self, distance: float, current_velocity: float) -> bool:
+        """
+        Check if the vehicle can brake within the braking distance.
+
+        :param distance: Distance to the stop line
+        :param current_velocity: Current velocity of the vehicle
+        :return: True, if the vehicle can brake within the braking distance
+        """
+        braking_distance = self.comfort_braking_distance(current_velocity)
+        return distance >= braking_distance
 
     def update(self):
         self._logger.debug("Updating DecisionPointCalculationAction")
@@ -694,73 +769,82 @@ class DecisionPointCalculationAction(TrafficLightBehavior):
         # Calculate the distance between the current position and the stop line position
         distance = (stop_line_position[0] - self.inputs.distance_stop_line_vehicle_origin - current_position_curvilinear[0])
 
-        # Calculate the braking distance, also consider the system delay
-        braking_distance = (current_velocity ** 2) / (2 * self.params.max_comfort_deceleration) + self.params.system_delay * current_velocity
-        braking_distance = max(braking_distance, 0.0)
+        # For the first iteration, calculate the minimum velocity to pass the yellow light line
+        if self.inputs.yellow_light_id != self.inputs.current_traffic_light_id:
+            self.inputs.yellow_light_id = self.inputs.current_traffic_light_id
+            # Calculate the minimum velocity to pass the yellow light line
+            self.min_pass_line_velo = self.min_pass_line_velocity(distance)
+            self.first_position_index = self.global_inputs.current_position_index
+        
+        min_velo_check = False
+        if distance >= 0.0:
+            min_velo_check = True
+            # Vehicle is in front of the stop line
+            # Check if the vehicle can pass the yellow light line with the current velocity profile
+            if self.check_for_min_pass_line_velocity():
+                # vehicle can pass the yellow light line with the current velocity profile
+                # check if the vehicle can brake within the braking distance
+                if self.check_for_comfort_braking_distance(distance, current_velocity):
+                    # Vehicle can brake within the braking distance
+                    brake_at_yellow_light = True
+                else:
+                    # Vehicle can not brake within the braking distance, continue driving
+                    brake_at_yellow_light = False
+            else:
+                # Vehicle can not pass the yellow light line with the current velocity profile
+                # Check if the vehicle can brake within the braking distance
+                if self.check_for_comfort_braking_distance(distance, current_velocity):
+                    # Vehicle can brake within the comfort braking distance
+                    # TODO: COMFORT BRAKING
+                    brake_at_yellow_light = True
+                else:
+                    # Vehicle can not brake within the comfort braking distance
+                    # TODO: EMERGENCY BRAKING
+                    brake_at_yellow_light = True
+                # Vehicle can not brake within the braking distance
 
-        # Calculate the decision point
-        decision_point = current_position_curvilinear[0] + (distance - braking_distance)
-
-        if distance >= braking_distance:
-            # Vehicle has not reached the decision point yet
-            # Breaking distance is smaller than the distance to the stop line
-            decision_point_ahead = True
-
-        # Vehicle passed the decision point, but did not reach the stop line yet
-        # Consider the case that the vehicle is almost standing
+        # Vehicle passed the stop line but is within the overrun tolerance
         elif distance + self.params.stop_line_overrun_tolerance >= 0.0:
-            # Vehicle is standing or almost standing:
+            # Consider the case that the vehicle is almost standing
             if current_velocity < 1.5:
                 # Vehicle is almost standing
-                if distance + self.params.stop_line_overrun_tolerance >= braking_distance:
+                if self.check_for_comfort_braking_distance((distance + self.params.stop_line_overrun_tolerance), current_velocity):
                     # Vehicle can brake within the overrun tolerance
                     # For this case, the vehicle should stop
-                    decision_point_ahead = True
-                    self.inputs.safe_stop = True
+                    brake_at_yellow_light = True
+                    self.inputs.force_stop = True
                 else:
                     # Vehicle can not brake within the overrun tolerance
                     # For this case, the vehicle should continue driving
-                    decision_point_ahead = False
+                    brake_at_yellow_light = False
 
             # Vehicle is moving
             else:
-                # Breaking distance is greater than the distance to the stop line
-                # Vehicle should contine driving
-                if not self.inputs.safe_stop:
-                    decision_point_ahead = False
+                # check if safe stop is performed
+                if self.inputs.force_stop:
+                    brake_at_yellow_light = True
                 else:
-                    # Safe stop is performed, keep the decision point ahead
-                    decision_point_ahead = True
-        elif distance < 0.0:
-            # Vehicle already passed the stop Line
-            # check if the decision point is behind the stop line overrun tolerance
-            distance_vehicle_origin_to_stop_line = current_position_curvilinear[0] - stop_line_position[0]
-            if distance_vehicle_origin_to_stop_line > self.params.stop_line_overrun_tolerance:
-                # Vehicle already passed the stop line and overrun tolerance
-                # No decision_point calculation required
-                return Status.FAILURE
-
-            if self.inputs.safe_stop:
-                # Safe stop is performed, keep the decision point ahead
-                decision_point_ahead = True
+                    # Continue driving
+                    brake_at_yellow_light = False
+        else:
+            # Vehicle already passed the stop Line and overrun tolerance
+            if self.inputs.force_stop:
+                brake_at_yellow_light = True
             else:
-                # Vehicle already passed the stop line and decision point
-                decision_point_ahead = False
+                brake_at_yellow_light = False
 
-        # Save the hold position in the blackboard
-        self.inputs.target_stop_position = stop_line_position[0] - self.inputs.distance_stop_line_vehicle_origin
-        # Save the decision point in the blackboard
-        self.inputs.decision_point = decision_point
-        self.inputs.decision_point_ahead = decision_point_ahead
+        # Save the decision in the blackboard
+        self.inputs.brake_at_yellow_light = brake_at_yellow_light
 
         # Store the current velocity and distance to the stop line
         if current_velocity > 0.1:
-            self.iteration_data.append((distance, current_velocity))
+            if min_velo_check:
+                self.iteration_data.append((distance, current_velocity, self.average_velocity))
+            else:
+                self.iteration_data.append((distance, current_velocity, None))
 
-        # Plot the graph every 20 seconds
-        if time.time() - self.last_plot_time > 20:
-            self.plot_decision_graph()
-            self.last_plot_time = time.time()
+        # Plot the graph
+        self.plot_decision_graph()
 
         return Status.SUCCESS
         
@@ -768,7 +852,7 @@ class DecisionPointCalculationAction(TrafficLightBehavior):
         self._logger.debug("Terminating DecisionPointCalculationAction to " + str(new_status))
 
 
-class DecisionPointAheadCondition(TrafficLightBehavior):
+class BrakeAtYellowLightCondition(TrafficLightBehavior):
     """
     Condition Node. Checks if the decision point is ahead of the vehicle.
 
@@ -793,8 +877,8 @@ class DecisionPointAheadCondition(TrafficLightBehavior):
         self._logger.debug("Updating DecisionPointAheadCondition")
 
         # Check if the decision point is ahead of the vehicle
-        decision_point_ahead = self.inputs.decision_point_ahead
-        if decision_point_ahead:
+        brake_at_yellow_light = self.inputs.brake_at_yellow_light
+        if brake_at_yellow_light:
             return Status.SUCCESS
         else:
             return Status.FAILURE
@@ -803,7 +887,7 @@ class DecisionPointAheadCondition(TrafficLightBehavior):
         self._logger.debug("Terminating DecisionPointAheadCondition to " + str(new_status))
 
 
-class DecisionPointBehindCondition(TrafficLightBehavior):
+class ContinueDrivingAtYellowLightCondition(TrafficLightBehavior):
     """
     Condition Node. Checks if the decision point is behind the vehicle.
 
@@ -827,8 +911,8 @@ class DecisionPointBehindCondition(TrafficLightBehavior):
     def update(self):
         self._logger.debug("Updating DecisionPointBehindCondition")
 
-        decision_point_ahead = self.inputs.decision_point_ahead
-        if not decision_point_ahead:
+        brake_at_yellow_light = self.inputs.brake_at_yellow_light
+        if not brake_at_yellow_light:
             return Status.SUCCESS
         else:
             return Status.FAILURE
@@ -1012,6 +1096,7 @@ class PublishRVIZMarker(TrafficLightBehavior):
             stop_line_cart_max = None
         
         try: 
+            # TODO: Visualization of new YellowLightDecisionAction?
             decision_point_curv = copy_from_blackboard(self.inputs.decision_point)
             decision_point_cartesian = coordinate_system.convert_to_cartesian_coords(decision_point_curv, 0.0)
 
@@ -1274,18 +1359,3 @@ class ErrorHandlingAction(TrafficLightBehavior):
 
     def terminate(self, new_status):
         self._logger.debug("Terminating ErrorHandlingAction to " + str(new_status))
-
-
-# Utils
-
-def minimum_width_lanelet(lanelet: Lanelet) -> float:
-    """
-    Calculate the minimum width of the lanelet by finding the minimum distance between left and right vertices.
-
-    :param lanelet: lanelet of a CommonRoad scenario
-    :return: The minimum width of the lanelet.
-    """
-    left_vertices = lanelet.left_vertices
-    right_vertices = lanelet.right_vertices
-    widths = np.linalg.norm(left_vertices - right_vertices, axis=1)
-    return np.min(widths)

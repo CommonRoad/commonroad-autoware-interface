@@ -13,7 +13,7 @@ from commonroad_rp.utility.utils_coordinate_system import CoordinateSystem
 from typing import List
 from rclpy.time import Time
 from rclpy.impl.rcutils_logger import RcutilsLogger
-from ..behavior_utils import copy_from_blackboard
+from ..behavior_utils import copy_from_blackboard, calculate_current_position_index
 
 class BehaviorTree(BaseTree):
 
@@ -157,7 +157,7 @@ class BehaviorTree(BaseTree):
         self.inputs.current_position_curvilinear = current_position_curvilinear
         self.inputs.z_coordinate = z_coordinate
         self.inputs.current_time_msg = ros_time_msg
-        self.inputs.current_position_index = self._calculate_current_position_index(current_position_curvilinear, input_path_curvilinear)
+        self.inputs.current_position_index = calculate_current_position_index(current_position_curvilinear, input_path_curvilinear)
         self.inputs.input_path_orientation = input_path_orientation
         self.inputs.empty_velocity_profile = np.full(len(input_path), float("inf"))
 
@@ -187,19 +187,6 @@ class BehaviorTree(BaseTree):
         # Create velocity profile for traffic lights
         # Velocity profile includes all modules that influence the velocity profile but the traffic lights module
         self.blackboard.modules.traffic_lights.inputs.velocity_profile_without_traffic_lights = self._create_velocity_profile(new_planning_cycle=self.new_planning_cycle, no_traffic_lights=True)
-
-    def _calculate_current_position_index(self, current_position_curvilinear: np.ndarray, input_path_curvilinear: np.ndarray) -> int:
-        """
-        Calculate the index of the current position in the input path.
-
-        For calculation, the curvilinear coordinates are used.
-
-        :param current_position_curvilinear: Current position in curvilinear coordinates
-        :param input_path_curvilinear: Input path in curvilinear coordinates
-        :return: Index of the current position in the input path
-        """
-        distances = np.abs(input_path_curvilinear - current_position_curvilinear[0])
-        return np.argmin(distances)
 
     def plan(self) -> None:
         """

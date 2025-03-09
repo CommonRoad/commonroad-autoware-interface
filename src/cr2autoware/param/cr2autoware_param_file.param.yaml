@@ -61,6 +61,7 @@
 
       # traffic light module
       traffic_light_behavior: True
+      yellow_light_time: 3.0  # s
       no_stop_line_in_map: False
       stop_line_overrun_tolerance: 3.0  # m
       traffic_light_perception_range: 100.0  # m
@@ -71,6 +72,7 @@
       comfort_rollout: True
       comfort_rollout_distance: 10.0  # m
       comfort_rollout_speed: 3.0  # m/s
+      yellow_light_rollout_distance: 0.0  # m
 
       # lateral clearance velocity adjuster
       lateral_clearance_velocity_adjuster: True
