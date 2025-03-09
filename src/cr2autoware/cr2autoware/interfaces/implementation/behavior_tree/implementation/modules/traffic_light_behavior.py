@@ -776,32 +776,27 @@ class YellowLightDecisionAction(TrafficLightBehavior):
             self.min_pass_line_velo = self.min_pass_line_velocity(distance)
             self.first_position_index = self.global_inputs.current_position_index
         
+        # for debug plotting
         min_velo_check = False
+
         if distance >= 0.0:
-            min_velo_check = True
             # Vehicle is in front of the stop line
-            # Check if the vehicle can pass the yellow light line with the current velocity profile
-            if self.check_for_min_pass_line_velocity():
-                # vehicle can pass the yellow light line with the current velocity profile
-                # check if the vehicle can brake within the braking distance
-                if self.check_for_comfort_braking_distance(distance, current_velocity):
-                    # Vehicle can brake within the braking distance
+            # Check if the vehicle can break within the comfort braking distance
+            if self.check_for_comfort_braking_distance(distance, current_velocity):
+                # Vehicle can brake within the comfort braking distance
+                # TODO: COMFORT BRAKING
+                brake_at_yellow_light = True
+            else:
+                # Vehicle can not brake within the comfort braking distance
+                # Check if the vehicle can pass the yellow light line with the current velocity profile
+                min_velo_check = True
+                if self.check_for_min_pass_line_velocity():
+                    # vehicle can pass the yellow light line with the current velocity profile
+                    # TODO: EMERGENCY BRAKING
                     brake_at_yellow_light = True
                 else:
                     # Vehicle can not brake within the braking distance, continue driving
                     brake_at_yellow_light = False
-            else:
-                # Vehicle can not pass the yellow light line with the current velocity profile
-                # Check if the vehicle can brake within the braking distance
-                if self.check_for_comfort_braking_distance(distance, current_velocity):
-                    # Vehicle can brake within the comfort braking distance
-                    # TODO: COMFORT BRAKING
-                    brake_at_yellow_light = True
-                else:
-                    # Vehicle can not brake within the comfort braking distance
-                    # TODO: EMERGENCY BRAKING
-                    brake_at_yellow_light = True
-                # Vehicle can not brake within the braking distance
 
         # Vehicle passed the stop line but is within the overrun tolerance
         elif distance + self.params.stop_line_overrun_tolerance >= 0.0:
