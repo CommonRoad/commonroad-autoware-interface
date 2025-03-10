@@ -798,8 +798,8 @@ class YellowLightDecisionAction(TrafficLightBehavior):
                     # Vehicle can not brake within the braking distance, continue driving
                     brake_at_yellow_light = False
 
-        # Vehicle passed the stop line but is within the overrun tolerance
-        elif distance + self.params.stop_line_overrun_tolerance >= 0.0:
+        # Vehicle passed the stop line but is within the overrun tolerance (do not use all of the overrun tolerance, to avoid the traffic light being passed (out of range))
+        elif distance + self.params.stop_line_overrun_tolerance - 1.0 >= 0.0:
             # Consider the case that the vehicle is almost standing
             if current_velocity < 1.5:
                 # Vehicle is almost standing
@@ -839,7 +839,8 @@ class YellowLightDecisionAction(TrafficLightBehavior):
                 self.iteration_data.append((distance, current_velocity, None))
 
         # Plot the graph
-        self.plot_decision_graph()
+        if self.params.plot_decision_graph:
+            self.plot_decision_graph()
 
         return Status.SUCCESS
         
@@ -942,11 +943,8 @@ class EmergencyBrakingAction(TrafficLightBehavior):
 
         # TODO: WIP, this is comfort braking, not emergency braking
 
-        target_stop_position = self.inputs.target_stop_position
-        input_path_curvilinear = self.global_inputs.input_path_curvilinear
-
         # Get the index of the decision point in the input path
-        stop_point_index = np.argmin(np.abs(input_path_curvilinear - target_stop_position))
+        stop_point_index = self.inputs.target_stop_position_index
         # Define the new velocity profile
         velocity_profile = copy_from_blackboard(self.global_inputs.empty_velocity_profile)
 
@@ -1023,11 +1021,8 @@ class ComfortBrakingAction(TrafficLightBehavior):
     def update(self):
         self._logger.debug("Updating ComfortBrakingAction")
 
-        target_stop_position = self.inputs.target_stop_position
-        input_path_curvilinear = self.global_inputs.input_path_curvilinear
-
         # Get the index of the decision point in the input path
-        stop_point_index = np.argmin(np.abs(input_path_curvilinear - target_stop_position))
+        stop_point_index = self.inputs.target_stop_position_index
         # Define the new velocity profile
         velocity_profile = copy_from_blackboard(self.global_inputs.empty_velocity_profile)
 
@@ -1074,165 +1069,171 @@ class PublishRVIZMarker(TrafficLightBehavior):
     def update(self):
         self._logger.debug("Updating PublishRVIZMarker")
 
-        scenario: Scenario = self.global_inputs.get("scenario")
-        traffic_light_id = self.inputs.current_traffic_light_id
-        traffic_light = scenario.lanelet_network.find_traffic_light_by_id(traffic_light_id)
-        coordinate_system: CoordinateSystem = self.global_inputs.get("coordinate_system")
-        
-        try:
-            stop_line_curv = copy_from_blackboard(self.inputs.stop_line_position_curvilinear)
-            stop_line_cartesian = coordinate_system.convert_to_cartesian_coords(stop_line_curv[0], 0.0)
+        if self.params.publish_traffic_light_markers:
+            scenario: Scenario = self.global_inputs.get("scenario")
+            traffic_light_id = self.inputs.current_traffic_light_id
+            traffic_light = scenario.lanelet_network.find_traffic_light_by_id(traffic_light_id)
+            coordinate_system: CoordinateSystem = self.global_inputs.get("coordinate_system")
+            
+            try:
+                stop_line_curv = copy_from_blackboard(self.inputs.stop_line_position_curvilinear)
+                stop_line_cartesian = coordinate_system.convert_to_cartesian_coords(stop_line_curv[0], 0.0)
 
-            stop_line_cart_min = coordinate_system.convert_to_cartesian_coords(stop_line_curv[0], -1.5)
-            stop_line_cart_max = coordinate_system.convert_to_cartesian_coords(stop_line_curv[0], 1.5)
-        except:
-            stop_line_cartesian = None
-            stop_line_cart_min = None
-            stop_line_cart_max = None
-        
-        try: 
-            # TODO: Visualization of new YellowLightDecisionAction?
-            decision_point_curv = copy_from_blackboard(self.inputs.decision_point)
-            decision_point_cartesian = coordinate_system.convert_to_cartesian_coords(decision_point_curv, 0.0)
+                stop_line_cart_min = coordinate_system.convert_to_cartesian_coords(stop_line_curv[0], -1.5)
+                stop_line_cart_max = coordinate_system.convert_to_cartesian_coords(stop_line_curv[0], 1.5)
+            except:
+                stop_line_cartesian = None
+                stop_line_cart_min = None
+                stop_line_cart_max = None
+            
+            try: 
+                # TODO: Visualization of new YellowLightDecisionAction?
+                decision_point_curv = copy_from_blackboard(self.inputs.decision_point)
+                decision_point_cartesian = coordinate_system.convert_to_cartesian_coords(decision_point_curv, 0.0)
 
-            decision_point_cart_min = coordinate_system.convert_to_cartesian_coords(decision_point_curv, -1.5)
-            decision_point_cart_max = coordinate_system.convert_to_cartesian_coords(decision_point_curv, 1.5)
-        except:
-            decision_point_cartesian = None
-            decision_point_cart_min = None
-            decision_point_cart_max = None
+                decision_point_cart_min = coordinate_system.convert_to_cartesian_coords(decision_point_curv, -1.5)
+                decision_point_cart_max = coordinate_system.convert_to_cartesian_coords(decision_point_curv, 1.5)
+            except:
+                decision_point_cartesian = None
+                decision_point_cart_min = None
+                decision_point_cart_max = None
 
-        z = self.global_inputs.get("z_coordinate")
-        
-        positions_lines = [stop_line_cart_min, stop_line_cart_max, decision_point_cart_min, decision_point_cart_max]
-        positions_text = [stop_line_cartesian, decision_point_cartesian]
-        text = ["StopLine", "DecisionPoint"]
-        positions_aw_lines = []
-        positions_aw = []
+            z = self.global_inputs.get("z_coordinate")
+            
+            positions_lines = [stop_line_cart_min, stop_line_cart_max, decision_point_cart_min, decision_point_cart_max]
+            positions_text = [stop_line_cartesian, decision_point_cartesian]
+            text = ["StopLine", "DecisionPoint"]
+            positions_aw_lines = []
+            positions_aw = []
 
-        # convert positions to AW coordinate system
-        for pos in positions_lines:
-            if pos is None:
-                continue
-            positions_aw_lines.append(utm2map(self.global_inputs.get("origin_transformation"), pos))
+            # convert positions to AW coordinate system
+            for pos in positions_lines:
+                if pos is None:
+                    continue
+                positions_aw_lines.append(utm2map(self.global_inputs.get("origin_transformation"), pos))
 
-        for pos in positions_text:
-            if pos is None:
-                continue
-            positions_aw.append(utm2map(self.global_inputs.get("origin_transformation"), pos))
+            for pos in positions_text:
+                if pos is None:
+                    continue
+                positions_aw.append(utm2map(self.global_inputs.get("origin_transformation"), pos))
 
-        marker_array = MarkerArray()
-        del_marker = Marker()
-        del_marker.action = Marker.DELETEALL
-        marker_array.markers.append(del_marker)
-        marker = Marker()
-        marker.header.frame_id = "map"
-        marker.header.stamp = self.global_inputs.get("current_time_msg")
-        marker.type = Marker.LINE_LIST
-        marker.action = Marker.ADD
-        marker.scale.x = 0.5
-        marker.color.a = 1.0
+            marker_array = MarkerArray()
+            del_marker = Marker()
+            del_marker.action = Marker.DELETEALL
+            marker_array.markers.append(del_marker)
+            marker = Marker()
+            marker.header.frame_id = "map"
+            marker.header.stamp = self.global_inputs.get("current_time_msg")
+            marker.type = Marker.LINE_LIST
+            marker.action = Marker.ADD
+            marker.scale.x = 0.5
+            marker.color.a = 1.0
 
-        if traffic_light.color == TrafficLightState.RED or traffic_light.color == TrafficLightState.RED_YELLOW:
-            marker.color.r = 1.0
-            marker.color.g = 0.0
-            marker.color.b = 0.0
-        elif traffic_light.color == TrafficLightState.YELLOW:
-            marker.color.r = 1.0
-            marker.color.g = 1.0
-            marker.color.b = 0.0
-        elif traffic_light.color == TrafficLightState.GREEN:
-            marker.color.r = 0.0
-            marker.color.g = 1.0
-            marker.color.b = 0.0
+            if traffic_light.color == TrafficLightState.RED or traffic_light.color == TrafficLightState.RED_YELLOW:
+                marker.color.r = 1.0
+                marker.color.g = 0.0
+                marker.color.b = 0.0
+            elif traffic_light.color == TrafficLightState.YELLOW:
+                marker.color.r = 1.0
+                marker.color.g = 1.0
+                marker.color.b = 0.0
+            elif traffic_light.color == TrafficLightState.GREEN:
+                marker.color.r = 0.0
+                marker.color.g = 1.0
+                marker.color.b = 0.0
 
-        marker.id = traffic_light_id
-        marker.ns = "traffic_light"
-        marker.points = []
-        for pos in positions_aw_lines:
-            marker.points.append(PointMsg(x=pos.x, y=pos.y, z=z))
+            marker.id = traffic_light_id
+            marker.ns = "traffic_light"
+            marker.points = []
+            for pos in positions_aw_lines:
+                marker.points.append(PointMsg(x=pos.x, y=pos.y, z=z))
 
-        marker_array.markers.append(marker)
+            marker_array.markers.append(marker)
 
-        for pos in positions_aw:
-            text_marker = Marker()
-            text_marker.header.frame_id = "map"
-            text_marker.header.stamp = self.global_inputs.get("current_time_msg")
-            text_marker.type = Marker.TEXT_VIEW_FACING
-            text_marker.action = Marker.ADD
-            text_marker.scale.z = 0.5
-            text_marker.color.a = 1.0
-            text_marker.color.r = 1.0
-            text_marker.color.g = 1.0
-            text_marker.color.b = 1.0
-            text_marker.text = text[positions_aw.index(pos)] + " " + str(traffic_light_id)
-            text_marker.id = -traffic_light_id
-            text_marker.ns = text[positions_aw.index(pos)] + " " + str(traffic_light_id)
-            text_marker.pose.position.x = pos.x
-            text_marker.pose.position.y = pos.y + 0.3
-            text_marker.pose.position.z = z
-            marker_array.markers.append(text_marker)
+            for pos in positions_aw:
+                text_marker = Marker()
+                text_marker.header.frame_id = "map"
+                text_marker.header.stamp = self.global_inputs.get("current_time_msg")
+                text_marker.type = Marker.TEXT_VIEW_FACING
+                text_marker.action = Marker.ADD
+                text_marker.scale.z = 0.5
+                text_marker.color.a = 1.0
+                text_marker.color.r = 1.0
+                text_marker.color.g = 1.0
+                text_marker.color.b = 1.0
+                text_marker.text = text[positions_aw.index(pos)] + " " + str(traffic_light_id)
+                text_marker.id = -traffic_light_id
+                text_marker.ns = text[positions_aw.index(pos)] + " " + str(traffic_light_id)
+                text_marker.pose.position.x = pos.x
+                text_marker.pose.position.y = pos.y + 0.3
+                text_marker.pose.position.z = z
+                marker_array.markers.append(text_marker)
 
-        ################################################################################################
-        # NO OVERTAKE Marker
+            ################################################################################################
+            # NO OVERTAKE Marker
 
-        if self.outputs.exists("d_min") and self.outputs.exists("d_max"):
-            if self.outputs.d_min is not None and self.outputs.d_max is not None:
+            if self.outputs.exists("d_min") and self.outputs.exists("d_max"):
+                if self.outputs.d_min is not None and self.outputs.d_max is not None:
 
-                input_path_curvilinear = self.global_inputs.input_path_curvilinear
-                current_position_index = self.global_inputs.current_position_index
-                coordinate_system: CoordinateSystem = self.global_inputs.coordinate_system
+                    input_path_curvilinear = self.global_inputs.input_path_curvilinear
+                    current_position_index = self.global_inputs.current_position_index
+                    coordinate_system: CoordinateSystem = self.global_inputs.coordinate_system
 
-                path = input_path_curvilinear[current_position_index:]
+                    path = input_path_curvilinear[current_position_index:]
 
-                d_min_vehicle = self.outputs.d_min - 0.5 * (self.global_params.vehicle.wheel_tread + self.global_params.vehicle.right_overhang + self.global_params.vehicle.left_overhang)
-                d_max_vehicle = self.outputs.d_max + 0.5 * (self.global_params.vehicle.wheel_tread + self.global_params.vehicle.right_overhang + self.global_params.vehicle.left_overhang)
-                
-                min_path: List[np.ndarray] = []
-                max_path: List[np.ndarray] = []
-                for point in path:
-                    point_cart_min = coordinate_system.convert_to_cartesian_coords(point, d_min_vehicle)
-                    try:
-                        point_cart_min_aw = utm2map(self.global_inputs.get("origin_transformation"), point_cart_min)
-                        point_cart_min_aw_msg = PointMsg(x=point_cart_min_aw.x, y=point_cart_min_aw.y, z=z)
-                        min_path.append(point_cart_min_aw_msg)
-                    except:
-                        pass
-                    point_cart_max = coordinate_system.convert_to_cartesian_coords(point, d_max_vehicle)
-                    try:
-                        point_cart_max_aw = utm2map(self.global_inputs.get("origin_transformation"), point_cart_max)
-                        point_cart_max_aw_msg = PointMsg(x=point_cart_max_aw.x, y=point_cart_max_aw.y, z=z)
-                        max_path.append(point_cart_max_aw_msg)
-                    except:
-                        pass
+                    d_min_vehicle = self.outputs.d_min - 0.5 * (self.global_params.vehicle.wheel_tread + self.global_params.vehicle.right_overhang + self.global_params.vehicle.left_overhang)
+                    d_max_vehicle = self.outputs.d_max + 0.5 * (self.global_params.vehicle.wheel_tread + self.global_params.vehicle.right_overhang + self.global_params.vehicle.left_overhang)
+                    
+                    min_path: List[np.ndarray] = []
+                    max_path: List[np.ndarray] = []
+                    for point in path:
+                        point_cart_min = coordinate_system.convert_to_cartesian_coords(point, d_min_vehicle)
+                        try:
+                            point_cart_min_aw = utm2map(self.global_inputs.get("origin_transformation"), point_cart_min)
+                            point_cart_min_aw_msg = PointMsg(x=point_cart_min_aw.x, y=point_cart_min_aw.y, z=z)
+                            min_path.append(point_cart_min_aw_msg)
+                        except:
+                            pass
+                        point_cart_max = coordinate_system.convert_to_cartesian_coords(point, d_max_vehicle)
+                        try:
+                            point_cart_max_aw = utm2map(self.global_inputs.get("origin_transformation"), point_cart_max)
+                            point_cart_max_aw_msg = PointMsg(x=point_cart_max_aw.x, y=point_cart_max_aw.y, z=z)
+                            max_path.append(point_cart_max_aw_msg)
+                        except:
+                            pass
 
-                no_overtake_marker = Marker()
-                no_overtake_marker.header.frame_id = "map"
-                no_overtake_marker.header.stamp = self.global_inputs.get("current_time_msg")
-                no_overtake_marker.type = Marker.LINE_STRIP
-                no_overtake_marker.action = Marker.ADD
-                no_overtake_marker.scale.x = 0.1
-                no_overtake_marker.color.a = 1.0
-                no_overtake_marker.color.r = 1.0
-                no_overtake_marker.color.g = 1.0
-                no_overtake_marker.color.b = 1.0
-                
-                no_overtake_marker_min = copy.deepcopy(no_overtake_marker)
-                no_overtake_marker_max = copy.deepcopy(no_overtake_marker)
+                    no_overtake_marker = Marker()
+                    no_overtake_marker.header.frame_id = "map"
+                    no_overtake_marker.header.stamp = self.global_inputs.get("current_time_msg")
+                    no_overtake_marker.type = Marker.LINE_STRIP
+                    no_overtake_marker.action = Marker.ADD
+                    no_overtake_marker.scale.x = 0.1
+                    no_overtake_marker.color.a = 1.0
+                    no_overtake_marker.color.r = 1.0
+                    no_overtake_marker.color.g = 1.0
+                    no_overtake_marker.color.b = 1.0
+                    
+                    no_overtake_marker_min = copy.deepcopy(no_overtake_marker)
+                    no_overtake_marker_max = copy.deepcopy(no_overtake_marker)
 
-                no_overtake_marker_min.id = 11
-                no_overtake_marker_min.ns = "no_overtake_min"
-                no_overtake_marker_min.points = min_path
-                
-                no_overtake_marker_max.id = 12
-                no_overtake_marker_max.ns = "no_overtake_max"
-                no_overtake_marker_max.points = max_path
+                    no_overtake_marker_min.id = 11
+                    no_overtake_marker_min.ns = "no_overtake_min"
+                    no_overtake_marker_min.points = min_path
+                    
+                    no_overtake_marker_max.id = 12
+                    no_overtake_marker_max.ns = "no_overtake_max"
+                    no_overtake_marker_max.points = max_path
 
 
-                marker_array.markers.append(no_overtake_marker_min)
-                marker_array.markers.append(no_overtake_marker_max)
-        
-        ################################################################################################
+                    marker_array.markers.append(no_overtake_marker_min)
+                    marker_array.markers.append(no_overtake_marker_max)
+            
+            ################################################################################################
+        else:
+            marker_array = MarkerArray()
+            del_marker = Marker()
+            del_marker.action = Marker.DELETEALL
+            marker_array.markers.append(del_marker)
 
         self.outputs.traffic_light_marker_array = marker_array
 

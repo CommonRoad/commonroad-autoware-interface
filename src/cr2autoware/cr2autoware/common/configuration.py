@@ -354,7 +354,7 @@ class BehaviorPlannerParams(BaseParams):
     # maximum deceleration for comfort stop (in m/s^2)
     max_comfort_deceleration: float = 2.0
     # system delay for braking distance calculation (in seconds)
-    system_delay: float = 0.0
+    system_delay: float = 0.3
     # minimal buffer for lateral offset trajectory planner (in meters)
     d_minimal_buffer: float = 0.5
     # Activate comfort rollout stopping procedure
@@ -365,6 +365,10 @@ class BehaviorPlannerParams(BaseParams):
     comfort_rollout_speed: float = 3.0
     # Rollout distance for yellow light stopping procedure (in meters)
     yellow_light_rollout_distance: float = 0.0
+    # Plot decision graph
+    plot_decision_graph: bool = False
+    # Publish RVIZ markers
+    publish_traffic_light_markers: bool = True
 
     # Parameters for lateral clearance velocity adjuster
     # activate lateral clearance velocity adjuster

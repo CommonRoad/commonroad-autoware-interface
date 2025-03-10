@@ -324,6 +324,7 @@ class Cr2Auto(Node):
         self.current_goal_msg = None
         self.last_goal_reached = self.get_clock().now()
         self.initial_pose = None
+        self.last_start_time = None
 
         # ========= Subscribers =========
         # subscribe initial pose
@@ -611,7 +612,7 @@ class Cr2Auto(Node):
         self.scenario_handler.update_scenario()
         self.plot_save_scenario()
 
-        time.sleep(0.5)
+        # time.sleep(0.5)
 
     def update_initial_pose(self) -> None:
         """Update initial pose."""
@@ -677,6 +678,9 @@ class Cr2Auto(Node):
 
         # wait for trajectory to be computed in AW Motion Velocity Smoother
         start_time = time.time()
+        if self.last_start_time is not None:
+            self._logger.info(f"Last Cycle time: {start_time - self.last_start_time}")
+        self.last_start_time = start_time
         timeout_velocity_planning = 1.0
         while not self.behavior_planner.is_velocity_planning_completed:
             time.sleep(0.01)

@@ -67,12 +67,14 @@
       traffic_light_perception_range: 100.0  # m
       distance_stop_line_to_vehicle_front_bumper: 1.0  # m
       max_comfort_deceleration: 2.0  # m/s^2
-      system_delay: 0.0  # s
+      system_delay: 0.3  # s
       d_minimal_buffer: 0.5  # m
       comfort_rollout: True
       comfort_rollout_distance: 10.0  # m
       comfort_rollout_speed: 3.0  # m/s
       yellow_light_rollout_distance: 0.0  # m
+      plot_decision_graph: False
+      publish_traffic_light_markers: True
 
       # lateral clearance velocity adjuster
       lateral_clearance_velocity_adjuster: True
