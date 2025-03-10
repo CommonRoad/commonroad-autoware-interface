@@ -20,18 +20,17 @@ class State(ABC):
         """
         with self.lock:
             if not self.activated:
-                self.node._logger.debug(f"Activate state: {self.__class__.__name__}")
                 self.activated = True
                 # activate superstate
                 if self.superstate:
                     self.superstate.activate(self)
 
                 # activate this state
+                self.node._logger.debug(f"[SVEN]Activate state: {self.__class__.__name__}")
                 self._entry()
-                self.node._logger.debug(f"Entry finished: {self.__class__.__name__}")
 
             else:
-                self.node._logger.debug(f"State already activated: {self.__class__.__name__}")
+                self.node._logger.debug(f"[SVEN]State already activated: {self.__class__.__name__}")
 
     def deactivate(self):
         """
@@ -40,10 +39,10 @@ class State(ABC):
         with self.lock:
             if self.activated:
                 self.activated = False
-                self.node._logger.debug(f"Deactivate state: {self.__class__.__name__}")
+                self.node._logger.debug(f"[SVEN]Deactivate state: {self.__class__.__name__}")
                 self._exit()
             else:
-                self.node._logger.debug(f"State already deactivated: {self.__class__.__name__}")
+                self.node._logger.debug(f"[SVEN]State already deactivated: {self.__class__.__name__}")
 
 
     def throughout(self):
@@ -51,7 +50,7 @@ class State(ABC):
         Execute events and outputs throughout the state.
         """
         with self.lock:
-            self.node._logger.debug(f"Throughout state: {self.__class__.__name__}")
+            self.node._logger.debug(f"[SVEN]Throughout state: {self.__class__.__name__}")
             self._throughout()
 
     @abstractmethod
@@ -126,12 +125,12 @@ class Superstate(State):
             if not self.activated:
                 self.activated = True
                 # activate superstate
-                self.node._logger.debug(f"Activate superstate: {self.__class__.__name__}; Substate: {self.current_substate.__class__.__name__}")
 
                 if self.superstate:
                     self.superstate.activate(self)
 
                 # activate this state
+                self.node._logger.debug(f"[SVEN]Activate superstate: {self.__class__.__name__}; Substate: {self.current_substate.__class__.__name__}")
                 self._entry()
 
                 # activate substate
@@ -155,7 +154,7 @@ class Superstate(State):
 
 
             else:
-                self.node._logger.debug(f"Superstate already activated: {self.__class__.__name__}")
+                self.node._logger.debug(f"[SVEN]Superstate already activated: {self.__class__.__name__}")
  
 
     def deactivate(self):
@@ -165,12 +164,12 @@ class Superstate(State):
         with self.lock:
             if self.activated:
                 self.activated = False
-                self.node._logger.debug(f"Deactivate superstate: {self.__class__.__name__}; Substate: {self.current_substate.__class__.__name__}")
                 self.current_substate.deactivate()
                 self.current_substate = None
+                self.node._logger.debug(f"[SVEN]Deactivate superstate: {self.__class__.__name__}; Substate: {self.current_substate.__class__.__name__}")
                 self._exit()
             else:
-                self.node._logger.debug(f"Superstate already deactivated: {self.__class__name__}")
+                self.node._logger.debug(f"[SVEN]Superstate already deactivated: {self.__class__name__}")
 
     def add_state(self, state: State):
         """

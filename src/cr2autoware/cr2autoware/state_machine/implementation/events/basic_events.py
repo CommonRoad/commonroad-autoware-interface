@@ -9,7 +9,7 @@ class HasSolutionPath(Event):
         super().__init__(machine, node)
 
     def run(self):
-        self.node._logger.debug("Initialization finished. Solution path found.")
+        self.node._logger.debug("[SVEN]Initialization finished. Solution path found.")
 
 class NoSolutionPath(Event):
     """
@@ -20,7 +20,7 @@ class NoSolutionPath(Event):
         super().__init__(machine, node)
 
     def run(self):
-        self.node._logger.debug("Initialization finished. No solution path found.")
+        self.node._logger.debug("[SVEN]Initialization finished. No solution path found.")
 
 class PlanningFinishedEvent(Event):
     """
@@ -31,7 +31,7 @@ class PlanningFinishedEvent(Event):
         super().__init__(machine, node)
 
     def run(self):
-        self.node._logger.debug("Planning finished.")
+        self.node._logger.debug("[SVEN]Planning finished.")
     
 class AutowareEngagedEvent(Event):
     """
@@ -42,7 +42,7 @@ class AutowareEngagedEvent(Event):
         super().__init__(machine, node)
 
     def run(self):
-        self.node._logger.debug("Autoware engaged.")
+        self.node._logger.debug("[SVEN]Autoware engaged.")
 
 class GoalReachedEvent(Event):
     """
@@ -53,7 +53,7 @@ class GoalReachedEvent(Event):
         super().__init__(machine, node)
 
     def run(self):
-        self.node._logger.debug("Goal reached.")
+        self.node._logger.debug("[SVEN]Goal reached.")
 
 class EngageFalseEvent(Event):
     """
@@ -64,7 +64,7 @@ class EngageFalseEvent(Event):
         super().__init__(machine, node)
 
     def run(self):
-        self.node._logger.debug("Engage False.")
+        self.node._logger.debug("[SVEN]Engage False.")
 
 class ClearRouteEvent(Event):
     """
@@ -77,7 +77,7 @@ class ClearRouteEvent(Event):
     def run(self):
         self.node.clear_route()
 
-        self.node._logger.debug("Clear Route.")
+        self.node._logger.debug("[SVEN]Clear Route.")
 
 class StopButtonEvent(Event):
     """
@@ -90,4 +90,4 @@ class StopButtonEvent(Event):
     def run(self):
         self.node.plan_route()
 
-        self.node._logger.debug("Stop Button pressed.")
+        self.node._logger.debug("[SVEN]Stop Button pressed.")

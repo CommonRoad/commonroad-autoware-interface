@@ -9,7 +9,7 @@ class UpdateScenarioEvent(Event):
         super().__init__(machine, node)
 
     def run(self):
-        self.node._logger.debug("Scenario Updated initiated.")
+        self.node._logger.debug("[SVEN]Scenario Updated initiated.")
 
 class UpdateGoalEvent(Event):
     """
@@ -20,7 +20,7 @@ class UpdateGoalEvent(Event):
         super().__init__(machine, node)
 
     def run(self):
-        self.node._logger.debug("Goal Updated initiated.")
+        self.node._logger.debug("[SVEN]Goal Updated initiated.")
 
 class PlanRouteEvent(Event):
     """
@@ -31,7 +31,7 @@ class PlanRouteEvent(Event):
         super().__init__(machine, node)
 
     def run(self):
-        self.node._logger.debug("Route Planning initiated.")
+        self.node._logger.debug("[SVEN]Route Planning initiated.")
     
 class UpdateInitialPoseEvent(Event):
     """
@@ -42,7 +42,7 @@ class UpdateInitialPoseEvent(Event):
         super().__init__(machine, node)
 
     def run(self):
-        self.node._logger.debug("Initial Pose Update initiated.")
+        self.node._logger.debug("[SVEN]Initial Pose Update initiated.")
 
 class UpdateReferencePathEvent(Event):
     """
@@ -53,7 +53,7 @@ class UpdateReferencePathEvent(Event):
         super().__init__(machine, node)
 
     def run(self):
-        self.node._logger.debug("Reference Path Publishing initiated.")
+        self.node._logger.debug("[SVEN]Reference Path Publishing initiated.")
     
 class PublishTrajectoryEvent(Event):
     """
@@ -64,7 +64,7 @@ class PublishTrajectoryEvent(Event):
         super().__init__(machine, node)
 
     def run(self):
-        self.node._logger.debug("Trajectory Publishing initiated.")
+        self.node._logger.debug("[SVEN]Trajectory Publishing initiated.")
 
 class CheckGoalReachedEvent(Event):
     """
@@ -75,7 +75,7 @@ class CheckGoalReachedEvent(Event):
         super().__init__(machine, node)
 
     def run(self):
-        self.node._logger.debug("Check Goal Reached initiated.")
+        self.node._logger.debug("[SVEN]Check Goal Reached initiated.")
 
 class BehaviorPlanningEvent(Event):
     """
@@ -86,4 +86,4 @@ class BehaviorPlanningEvent(Event):
         super().__init__(machine, node)
 
     def run(self):
-        self.node._logger.debug("Run Behavior Planning.")
+        self.node._logger.debug("[SVEN]Run Behavior Planning.")

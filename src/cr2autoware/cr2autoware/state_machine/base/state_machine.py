@@ -98,7 +98,7 @@ class StateMachine:
             if self.current_state is not None:
                 raise Warning("State machine is already running")
             else:
-                self.node._logger.debug("Start state machine")
+                self.node._logger.debug("[SVEN]Start state machine")
                 self.current_state = self.initial_state
                 self.running = True
                 self.current_state.activate()
@@ -115,7 +115,7 @@ class StateMachine:
             if self.current_state is None:
                 raise Warning("State machine is not running")
             else:
-                self.node._logger.debug("Stop state machine")
+                self.node._logger.debug("[SVEN]Stop state machine")
                 self.running = True
                 self.current_state.deactivate()
                 self.current_state = None
@@ -131,8 +131,6 @@ class StateMachine:
         """
         # TODO: ADD Priority Queue
         self.event_queue.put(event)
-        self.node._logger.debug(f"ADD Event {event.__class__.__name__} to Queue")
-        self.node._logger.debug(f"Event queue size: {self.event_queue.qsize()}")
 
         if not self.running:
             self.running = True
@@ -147,8 +145,6 @@ class StateMachine:
             event = self.event_queue.get()
             self._handle_event(event)
             self.event_queue.task_done()
-            self.node._logger.debug(f"PROCESS {event.__class__.__name__} in Queue")
-            self.node._logger.debug(f"Event queue size: {self.event_queue.qsize()}")
 
     def _handle_event(self, event: Event):
         """

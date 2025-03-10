@@ -303,7 +303,7 @@ class BehaviorPlanner:
         :return: AWTrajectory message
         """
         if self._verbose:
-            self._logger.info("<Velocity planner>: Preparing reference path message for motion velocity smoother")
+            self._logger.info("<Behavior planner>: Preparing reference path message for motion velocity smoother")
 
         # AW Trajectory message
         traj = AWTrajectory()
@@ -340,7 +340,7 @@ class BehaviorPlanner:
         self._ref_path_pub.publish(traj_msg)
 
         if self._verbose:
-            self._logger.info("<Velocity planner>: Reference path published to motion velocity smoother.")
+            self._logger.info("<Behavior planner>: Reference path published to motion velocity smoother.")
     
     def _pub_traffic_light_marker(self) -> None:
         self._traffic_light_marker_pub.publish(self.blackboard.modules.traffic_lights.outputs.traffic_light_marker_array)
@@ -384,7 +384,7 @@ class BehaviorPlanner:
             return
         
         if self._verbose:
-            self._logger.info("<Velocity Planner>: Path with velocity profile received from motion velocity smoother")
+            self._logger.info("<Behavior planner>: Path with velocity profile received from motion velocity smoother")
 
         point_list = list()
         velocity_list = list()

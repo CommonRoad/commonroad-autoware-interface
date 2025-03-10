@@ -363,7 +363,7 @@ class LateralClearanceVelocityAdjuster(Behaviour):
         self.outputs.velocity_profile = velocity_profile
 
         t_end = time.perf_counter()
-        self._logger.debug(f"Time for lateral clearance velocity function: {t_end - t_start}")
+        self._logger.debug(f"[SVEN]Time for lateral clearance velocity function: {t_end - t_start}")
         if publish_lateral_clearance_topics:
             self.publish_obstacles(obstacles_polygon)
             self.publish_clearance(trajectory_positions, min_distance, safe_distance)
@@ -388,7 +388,7 @@ class LateralClearanceVelocityAdjuster(Behaviour):
             elif isinstance(multipolygon, MultiPolygon):
                 polygons = multipolygon.geoms
             else:
-                self._logger.error("Unsupported geometry type for multipolygon")
+                self._logger.error("[SVEN]Unsupported geometry type for multipolygon")
                 return
             
             origin_transformation = self.global_inputs.origin_transformation

@@ -263,8 +263,8 @@ class BehaviorTree(BaseTree):
         else:
             self.outputs.d_max = None
         
-        self.logger.debug(f"Updated d_min: {self.outputs.d_min}")
-        self.logger.debug(f"Updated d_max: {self.outputs.d_max}")
+        self.logger.debug(f"[SVEN]Updated d_min: {self.outputs.d_min}")
+        self.logger.debug(f"[SVEN]Updated d_max: {self.outputs.d_max}")
     
     def output_tree_in_log(self):
         """

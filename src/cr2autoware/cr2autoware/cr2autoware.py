@@ -679,7 +679,7 @@ class Cr2Auto(Node):
         # wait for trajectory to be computed in AW Motion Velocity Smoother
         start_time = time.time()
         if self.last_start_time is not None:
-            self._logger.info(f"Last Cycle time: {start_time - self.last_start_time}")
+            self._logger.info(f"[SVEN]Last cycle time: {start_time - self.last_start_time}")
         self.last_start_time = start_time
         timeout_velocity_planning = 1.0
         while not self.behavior_planner.is_velocity_planning_completed:
@@ -694,7 +694,7 @@ class Cr2Auto(Node):
         self.route_planner.publish(point_list, reference_velocities,
                                     self.scenario_handler.z_coordinate)
         end_time = time.time()
-        self._logger.info(f"Behavior planning took {end_time - start_time} seconds")
+        self._logger.info(f"[SVEN]Behavior planning took {end_time - start_time} seconds")
         
     def publish_trajectory(self) -> None:
         """Plan and publish trajectory."""
