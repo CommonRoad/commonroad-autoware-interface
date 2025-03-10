@@ -57,17 +57,17 @@
 
     behavior_planner:
       # general parameters
-      velocity_limit: 20.0  # m/s
+      velocity_limit: 10.0  # m/s
 
       # traffic light module
       traffic_light_behavior: True
       yellow_light_time: 3.0  # s
       no_stop_line_in_map: False
-      stop_line_overrun_tolerance: 3.0  # m
+      stop_line_overrun_tolerance: 8.0  # m
       traffic_light_perception_range: 100.0  # m
       distance_stop_line_to_vehicle_front_bumper: 1.0  # m
       max_comfort_deceleration: 2.0  # m/s^2
-      system_delay: 0.3  # s
+      system_delay: 0.5  # s
       d_minimal_buffer: 0.5  # m
       comfort_rollout: True
       comfort_rollout_distance: 10.0  # m

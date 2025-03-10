@@ -160,6 +160,7 @@ class TrafficLightBehavior(Behaviour):
         self.inputs.register_key("brake_at_yellow_light", access=py_trees.common.Access.WRITE)
         self.inputs.register_key("velocity_profile_without_traffic_lights", access=py_trees.common.Access.READ)
         self.inputs.register_key("force_stop", access=py_trees.common.Access.WRITE)
+        self.inputs.register_key("force_pass", access=py_trees.common.Access.WRITE)
         self.inputs.register_key("stop_line_position_curvilinear", access=py_trees.common.Access.WRITE)
         self.inputs.register_key("distance_stop_line_vehicle_origin", access=py_trees.common.Access.WRITE)
         self.inputs.register_key("target_stop_position_index", access=py_trees.common.Access.WRITE)
@@ -377,7 +378,7 @@ class TrafficLightOutOfRangeCondition(TrafficLightBehavior):
         min_distance = None        
         for traffic_light_id, stop_line_position in relevant_traffic_lights.items():
 
-            distance = stop_line_position[0] - self.inputs.distance_stop_line_vehicle_origin - current_position[0]
+            distance = stop_line_position[0] - (self.inputs.distance_stop_line_vehicle_origin - self.params.distance_stop_line_to_vehicle_front_bumper) - current_position[0]
             # Check if traffic light has been passed
             if distance < 0.0:
                 self._logger.debug("[SVEN]Stop line has been passed! Check if overrun tolerance is exceeded. Traffic light id: " + str(traffic_light_id))
@@ -502,6 +503,7 @@ class YellowLightCondition(TrafficLightBehavior):
         else:
             # If the traffic light is not yellow, or switches from yellow to another color, reset the safe stop flag and the yellow light id
             self.inputs.force_stop = False
+            self.inputs.force_pass = False
             self.inputs.yellow_light_id = None
             return Status.FAILURE
         
@@ -634,6 +636,7 @@ class YellowLightDecisionAction(TrafficLightBehavior):
     def __init__(self, name, logger: RcutilsLogger):
         super().__init__(name, logger)
         self.inputs.force_stop = False
+        self.inputs.force_pass = False
         self.inputs.yellow_light_id = None
         self.first_position_index = None
         self.min_pass_line_velo = None
@@ -719,24 +722,15 @@ class YellowLightDecisionAction(TrafficLightBehavior):
         """
         return max(distance / (self.params.yellow_light_time - self.params.system_delay), 0.0)
     
-    def check_for_min_pass_line_velocity(self) -> bool:
+    def check_for_min_pass_line_velocity(self, current_velocity: float) -> bool:
         """
         Check if the current velocity is greater than the minimum velocity to pass the yellow light line.
 
-        :param distance: Distance to the stop line
         :param current_velocity: Current velocity of the vehicle
         :return: True, if the vehicle can pass the yellow light line
         """
-        # Get the path from the current position to the stop line
-        velocity_profile = copy_from_blackboard(self.inputs.velocity_profile_without_traffic_lights)
-        # TODO: Call Velocity Smoother for more accurate velocity profile, currently "target velocity" is used
-        relevant_profile: np.ndarray = velocity_profile[self.first_position_index:(self.inputs.target_stop_position_index + 1)]
 
-        # Get mean velocity of the relevant profile
-        average_velocity = np.mean(relevant_profile)
-        self.average_velocity = average_velocity
-        self._logger.debug("[SVEN]Average Velocity: " + str(average_velocity))
-        return average_velocity > self.min_pass_line_velo
+        return current_velocity > self.min_pass_line_velo
     
     def check_for_comfort_braking_distance(self, distance: float, current_velocity: float) -> bool:
         """
@@ -759,7 +753,7 @@ class YellowLightDecisionAction(TrafficLightBehavior):
         current_velocity = self.global_inputs.current_state.velocity
 
         # Calculate the distance between the current position and the stop line position
-        distance = (stop_line_position[0] - self.inputs.distance_stop_line_vehicle_origin - current_position_curvilinear[0])
+        distance = (stop_line_position[0] - (self.inputs.distance_stop_line_vehicle_origin - self.params.distance_stop_line_to_vehicle_front_bumper) - current_position_curvilinear[0])
 
         # For the first iteration, calculate the minimum velocity to pass the yellow light line
         if self.inputs.yellow_light_id != self.inputs.current_traffic_light_id:
@@ -777,48 +771,61 @@ class YellowLightDecisionAction(TrafficLightBehavior):
             if self.check_for_comfort_braking_distance(distance, current_velocity):
                 # Vehicle can brake within the comfort braking distance
                 # TODO: COMFORT BRAKING
+                self._logger.debug("[SVEN]Vehicle can brake within the comfort braking distance!")
+                self.inputs.force_stop = True
+                brake_at_yellow_light = True
+            elif self.inputs.force_stop:
+                self._logger.debug("[SVEN]Force STOP!")
                 brake_at_yellow_light = True
             else:
                 # Vehicle can not brake within the comfort braking distance
                 # Check if the vehicle can pass the yellow light line with the current velocity profile
                 min_velo_check = True
-                if self.check_for_min_pass_line_velocity():
+                if self.check_for_min_pass_line_velocity(current_velocity):
                     # vehicle can pass the yellow light line with the current velocity profile
-                    # TODO: EMERGENCY BRAKING
-                    brake_at_yellow_light = True
-                else:
-                    # Vehicle can not brake within the braking distance, continue driving
+                    self._logger.debug("[SVEN]Vehicle can pass the yellow line in time! Min Velocity: " + str(self.min_pass_line_velo))
+                    self.inputs.force_pass = True
                     brake_at_yellow_light = False
+                else:
+                    # check if force pass is performed
+                    if self.inputs.force_pass:
+                        self._logger.debug("[SVEN]Force PASS!")
+                        brake_at_yellow_light = False
+                    else:
+                        # Vehicle can not pass the yellow light line with the current velocity profile
+                        # TODO: EMERGENCY BRAKING
+                        self._logger.debug("[SVEN]Vehicle can not pass the yellow line in time! Braking!")
+                        brake_at_yellow_light = True
+                        self.inputs.force_stop = True
 
         # Vehicle passed the stop line but is within the overrun tolerance (do not use all of the overrun tolerance, to avoid the traffic light being passed (out of range))
-        elif distance + self.params.stop_line_overrun_tolerance - 1.0 >= 0.0:
+        elif distance + (0.5 * self.params.stop_line_overrun_tolerance) >= 0.0:
             # Consider the case that the vehicle is almost standing
-            if current_velocity < 1.5:
+            if current_velocity < 1.0:
                 # Vehicle is almost standing
-                if self.check_for_comfort_braking_distance((distance + self.params.stop_line_overrun_tolerance), current_velocity):
-                    # Vehicle can brake within the overrun tolerance
-                    # For this case, the vehicle should stop
-                    brake_at_yellow_light = True
-                    self.inputs.force_stop = True
-                else:
-                    # Vehicle can not brake within the overrun tolerance
-                    # For this case, the vehicle should continue driving
-                    brake_at_yellow_light = False
+                # always stop
+                self._logger.debug("[SVEN]Vehicle passed the stop line and is almost standing! Braking!")
+                brake_at_yellow_light = True
+                self.inputs.force_stop = True
 
             # Vehicle is moving
             else:
                 # check if safe stop is performed
                 if self.inputs.force_stop:
+                    self._logger.debug("[SVEN]Force STOP!")
                     brake_at_yellow_light = True
                 else:
                     # Continue driving
                     brake_at_yellow_light = False
+                    self._logger.debug("[SVEN]Vehicle passed the stop line and is moving. Continue driving!")
         else:
             # Vehicle already passed the stop Line and overrun tolerance
             if self.inputs.force_stop:
+                self._logger.debug("[SVEN]Force STOP!")
                 brake_at_yellow_light = True
             else:
                 brake_at_yellow_light = False
+                self._logger.debug("[SVEN]Vehicle passed the stop line and is moving. Continue driving!")
 
         # Save the decision in the blackboard
         self.inputs.brake_at_yellow_light = brake_at_yellow_light

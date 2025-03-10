@@ -336,7 +336,7 @@ class BehaviorPlannerParams(BaseParams):
     :var max_comfort_deceleration: maximum deceleration for comfort stop (in m/s^2)
     """
     # General parameters
-    velocity_limit: float = 20.0  # m/s
+    velocity_limit: float = 10.0  # m/s
 
     # Parameter for traffic light behavior module
     # activate traffic light behavior module
@@ -346,7 +346,7 @@ class BehaviorPlannerParams(BaseParams):
     # If no stop lines are specified in the map, the module will stop at the beginning of the lanelet
     no_stop_line_in_map: bool = False
     # tolerance for stop line overrun from vehicle origin (in meters)
-    stop_line_overrun_tolerance: float = 3.0
+    stop_line_overrun_tolerance: float = 8.0
     # range for traffic light perception (in meters)
     traffic_light_perception_range: float = 100.0
     # distance between stop line and vehicle front bumper (in meters)
@@ -354,7 +354,7 @@ class BehaviorPlannerParams(BaseParams):
     # maximum deceleration for comfort stop (in m/s^2)
     max_comfort_deceleration: float = 2.0
     # system delay for braking distance calculation (in seconds)
-    system_delay: float = 0.3
+    system_delay: float = 0.5
     # minimal buffer for lateral offset trajectory planner (in meters)
     d_minimal_buffer: float = 0.5
     # Activate comfort rollout stopping procedure
