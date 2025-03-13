@@ -4,6 +4,7 @@ from typing import List, Optional
 
 # third party imports
 import numpy as np
+import time
 
 # ROS imports
 from rclpy.publisher import Publisher
@@ -226,6 +227,8 @@ class BehaviorPlanner:
         """
         self._is_velocity_planning_completed = False
 
+        plan_start_time = time.time()
+
         if self._verbose:
             self._logger.info("<Velocity planner>: Planning velocity profile")
 
@@ -240,9 +243,13 @@ class BehaviorPlanner:
             _tmp = tail_orig[i] - np.array(self.origin_transformation)
             tail_mod.append(_tmp)
         self._tail = np.array(tail_mod)
+
+        plan_start_time_2 = time.time()
         
         # Create Curvilinear Coordinate System for preprocessing
         self.set_reference_path(input_path)
+
+        plan_start_time_3 = time.time()
 
         # Prepare Inputs for Behavior Planner
         self.behavior_tree.preprocessing(
@@ -256,9 +263,13 @@ class BehaviorPlanner:
             self.scenario_handler.ros_time,
             self.path_orientation,
             )
+        
+        plan_start_time_4 = time.time()
 
         # Call Behavior Planner
         self.behavior_tree.plan()
+
+        plan_end_time = time.time()
 
         self.behavior_tree.prepare_output()
 
@@ -272,6 +283,17 @@ class BehaviorPlanner:
 
         # Publish lateral clearance velocity adjuster marker
         self._pub_lateral_clearance_marker()
+
+        plan_end_time_2 = time.time()
+
+        if self._verbose:
+            self._logger.info("[SVEN] [TIME] Behavior Planner: " + str(plan_end_time - plan_start_time))
+            self._logger.info("[SVEN] [TIME] Pre Planning Transforms: " + str(plan_start_time_2 - plan_start_time))
+            self._logger.info("[SVEN] [TIME] Pre Planning Curvilinear: " + str(plan_start_time_3 - plan_start_time_2))
+            self._logger.info("[SVEN] [TIME] Pre Planning Behavior Planner: " + str(plan_start_time_4 - plan_start_time_3))
+            self._logger.info("[SVEN] [TIME] Planning Behavior Planner: " + str(plan_end_time - plan_start_time_4))
+            self._logger.info("[SVEN] [TIME] Post Planning: " + str(plan_end_time_2 - plan_end_time))
+
     
     def _behavior_planner(self, input_path: np.ndarray, origin_transformation: List) -> np.ndarray:
         """

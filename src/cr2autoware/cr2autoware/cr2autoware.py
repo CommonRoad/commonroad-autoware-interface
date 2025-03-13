@@ -608,9 +608,16 @@ class Cr2Auto(Node):
 
     def update_scenario(self) -> None:
         """Update scenario handler."""
+        update_time = time.time()
+        if self.last_start_time is not None:
+            self._logger.info(f"[SVEN] [TIME] Last cycle time: {update_time - self.last_start_time}")
+        self.last_start_time = update_time
         self.ego_vehicle_handler.update_ego_vehicle()
+        update_scenario_time = time.time()
         self.scenario_handler.update_scenario()
         self.plot_save_scenario()
+        self._logger.info(f"[SVEN] [TIME] Update scenario handler took {time.time() - update_scenario_time} seconds")
+        self._logger.info(f"[SVEN] [TIME] TOTAL Scenario Update took {time.time() - update_time} seconds")
 
         # time.sleep(0.5)
 
@@ -669,6 +676,7 @@ class Cr2Auto(Node):
         """Plan behavior. Update reference path of trajectory planner."""
 
         # plan route and reference path
+        start_time = time.time()
         _goal_pos_cr = map2utm(self.origin_transformation, self.current_goal_msg.pose.position)
         self.behavior_planner.plan(self.route_planner.reference_path, 
                                     _goal_pos_cr,
@@ -677,16 +685,14 @@ class Cr2Auto(Node):
                                     )
 
         # wait for trajectory to be computed in AW Motion Velocity Smoother
-        start_time = time.time()
-        if self.last_start_time is not None:
-            self._logger.info(f"[SVEN]Last cycle time: {start_time - self.last_start_time}")
-        self.last_start_time = start_time
         timeout_velocity_planning = 1.0
+        waiting_time = time.time()
         while not self.behavior_planner.is_velocity_planning_completed:
             time.sleep(0.01)
             if time.time() - start_time > timeout_velocity_planning:
                 raise Exception("Velocity planning not completed in time!")
-
+        self._logger.info(f"[SVEN] [TIME] Waiting for Velo Smoother took {time.time() - waiting_time} seconds")
+        mid_time = time.time()
         # publish current reference path
         point_list = self.behavior_planner.reference_positions
         reference_velocities = self.behavior_planner.reference_velocities
@@ -694,13 +700,15 @@ class Cr2Auto(Node):
         self.route_planner.publish(point_list, reference_velocities,
                                     self.scenario_handler.z_coordinate)
         end_time = time.time()
-        self._logger.info(f"[SVEN]Behavior planning took {end_time - start_time} seconds")
+        self._logger.info(f"[SVEN] [TIME] Publish Route took {end_time - mid_time} seconds")
+        self._logger.info(f"[SVEN] [TIME] TOTAL Behavior planning state took  {end_time - start_time} seconds")
         
     def publish_trajectory(self) -> None:
         """Plan and publish trajectory."""
         if self.verbose:
             self._logger.info("Solving planning problem!")
 
+        time_trajectory_planning = time.time()
         # Get current initial state for planning
         # The initial velocity needs to be increase here due to a hardcoded velocity threshold in
         # AW. Universe Shift_Decider Package (If velocity is below 0.01, the gear will remain in park)
@@ -742,10 +750,14 @@ class Cr2Auto(Node):
             # publish trajectory
             self.trajectory_planner.publish(self.origin_transformation,
                                             self.scenario_handler.z_coordinate)
+            
+            self._logger.info(f"[SVEN] [TIME] Trajectory planning took {time.time() - time_trajectory_planning} seconds")
 
     def check_goal_reached(self) -> None:
         """Check if goal is reached."""
+        time_goal_reached = time.time()
         self._is_goal_reached()
+        self._logger.info(f"[SVEN] [TIME] Check goal reached took {time.time() - time_goal_reached} seconds")
 
     def follow_trajectory_mode_update(self) -> None:
         """
