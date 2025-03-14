@@ -683,15 +683,6 @@ class Cr2Auto(Node):
                                     self.scenario_handler.scenario,
                                     self.ego_vehicle_handler.ego_vehicle_state,
                                     )
-
-        # wait for trajectory to be computed in AW Motion Velocity Smoother
-        timeout_velocity_planning = 1.0
-        waiting_time = time.time()
-        while not self.behavior_planner.is_velocity_planning_completed:
-            time.sleep(0.01)
-            if time.time() - start_time > timeout_velocity_planning:
-                raise Exception("Velocity planning not completed in time!")
-        self._logger.info(f"[SVEN] [TIME] Waiting for Velo Smoother took {time.time() - waiting_time} seconds")
         mid_time = time.time()
         # publish current reference path
         point_list = self.behavior_planner.reference_positions
