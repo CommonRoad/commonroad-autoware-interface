@@ -532,8 +532,8 @@ class ScenarioHandler(BaseHandler):
 
         t_assigned = time.perf_counter()
         # assign objects to lanelets
-        obstacle_ids = {obs.obstacle_id for obs in self.scenario.dynamic_obstacles}
-        self._scenario.assign_obstacles_to_lanelets(obstacle_ids=obstacle_ids)
+        # obstacle_ids = {obs.obstacle_id for obs in self.scenario.dynamic_obstacles}
+        # self._scenario.assign_obstacles_to_lanelets(obstacle_ids=obstacle_ids)
         self._logger.debug(f"[SVEN] [TIME] Assigning obstacles to lanelets took: {time.perf_counter() - t_assigned} s")
 
         # log time
