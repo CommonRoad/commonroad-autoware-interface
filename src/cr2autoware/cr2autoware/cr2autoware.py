@@ -613,10 +613,13 @@ class Cr2Auto(Node):
             self._logger.info(f"[SVEN] [TIME] Last cycle time: {update_time - self.last_start_time}")
         self.last_start_time = update_time
         self.ego_vehicle_handler.update_ego_vehicle()
+        self._logger.info(f"[SVEN] [TIME] Update ego vehicle took {time.time() - update_time} seconds")
         update_scenario_time = time.time()
         self.scenario_handler.update_scenario()
-        self.plot_save_scenario()
         self._logger.info(f"[SVEN] [TIME] Update scenario handler took {time.time() - update_scenario_time} seconds")
+        plot_time = time.time()
+        self.plot_save_scenario()
+        self._logger.info(f"[SVEN] [TIME] Plot and save scenario took {time.time() - plot_time} seconds")
         self._logger.info(f"[SVEN] [TIME] TOTAL Scenario Update took {time.time() - update_time} seconds")
 
         # time.sleep(0.5)
@@ -729,6 +732,9 @@ class Cr2Auto(Node):
             # set reference velocity considering external limit
             ref_vel = min(reference_velocity, self.external_velocity_limit)
 
+            pre_planning_time = time.time()
+            self._logger.info(f"[SVEN] [TIME] Pre-planning took {pre_planning_time - time_trajectory_planning} seconds")
+
             # call the one-step plan function
             self.trajectory_planner.plan(
                 current_state=init_state,
@@ -738,11 +744,14 @@ class Cr2Auto(Node):
                 d_max=self.behavior_planner.output_d_max,
                 )
 
+            post_planning_time = time.time()
+            self._logger.info(f"[SVEN] [TIME] Planning took {post_planning_time - pre_planning_time} seconds")
             # publish trajectory
             self.trajectory_planner.publish(self.origin_transformation,
                                             self.scenario_handler.z_coordinate)
             
-            self._logger.info(f"[SVEN] [TIME] Trajectory planning took {time.time() - time_trajectory_planning} seconds")
+            self._logger.info(f"[SVEN] [TIME] Publish Trajectory took {time.time() - post_planning_time} seconds")
+            self._logger.info(f"[SVEN] [TIME] TOTAL Trajectory planning took {time.time() - time_trajectory_planning} seconds")
 
     def check_goal_reached(self) -> None:
         """Check if goal is reached."""
