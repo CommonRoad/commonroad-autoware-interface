@@ -610,7 +610,7 @@ class Cr2Auto(Node):
         """Update scenario handler."""
         update_time = time.time()
         if self.last_start_time is not None:
-            self._logger.info(f"[SVEN] [TIME] Last cycle time: {update_time - self.last_start_time}")
+            self._logger.info(f"[SVEN] [TIME] TOTAL cycle time: {update_time - self.last_start_time}")
         self.last_start_time = update_time
         self.ego_vehicle_handler.update_ego_vehicle()
         self._logger.info(f"[SVEN] [TIME] Update ego vehicle took {time.time() - update_time} seconds")
@@ -757,7 +757,7 @@ class Cr2Auto(Node):
         """Check if goal is reached."""
         time_goal_reached = time.time()
         self._is_goal_reached()
-        self._logger.info(f"[SVEN] [TIME] Check goal reached took {time.time() - time_goal_reached} seconds")
+        self._logger.info(f"[SVEN] [TIME] TOTAL Check goal reached took {time.time() - time_goal_reached} seconds")
 
     def follow_trajectory_mode_update(self) -> None:
         """
