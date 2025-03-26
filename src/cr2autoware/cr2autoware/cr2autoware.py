@@ -568,6 +568,7 @@ class Cr2Auto(Node):
         :raises _logger.info: If a planning problem is already being solved
         """
         try:
+            start_time = time.time()
             # avoid parallel processing issues by checking if a planning problem is already being solved
             if not self.is_computing_trajectory:
                 # Compute trajectory
@@ -576,6 +577,7 @@ class Cr2Auto(Node):
 
                 self.scenario_handler.update_scenario()
                 self.plot_save_scenario()
+                self._logger.info("[TIME] TOTAL Update Scenario: " + str(time.time() - start_time))
 
                 # check if initial pose was changed (if true: recalculate reference path)
                 if self.new_initial_pose:
@@ -624,6 +626,8 @@ class Cr2Auto(Node):
                     if self.verbose:
                         self._logger.info("Solving planning problem!")
 
+                    trajectory_planning_start_time = time.time()
+
                     # Get current initial state for planning
                     # The initial velocity needs to be increase here due to a hardcoded velocity threshold in
                     # AW. Universe Shift_Decider Package (If velocity is below 0.01, the gear will remain in park)
@@ -656,10 +660,12 @@ class Cr2Auto(Node):
                         self.trajectory_planner.publish(self.origin_transformation,
                                                         self.scenario_handler.z_coordinate)
 
+                    self._logger.info("[TIME] TOTAL Trajectory Planning: " + str(time.time() - trajectory_planning_start_time))
                     # check if goal is reached
                     self._is_goal_reached()
 
                 self.is_computing_trajectory = False
+                self._logger.info("[TIME] TOTAL planning cycle time: " + str(time.time() - start_time))
             else:
                 if self.verbose:
                     self._logger.info("already solving planning problem")
