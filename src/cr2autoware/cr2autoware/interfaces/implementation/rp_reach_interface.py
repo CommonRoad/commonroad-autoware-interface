@@ -148,6 +148,10 @@ class ReactivePlannerReachInterface(TrajectoryPlannerInterface):
         # update collision checker (self.scenario is updated continuously as it is a reference to the scenario handler)
         self._planner.set_collision_checker(self.scenario, road_boundary_obstacle=self._road_boundary)
 
+        if not hasattr(init_state, "acceleration"):
+            # current_state uses acceleration localization (see ego_vehicle_handler)
+            init_state.acceleration = 0.0
+
         self._logger.debug("Starting reachability analysis")
         initial_uncertainty = 0.01
         ccs = self._planner.coordinate_system.ccosy
@@ -159,7 +163,7 @@ class ReactivePlannerReachInterface(TrajectoryPlannerInterface):
         ]
         layer = reach_core.layers.meta.Sequential(layers)
         reach = reach_core.executors.DynamicReachabilityAnalysis(0, self._planner.config.planning.time_steps_computation, init, layer, self._post)
-        reach.initialize(*self._initialize(self._planner.config.planning_problem))
+        reach.initialize(*self._initialize(init_state))
         reach.run_to_next_goal()
         g = reach.reach_graph
         self._logger.debug(f"Before post {g.num_nodes}")
@@ -190,9 +194,6 @@ class ReactivePlannerReachInterface(TrajectoryPlannerInterface):
             self._logger.debug("No driving corridor found")
 
         # reset planner state
-        if not hasattr(init_state, "acceleration"):
-            # current_state uses acceleration localization (see ego_vehicle_handler)
-            init_state.acceleration = 0.0
         x0_planner_cart: ReactivePlannerState = ReactivePlannerState()
         x0_planner_cart = init_state.convert_state_to_state(x0_planner_cart)
         self._planner.reset(initial_state_cart=x0_planner_cart,
@@ -235,11 +236,11 @@ class ReactivePlannerReachInterface(TrajectoryPlannerInterface):
 
     @staticmethod
     def _initialize(
-        planning_problem: PlanningProblem,
+        init_state: EgoVehicleState
     ) -> Tuple[int, float, float, float, float, float]:
-        """Create arguments to initialize an executor from a planning problem."""
-        state = planning_problem.initial_state
-        return state.time_step, state.position[0], state.position[1], state.velocity, state.acceleration, state.orientation
+        """Create arguments to initialize an executor from an ego vehicle state."""
+        # We always start at time step 0 here
+        return 0, init_state.position[0], init_state.position[1], init_state.velocity, init_state.acceleration, init_state.orientation
 
 
     @staticmethod
