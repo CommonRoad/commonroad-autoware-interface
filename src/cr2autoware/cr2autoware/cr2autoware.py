@@ -487,7 +487,8 @@ class Cr2Auto(Node):
                                             self.scenario.dt,
                                             self.params.trajectory_planner,
                                             self.params.rp_interface,
-                                            self.ego_vehicle_handler)
+                                            self.ego_vehicle_handler,
+                                            self)
         else:
             self._logger.error("<Trajectory Planner Factory> Planner type is invalid")
 

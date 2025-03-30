@@ -157,3 +157,7 @@ spec_initial_pose_2d_pub = PublisherSpec(name="/initialpose",
                                          msg_type=PoseWithCovarianceStamped,
                                          depth=1)
 
+spec_reach_debug = PublisherSpec(name="/debug/commonroad/reach",
+                                 msg_type=MarkerArray,
+                                 depth=1)
+

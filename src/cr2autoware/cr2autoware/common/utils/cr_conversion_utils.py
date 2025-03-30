@@ -73,6 +73,8 @@ from uuid import UUID as PyUUID
 # third party imports
 import numpy as np
 from shapely.geometry import Polygon as PolygonShapely
+from visualization_msgs.msg import Marker
+from geometry_msgs.msg import Point as PointMsg
 
 # ROS imports
 import rclpy.logging as ros_logging # type: ignore
@@ -297,6 +299,50 @@ def convert_vector3_to_numpy(
     :return: numpy (3,) array
     """
     return np.array([vector3.x, vector3.y, vector3.z])
+
+
+def commonroad_polygons_to_marker(
+        cr_shapes: List[Polygon],
+        origin_transform: List[float],
+        z_coordinate: float,
+        time_stamp: Tuple[int, int]
+) -> Marker:
+    """
+    Convert a CommonRoad shape to a ROS2 marker.
+
+    :param cr_shape: CommonRoad shape
+    :param origin_transform: origin transformation from Autoware to CommonRoad
+    :param z_coordinate: z-coordinate of the scenario
+    :param time_stamp: time stamp of ROS2 node
+    :return: ROS2 marker    
+    """
+    marker = Marker()
+    marker.header.frame_id = "map"
+    marker.header.stamp = time_stamp
+    marker.pose.position.z = z_coordinate - 0.05
+    marker.color.a = 1.0
+    marker.color.r = 0.0
+    marker.color.g = 1.0
+    marker.color.b = 0.0
+    marker.scale.z = 0.01
+
+    marker.type = Marker.LINE_LIST
+    marker.scale.x = 0.1
+    marker.scale.y = 0.1
+    for poly in cr_shapes:
+        points = []
+        for v in poly.vertices:
+            point = PointMsg()
+            converted = transform_utils.utm2map(origin_transform, v)
+            point.x = converted.x
+            point.y = converted.y
+            point.z = z_coordinate
+            points.append(point)
+        for i in range(len(points)):
+            marker.points.append(points[i])
+            marker.points.append(points[(i + 1) % len(points)])
+
+    return marker
 
 
 def convert_ros2_pose_to_cr_custom_state(

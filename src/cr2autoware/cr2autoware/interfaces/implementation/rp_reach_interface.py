@@ -1,7 +1,8 @@
-from typing import Tuple
+from typing import Tuple, TYPE_CHECKING
 
 # third party imports
 import numpy as np
+from visualization_msgs.msg import Marker, MarkerArray
 
 # commonroad imports
 from commonroad.scenario.scenario import Scenario
@@ -32,6 +33,11 @@ from cr2autoware.handlers.ego_vehicle_handler import (
     EgoVehicleState
 )
 from cr2autoware.interfaces.base.trajectory_planner_interface import TrajectoryPlannerInterface
+from cr2autoware.common.utils.cr_conversion_utils import commonroad_polygons_to_marker
+from cr2autoware.common.ros_interface.create import create_publisher
+from cr2autoware.common.ros_interface.specs_publisher import spec_reach_debug
+if TYPE_CHECKING:
+    from cr2autoware import Cr2Auto
 
 # ROS imports
 from rclpy.publisher import Publisher
@@ -57,7 +63,8 @@ class ReactivePlannerReachInterface(TrajectoryPlannerInterface):
                  dt: float,
                  traj_planner_params: TrajectoryPlannerParams,
                  rp_interface_params: RPInterfaceParams,
-                 ego_vehicle_handler: EgoVehicleHandler):
+                 ego_vehicle_handler: EgoVehicleHandler,
+                 node: "Cr2Auto"):
         """
         Constructor for ReactivePlannerInterface class.
 
@@ -120,6 +127,9 @@ class ReactivePlannerReachInterface(TrajectoryPlannerInterface):
         self._repartition_layer = reach_core.layers.repartition.PositionRepartitioner()
         self._post = self._create_post(ego_vehicle_handler)
 
+        self._node = node
+        self._reach_pub = create_publisher(node, spec_reach_debug)
+
         # init trajectory planner
         self._planner: ReactivePlanner = reactive_planner
 
@@ -144,7 +154,7 @@ class ReactivePlannerReachInterface(TrajectoryPlannerInterface):
         init = reach_core.initializers.base_set.CurvilinearUncertaintyInitializer(ccs, *([initial_uncertainty] * 4))
         layers = [
             self._propagation_layer,
-            reach_core.layers.collision.CollisionFilter(self._planner.collision_checker),
+            # reach_core.layers.collision.CollisionFilter(self._planner.collision_checker),
             self._repartition_layer,
         ]
         layer = reach_core.layers.meta.Sequential(layers)
@@ -158,18 +168,24 @@ class ReactivePlannerReachInterface(TrajectoryPlannerInterface):
         comp_graph = reach_core.graphs.DynamicComponentGraph(reach_graph)
         dc_extractor = reach_core.driving_corridor.DynamicDrivingCorridorExtractor()
         corridors = dc_extractor.extract(comp_graph, max_corridors=1)
+        time_stamp = self._node.get_clock().now().to_msg()
+        z = self._node.scenario_handler.z_coordinate
+        origin = self._node.origin_transformation
         if len(corridors) > 0:
             self._logger.debug("Found driving corridor")
             corridor: reach_core.driving_corridor.DynamicDrivingCorridor = corridors[0]
             corridor_graph: reach_core.graphs.DynamicReachGraph = corridor.reach_graph
-            drivable_area_cart = {}
+            markers = MarkerArray()
             for step in range(corridor_graph.initial_step, corridor_graph.final_step + 1):
-                drivable_area_cart[step] = []
+                cart_polygons = []
                 for node in corridor_graph.get_nodes_at_step(step):
                     drivable_area = node.set.position_rectangle.bounds
-                    cart_polygons = convert_to_cartesian_polygons(drivable_area, ccs, split_wrt_angle=True)
-                    drivable_area_cart[step] += cart_polygons
-            self._logger.debug(f"Drivable area: {drivable_area_cart}")
+                    cart_polygons += convert_to_cartesian_polygons(drivable_area, ccs, split_wrt_angle=True)
+                marker = commonroad_polygons_to_marker(cart_polygons, origin, z, time_stamp)
+                marker.id = step
+                marker.ns = "reachable_set"
+                markers.markers.append(marker)
+            self._reach_pub.publish(markers)
         else:
             self._logger.debug("No driving corridor found")
 
