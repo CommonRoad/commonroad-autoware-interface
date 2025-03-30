@@ -114,8 +114,10 @@ class ReactivePlannerReachInterface(TrajectoryPlannerInterface):
         reactive_planner.set_t_sampling_parameters(t_min=rp_interface_params.get_ros_param("t_min"))
         reactive_planner.set_d_sampling_parameters(delta_d_min=rp_interface_params.get_ros_param("d_min"),
                                                    delta_d_max=rp_interface_params.get_ros_param("d_max"))
-
-        self._layer, self._post = self._create_layers(dt, ego_vehicle_handler)
+        
+        self._propagation_layer = reach_core.layers.propagation.PointMassPropagator(dt, self._create_point_mass_params(ego_vehicle_handler))
+        self._repartition_layer = reach_core.layers.repartition.PositionRepartitioner()
+        self._post = self._create_post(ego_vehicle_handler)
 
         # init trajectory planner
         self._planner: ReactivePlanner = reactive_planner
@@ -129,11 +131,23 @@ class ReactivePlannerReachInterface(TrajectoryPlannerInterface):
         :param reference_velocity: reference velocity for the planner
         :param kwargs: additional keyword arguments
         """
+        # set reference velocity for planner
+        self._planner.set_desired_velocity(desired_velocity=reference_velocity, current_speed=init_state.velocity)
+
+        # update collision checker (self.scenario is updated continuously as it is a reference to the scenario handler)
+        self._planner.set_collision_checker(self.scenario, road_boundary_obstacle=self._road_boundary)
+
         self._logger.debug("Starting reachability analysis")
         initial_uncertainty = 0.01
         ccs = self._planner.coordinate_system.ccosy
         init = reach_core.initializers.base_set.CurvilinearUncertaintyInitializer(ccs, *([initial_uncertainty] * 4))
-        reach = reach_core.executors.DynamicReachabilityAnalysis(0, int(self._planner.config.planning.planning_horizon), init, self._layer, self._post)
+        layers = [
+            self._propagation_layer,
+            reach_core.layers.collision.CollisionFilter(self._planner.collision_checker),
+            self._repartition_layer,
+        ]
+        layer = reach_core.layers.meta.Sequential(layers)
+        reach = reach_core.executors.DynamicReachabilityAnalysis(0, self._planner.config.planning.time_steps_computation, init, layer, self._post)
         reach.initialize(*self._initialize(self._planner.config.planning_problem))
         reach.run_to_next_goal()
         g = reach.reach_graph
@@ -147,12 +161,6 @@ class ReactivePlannerReachInterface(TrajectoryPlannerInterface):
             self._logger.debug("Found driving corridor")
         else:
             self._logger.debug("No driving corridor found")
-
-        # set reference velocity for planner
-        self._planner.set_desired_velocity(desired_velocity=reference_velocity, current_speed=init_state.velocity)
-
-        # update collision checker (self.scenario is updated continuously as it is a reference to the scenario handler)
-        self._planner.set_collision_checker(self.scenario, road_boundary_obstacle=self._road_boundary)
 
         # reset planner state
         if not hasattr(init_state, "acceleration"):
@@ -220,6 +228,14 @@ class ReactivePlannerReachInterface(TrajectoryPlannerInterface):
         point_mass_params.v_lat_max = 4.0
 
         return point_mass_params
+    
+    @staticmethod
+    def _create_post(ego_vehicle_handler: EgoVehicleHandler) -> reach_core.post_processors.PostProcessor:
+        post = [
+            reach_core.post_processors.pruning.DanglingNodePruner(),
+            reach_core.post_processors.CenterToRearShifter(ego_vehicle_handler.vehicle_wb_rear_axle)
+        ]
+        return reach_core.post_processors.meta.Sequential(post)
 
     @staticmethod
     def _create_layers(dt: float, ego_vehicle_handler: EgoVehicleHandler) -> Tuple[reach_core.layers.Layer, reach_core.post_processors.PostProcessor]:
