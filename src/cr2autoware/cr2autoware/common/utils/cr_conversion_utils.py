@@ -321,9 +321,9 @@ def commonroad_polygons_to_marker(
     marker.header.stamp = time_stamp
     marker.pose.position.z = z_coordinate - 0.05
     marker.color.a = 1.0
-    marker.color.r = 0.0
-    marker.color.g = 1.0
-    marker.color.b = 0.0
+    marker.color.r = 0.36
+    marker.color.g = 0.57
+    marker.color.b = 0.57
     marker.scale.z = 0.01
 
     marker.type = Marker.LINE_LIST

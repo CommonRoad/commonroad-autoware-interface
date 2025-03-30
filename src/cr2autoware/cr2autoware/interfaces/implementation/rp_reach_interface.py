@@ -129,6 +129,7 @@ class ReactivePlannerReachInterface(TrajectoryPlannerInterface):
 
         self._node = node
         self._reach_pub = create_publisher(node, spec_reach_debug)
+        self._rear_wb = ego_vehicle_handler.vehicle_wb_rear_axle
 
         # init trajectory planner
         self._planner: ReactivePlanner = reactive_planner
@@ -180,7 +181,9 @@ class ReactivePlannerReachInterface(TrajectoryPlannerInterface):
             corridor: reach_core.driving_corridor.DynamicDrivingCorridor = corridors[0]
             corridor_graph: reach_core.graphs.DynamicReachGraph = corridor.reach_graph
             markers = MarkerArray()
-            for step in range(corridor_graph.initial_step, corridor_graph.final_step + 1):
+            init_step = corridor_graph.initial_step
+            final_step = corridor_graph.final_step + 1
+            for step in range(init_step, final_step):
                 cart_polygons = []
                 for node in corridor_graph.get_nodes_at_step(step):
                     drivable_area = node.set.position_rectangle.bounds
@@ -188,6 +191,7 @@ class ReactivePlannerReachInterface(TrajectoryPlannerInterface):
                 marker = commonroad_polygons_to_marker(cart_polygons, origin, z, time_stamp)
                 marker.id = step
                 marker.ns = "reachable_set"
+                marker.color.a = (final_step - step) / (final_step - init_step) * 0.7 + 0.3
                 markers.markers.append(marker)
             self._reach_pub.publish(markers)
         else:
@@ -234,22 +238,25 @@ class ReactivePlannerReachInterface(TrajectoryPlannerInterface):
             rp_coordinate_system = CoordinateSystem(reference=reference_path, smooth_reference=False)
             self._planner.set_reference_path(coordinate_system=rp_coordinate_system)
 
-    @staticmethod
     def _initialize(
+        self,
         init_state: EgoVehicleState
     ) -> Tuple[int, float, float, float, float, float]:
         """Create arguments to initialize an executor from an ego vehicle state."""
+        theta = init_state.orientation
+        x = init_state.position[0] + np.cos(theta) * self._rear_wb
+        y = init_state.position[1] + np.sin(theta) * self._rear_wb
         # We always start at time step 0 here
-        return 0, init_state.position[0], init_state.position[1], init_state.velocity, init_state.acceleration, init_state.orientation
+        return 0, x, y, init_state.velocity, init_state.acceleration, init_state.orientation
 
 
     @staticmethod
     def _create_point_mass_params(ego_vehicle_handler: EgoVehicleHandler) -> reach_core.layers.propagation.PointMassParameters:
         point_mass_params = reach_core.layers.propagation.PointMassParameters()
-        point_mass_params.a_lon_min = -ego_vehicle_handler.vehicle_max_acceleration
-        point_mass_params.a_lon_max = ego_vehicle_handler.vehicle_max_acceleration
-        point_mass_params.a_lat_min = -2.0
-        point_mass_params.a_lat_max = 2.0
+        point_mass_params.a_lon_min = -ego_vehicle_handler.vehicle_max_acceleration * 0.2
+        point_mass_params.a_lon_max = ego_vehicle_handler.vehicle_max_acceleration * 0.2
+        point_mass_params.a_lat_min = -2.0 * 0.2
+        point_mass_params.a_lat_max = 2.0 * 0.2
         point_mass_params.v_lon_min = 0.0
         point_mass_params.v_lon_max = 10.0
         point_mass_params.v_lat_min = -4.0
