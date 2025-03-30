@@ -115,7 +115,7 @@ class ReactivePlannerReachInterface(TrajectoryPlannerInterface):
         reactive_planner.set_d_sampling_parameters(delta_d_min=rp_interface_params.get_ros_param("d_min"),
                                                    delta_d_max=rp_interface_params.get_ros_param("d_max"))
 
-        self._reach_layers = self._create_layers(dt, ego_vehicle_handler, reactive_planner.coordinate_system.ccosy)
+        self._layer, self._post = self._create_layers(dt, ego_vehicle_handler)
 
         # init trajectory planner
         self._planner: ReactivePlanner = reactive_planner
@@ -129,16 +129,24 @@ class ReactivePlannerReachInterface(TrajectoryPlannerInterface):
         :param reference_velocity: reference velocity for the planner
         :param kwargs: additional keyword arguments
         """
-        reach = reach_core.executors.DynamicReachabilityAnalysis(0, self._planner.config.planning.planning_horizon, *self._reach_layers)
+        self._logger.debug("Starting reachability analysis")
+        initial_uncertainty = 0.01
+        ccs = self._planner.coordinate_system.ccosy
+        init = reach_core.initializers.base_set.CurvilinearUncertaintyInitializer(ccs, *([initial_uncertainty] * 4))
+        reach = reach_core.executors.DynamicReachabilityAnalysis(0, int(self._planner.config.planning.planning_horizon), init, self._layer, self._post)
+        reach.initialize(*self._initialize(self._planner.config.planning_problem))
         reach.run_to_next_goal()
+        g = reach.reach_graph
+        self._logger.debug(f"Before post {g.num_nodes}")
         reach_graph = reach.get_post_processed_reach_graph()
+        self._logger.debug(f"Size of reach graph {reach_graph.num_nodes}")
         comp_graph = reach_core.graphs.DynamicComponentGraph(reach_graph)
         dc_extractor = reach_core.driving_corridor.DynamicDrivingCorridorExtractor()
         corridors = dc_extractor.extract(comp_graph, max_corridors=1)
         if len(corridors) > 0:
-            print("Found driving corridor")
+            self._logger.debug("Found driving corridor")
         else:
-            print("No driving corridor found")
+            self._logger.debug("No driving corridor found")
 
         # set reference velocity for planner
         self._planner.set_desired_velocity(desired_velocity=reference_velocity, current_speed=init_state.velocity)
@@ -191,6 +199,15 @@ class ReactivePlannerReachInterface(TrajectoryPlannerInterface):
             self._planner.set_reference_path(coordinate_system=rp_coordinate_system)
 
     @staticmethod
+    def _initialize(
+        planning_problem: PlanningProblem,
+    ) -> Tuple[int, float, float, float, float, float]:
+        """Create arguments to initialize an executor from a planning problem."""
+        state = planning_problem.initial_state
+        return state.time_step, state.position[0], state.position[1], state.velocity, state.acceleration, state.orientation
+
+
+    @staticmethod
     def _create_point_mass_params(ego_vehicle_handler: EgoVehicleHandler) -> reach_core.layers.propagation.PointMassParameters:
         point_mass_params = reach_core.layers.propagation.PointMassParameters()
         point_mass_params.a_lon_min = -ego_vehicle_handler.vehicle_max_acceleration
@@ -205,9 +222,7 @@ class ReactivePlannerReachInterface(TrajectoryPlannerInterface):
         return point_mass_params
 
     @staticmethod
-    def _create_layers(dt: float, ego_vehicle_handler: EgoVehicleHandler, ccs: pycrccosy.CurvilinearCoordinateSystem) -> Tuple[reach_core.initializers.NodeInitializer, reach_core.layers.Layer, reach_core.post_processors.PostProcessor]:
-        initial_uncertainty = 0.01
-        init = reach_core.initializers.base_set.CurvilinearUncertaintyInitializer(ccs, *([initial_uncertainty] * 4))
+    def _create_layers(dt: float, ego_vehicle_handler: EgoVehicleHandler) -> Tuple[reach_core.layers.Layer, reach_core.post_processors.PostProcessor]:
         layers = [
             reach_core.layers.propagation.PointMassPropagator(dt, ReactivePlannerReachInterface._create_point_mass_params(ego_vehicle_handler)),
             # reach_core.layers.collision.CollisionFilter(self.collision_checker),
@@ -217,4 +232,4 @@ class ReactivePlannerReachInterface(TrajectoryPlannerInterface):
             reach_core.post_processors.pruning.DanglingNodePruner(),
             reach_core.post_processors.CenterToRearShifter(ego_vehicle_handler.vehicle_wb_rear_axle)
         ]
-        return init, reach_core.layers.meta.Sequential(layers), reach_core.post_processors.meta.Sequential(post)
+        return reach_core.layers.meta.Sequential(layers), reach_core.post_processors.meta.Sequential(post)
