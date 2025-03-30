@@ -20,6 +20,7 @@ from commonroad_rp.reactive_planner import ReactivePlanner
 
 # commonroad-reach-flow imports
 import cr_reach_flow.cr_reach_flow_core as reach_core
+from cr_reach_flow.visualization.scenario import convert_to_cartesian_polygons
 
 # cr2autoware
 from cr2autoware.common.configuration import (
@@ -159,6 +160,16 @@ class ReactivePlannerReachInterface(TrajectoryPlannerInterface):
         corridors = dc_extractor.extract(comp_graph, max_corridors=1)
         if len(corridors) > 0:
             self._logger.debug("Found driving corridor")
+            corridor: reach_core.driving_corridor.DynamicDrivingCorridor = corridors[0]
+            corridor_graph: reach_core.graphs.DynamicReachGraph = corridor.reach_graph
+            drivable_area_cart = {}
+            for step in range(corridor_graph.initial_step, corridor_graph.final_step + 1):
+                drivable_area_cart[step] = []
+                for node in corridor_graph.get_nodes_at_step(step):
+                    drivable_area = node.set.position_rectangle.bounds
+                    cart_polygons = convert_to_cartesian_polygons(drivable_area, ccs, split_wrt_angle=True)
+                    drivable_area_cart[step] += cart_polygons
+            self._logger.debug(f"Drivable area: {drivable_area_cart}")
         else:
             self._logger.debug("No driving corridor found")
 
