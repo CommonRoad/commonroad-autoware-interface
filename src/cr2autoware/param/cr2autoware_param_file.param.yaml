@@ -21,6 +21,8 @@
       cr_obstacle_box_rear: 20.0 # m
       cr_obstacle_box_side: 25.0 # m (half width)
 
+      test_mode_traffic_light: True # test mode for traffic light handling
+
     vehicle:
       # static parameters (e.g., wheel_base) are read from vehicle_info.param.yaml (see cr2autoware/configuration.py)
 

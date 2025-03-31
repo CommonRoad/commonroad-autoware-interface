@@ -28,7 +28,7 @@ from geometry_msgs.msg import Polygon as PolygonMsg
 from geometry_msgs.msg import Point as PointMsg
 from rclpy.publisher import Publisher
 from rclpy.time import Time
-from std_msgs.msg import Header
+from std_msgs.msg import Bool, Header
 
 # Autoware msgs
 from autoware_auto_perception_msgs.msg import PredictedObjects  # type: ignore
@@ -86,6 +86,7 @@ if typing.TYPE_CHECKING:
 # subscriber specifications
 from ..common.ros_interface.specs_subscriptions import spec_objects_sub
 from ..common.ros_interface.specs_subscriptions import spec_traffic_signals_sub
+from ..common.ros_interface.specs_subscriptions import spec_simulated_traffic_light_sub
 
 #publisher specifications
 from ..common.ros_interface.specs_publisher import spec_cr_obstacles_pub
@@ -121,6 +122,10 @@ class ScenarioHandler(BaseHandler):
         * Description: Subscribes to traffic lights from perception
         * Topic: `/perception/traffic_light_recognition/traffic_signals`
         * Message Type: `autoware_perception_msgs.msg.TrafficSignalArray`
+    * spec_simulated_traffic_light_sub:
+        * Description: Subscribes to simulated traffic light
+        * Topic: `/planning/commonroad/test_mode/traffic_light`
+        * Message Type: `std_msgs.msg.Bool`
 
     -------------------
     :var MAP_PATH: path to the map directory containing the map_config.yaml file
@@ -185,6 +190,10 @@ class ScenarioHandler(BaseHandler):
         self._initialpose3d_z = 0.0  # z value of initialpose3d
         self._z_coordinate = 0.0     # current elevation, i.e., z-coordinate
 
+        # Initialze params for traffic light simulation
+        self._simulated_green_light = False
+        self._yellow_time = None
+
     def _init_parameters(self) -> None:
         """
         Init scenario handler specific parameters from self._node
@@ -209,6 +218,10 @@ class ScenarioHandler(BaseHandler):
         self.cr_obstacle_box_front = self._get_param("scenario.cr_obstacle_box_front").double_value
         self.cr_obstacle_box_rear = self._get_param("scenario.cr_obstacle_box_rear").double_value
         self.cr_obstacle_box_side = self._get_param("scenario.cr_obstacle_box_side").double_value
+
+        # flag for traffic light simulation in test drive
+        self.test_mode_traffic_light = self._get_param("scenario.test_mode_traffic_light").bool_value
+        self.yellow_light_time = self._get_param("behavior_planner.yellow_light_time").double_value
 
     def _read_map_config(self, map_path: str) -> Dict[str, Any]:
         """
@@ -441,6 +454,13 @@ class ScenarioHandler(BaseHandler):
                                 lambda msg: self._last_msg.update({"traffic_lights": msg}),
                                 self._node.callback_group
                                 )
+        # subscribe to simulated traffic light topic
+        if self.test_mode_traffic_light:
+            _ = create_subscription(self._node,
+                                    spec_simulated_traffic_light_sub,
+                                    self.simulated_traffic_light_callback,
+                                    self._node.callback_group
+                                    )
 
     def _init_publishers(self) -> None:
         """Initialize publishers."""
@@ -1009,84 +1029,137 @@ class ScenarioHandler(BaseHandler):
         # add dynamic obstacle to the scenario
         self.scenario.add_objects(dynamic_obstacle)
 
+    def simulated_traffic_light_callback(self, msg: Bool) -> None:
+        """
+        Callback function for the simulated traffic light topic.
+
+        :param msg: simulated traffic light message
+        """
+        is_green = msg.data
+
+        if is_green:
+            # set traffic light to green
+            self._simulated_green_light = True
+            self._yellow_time = None
+
+        else:
+            # save the time when the traffic light turned yellow (if it was green before)
+            if self._simulated_green_light:
+                self._yellow_time = self._node.get_clock().now()
+            self._simulated_green_light = False
+
     def _process_traffic_lights(self) -> None:
         """
         Converts Autoware traffic lights to CommonRoad traffic lights and updates the CommonRoad scenario.
 
-        The incoming traffic lights are provided by the perception module via the topic: `/perception/traffic_light_recognition/traffic_signals`
+        There are two different traffic light conversion modes:
+        
+        * Simulation: The traffic lights are converted by a boolean value via the topic: `/planning/commonroad/test_mode/traffic_light`
+        * Perception: The incoming traffic lights are provided by the perception module via the topic: `/perception/traffic_light_recognition/traffic_signals`
         """
 
         last_message = self._last_msg.get("traffic_lights") # type: TrafficSignalArray
 
-        self._logger.debug("Processing traffic lights" + str(last_message))
+        self._logger.debug("[SVEN] [TrafficLights] Processing traffic lights: " + str(last_message))
 
-        if last_message is None:
-            return
-
-        # initialize list of processed traffic light IDs
-        processed_traffic_light_ids: List[int] = []
-
-        # process all traffic lights from perception message
-        for traffic_signal in last_message.signals:
-            # get traffic light ID
-            traffic_signal_id = traffic_signal.traffic_signal_id
-
-            # add traffic light ID to processed list
-            processed_traffic_light_ids.append(traffic_signal_id)
-
-            # get traffic light from lanelet network
-            traffic_light_cr = self.lanelet_network.find_traffic_light_by_id(traffic_signal_id)
-
-            # get traffic light element with the highest confidence
-            traffic_light: TrafficSignalElement = self._get_traffic_light(traffic_signal)
-
-            # get traffic light status, color and shape
-            status = traffic_light.status
-            color = traffic_light.color
-            shape = traffic_light.shape
-
-            # convert traffic light status
-            try:
-                status_cr = dict_autoware_to_commonroad_traffic_light_status[status]
-            except KeyError:
-                self._logger.error("Traffic light status not found in AW to CR status map!")
-                continue
-
-            # check if detected traffic light is active:
-            if status_cr is True:
-                # set traffic light color and cycle
-                try:
-                    color_cr = dict_autoware_to_commonroad_traffic_light_color[color]
-                except KeyError:
-                    self._logger.error("Traffic light color not found in AW to CR color map!")
-                    continue
-                traffic_light_cr.color = color_cr
-                traffic_light_cr.traffic_light_cycle = set_traffic_light_cycle(color_cr)
-
-                # set traffic light direction
-                try:
-                    shape_cr = dict_autoware_to_commonroad_traffic_light_shape[shape]
-                except KeyError:
-                    self._logger.error("Traffic light shape not found in AW to CR shape map!")
-                    continue
-                traffic_light_cr.direction = shape_cr
+        # process traffic lights from simulation
+        if self.test_mode_traffic_light:
+            # set color and cycle depending on the simulated traffic light state
+            if self._simulated_green_light:
+                color_cr = dict_autoware_to_commonroad_traffic_light_color[3]
             else:
-                # set traffic light color and cycle to inactive
-                color_cr = dict_autoware_to_commonroad_traffic_light_color[99]
-                traffic_light_cr.color = color_cr
-                traffic_light_cr.traffic_light_cycle = set_traffic_light_cycle(color_cr)
-                traffic_light_cr.direction = dict_autoware_to_commonroad_traffic_light_shape[shape]
+                # if the traffic light is not green, check if yellow time is set
+                # set traffic light to red if no yellow time is set (no message received)
+                if self._yellow_time is None:
 
-            # set detected traffic light in perception message to active
-            traffic_light_cr.active = True
+                    color_cr = dict_autoware_to_commonroad_traffic_light_color[1]
+                
+                # if yellow time is under 3 seconds, set traffic light to yellow
+                elif (self._node.get_clock().now() - self._yellow_time).nanoseconds < (self.yellow_light_time * 1e9):
+                    color_cr = dict_autoware_to_commonroad_traffic_light_color[2]
+                
+                # if yellow time is over 3 seconds, set traffic light to red
+                else:
+                    color_cr = dict_autoware_to_commonroad_traffic_light_color[1]
 
-        # set traffic light active state to False and traffic light cycle to inactive for all traffic lights that are not in the perception message
-        for traffic_light_ln in self.lanelet_network.traffic_lights:
-            if traffic_light_ln.active is True:
-                if traffic_light_ln.traffic_light_id not in processed_traffic_light_ids:
-                    traffic_light_ln.active = False
-                    color_inactive = dict_autoware_to_commonroad_traffic_light_color[99]
-                    traffic_light_ln.traffic_light_cycle = set_traffic_light_cycle(color_inactive)
+            # use /planning/commonroad/test_mode/traffic_light topic for traffic light simulation
+            for traffic_light_ln in self.lanelet_network.traffic_lights:
+                # set traffic light active state to True
+                traffic_light_ln.active = True
+                traffic_light_ln.color = color_cr
+                traffic_light_ln.traffic_light_cycle = set_traffic_light_cycle(color_cr)
+                traffic_light_ln.direction = dict_autoware_to_commonroad_traffic_light_shape[1]
+
+        # process traffic lights from perception
+        else: 
+
+            if last_message is None:
+                return
+
+            # initialize list of processed traffic light IDs
+            processed_traffic_light_ids: List[int] = []
+
+            # process all traffic lights from perception message
+            for traffic_signal in last_message.signals:
+                # get traffic light ID
+                traffic_signal_id = traffic_signal.traffic_signal_id
+
+                # add traffic light ID to processed list
+                processed_traffic_light_ids.append(traffic_signal_id)
+
+                # get traffic light from lanelet network
+                traffic_light_cr = self.lanelet_network.find_traffic_light_by_id(traffic_signal_id)
+
+                # get traffic light element with the highest confidence
+                traffic_light: TrafficSignalElement = self._get_traffic_light(traffic_signal)
+
+                # get traffic light status, color and shape
+                status = traffic_light.status
+                color = traffic_light.color
+                shape = traffic_light.shape
+
+                # convert traffic light status
+                try:
+                    status_cr = dict_autoware_to_commonroad_traffic_light_status[status]
+                except KeyError:
+                    self._logger.error("Traffic light status not found in AW to CR status map!")
+                    continue
+
+                # check if detected traffic light is active:
+                if status_cr is True:
+                    # set traffic light color and cycle
+                    try:
+                        color_cr = dict_autoware_to_commonroad_traffic_light_color[color]
+                    except KeyError:
+                        self._logger.error("Traffic light color not found in AW to CR color map!")
+                        continue
+                    traffic_light_cr.color = color_cr
+                    traffic_light_cr.traffic_light_cycle = set_traffic_light_cycle(color_cr)
+
+                    # set traffic light direction
+                    try:
+                        shape_cr = dict_autoware_to_commonroad_traffic_light_shape[shape]
+                    except KeyError:
+                        self._logger.error("Traffic light shape not found in AW to CR shape map!")
+                        continue
+                    traffic_light_cr.direction = shape_cr
+                else:
+                    # set traffic light color and cycle to inactive
+                    color_cr = dict_autoware_to_commonroad_traffic_light_color[99]
+                    traffic_light_cr.color = color_cr
+                    traffic_light_cr.traffic_light_cycle = set_traffic_light_cycle(color_cr)
+                    traffic_light_cr.direction = dict_autoware_to_commonroad_traffic_light_shape[shape]
+
+                # set detected traffic light in perception message to active
+                traffic_light_cr.active = True
+
+            # set traffic light active state to False and traffic light cycle to inactive for all traffic lights that are not in the perception message
+            for traffic_light_ln in self.lanelet_network.traffic_lights:
+                if traffic_light_ln.active is True:
+                    if traffic_light_ln.traffic_light_id not in processed_traffic_light_ids:
+                        traffic_light_ln.active = False
+                        color_inactive = dict_autoware_to_commonroad_traffic_light_color[99]
+                        traffic_light_ln.traffic_light_cycle = set_traffic_light_cycle(color_inactive)
 
     @staticmethod
     def _get_traffic_light(traffic_signal: TrafficSignal) -> TrafficSignalElement:

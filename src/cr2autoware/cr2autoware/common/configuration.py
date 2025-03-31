@@ -129,6 +129,9 @@ class ScenarioParams(BaseParams):
     cr_obstacle_box_rear: float = 20.0  # m
     cr_obstacle_box_side: float = 25.0  # m (half width)
 
+    # test mode for traffic light handling
+    test_mode_traffic_light: bool = False
+
     def __post_init__(self):
         """Initialize ROS params."""
         # declare ROS params

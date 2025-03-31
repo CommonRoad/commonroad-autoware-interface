@@ -50,6 +50,10 @@ To add a new topic subscription, add the specification here first.
     * Description: subscribe predicted objects from perception
     * Topic: `/perception/object_recognition/objects`
     * Message Type: `autoware_auto_perception_msgs.msg.PredictedObjects`
+* spec_simulated_traffic_light_sub
+    * Description: subscribe simulated traffic light
+    * Topic: `/planning/commonroad/test_mode/traffic_light`
+    * Message Type: `std_msgs.msg.Bool`
 """
 
 # ROS messages
@@ -57,6 +61,7 @@ from geometry_msgs.msg import PoseStamped # type: ignore
 from geometry_msgs.msg import PoseWithCovarianceStamped # type: ignore
 from geometry_msgs.msg import AccelWithCovarianceStamped # type: ignore
 from nav_msgs.msg import Odometry # type: ignore
+from std_msgs.msg import Bool # type: ignore
 
 # Autoware messages
 from autoware_auto_vehicle_msgs.msg import Engage  # type: ignore
@@ -156,5 +161,9 @@ spec_traffic_lights = SubscriptionSpec(
 spec_obj_recognition = spec_objects_sub
 spec_traffic_signals_sub = spec_traffic_lights
 
-
-
+# subscribes to simulated traffic light boolean
+spec_simulated_traffic_light_sub = SubscriptionSpec(
+    name="/planning/commonroad/test_mode/traffic_light",
+    msg_type=Bool,
+    depth=1
+)
