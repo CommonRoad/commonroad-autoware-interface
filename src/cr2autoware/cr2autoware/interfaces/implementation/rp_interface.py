@@ -137,6 +137,7 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
                             initial_state_curv=None,
                             collision_checker=self._planner.collision_checker,
                             coordinate_system=self._planner.coordinate_system)
+        self._planner.record_state_and_input(self._planner.x_0)
 
         # call plan function and generate trajectory
         optimal_traj = self._planner.plan()

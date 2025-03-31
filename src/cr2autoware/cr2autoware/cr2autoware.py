@@ -70,7 +70,7 @@ from .handlers.data_generation_handler import DataGenerationHandler
 from .handlers.planning_problem_handler import PlanningProblemHandler
 from .interfaces.implementation.cr_route_planner import CommonRoadRoutePlanner
 from .interfaces.implementation.velocity_planner import VelocityPlanner
-from .interfaces.implementation.rp_reach_interface import ReactivePlannerReachInterface
+from .interfaces.implementation.rp_interface import ReactivePlannerInterface
 from cr2autoware.common.utils.tf2_geometry_msgs import do_transform_pose
 from cr2autoware.common.utils.trajectory_logger import TrajectoryLogger
 from .common.utils.transform import orientation2quaternion
@@ -218,7 +218,7 @@ class Cr2Auto(Node):
     :var initial_pose: Initial pose message
     :var trajectory_planner_type: Trajectory planner type
     :var route_planner: Instance of the CommonRoadRoutePlanner class
-    :var trajectory_planner: Instance of the ReactivePlannerReachInterface class
+    :var trajectory_planner: Instance of the ReactivePlannerInterface class
     :var interactive_mode: Boolean to check if interactive mode is enabled
     :var timer_solve_planning_problem: Timer for solving planning problem
     :var timer_follow_trajectory_mode_update: Timer for updating follow trajectory mode
@@ -470,15 +470,15 @@ class Cr2Auto(Node):
         )
 
     # TODO move factory method to separate module
-    def _trajectory_planner_factory(self) -> ReactivePlannerReachInterface:
+    def _trajectory_planner_factory(self) -> ReactivePlannerInterface:
         """
         Factory function to initialize trajectory planner according to specified type.
 
-        :return: Instance of the ReactivePlannerReachInterface class
+        :return: Instance of the ReactivePlannerInterface class
         :raises _logger.error: If trajectory planner type is invalid
         """
         if self.trajectory_planner_type == 1:  # Reactive planner
-            return ReactivePlannerReachInterface(self.traj_pub,
+            return ReactivePlannerInterface(self.traj_pub,
                                             self._logger,
                                             self.verbose,
                                             self.scenario,
@@ -487,8 +487,7 @@ class Cr2Auto(Node):
                                             self.scenario.dt,
                                             self.params.trajectory_planner,
                                             self.params.rp_interface,
-                                            self.ego_vehicle_handler,
-                                            self)
+                                            self.ego_vehicle_handler)
         else:
             self._logger.error("<Trajectory Planner Factory> Planner type is invalid")
 

@@ -20,7 +20,6 @@ vehicle:
 
   wb_front_axle: 1.484
   wb_rear_axle: 1.644
-  wheelbase: 3.128
 
   delta_min: -0.610865
   delta_max: 0.610865
@@ -35,6 +34,10 @@ sampling:
   t_min: 1.0
   d_min: -1.5
   d_max: 1.5
+
+monitor:
+  with_rule_monitoring: True
+  activated_traffic_rules: ["R_G1"]
 
 debug:
   multiproc: False
