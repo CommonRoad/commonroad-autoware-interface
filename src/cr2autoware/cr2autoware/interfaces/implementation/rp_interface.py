@@ -135,7 +135,7 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
 
         # update config to reset C++ World
         tic = time.perf_counter()
-        self._planner.config.update(self.scenario, self._planner.config.planning_problem)
+        self._planner.config.rule_monitor.get_world().update_obstacles(self.scenario.obstacles)
         toc = time.perf_counter()
         self._logger.debug(f"Updating cpp took {(toc - tic) * 1000:.2f} ms")
 
