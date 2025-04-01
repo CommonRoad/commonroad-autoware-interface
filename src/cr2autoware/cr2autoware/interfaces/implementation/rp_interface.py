@@ -1,3 +1,5 @@
+import time
+
 # third party imports
 import numpy as np
 
@@ -14,6 +16,9 @@ from commonroad_rp.utility.logger import initialize_logger
 from commonroad_rp.utility.utils_coordinate_system import CoordinateSystem
 from commonroad_rp.state import ReactivePlannerState
 from commonroad_rp.reactive_planner import ReactivePlanner
+
+# commonroad-monitor
+import crmonitor
 
 # cr2autoware
 from cr2autoware.common.configuration import (
@@ -121,11 +126,21 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
         :param reference_velocity: reference velocity for the planner
         :param kwargs: additional keyword arguments
         """
+        self._logger.debug(f"Initial state: {init_state} Goal: {goal.state_list}")
         # set reference velocity for planner
         self._planner.set_desired_velocity(desired_velocity=reference_velocity, current_speed=init_state.velocity)
 
         # update collision checker (self.scenario is updated continuously as it is a reference to the scenario handler)
         self._planner.set_collision_checker(self.scenario, road_boundary_obstacle=self._road_boundary)
+
+        # update config to reset C++ World
+        tic = time.perf_counter()
+        self._planner.config.update(self.scenario, self._planner.config.planning_problem)
+        toc = time.perf_counter()
+        self._logger.debug(f"Updating cpp took {(toc - tic) * 1000:.2f} ms")
+
+        num_obs = len(self._planner.config.rule_monitor.get_world().obstacles)
+        self._logger.info(f"Number of obstacles in C++ world: {num_obs}")
 
         # reset planner state
         if not hasattr(init_state, "acceleration"):
@@ -137,10 +152,16 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
                             initial_state_curv=None,
                             collision_checker=self._planner.collision_checker,
                             coordinate_system=self._planner.coordinate_system)
-        self._planner.record_state_and_input(self._planner.x_0)
 
         # call plan function and generate trajectory
         optimal_traj = self._planner.plan()
+
+        p = self._planner
+        self._logger.info(f"Rejected {p.infeasible_count_kinematics} infeasible trajectories due to kinematics")
+        for constraint in p.config.planning.constraints_to_check:
+            self._logger.debug(f"\tInfeasible {constraint}: {p._infeasible_reason_dict[constraint]}")
+        self._logger.info(f"Rejected {p.infeasible_count_collision} infeasible trajectories due to collisions")
+        self._logger.info(f"Rejected {p.infeasible_count_rules} infeasible trajectories due to rule violations")
 
         # check if valid trajectory is found
         if optimal_traj:

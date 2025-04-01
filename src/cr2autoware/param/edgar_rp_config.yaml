@@ -38,6 +38,7 @@ sampling:
 monitor:
   with_rule_monitoring: True
   activated_traffic_rules: ["R_G1"]
+  trace_reset_option: always
 
 debug:
   multiproc: False
