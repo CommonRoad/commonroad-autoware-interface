@@ -7,6 +7,9 @@ import numpy as np
 from commonroad.scenario.scenario import Scenario
 from commonroad.planning.planning_problem import PlanningProblem
 
+# commonroad-clcs
+from commonroad_clcs.config import CLCSParams
+
 # commonroad-dc
 import commonroad_dc.pycrcc as pycrcc
 
@@ -192,5 +195,5 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
             self._planner.config.planning_problem = planning_problem
         # set new reference path for planner if provided
         if reference_path is not None:
-            rp_coordinate_system = CoordinateSystem(reference=reference_path, smooth_reference=False)
+            rp_coordinate_system = CoordinateSystem(reference=reference_path, preprocess_reference=False, clcs_params=CLCSParams())
             self._planner.set_reference_path(coordinate_system=rp_coordinate_system)

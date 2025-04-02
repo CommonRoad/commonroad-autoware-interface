@@ -271,8 +271,8 @@ class ScenarioHandler(BaseHandler):
         self._logger.debug("Autoware origin x: %s,   origin y: %s" % (aw_origin_x, aw_origin_y))
 
         # Get CommonRoad map origin
-        cr_origin_lat = Decimal(scenario.location.gps_latitude)
-        cr_origin_lon = Decimal(scenario.location.gps_longitude)
+        cr_origin_lat = Decimal(scenario.lanelet_network.location.gps_latitude)
+        cr_origin_lon = Decimal(scenario.lanelet_network.location.gps_longitude)
         cr_origin_x, cr_origin_y = projection(cr_origin_lon, cr_origin_lat)
 
         self._logger.debug(
