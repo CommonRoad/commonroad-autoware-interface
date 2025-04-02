@@ -142,6 +142,8 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
         num_obs = len(self._planner.config.rule_monitor.get_world().obstacles)
         self._logger.info(f"Number of obstacles in C++ world: {num_obs}")
 
+        self._planner.config.rule_monitor.reset_trace()
+
         # reset planner state
         if not hasattr(init_state, "acceleration"):
             # current_state uses acceleration localization (see ego_vehicle_handler)
