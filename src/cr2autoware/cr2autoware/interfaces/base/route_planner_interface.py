@@ -16,8 +16,8 @@ from visualization_msgs.msg import MarkerArray
 from commonroad.scenario.lanelet import LaneletNetwork
 from commonroad.planning.planning_problem import PlanningProblem
 
-# commonroad-dc imports
-from commonroad_dc.geometry.util import compute_pathlength_from_polyline
+# commonroad-clcs imports
+from commonroad_clcs.util import compute_pathlength_from_polyline
 
 # cr2autoware imports
 from cr2autoware.common.utils.message import create_route_marker_msg

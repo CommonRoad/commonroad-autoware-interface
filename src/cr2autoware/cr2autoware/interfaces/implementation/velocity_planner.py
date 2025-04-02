@@ -16,8 +16,8 @@ from builtin_interfaces.msg import Duration
 from autoware_auto_planning_msgs.msg import TrajectoryPoint
 from autoware_auto_planning_msgs.msg import Trajectory as AWTrajectory
 
-# commonroad-dc imports
-from commonroad_dc.geometry.util import compute_orientation_from_polyline
+# commonroad-clcs imports
+from commonroad_clcs.util import compute_orientation_from_polyline
 
 # cr2autoware imports
 from cr2autoware.common.utils.transform import orientation2quaternion

@@ -10,7 +10,9 @@ from commonroad.planning.planning_problem import PlanningProblem
 
 # commonroad-dc
 import commonroad_dc.pycrcc as pycrcc
-import commonroad_dc.pycrccosy as pycrccosy
+
+# commonroad-clcs
+import commonroad_clcs.pycrccosy as pycrccosy
 
 # commonroad-rp imports
 from commonroad_rp.utility.config import ReactivePlannerConfiguration

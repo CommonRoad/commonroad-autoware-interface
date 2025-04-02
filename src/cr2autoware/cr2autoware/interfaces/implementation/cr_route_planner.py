@@ -14,8 +14,8 @@ from rclpy.impl.rcutils_logger import RcutilsLogger
 from commonroad.scenario.lanelet import LaneletNetwork
 from commonroad.planning.planning_problem import PlanningProblem
 
-# commonroad-dc imports
-from commonroad_dc.geometry.util import resample_polyline, chaikins_corner_cutting, compute_curvature_from_polyline
+# commonroad-clcs imports
+from commonroad_clcs.util import resample_polyline, chaikins_corner_cutting, compute_curvature_from_polyline
 
 # commonroad-route-planner imports
 from commonroad_route_planner.route_planner import RoutePlanner as CRRoutePlanner

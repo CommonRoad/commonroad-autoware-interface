@@ -2,13 +2,13 @@ import numpy as np
 from shapely import Polygon
 import math
 
-# commonroad
-import commonroad_dc.pycrccosy as pycrccosy
+# commonroad-clcs
+import commonroad_clcs.pycrccosy as pycrccosy
 
 # Typing
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from commonroad_dc.pycrccosy import CurvilinearCoordinateSystem
+    from commonroad_clcs.pycrccosy import CurvilinearCoordinateSystem
 from typing import Tuple
 
 
