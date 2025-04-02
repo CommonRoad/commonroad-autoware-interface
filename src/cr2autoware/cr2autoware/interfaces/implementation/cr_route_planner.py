@@ -18,6 +18,7 @@ from commonroad.planning.planning_problem import PlanningProblem
 from commonroad_clcs.util import resample_polyline, chaikins_corner_cutting, compute_curvature_from_polyline
 
 # commonroad-route-planner imports
+from commonroad_route_planner.reference_path_planner import ReferencePathPlanner as CRReferencePathPlanner
 from commonroad_route_planner.route_planner import RoutePlanner as CRRoutePlanner
 
 # cr2autoware imports
@@ -91,16 +92,21 @@ class CommonRoadRoutePlanner(RoutePlannerInterface):
         if self._verbose:
             self._logger.info("<CommonRoadRoutePlanner>: Starting to plan route ...")
 
+        if planning_problem:
+            generated_routes = self._planner.update_planning_problem_and_plan_routes(
+                planning_problem=planning_problem)
+        else:
+            generated_routes = self._planner.plan_routes()
+
+        ref_path_planner = CRReferencePathPlanner(
+            lanelet_network=self.lanelet_network,
+            planning_problem=planning_problem,
+            routes=generated_routes,
+        )
+
         try:
-            if planning_problem:
-                generated_routes = self._planner.update_planning_problem_and_plan_routes(
-                    planning_problem=planning_problem)
-            else:
-                generated_routes = self._planner.plan_routes()
-
-            planned_route = generated_routes.retrieve_first_route()
-
-        except IndexError:
+            planned_route = ref_path_planner.plan_first_reference_path()
+        except ValueError as err:
             self._logger.info("<CommonRoadRoutePlanner>: No valid route could be found.")
             return
 
