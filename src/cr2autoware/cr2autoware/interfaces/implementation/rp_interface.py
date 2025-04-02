@@ -20,9 +20,6 @@ from commonroad_rp.utility.utils_coordinate_system import CoordinateSystem
 from commonroad_rp.state import ReactivePlannerState
 from commonroad_rp.reactive_planner import ReactivePlanner
 
-# commonroad-monitor
-import crmonitor
-
 # cr2autoware
 from cr2autoware.common.configuration import (
     RPInterfaceParams,
@@ -129,21 +126,17 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
         :param reference_velocity: reference velocity for the planner
         :param kwargs: additional keyword arguments
         """
-        self._logger.debug(f"Initial state: {init_state} Goal: {goal.state_list}")
         # set reference velocity for planner
         self._planner.set_desired_velocity(desired_velocity=reference_velocity, current_speed=init_state.velocity)
 
         # update collision checker (self.scenario is updated continuously as it is a reference to the scenario handler)
         self._planner.set_collision_checker(self.scenario, road_boundary_obstacle=self._road_boundary)
 
-        # update config to reset C++ World
+        # update obstacles in C++ World
         tic = time.perf_counter()
         self._planner.config.rule_monitor.get_world().update_obstacles(self.scenario.obstacles)
         toc = time.perf_counter()
-        self._logger.debug(f"Updating cpp took {(toc - tic) * 1000:.2f} ms")
-
-        num_obs = len(self._planner.config.rule_monitor.get_world().obstacles)
-        self._logger.info(f"Number of obstacles in C++ world: {num_obs}")
+        self._logger.info(f"Updating C++ world took {(toc - tic) * 1000:.2f} ms")
 
         self._planner.config.rule_monitor.reset_trace()
 
@@ -161,12 +154,13 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
         # call plan function and generate trajectory
         optimal_traj = self._planner.plan()
 
-        p = self._planner
-        self._logger.info(f"Rejected {p.infeasible_count_kinematics} infeasible trajectories due to kinematics")
-        for constraint in p.config.planning.constraints_to_check:
-            self._logger.debug(f"\tInfeasible {constraint}: {p._infeasible_reason_dict[constraint]}")
-        self._logger.info(f"Rejected {p.infeasible_count_collision} infeasible trajectories due to collisions")
-        self._logger.info(f"Rejected {p.infeasible_count_rules} infeasible trajectories due to rule violations")
+        self._logger.info("===== Rejected Trajectories =====")
+        self._logger.info(f"Rejected {self._planner.infeasible_count_kinematics} infeasible trajectories due to kinematics")
+        for constraint in self._planner.config.planning.constraints_to_check:
+            self._logger.info(f"\tInfeasible {constraint}: {self._planner._infeasible_reason_dict[constraint]}")
+        self._logger.info(f"Rejected {self._planner.infeasible_count_collision} infeasible trajectories due to collisions")
+        self._logger.info(f"Rejected {self._planner.infeasible_count_rules} infeasible trajectories due to rule violations")
+        self._logger.info("===== End Rejected Trajectories =====")
 
         # check if valid trajectory is found
         if optimal_traj:
@@ -179,7 +173,8 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
             # record planned state and input
             self._planner.record_state_and_input(optimal_traj[0].state_list[1])
         else:
-            # TODO: sample emergency brake trajectory if no trajectory is found ?
+            # TODO: sample emergency brake trajectory if no trajectory is found?
+            self._logger.warning("Reactive planner could not find a feasible trajectory!")
             self._cr_state_list = None
             self._prev_state_list = None
 
