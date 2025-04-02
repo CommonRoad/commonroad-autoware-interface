@@ -19,7 +19,7 @@ from commonroad_rp.utility.config import ReactivePlannerConfiguration
 from commonroad_rp.utility.logger import initialize_logger
 from commonroad_rp.utility.utils_coordinate_system import CoordinateSystem
 from commonroad_rp.state import ReactivePlannerState
-from commonroad_rp.reactive_planner import ReactivePlanner
+from commonroad_rp.high_level_planner import HighLevelPlanner
 
 # cr2autoware
 from cr2autoware.common.configuration import (
@@ -37,7 +37,7 @@ from rclpy.publisher import Publisher
 from rclpy.impl.rcutils_logger import RcutilsLogger
 
 
-class ReactivePlannerInterface(TrajectoryPlannerInterface):
+class HighLevelReactivePlannerInterface(TrajectoryPlannerInterface):
     """
     Trajectory planner interface for the CommonRoad Reactive Planner.
 
@@ -107,16 +107,16 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
         # initialize reactive planner logger
         initialize_logger(rp_config)
 
-        # initialize reactive planner object
-        reactive_planner: ReactivePlanner = ReactivePlanner(rp_config)
+        # initialize high level planner object
+        hl_planner = HighLevelPlanner(rp_config)
 
         # adjust sampling settings from ROS params
-        reactive_planner.set_t_sampling_parameters(t_min=rp_interface_params.get_ros_param("t_min"))
-        reactive_planner.set_d_sampling_parameters(delta_d_min=rp_interface_params.get_ros_param("d_min"),
+        hl_planner.set_t_sampling_parameters(t_min=rp_interface_params.get_ros_param("t_min"))
+        hl_planner.set_d_sampling_parameters(delta_d_min=rp_interface_params.get_ros_param("d_min"),
                                                    delta_d_max=rp_interface_params.get_ros_param("d_max"))
 
         # init trajectory planner
-        self._planner: ReactivePlanner = reactive_planner
+        self._planner: HighLevelPlanner = hl_planner
 
     def _plan(self, init_state: EgoVehicleState, goal, reference_velocity=None, **kwargs) -> None:
         """
@@ -193,4 +193,4 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
         if reference_path is not None:
             assert route_lanelet_ids is not None, "Reference path given but no route lanelet IDs"
             rp_coordinate_system = CoordinateSystem(reference_path, preprocess_reference=False, clcs_params=CLCSParams())
-            self._planner.set_reference_path(coordinate_system=rp_coordinate_system)
+            self._planner.set_reference_path(rp_coordinate_system, route_lanelet_ids)

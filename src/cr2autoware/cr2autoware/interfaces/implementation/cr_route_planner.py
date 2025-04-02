@@ -18,6 +18,7 @@ from commonroad.planning.planning_problem import PlanningProblem
 from commonroad_clcs.util import resample_polyline, chaikins_corner_cutting, compute_curvature_from_polyline
 
 # commonroad-route-planner imports
+from commonroad_route_planner.frenet_tools.route_extendor import RouteExtendor
 from commonroad_route_planner.reference_path_planner import ReferencePathPlanner as CRReferencePathPlanner
 from commonroad_route_planner.route_planner import RoutePlanner as CRRoutePlanner
 
@@ -109,6 +110,8 @@ class CommonRoadRoutePlanner(RoutePlannerInterface):
         except ValueError as err:
             self._logger.info("<CommonRoadRoutePlanner>: No valid route could be found.")
             return
+        
+        RouteExtendor(planned_route).extend_reference_path_at_start_and_end()
 
         self._route_list_lanelet_ids = planned_route.lanelet_ids
         self._reference_path = planned_route.reference_path
