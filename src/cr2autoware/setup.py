@@ -29,9 +29,10 @@ setup(
     install_requires=[
     	'setuptools==69.0.2',
     	'commonroad-io>=2024.1',
-    	'commonroad-drivability-checker==2024.1',
+    	'commonroad-drivability-checker==2025.1',
+        'commonroad-clcs==2025.1',
     	'commonroad-vehicle-models==3.0.2',
-    	'commonroad-route-planner==2024.2.1',
+    	'commonroad-route-planner==2025.1.0',
     	'pyproj>=3.4.1',
     	'pyyaml==6.0',
     	'utm>=0.7.0'
