@@ -8,16 +8,13 @@ import numpy as np
 from commonroad.scenario.scenario import Scenario
 from commonroad.planning.planning_problem import PlanningProblem
 
-# commonroad-clcs
-from commonroad_clcs.config import CLCSParams
-
 # commonroad-dc
 import commonroad_dc.pycrcc as pycrcc
 
 # commonroad-rp imports
 from commonroad_rp.utility.config import ReactivePlannerConfiguration
 from commonroad_rp.utility.logger import initialize_logger
-from commonroad_rp.utility.utils_coordinate_system import CoordinateSystem
+from commonroad_rp.utility.utils_coordinate_system import create_coordinate_system
 from commonroad_rp.state import ReactivePlannerState
 from commonroad_rp.high_level_planner import HighLevelPlanner
 
@@ -31,6 +28,7 @@ from cr2autoware.handlers.ego_vehicle_handler import (
     EgoVehicleState
 )
 from cr2autoware.interfaces.base.trajectory_planner_interface import TrajectoryPlannerInterface
+from cr2autoware.interfaces.implementation.rp_helper.world_updater import WorldUpdater
 
 # ROS imports
 from rclpy.publisher import Publisher
@@ -114,6 +112,9 @@ class HighLevelReactivePlannerInterface(TrajectoryPlannerInterface):
         hl_planner.set_t_sampling_parameters(t_min=rp_interface_params.get_ros_param("t_min"))
         hl_planner.set_d_sampling_parameters(delta_d_min=rp_interface_params.get_ros_param("d_min"),
                                                    delta_d_max=rp_interface_params.get_ros_param("d_max"))
+        
+        # init world updater
+        self._world_updater = WorldUpdater(self.scenario, hl_planner.config.rule_monitor.get_world(), self._logger)
 
         # init trajectory planner
         self._planner: HighLevelPlanner = hl_planner
@@ -134,11 +135,9 @@ class HighLevelReactivePlannerInterface(TrajectoryPlannerInterface):
         self._planner.set_collision_checker(self.scenario, road_boundary_obstacle=self._road_boundary)
 
         # update obstacles in C++ World
-        tic = time.perf_counter()
-        self._planner.config.rule_monitor.get_world().update_obstacles(self.scenario.obstacles)
-        toc = time.perf_counter()
-        self._logger.info(f"Updating C++ world took {(toc - tic) * 1000:.2f} ms")
+        self._world_updater.scenario_updated()
 
+        # reset stored trace of monitor
         self._planner.config.rule_monitor.reset_trace()
 
         # reset planner state
@@ -192,5 +191,5 @@ class HighLevelReactivePlannerInterface(TrajectoryPlannerInterface):
         # set new reference path for planner if provided
         if reference_path is not None:
             assert route_lanelet_ids is not None, "Reference path given but no route lanelet IDs"
-            rp_coordinate_system = CoordinateSystem(reference_path, preprocess_reference=False, clcs_params=CLCSParams())
+            rp_coordinate_system = create_coordinate_system(reference_path)
             self._planner.set_reference_path(rp_coordinate_system, route_lanelet_ids)
