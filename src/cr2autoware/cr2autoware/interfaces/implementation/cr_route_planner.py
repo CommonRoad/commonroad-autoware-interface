@@ -103,6 +103,8 @@ class CommonRoadRoutePlanner(RoutePlannerInterface):
             lanelet_network=self.lanelet_network,
             planning_problem=planning_problem,
             routes=generated_routes,
+            path_trough_initial_state=False,
+            path_through_goal_state=False,
         )
 
         try:
