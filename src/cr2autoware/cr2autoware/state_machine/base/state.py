@@ -130,7 +130,7 @@ class Superstate(State):
                     self.superstate.activate(self)
 
                 # activate this state
-                self.node._logger.debug(f"[SVEN]Activate superstate: {self.__class__.__name__}; Substate: {self.current_substate.__class__.__name__}")
+                self.node._logger.debug(f"[SVEN] Activate superstate: {self.__class__.__name__}; Substate: {self.current_substate.__class__.__name__}")
                 self._entry()
 
                 # activate substate
@@ -138,7 +138,7 @@ class Superstate(State):
                     # check if substate is a substate of the superstate
                     found_substate = False
                     for state in self.substates:
-                        if isinstance(state, substate):
+                        if isinstance(state, type(substate)):
                             self.current_substate = substate
                             found_substate = True
                             break

@@ -24,6 +24,7 @@ from autoware_auto_vehicle_msgs.msg import Engage  # type: ignore
 # Autoware AdAPI message imports
 from autoware_adapi_v1_msgs.msg import RouteState  # type: ignore
 from autoware_adapi_v1_msgs.srv import ChangeOperationMode  # type: ignore
+from autoware_adapi_v1_msgs.srv import ClearRoute  # type: ignore
 
 # Tier IV message imports
 from tier4_planning_msgs.msg import VelocityLimit  # type: ignore
@@ -66,7 +67,7 @@ from commonroad.visualization.mp_renderer import MPRenderer
 # cr2autoware imports
 import cr2autoware.state_machine as sm
 from cr2autoware.state_machine.implementation.events.basic_events import HasSolutionPath, NoSolutionPath, \
-    AutowareEngagedEvent, GoalReachedEvent, EngageFalseEvent, ClearRouteEvent, StopButtonEvent
+    AutowareEngagedEvent, GoalReachedEvent, EngageFalseEvent, ClearRouteEvent, StopButtonEvent, ChangedInitialPoseEvent
 from cr2autoware.common.configuration import CR2AutowareParams
 from .handlers.scenario_handler import ScenarioHandler
 from .handlers.ego_vehicle_handler import EgoVehicleHandler
@@ -99,7 +100,7 @@ from .common.ros_interface.specs_publisher import \
 
 # service client specifications
 from .common.ros_interface.specs_clients import \
-    spec_change_to_stop_client
+    spec_change_to_stop_client, spec_clear_route_client
 
 
 class Cr2Auto(Node):
@@ -204,6 +205,7 @@ class Cr2Auto(Node):
     **Service Clients:**
 
     * `change_to_stop_client`: Service client for change to stop service call
+    * `clear_route_client`: Service client for clear route service call
     
     ----------------
     :var scenario_handler: Instance of the ScenarioHandler class
@@ -402,8 +404,11 @@ class Cr2Auto(Node):
         # ========= Service Clients =========
         # client for change to stop service call (only for publishing "stop" if goal arrived)
         self.change_to_stop_client = create_client(self, spec_change_to_stop_client)
-
         self.change_to_stop_request = ChangeOperationMode.Request()
+
+        # client for clear route service call
+        self.clear_route_client = create_client(self, spec_clear_route_client)
+        self.clear_route_request = ClearRoute.Request()
 
         # ======== Initialize State Machine ========
         self.state_machine_thread = Thread(target=self.start_state_machine, daemon=True)
@@ -820,6 +825,7 @@ class Cr2Auto(Node):
                 if not self.goal_msgs:
                     # call reset function of route planner
                     self.route_planner.reset()
+                    self.current_goal_msg = None
                     self.plan_prob_handler.planning_problem = None
                     self.set_state(AutowareState.ARRIVED_GOAL)
                 else:
@@ -872,6 +878,8 @@ class Cr2Auto(Node):
         # (re)-compute elevation (z-coordinate) when new initial pose is received
         self.scenario_handler.compute_z_coordinate(self.initial_pose, self.current_goal_msg)
 
+        self.state_machine.process_event(ChangedInitialPoseEvent(self.state_machine, self))
+
     def routing_state_callback(self, msg: RouteState) -> None:
         """
         Callback to routing state. Checks if "Clear route" button was pressed.
@@ -922,8 +930,15 @@ class Cr2Auto(Node):
         """Clear route and set AutowareState to `WAITING_FOR_ROUTE`."""
         # call reset function of route planner
         self.route_planner.reset()
+        self.current_goal_msg = None
         self.plan_prob_handler.planning_problem = None
         self.set_state(AutowareState.WAITING_FOR_ROUTE)
+
+    def send_clear_route_srv_request(self) -> None:
+        """
+        Call the clear route service.
+        """
+        self.clear_route_client.call_async(self.clear_route_request)
 
     def goal_pose_callback(self, msg: PoseStamped) -> None:
         """

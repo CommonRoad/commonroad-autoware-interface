@@ -4,7 +4,7 @@ from .states.basic_states import Initialization, InteractivePlanning,Interactive
 from .states.interactive_planning import UpdateScenario, UpdateGoal, UpdateInitialPose, PlanRoute
 from .states.interactive_waiting import UpdateScenario_Waiting, PublishTrajectory_Waiting
 from .states.interactive_driving import UpdateScenario_Driving, PublishTrajectory_Driving, CheckGoalReached_Driving, BehaviorPlanning
-from .events.basic_events import HasSolutionPath, NoSolutionPath, PlanningFinishedEvent, AutowareEngagedEvent, GoalReachedEvent, EngageFalseEvent, ClearRouteEvent, StopButtonEvent
+from .events.basic_events import HasSolutionPath, NoSolutionPath, PlanningFinishedEvent, AutowareEngagedEvent, GoalReachedEvent, EngageFalseEvent, ClearRouteEvent, StopButtonEvent, ChangedInitialPoseEvent
 from .events.interactive_planning import UpdateScenarioEvent, UpdateGoalEvent, UpdateInitialPoseEvent, PublishTrajectoryEvent, CheckGoalReachedEvent, PlanRouteEvent, BehaviorPlanningEvent
 
 config = StateMachineConfig(
@@ -50,7 +50,8 @@ config = StateMachineConfig(
         EventConfig(cls=GoalReachedEvent),
         EventConfig(cls=EngageFalseEvent),
         EventConfig(cls=StopButtonEvent),
-        EventConfig(cls=ClearRouteEvent)
+        EventConfig(cls=ClearRouteEvent),
+        EventConfig(cls=ChangedInitialPoseEvent),
     ],
     transitions=[
         TransitionConfig(cls=Transition, event=NoSolutionPath, source_state=Initialization, target_state=InteractivePlanning),
@@ -62,6 +63,7 @@ config = StateMachineConfig(
         TransitionConfig(cls=Transition, event=StopButtonEvent, source_state=InteractiveDriving, target_state=InteractiveWaiting),
         TransitionConfig(cls=Transition, event=ClearRouteEvent, source_state=InteractivePlanning, target_state=InteractivePlanning),
         TransitionConfig(cls=Transition, event=ClearRouteEvent, source_state=InteractiveWaiting, target_state=InteractivePlanning),
-        TransitionConfig(cls=Transition, event=ClearRouteEvent, source_state=InteractiveDriving, target_state=InteractivePlanning)
+        TransitionConfig(cls=Transition, event=ClearRouteEvent, source_state=InteractiveDriving, target_state=InteractivePlanning),
+        TransitionConfig(cls=Transition, event=ChangedInitialPoseEvent, source_state=InteractiveWaiting, target_state=UpdateInitialPose),
     ]
 )
