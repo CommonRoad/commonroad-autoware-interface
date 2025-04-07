@@ -116,6 +116,7 @@ class HighLevelReactivePlannerInterface(TrajectoryPlannerInterface):
         hl_planner.set_d_sampling_parameters(delta_d_min=rp_interface_params.get_ros_param("d_min"),
                                                    delta_d_max=rp_interface_params.get_ros_param("d_max"))
         
+        hl_planner.ros_logger = self._logger
         hl_planner._planner.ros_logger = self._logger
 
         # init trajectory planner
