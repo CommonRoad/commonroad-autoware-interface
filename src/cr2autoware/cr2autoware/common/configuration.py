@@ -210,27 +210,6 @@ class VehicleParams(BaseParams):
 
 
 @dataclass
-class VelocityPlannerParams(BaseParams):
-    """
-    Class for velocity planner parameters.
-
-    :var lookahead_dist: lookahead distance (in meters)
-    :var lookahead_time: lookahead time (in seconds)
-    :var init_velocity: initial velocity (in m/s) (TODO: not yet implemented -> remove?; should only be used for lanelet2 maps)
-    """
-    # lookahead distance (in meters)
-    lookahead_dist: float = 3.0
-    # lookahead time (in seconds)
-    lookahead_time: float = 0.8
-    # initial velocity (in m/s) (TODO: not yet implemented -> remove?; should only be used for lanelet2 maps)
-    init_velocity: float = 5.0
-
-    def __post_init__(self):
-        # declare ROS params
-        self._declare_ros_params(namespace="velocity_planner")
-
-
-@dataclass
 class RPInterfaceParams(BaseParams):
     """
     Class for reactive planner interface parameters.
@@ -334,11 +313,43 @@ class BehaviorPlannerParams(BaseParams):
     """
     Base Class for behavior planner parameters.
 
+    :var init_velocity: initial velocity (in m/s) (TODO: not yet implemented -> remove?; should only be used for lanelet2 maps)
+    :var lookahead_dist: lookahead distance (in meters)
+    :var lookahead_time: lookahead time (in seconds)
+    :var velocity_limit: maximum velocity for vehicle (in m/s)
+    :var traffic_light_behavior: activate traffic light behavior module
+    :var yellow_light_time: yellow light phase time (in seconds)
+    :var no_stop_line_in_map: If no stop lines are specified in the map, the module will stop at the beginning of the lanelet
+    :var stop_line_overrun_tolerance: tolerance for stop line overrun from vehicle origin (in meters)
     :var traffic_light_perception_range: range for traffic light perception (in meters)
-    :var distance_to_stop_line: distance to stop before stop line (in meters)
+    :var distance_stop_line_to_vehicle_front_bumper: distance between stop line and vehicle front bumper (in meters)
     :var max_comfort_deceleration: maximum deceleration for comfort stop (in m/s^2)
+    :var system_delay: system delay for braking distance calculation (in seconds)
+    :var d_minimal_buffer: minimal buffer for lateral offset trajectory planner (in meters)
+    :var comfort_rollout: Activate comfort rollout stopping procedure
+    :var comfort_rollout_distance: Rollout distance for comfort stopping procedure (in meters)
+    :var comfort_rollout_speed: Maximum rollout speed for comfort stopping procedure (in m/s)
+    :var yellow_light_rollout_distance: Rollout distance for yellow light stopping procedure (in meters)
+    :var plot_decision_graph: Plot decision graph
+    :var publish_traffic_light_markers: Publish RVIZ markers
+    :var lateral_clearance_velocity_adjuster: activate lateral clearance velocity adjuster
+    :var front_buffer: Front buffer for lateral clearance velocity adjuster (in meters)
+    :var rear_buffer: Rear buffer for lateral clearance velocity adjuster (in meters)
+    :var dynamic_velocity_threshold: threshold velocity to classify obstacles as static or dynamic (in m/s)
+    :var look_ahead_time: look ahead time for lateral clearance function (in seconds)
+    :var min_look_ahead_distance: minimum look ahead distance for lateral clearance function (in meters)
+    :var time_threshold: time threshold to consider occupancies on different time steps (in seconds)
+    :var min_reference_velocity: minimum reference velocity for lateral clearance function (in m/s)
+    :var publish_lateral_clearance_topics: flag to publish lateral clearance topics
     """
     # General parameters
+    # initial velocity (in m/s) (TODO: not yet implemented -> remove?; should only be used for lanelet2 maps)
+    init_velocity: float = 5.0
+    # lookahead distance (in meters)
+    lookahead_dist: float = 3.0
+    # lookahead time (in seconds)
+    lookahead_time: float = 0.8
+    # maximum velocity for vehicle (in m/s)
     velocity_limit: float = 10.0  # m/s
 
     # Parameter for traffic light behavior module
@@ -406,7 +417,6 @@ class CR2AutowareParams:
     :var general: GeneralParams
     :var scenario: ScenarioParams
     :var vehicle: VehicleParams
-    :var velocity_planner: VelocityPlannerParams
     :var trajectory_planner: TrajectoryPlannerParams
     :var rp_interface: RPInterfaceParams
     :var behavior_planner: BehaviorPlannerParams
@@ -418,7 +428,6 @@ class CR2AutowareParams:
     general: GeneralParams = field(init=False)
     scenario: ScenarioParams = field(init=False)
     vehicle: VehicleParams = field(init=False)
-    velocity_planner: VelocityPlannerParams = field(init=False)
     trajectory_planner: TrajectoryPlannerParams = field(init=False)
     rp_interface: RPInterfaceParams = field(init=False)
     behavior_planner: BehaviorPlannerParams = field(init=False)
@@ -429,7 +438,6 @@ class CR2AutowareParams:
         self.general = GeneralParams(_node=self._node)
         self.scenario = ScenarioParams(_node=self._node)
         self.vehicle = VehicleParams(_node=self._node)
-        self.velocity_planner = VelocityPlannerParams(_node=self._node)
         self.trajectory_planner = TrajectoryPlannerParams(_node=self._node)
         self.rp_interface = RPInterfaceParams(_node=self._node)
         self.behavior_planner = BehaviorPlannerParams(_node=self._node)

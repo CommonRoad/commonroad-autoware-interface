@@ -74,7 +74,6 @@ from .handlers.ego_vehicle_handler import EgoVehicleHandler
 from .handlers.data_generation_handler import DataGenerationHandler
 from .handlers.planning_problem_handler import PlanningProblemHandler
 from .interfaces.implementation.cr_route_planner import CommonRoadRoutePlanner
-from .interfaces.implementation.velocity_planner import VelocityPlanner
 from .interfaces.implementation.behavior_planner import BehaviorPlanner
 from .interfaces.implementation.rp_interface import ReactivePlannerInterface
 from cr2autoware.common.utils.tf2_geometry_msgs import do_transform_pose
@@ -435,9 +434,6 @@ class Cr2Auto(Node):
         # set route planner using factory method
         self.route_planner = self._route_planner_factory()
 
-        # set velocity planner
-        self._set_velocity_planner()
-
         # set behavior planner
         self._set_behavior_planner()
 
@@ -495,25 +491,6 @@ class Cr2Auto(Node):
         """Set planning problem in the planning problem handler."""
         self.plan_prob_handler.planning_problem = planning_problem
 
-    def _set_velocity_planner(self) -> None:
-        """Initializes the velocity planner"""
-        self.velocity_planner = VelocityPlanner(
-            self.velocity_pub,
-            self._logger,
-            self.verbose,
-            self.get_parameter("velocity_planner.lookahead_dist").get_parameter_value().double_value,
-            self.get_parameter("velocity_planner.lookahead_time").get_parameter_value().double_value,
-        )
-
-        # subscribe trajectory from motion velocity smoother
-        self.traj_sub_smoothed = self.create_subscription(
-            AWTrajectory,
-            "/planning/scenario_planning/trajectory_smoothed",
-            self.velocity_planner.smoothed_trajectory_callback,
-            1,
-            callback_group=self.callback_group
-        )
-    
     def _set_behavior_planner(self) -> None:
         """Initializes the behavior planner"""
         self.behavior_planner = BehaviorPlanner(
@@ -523,12 +500,11 @@ class Cr2Auto(Node):
             self.lateral_clearance_obstacles_pub,
             self._logger,
             self.verbose,
-            self.get_parameter("velocity_planner.lookahead_dist").get_parameter_value().double_value,
-            self.get_parameter("velocity_planner.lookahead_time").get_parameter_value().double_value,
+            self.get_parameter("behavior_planner.lookahead_dist").get_parameter_value().double_value,
+            self.get_parameter("behavior_planner.lookahead_time").get_parameter_value().double_value,
             self.origin_transformation,
             self.params,
             self.scenario_handler,
-            self.velocity_planner,
         )
  
         # subscribe trajectory from motion velocity smoother
@@ -655,8 +631,11 @@ class Cr2Auto(Node):
 
         # plan velocity profile (-> reference trajectory)
         _goal_pos_cr = map2utm(self.origin_transformation, self.current_goal_msg.pose.position)
-        self.velocity_planner.plan(self.route_planner.reference_path, _goal_pos_cr,
-                                    self.origin_transformation)
+        self.behavior_planner.plan(self.route_planner.reference_path, 
+                                    _goal_pos_cr,
+                                    self.scenario_handler.scenario,
+                                    self.ego_vehicle_handler.ego_vehicle_state,
+                                    )
 
         # update reference path of trajectory planner
         self.trajectory_planner.update(reference_path=self.route_planner.reference_path,
@@ -665,14 +644,14 @@ class Cr2Auto(Node):
         # wait for trajectory to be computed in AW Motion Velocity Smoother
         start_time = time.time()
         timeout_velocity_planning = 1.0
-        while not self.velocity_planner.is_velocity_planning_completed:
+        while not self.behavior_planner.is_velocity_planning_completed:
             time.sleep(0.01)
             if time.time() - start_time > timeout_velocity_planning:
                 raise Exception("Velocity planning not completed in time!")
 
         # publish current reference path
-        point_list = self.velocity_planner.reference_positions
-        reference_velocities = self.velocity_planner.reference_velocities
+        point_list = self.behavior_planner.reference_positions
+        reference_velocities = self.behavior_planner.reference_velocities
         # call publisher
         self.route_planner.publish(point_list, reference_velocities,
                                     self.scenario_handler.z_coordinate)
@@ -717,14 +696,10 @@ class Cr2Auto(Node):
             init_state.velocity = 0.01
 
         if self.trajectory_planner_type == 1:  # Reactive Planner
-            if self.engage_status == True:
-                reference_velocity = self.behavior_planner.get_lookahead_velocity_for_current_state(
-                    self.ego_vehicle_handler.current_vehicle_state.pose.pose.position,
-                    self.ego_vehicle_handler.ego_vehicle_state.velocity)
-            else:
-                reference_velocity = self.velocity_planner.get_lookahead_velocity_for_current_state(
-                    self.ego_vehicle_handler.current_vehicle_state.pose.pose.position,
-                    self.ego_vehicle_handler.current_vehicle_state.twist.twist.linear.x)
+
+            reference_velocity = self.behavior_planner.get_lookahead_velocity_for_current_state(
+                self.ego_vehicle_handler.current_vehicle_state.pose.pose.position,
+                self.ego_vehicle_handler.current_vehicle_state.twist.twist.linear.x)
 
             if reference_velocity < 0.3:
                 reference_velocity = 0.0
@@ -958,9 +933,9 @@ class Cr2Auto(Node):
 
         self._pub_goals()
         # autoware requires that the reference path has to be published again when new goals are published
-        if self.velocity_planner.is_velocity_planning_completed:
-            point_list = self.velocity_planner.reference_positions
-            reference_velocities = self.velocity_planner.reference_velocities
+        if self.behavior_planner.is_velocity_planning_completed:
+            point_list = self.behavior_planner.reference_positions
+            reference_velocities = self.behavior_planner.reference_velocities
             # call publisher
             self.route_planner.publish(point_list, reference_velocities,
                                        self.scenario_handler.z_coordinate)

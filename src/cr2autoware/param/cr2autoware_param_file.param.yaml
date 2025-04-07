@@ -35,11 +35,6 @@
       min_velocity: 0.0 # m/s (TODO: not used?)
       max_acceleration: 10.0  # lon. acceleration limit for planning in m/s^2
 
-    velocity_planner:
-      init_velocity: 5.0 # m/s - not yet implemented; should only be used for lanelet2 maps
-      lookahead_dist: 3.0 # m
-      lookahead_time: 0.8 # s
-
     trajectory_planner:
       trajectory_planner_type: 1            # 1: reactive planner
       planner_update_time: 0.2              # run each x.x s
@@ -59,6 +54,9 @@
 
     behavior_planner:
       # general parameters
+      init_velocity: 5.0 # m/s - not yet implemented; should only be used for lanelet2 maps
+      lookahead_dist: 3.0 # m
+      lookahead_time: 0.8 # s
       velocity_limit: 10.0  # m/s
 
       # traffic light module

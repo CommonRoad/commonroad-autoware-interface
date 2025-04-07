@@ -35,15 +35,18 @@ from scipy.interpolate import interp1d
 import py_trees
 from visualization_msgs.msg import MarkerArray
 
-from .velocity_planner import VelocityPlanner
 
 class BehaviorPlanner:
     """
-    TODO:**WIP**
-    Class for behavior planner using the motion velocity smoother node from AW.Universe. 
-    
-    The velocity planner converts a planned reference path (polyline) to a reference trajectory by 
-    velocity information to the path (similar to path-velocity-decomposition techniques in motion planning)
+    Behavior Planner Module for the CommonRoad to Autoware interface.
+
+    This module is responsible for planning a reference trajectory with velocity information for the ego vehicle.
+    In addition, it provides the lateral offset parameters for the reactive planner.
+
+    Within a behavior tree, the planner calculates a velocity profile for a given reference path. A CommonRoad
+    scenario provides information about the environment, including other vehicles and obstacles. The behavior planner 
+    adjusts the velocity profile and lateral offset parameters based on the scenario, ego vehicle state, reference path,
+    and other parameters.
 
     ---------------
     **Publishers:**
@@ -52,6 +55,18 @@ class BehaviorPlanner:
         * Description: Publishes reference path with velocity profile to motion velocity smoother
         * Topic: `/planning/scenario_planning/trajectory_smoothed`
         * Message Type: `autoware_auto_planning_msgs/Trajectory`
+    * lateral_clearance_obstacles_pub:
+        * Description: Lateral clearance function obstacles.
+        * Topic: `/planning/commonroad/behavior_planning/lateral_clearance_obstacles`
+        * Message Type: `visualization_msgs.msg.MarkerArray`
+    * lateral_clearance_pub:
+        * Description: Lateral clearance visualization.
+        * Topic: `/planning/commonroad/behavior_planning/lateral_clearance`
+        * Message Type: `visualization_msgs.msg.MarkerArray`
+    * traffic_light_marker_pub:
+        * Description: Traffic light visualization.
+        * Topic: `/planning/commonroad/behavior_planning/traffic_light_marker`
+        * Message Type: `visualization_msgs.msg.MarkerArray`
 
     ---------------
     :var _ref_path_pub: reference to ROS2 publisher for reference path
@@ -64,7 +79,7 @@ class BehaviorPlanner:
     :var _lookahead_time: lookahead time for velocity planning
     """
     def __init__(self, ref_path_pub: Publisher, traffic_light_marker_pub: Publisher, lateral_clearance_pub: Publisher, lateral_clearance_obstacles_pub: Publisher, logger: RcutilsLogger, verbose: bool,
-                 lookahead_dist: float, lookahead_time: float, origin_transformation: List, global_params: CR2AutowareParams, scenario_handler: ScenarioHandler, velocity_planner: VelocityPlanner) -> None:
+                 lookahead_dist: float, lookahead_time: float, origin_transformation: List, global_params: CR2AutowareParams, scenario_handler: ScenarioHandler) -> None:
         """
         TODO:**WIP**
         Constructor for VelocityPlanner class.
@@ -136,9 +151,6 @@ class BehaviorPlanner:
         # coordinate system & collision checker
         self._co: Optional[CoordinateSystem] = None
 
-        # velocity planner
-        self.velocity_planner = velocity_planner
-
     @property
     def reference_trajectory(self) -> Optional[np.ndarray]:
         """
@@ -148,6 +160,8 @@ class BehaviorPlanner:
 
         :return: reference trajectory
         """
+        if self._reference_trajectory is None:
+            raise ValueError("Reference trajectory is not computed yet!")
         return self._reference_trajectory
 
     @property
@@ -160,8 +174,7 @@ class BehaviorPlanner:
         :return: reference trajectory positions
         """
         if self._reference_trajectory is None:
-            self._logger.warning("Taking reference positions from velocity planner!")
-            return self.velocity_planner.reference_positions
+            raise ValueError("Reference trajectory is not computed yet!")
         else:
             return self._reference_trajectory[:, 0:2]
 
@@ -173,8 +186,7 @@ class BehaviorPlanner:
         :return: reference trajectory velocities
         """
         if self._reference_trajectory is None:
-            self._logger.warning("Taking reference velocities from velocity planner!")
-            return self.velocity_planner.reference_velocities
+            raise ValueError("Reference trajectory is not computed yet!")
         else:
             return self._reference_trajectory[:, 2]
 
