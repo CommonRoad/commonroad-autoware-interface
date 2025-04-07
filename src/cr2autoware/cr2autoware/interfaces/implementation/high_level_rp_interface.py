@@ -84,9 +84,12 @@ class HighLevelReactivePlannerInterface(TrajectoryPlannerInterface):
         # set road boundary
         self._road_boundary = road_boundary
 
+        # init world updater
+        self._world_updater = WorldUpdater(self.scenario, logger=self._logger)
+
         # create reactive planner config
         rp_config = ReactivePlannerConfiguration().load(rp_interface_params.path_rp_config)
-        rp_config.update(scenario=self.scenario, planning_problem=planning_problem)
+        rp_config.update(scenario=self.scenario, planning_problem=planning_problem, world=self._world_updater.world)
 
         # overwrite time step and horizon
         rp_config.planning.dt = dt
@@ -113,8 +116,7 @@ class HighLevelReactivePlannerInterface(TrajectoryPlannerInterface):
         hl_planner.set_d_sampling_parameters(delta_d_min=rp_interface_params.get_ros_param("d_min"),
                                                    delta_d_max=rp_interface_params.get_ros_param("d_max"))
         
-        # init world updater
-        self._world_updater = WorldUpdater(self.scenario, hl_planner.config.rule_monitor.get_world(), self._logger)
+        hl_planner._planner.ros_logger = self._logger
 
         # init trajectory planner
         self._planner: HighLevelPlanner = hl_planner
@@ -136,6 +138,8 @@ class HighLevelReactivePlannerInterface(TrajectoryPlannerInterface):
 
         # update obstacles in C++ World
         self._world_updater.scenario_updated()
+        num_obs = len(self._planner.config.rule_monitor.get_world().obstacles)
+        self._logger.info(f"Number of obstacles in C++ world: {num_obs}")
 
         # reset stored trace of monitor
         self._planner.config.rule_monitor.reset_trace()
