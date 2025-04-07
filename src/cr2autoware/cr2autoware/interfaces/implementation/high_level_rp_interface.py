@@ -152,7 +152,10 @@ class HighLevelReactivePlannerInterface(TrajectoryPlannerInterface):
                             coordinate_system=self._planner.coordinate_system)
 
         # call plan function and generate trajectory
+        tic = time.perf_counter()
         optimal_traj = self._planner.plan()
+        toc = time.perf_counter()
+        self._logger.debug(f"Planning time: {(toc - tic) * 1000:.2f} ms")
 
         self._logger.info("===== Rejected Trajectories =====")
         self._logger.info(f"Rejected {self._planner.infeasible_count_kinematics} infeasible trajectories due to kinematics")
