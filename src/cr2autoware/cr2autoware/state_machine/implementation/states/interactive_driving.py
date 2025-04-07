@@ -39,7 +39,7 @@ class UpdateScenario_Driving(State):
         else:
             raise Exception("Route is not planned yet.")
         
-class BehaviorPlanning(State):
+class BehaviorPlanning_Driving(State):
     """
     State for Behavior Planning.
     """

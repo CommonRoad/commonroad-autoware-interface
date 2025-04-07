@@ -2,8 +2,8 @@ from ..base.configuration import StateMachineConfig, StateConfig, EventConfig, T
 from ..base.transition import Transition
 from .states.basic_states import Initialization, InteractivePlanning,InteractiveDriving, InteractiveWaiting, FollowTrajectory
 from .states.interactive_planning import UpdateScenario, UpdateGoal, UpdateInitialPose, PlanRoute
-from .states.interactive_waiting import UpdateScenario_Waiting, PublishTrajectory_Waiting
-from .states.interactive_driving import UpdateScenario_Driving, PublishTrajectory_Driving, CheckGoalReached_Driving, BehaviorPlanning
+from .states.interactive_waiting import UpdateScenario_Waiting, BehaviorPlanning_Waiting, PublishTrajectory_Waiting
+from .states.interactive_driving import UpdateScenario_Driving, BehaviorPlanning_Driving, PublishTrajectory_Driving, CheckGoalReached_Driving
 from .events.basic_events import HasSolutionPath, NoSolutionPath, PlanningFinishedEvent, AutowareEngagedEvent, GoalReachedEvent, EngageFalseEvent, ClearRouteEvent, StopButtonEvent, ChangedInitialPoseEvent
 from .events.interactive_planning import UpdateScenarioEvent, UpdateGoalEvent, UpdateInitialPoseEvent, PublishTrajectoryEvent, CheckGoalReachedEvent, PlanRouteEvent, BehaviorPlanningEvent
 
@@ -25,20 +25,22 @@ config = StateMachineConfig(
                                       TransitionConfig(cls=Transition, event=UpdateScenarioEvent, source_state=UpdateScenario, target_state=UpdateScenario)]),
         SuperstateConfig(cls=InteractiveWaiting, 
                          initial_state=StateConfig(cls=UpdateScenario_Waiting), 
-                         states=[StateConfig(cls=UpdateScenario_Waiting), StateConfig(cls=PublishTrajectory_Waiting)], 
-                         events=[EventConfig(cls=UpdateScenarioEvent), EventConfig(cls=PublishTrajectoryEvent)], 
-                         transitions=[TransitionConfig(cls=Transition, event=PublishTrajectoryEvent, source_state=UpdateScenario_Waiting, target_state=PublishTrajectory_Waiting),
-                                      TransitionConfig(cls=Transition, event=UpdateScenarioEvent, source_state=PublishTrajectory_Waiting, target_state=UpdateScenario_Waiting)]
+                         states=[StateConfig(cls=UpdateScenario_Waiting), StateConfig(cls=BehaviorPlanning_Waiting), StateConfig(cls=PublishTrajectory_Waiting)], 
+                         events=[EventConfig(cls=UpdateScenarioEvent), EventConfig(cls=BehaviorPlanningEvent), EventConfig(cls=PublishTrajectoryEvent)], 
+                         transitions=[TransitionConfig(cls=Transition, event=BehaviorPlanningEvent, source_state=UpdateScenario_Waiting, target_state=BehaviorPlanning_Waiting),
+                                      TransitionConfig(cls=Transition, event=PublishTrajectoryEvent, source_state=BehaviorPlanning_Waiting, target_state=PublishTrajectory_Waiting),
+                                      TransitionConfig(cls=Transition, event=UpdateScenarioEvent, source_state=PublishTrajectory_Waiting, target_state=UpdateScenario_Waiting),
+                                      ]
                                         ),
         SuperstateConfig(cls=InteractiveDriving, 
                          initial_state=StateConfig(cls=UpdateScenario_Driving), 
-                         states=[StateConfig(cls=UpdateScenario_Driving), StateConfig(cls=BehaviorPlanning), StateConfig(cls=PublishTrajectory_Driving), StateConfig(cls=CheckGoalReached_Driving)], 
-                         events=[ EventConfig(cls=UpdateScenarioEvent), EventConfig(cls=BehaviorPlanningEvent), EventConfig(cls=PublishTrajectoryEvent), EventConfig(cls=CheckGoalReachedEvent)], 
+                         states=[StateConfig(cls=UpdateScenario_Driving), StateConfig(cls=BehaviorPlanning_Driving), StateConfig(cls=PublishTrajectory_Driving), StateConfig(cls=CheckGoalReached_Driving)], 
+                         events=[EventConfig(cls=UpdateScenarioEvent), EventConfig(cls=BehaviorPlanningEvent), EventConfig(cls=PublishTrajectoryEvent), EventConfig(cls=CheckGoalReachedEvent)], 
                          transitions=[TransitionConfig(cls=Transition, event=UpdateScenarioEvent, source_state=CheckGoalReached_Driving, target_state=UpdateScenario_Driving),
-                                      TransitionConfig(cls=Transition, event=UpdateScenarioEvent, source_state=UpdateScenario_Driving, target_state=UpdateScenario_Driving),
-                                      TransitionConfig(cls=Transition, event=BehaviorPlanningEvent, source_state=UpdateScenario_Driving, target_state=BehaviorPlanning),
-                                      TransitionConfig(cls=Transition, event=PublishTrajectoryEvent, source_state=BehaviorPlanning, target_state=PublishTrajectory_Driving),
-                                      TransitionConfig(cls=Transition, event=CheckGoalReachedEvent, source_state=PublishTrajectory_Driving, target_state=CheckGoalReached_Driving),]
+                                      TransitionConfig(cls=Transition, event=BehaviorPlanningEvent, source_state=UpdateScenario_Driving, target_state=BehaviorPlanning_Driving),
+                                      TransitionConfig(cls=Transition, event=PublishTrajectoryEvent, source_state=BehaviorPlanning_Driving, target_state=PublishTrajectory_Driving),
+                                      TransitionConfig(cls=Transition, event=CheckGoalReachedEvent, source_state=PublishTrajectory_Driving, target_state=CheckGoalReached_Driving),
+                                      ]
                                         ),
         StateConfig(cls=FollowTrajectory)
     ],

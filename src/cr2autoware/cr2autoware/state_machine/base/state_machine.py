@@ -22,6 +22,7 @@ class StateMachine:
         # TODO: ADD Priority Queue
         self.event_queue = queue.Queue()
         self.current_state = None
+        self.stopping = False
         self.running = False
         self.history_list = np.array([])
         self.load_config(config)
@@ -115,6 +116,7 @@ class StateMachine:
             if self.current_state is None:
                 raise Warning("State machine is not running")
             else:
+                self.stopping = True
                 self.node._logger.debug("[SVEN]Stop state machine")
                 self.running = True
                 self.current_state.deactivate()
@@ -122,6 +124,7 @@ class StateMachine:
                 self._check_event_queue()
                 self.running = False
                 self.node.destroy_node()
+                self.stopping = False
     
     def process_event(self, event: Event):
         """
@@ -145,6 +148,9 @@ class StateMachine:
             event = self.event_queue.get()
             self._handle_event(event)
             self.event_queue.task_done()
+
+        if not self.stopping:
+            raise Exception("No Event found in the queue!")
 
     def _handle_event(self, event: Event):
         """
