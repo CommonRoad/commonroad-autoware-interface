@@ -37,9 +37,11 @@ sampling:
 
 monitor:
   with_rule_monitoring: True
+  early_termination: True
   activated_traffic_rules: ["R_G1"]
   trace_reset_option: filter
-  reaction_time: 0.6
+  reaction_time: 1.5
+  history_size: 0
 
 debug:
   multiproc: False
