@@ -1,8 +1,8 @@
 import time
-from typing import Optional
+from typing import List, Optional
 
 from crcpp import World
-from commonroad.scenario.obstacle import ObstacleType
+from commonroad.scenario.obstacle import Obstacle, ObstacleType
 from commonroad.scenario.scenario import Scenario
 from rclpy.impl.rcutils_logger import RcutilsLogger
 
@@ -30,11 +30,11 @@ class WorldUpdater:
             self._logger.info(f"Updating C++ world took {(toc - tic) * 1000:.2f} ms")
 
     @staticmethod
-    def _filter_obstacles(obstacles: list) -> list:
+    def _filter_obstacles(obstacles: List[Obstacle]) -> List[Obstacle]:
         return [
             obs
             for obs in obstacles
-            if obs.obstacle_type not in (ObstacleType.BICYCLE, ObstacleType.PEDESTRIAN, ObstacleType.PARKED_VEHICLE)
+            if obs.obstacle_type not in (ObstacleType.BICYCLE, ObstacleType.PEDESTRIAN, ObstacleType.PARKED_VEHICLE, ObstacleType.UNKNOWN)
         ]
 
     @staticmethod
