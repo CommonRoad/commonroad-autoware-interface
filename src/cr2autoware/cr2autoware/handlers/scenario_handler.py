@@ -532,6 +532,7 @@ class ScenarioHandler(BaseHandler):
             )
             velocity = obstacle.kinematics.initial_twist_with_covariance.twist.linear.x
             yaw_rate = obstacle.kinematics.initial_twist_with_covariance.twist.angular.z
+            acceleration = obstacle.kinematics.initial_acceleration_with_covariance.accel.linear.x
             width = obstacle.shape.dimensions.y
             length = obstacle.shape.dimensions.x
             footprint = obstacle.shape.footprint
@@ -577,7 +578,7 @@ class ScenarioHandler(BaseHandler):
                     position=position,
                     orientation=orientation,
                     velocity=velocity,
-                    acceleration=0.0,
+                    acceleration=acceleration,
                     yaw_rate=yaw_rate,
                     slip_angle=0.0,
                     time_step=time_step,
@@ -614,7 +615,7 @@ class ScenarioHandler(BaseHandler):
                     position=position,
                     orientation=orientation,
                     velocity=velocity,
-                    acceleration=0.0,
+                    acceleration=acceleration,
                     yaw_rate=yaw_rate,
                     slip_angle=0.0,
                     time_step=time_step,
@@ -625,7 +626,7 @@ class ScenarioHandler(BaseHandler):
                     # update trajectory prediction for the obstacle
                     dynamic_obs.prediction = TrajectoryPrediction(
                         self._pose_list_to_crtrajectory(
-                            dynamic_obs.initial_state.time_step + 1, list_predicted_poses
+                            dynamic_obs.initial_state, list_predicted_poses
                         ),
                         dynamic_obs.obstacle_shape,
                     )
@@ -680,32 +681,44 @@ class ScenarioHandler(BaseHandler):
 
         return predicted_object.kinematics.predicted_paths[highest_conf_idx]
 
-    def _pose_list_to_crtrajectory(self, time_step: int, list_poses: List[Pose]) -> CRTrajectory:
+    def _pose_list_to_crtrajectory(self, initial_state: InitialState, list_poses: List[Pose]) -> CRTrajectory:
         """
         Converts a predicted obstacle path given as list of `geometry_msgs/Pose` into a CommonRoad trajectory type.
+        Velocities and accelerations are computed by differentiating the sequence of predicted positions.
 
-        :param time_step: initial time step of the input path
+        :param initial_state: initial state of the obstacle in CommonRoad format
         :param list_poses: input path given as a list of `geometry_msgs/Pose` (i.e., positions and orientations)
         :return CRTrajectory: trajectory in the CommonRoad format
         """
         # CommonRoad state list
         cr_state_list = []
 
-        # time step counter
-        cnt_time_step = time_step
-
-        for i in range(len(list_poses)):
+        init_time_prediction = initial_state.time_step
+        last_pos = initial_state.position
+        last_velocity = initial_state.velocity
+        for offset, pose in enumerate(list_poses):
             # transform position
-            position = map2utm(self.origin_transformation, list_poses[i].position)
+            position = map2utm(self.origin_transformation, pose.position)
             # transform orientation
-            orientation = quaternion2orientation(list_poses[i].orientation)
+            orientation = quaternion2orientation(pose.orientation)
+            # compute velocity by differentiating position
+            velocity = np.linalg.norm(position - last_pos) / self.scenario.dt
+            # compute acceleration by differentiating velocity
+            acceleration = (velocity - last_velocity) / self.scenario.dt
             # append state to CommonRoad state list
-            cr_state = CustomState(position=position, orientation=orientation, time_step=cnt_time_step)
+            cr_state = CustomState(
+                time_step=init_time_prediction + offset,
+                position=position,
+                orientation=orientation,
+                velocity=velocity,
+                acceleration=acceleration,
+            )
             cr_state_list.append(cr_state)
-            # increment time step counter
-            cnt_time_step += 1
+            # update last position and velocity
+            last_pos = position
+            last_velocity = velocity
 
-        return CRTrajectory(time_step, cr_state_list)
+        return CRTrajectory(init_time_prediction, cr_state_list)
 
     @staticmethod
     def _upsample_predicted_path(
@@ -809,7 +822,7 @@ class ScenarioHandler(BaseHandler):
         if len(traj) > 2:
             # create the trajectory of the obstacle, starting at time_step
             dynamic_obstacle_trajectory = self._pose_list_to_crtrajectory(
-                time_step + 1, traj
+                initial_state, traj, 
             )
 
             # create the prediction using the trajectory and the shape of the obstacle
