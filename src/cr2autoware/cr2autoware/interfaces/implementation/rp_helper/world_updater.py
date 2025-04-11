@@ -1,7 +1,7 @@
 import time
 from typing import List, Optional
 
-from crcpp import World
+from crcpp import World, WorldParameters
 from commonroad.scenario.obstacle import Obstacle, ObstacleType
 from commonroad.scenario.scenario import Scenario
 from rclpy.impl.rcutils_logger import RcutilsLogger
@@ -12,9 +12,9 @@ class WorldUpdater:
 
     _logger: Optional[RcutilsLogger]
 
-    def __init__(self, scenario: Scenario, world: Optional[World] = None, logger: Optional[RcutilsLogger] = None) -> None:
+    def __init__(self, scenario: Scenario, world: Optional[World] = None, logger: Optional[RcutilsLogger] = None, world_parameters: Optional[WorldParameters] = None) -> None:
         self._scenario = scenario
-        self._world = world if world is not None else self._init_world(scenario)
+        self._world = world if world is not None else self._init_world(scenario, world_parameters)
         self._logger = logger.get_child("world_updater") if logger else None
 
     @property
@@ -38,13 +38,25 @@ class WorldUpdater:
         ]
 
     @staticmethod
-    def _init_world(scenario: Scenario) -> World:
-        return World(
-            str(scenario.scenario_id),
-            0,
-            scenario.dt,
-            scenario.scenario_id.country_id,
-            scenario.lanelet_network,
-            [],  # no ego vehicles in world so far
-            WorldUpdater._filter_obstacles(scenario.obstacles),
-        )
+    def _init_world(scenario: Scenario, world_parameters: Optional[WorldParameters] = None) -> World:
+        if world_parameters is None:    
+            return World(
+                str(scenario.scenario_id),
+                0,
+                scenario.dt,
+                scenario.scenario_id.country_id,
+                scenario.lanelet_network,
+                [],  # no ego vehicles in world so far
+                WorldUpdater._filter_obstacles(scenario.obstacles),
+            )
+        else:
+            return World(
+                str(scenario.scenario_id),
+                0,
+                scenario.dt,
+                scenario.scenario_id.country_id,
+                scenario.lanelet_network,
+                [],  # no ego vehicles in world so far
+                WorldUpdater._filter_obstacles(scenario.obstacles),
+                world_parameters,
+            )

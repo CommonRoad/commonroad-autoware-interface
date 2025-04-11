@@ -84,11 +84,13 @@ class HighLevelReactivePlannerInterface(TrajectoryPlannerInterface):
         # set road boundary
         self._road_boundary = road_boundary
 
-        # init world updater
-        self._world_updater = WorldUpdater(self.scenario, logger=self._logger)
-
         # create reactive planner config
         rp_config = ReactivePlannerConfiguration().load(rp_interface_params.path_rp_config)
+        
+        # init world updater
+        self._world_updater = WorldUpdater(self.scenario, logger=self._logger, world_parameters=rp_config.create_world_params(dt=self.scenario.dt))
+
+        # update config with scenario and planning problem
         rp_config.update(scenario=self.scenario, planning_problem=planning_problem, world=self._world_updater.world)
 
         # overwrite time step and horizon
