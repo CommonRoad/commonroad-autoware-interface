@@ -210,7 +210,7 @@ def calculate_average_shape(
 ) -> Union[Shape, Rectangle, Circle, Polygon]:
     """
     Calculates average shape, except for polygons (uses first shape).
-    :param state_list: sorted list of ObstacleOverTime of one vehicle in ascending temporal order
+    :param states: sorted list of ObstacleOverTime of one vehicle in ascending temporal order
     :return: average shape
     """
 
@@ -220,27 +220,42 @@ def calculate_average_shape(
             _logger.warning(f'the kind of shape for obstacle {states[0].obs_id} changes over course of scenario')
             break
 
+    shape_cnt = {
+        "rectangle": [],
+        "circle": [],
+        "polygon": [],
+        "other": [],
+    }
+    for state in states:
+        if isinstance(state.obs_shape, Rectangle):
+            shape_cnt["rectangle"].append(state.obs_shape)
+        elif isinstance(state.obs_shape, Circle):
+            shape_cnt["circle"].append(state.obs_shape)
+        elif isinstance(state.obs_shape, Polygon):
+            shape_cnt["polygon"].append(state.obs_shape)
+        else:
+            shape_cnt["other"].append(state.obs_shape)
+    shapes = max(shape_cnt.items(), key=lambda x: len(x[1]))[1]
+
     # average rectangle
-    if(isinstance(states[0].obs_shape, Rectangle)):
-        filtered = [state for state in states if isinstance(state.obs_shape, Rectangle)]
-        avg_width: float = sum(state.obs_shape.width for state in filtered) / len(filtered)
-        avg_length: float = sum(state.obs_shape.length for state in filtered) / len(filtered)
+    if isinstance(shapes[0], Rectangle):
+        avg_width: float = sum(shape.width for shape in shapes) / len(shapes)
+        avg_length: float = sum(shape.length for shape in shapes) / len(shapes)
         return_shape = Rectangle(
             length=avg_length,
             width=avg_width
         )
 
     # average circle
-    elif(isinstance(states[0].obs_shape, Circle)):
-        filtered = [state for state in states if isinstance(state.obs_shape, Circle)]
-        avg_radius: float = sum([state.obs_shape.radius for state in filtered]) / len(filtered)
+    elif isinstance(shapes[0], Circle):
+        avg_radius: float = sum(shape.radius for shape in shapes) / len(shapes)
         return_shape = Circle(
             radius=avg_radius
         )
 
     # For Polygons do not compute an average, just return the first value
-    elif(isinstance(states[0].obs_shape, Polygon)):
-        return_shape = states[0].obs_shape
+    elif isinstance(shapes[0], Polygon):
+        return_shape = shapes[0]
 
     else:
         raise NotImplementedError(f'shape of type {type(states[0])} not implented.')
