@@ -79,8 +79,11 @@ def add_ego_vehicle(
                 to_remove.append(dyn_obs)
             else:
                 dyn_obs.initial_state = state_list[idx_first_state].convert_state_to_state(InitialState())
-                obs_trajectory = Trajectory(state_list[idx_first_state + 1].time_step, state_list[idx_first_state + 1:])
-                dyn_obs.prediction = TrajectoryPrediction(trajectory=obs_trajectory, shape=dyn_obs.prediction.shape)
+                if idx_first_state + 1 < len(state_list):
+                    obs_trajectory = Trajectory(state_list[idx_first_state + 1].time_step, state_list[idx_first_state + 1:])
+                    dyn_obs.prediction = TrajectoryPrediction(trajectory=obs_trajectory, shape=dyn_obs.prediction.shape)
+                else:
+                    dyn_obs.prediction = None
 
     scenario.remove_obstacle(to_remove)
 
