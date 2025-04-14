@@ -2,7 +2,7 @@ import os
 from commonroad.common.file_reader import CommonRoadFileReader
 from lxml import etree
 from crdesigner.map_conversion.lanelet2.cr2lanelet import CR2LaneletConverter
-from crdesigner.config.lanelet2_config import lanelet2_config
+from crdesigner.common.config.lanelet2_config import lanelet2_config
 import utm
 import yaml
 
@@ -23,7 +23,7 @@ output_map_config_path = output_path + "map_config.yaml"
 try:
     commonroad_reader = CommonRoadFileReader(simple_cr_scenario_path)
     scenario, _ = commonroad_reader.open()
-    lat, lon = float(scenario.location.gps_latitude), float(scenario.location.gps_longitude)
+    lat, lon = float(scenario.lanelet_network.location.gps_latitude), float(scenario.lanelet_network.location.gps_longitude)
     if abs(lon) <= 180 and abs(lat) <= 90:
         proj = "+proj=utm +zone=%d +datum=WGS84 +ellps=WGS84" % utm.from_latlon(lat, lon)[2]
         print(utm.from_latlon(lat, lon)[2])

@@ -89,6 +89,15 @@ class RoutePlannerInterface(ABC):
         :return: reference path
         """
         return self._reference_path
+    
+    @property
+    def route_lanelet_ids(self) -> List[int]:
+        """
+        Getter for route lanelet IDs.
+
+        :return: route lanelet IDs
+        """
+        return list(self._route_list_lanelet_ids)
 
     @property
     def is_route_planned(self) -> bool:

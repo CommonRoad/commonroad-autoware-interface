@@ -16,7 +16,7 @@ from commonroad_rp.utility.config import ReactivePlannerConfiguration
 from commonroad_rp.utility.logger import initialize_logger
 from commonroad_rp.utility.utils_coordinate_system import create_coordinate_system
 from commonroad_rp.state import ReactivePlannerState
-from commonroad_rp.reactive_planner import ReactivePlanner
+from commonroad_rp.high_level_planner import HighLevelPlanner
 
 # cr2autoware
 from cr2autoware.common.configuration import (
@@ -35,7 +35,7 @@ from rclpy.publisher import Publisher
 from rclpy.impl.rcutils_logger import RcutilsLogger
 
 
-class ReactivePlannerInterface(TrajectoryPlannerInterface):
+class HighLevelReactivePlannerInterface(TrajectoryPlannerInterface):
     """
     Trajectory planner interface for the CommonRoad Reactive Planner.
 
@@ -86,7 +86,12 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
 
         # create reactive planner config
         rp_config = ReactivePlannerConfiguration().load(rp_interface_params.path_rp_config)
-        rp_config.update(scenario=self.scenario, planning_problem=planning_problem)
+        
+        # init world updater
+        self._world_updater = WorldUpdater(self.scenario, logger=self._logger, world_parameters=rp_config.create_world_params(dt=self.scenario.dt))
+
+        # update config with scenario and planning problem
+        rp_config.update(scenario=self.scenario, planning_problem=planning_problem, world=self._world_updater.world)
 
         # overwrite time step and horizon
         rp_config.planning.dt = dt
@@ -105,19 +110,19 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
         # initialize reactive planner logger
         initialize_logger(rp_config)
 
-        # initialize reactive planner object
-        reactive_planner: ReactivePlanner = ReactivePlanner(rp_config)
+        # initialize high level planner object
+        hl_planner = HighLevelPlanner(rp_config)
 
         # adjust sampling settings from ROS params
-        reactive_planner.set_t_sampling_parameters(t_min=rp_interface_params.get_ros_param("t_min"))
-        reactive_planner.set_d_sampling_parameters(delta_d_min=rp_interface_params.get_ros_param("d_min"),
+        hl_planner.set_t_sampling_parameters(t_min=rp_interface_params.get_ros_param("t_min"))
+        hl_planner.set_d_sampling_parameters(delta_d_min=rp_interface_params.get_ros_param("d_min"),
                                                    delta_d_max=rp_interface_params.get_ros_param("d_max"))
         
-        # init world updater
-        self._world_updater = WorldUpdater(self.scenario, reactive_planner.config.rule_monitor.get_world(), self._logger)
+        hl_planner.ros_logger = self._logger
+        hl_planner._planner.ros_logger = self._logger
 
         # init trajectory planner
-        self._planner: ReactivePlanner = reactive_planner
+        self._planner: HighLevelPlanner = hl_planner
 
     def _plan(self, init_state: EgoVehicleState, goal, reference_velocity=None, **kwargs) -> None:
         """
@@ -136,6 +141,8 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
 
         # update obstacles in C++ World
         self._world_updater.scenario_updated()
+        num_obs = len(self._planner.config.rule_monitor.get_world().obstacles)
+        self._logger.info(f"Number of obstacles in C++ world: {num_obs}")
 
         # reset stored trace of monitor
         self._planner.config.rule_monitor.reset_trace()
@@ -152,7 +159,10 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
                             coordinate_system=self._planner.coordinate_system)
 
         # call plan function and generate trajectory
+        tic = time.perf_counter()
         optimal_traj = self._planner.plan()
+        toc = time.perf_counter()
+        self._logger.debug(f"Planning time: {(toc - tic) * 1000:.2f} ms")
 
         self._logger.info("===== Rejected Trajectories =====")
         self._logger.info(f"Rejected {self._planner.infeasible_count_kinematics} infeasible trajectories due to kinematics")
@@ -192,4 +202,4 @@ class ReactivePlannerInterface(TrajectoryPlannerInterface):
         if reference_path is not None:
             assert route_lanelet_ids is not None, "Reference path given but no route lanelet IDs"
             rp_coordinate_system = create_coordinate_system(reference_path)
-            self._planner.set_reference_path(coordinate_system=rp_coordinate_system)
+            self._planner.set_reference_path(rp_coordinate_system, route_lanelet_ids)
