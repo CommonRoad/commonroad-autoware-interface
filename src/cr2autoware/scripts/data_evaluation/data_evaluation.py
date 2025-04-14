@@ -9,6 +9,7 @@ from add_planning_problem import add_planning_problem
 from commonroad.scenario.traffic_light import TrafficLight
 from global_timer import GlobalTimer
 from scripts.data_evaluation.add_ego import add_ego_vehicle
+from scripts.data_evaluation.interpolate_obstacles import interpolate_obstacles
 
 
 def main(data_dir_path: str,
@@ -84,7 +85,7 @@ def main(data_dir_path: str,
     # Add planning problem to scenario
     add_planning_problem(
         scenario_path=xml_path,
-        save_path=os.path.join(saving_dir_path, "mit_planing_problem.xml"),
+        save_path=os.path.join(saving_dir_path, "scenario.xml"),
         initial_state_of_pp=driven_trajectory_data[0].state_list[0],
         goal_state_of_pp=driven_trajectory_data[0].state_list[-1],
         goal_width=2,
@@ -95,16 +96,21 @@ def main(data_dir_path: str,
     # Add dynamic obstacles and save it
     add_dynamic_obstacles(
       dynamic_obstacles_per_time_step=predicted_obstacles,
-      scenario_path=os.path.join(saving_dir_path, "mit_planing_problem.xml"),
-      save_path=os.path.join(saving_dir_path, "scenario_with_pp_and_obstacles.xml"),
+      scenario_path=os.path.join(saving_dir_path, "scenario.xml"),
+      save_path=os.path.join(saving_dir_path, "scenario_obstacles.xml"),
       global_timer=global_timer
     )
 
     add_ego_vehicle(
         driven_trajectory=driven_trajectory_data[0].state_list,
-        scenario_path=os.path.join(saving_dir_path, "scenario_with_pp_and_obstacles.xml"),
-        save_path=os.path.join(saving_dir_path, "scenario_with_ego.xml"),
+        scenario_path=os.path.join(saving_dir_path, "scenario_obstacles.xml"),
+        save_path=os.path.join(saving_dir_path, "scenario_obstacles_ego.xml"),
         global_timer=global_timer
+    )
+
+    interpolate_obstacles(
+        scenario_path=os.path.join(saving_dir_path, "scenario_obstacles_ego.xml"),
+        save_path=os.path.join(saving_dir_path, "scenario_obstacles_ego_interpolated.xml"),
     )
 
 
