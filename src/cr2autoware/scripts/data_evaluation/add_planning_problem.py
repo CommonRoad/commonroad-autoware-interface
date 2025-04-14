@@ -10,7 +10,7 @@ from commonroad.planning.planning_problem import PlanningProblem
 from commonroad.planning.planning_problem import PlanningProblemSet
 from commonroad.geometry.shape import Rectangle
 from commonroad.planning.goal import GoalRegion
-from commonroad.common.util import Interval
+from commonroad.common.util import Interval, FileFormat
 
 # own code base
 from global_timer import GlobalTimer
@@ -86,7 +86,8 @@ def add_planning_problem(scenario_path: str,
         planning_problem_set=planning_problem_set,
         author="Edgar Data Generation",
         affiliation="Technical University of Munich",
-        source="edgar drives"
+        source="edgar drives",
+        file_format=FileFormat.XML,
     )
 
     # save file

@@ -217,7 +217,7 @@ def draw_ego_vehicle(
                                   acceleration=0.0,
                                   yaw_rate=0.0,
                                   slip_angle=0.0)
-    ego_trajectory = Trajectory(5, state_list[1:])
+    ego_trajectory = Trajectory(state_list[1].time_step, state_list[1:])
     ego_prediction = TrajectoryPrediction(trajectory=ego_trajectory, shape=ego_shape)
 
     ego = DynamicObstacle(obstacle_id=9999,
