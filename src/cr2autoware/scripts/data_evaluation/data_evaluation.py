@@ -1,20 +1,14 @@
 import os
 import pickle
-import sys
-
-
-# own code base
-from visualization import visualize_route_and_trajectories
-from physics_evaluation import visualize_planned_vs_driven_trajectory
-from add_obstacles import add_dynamic_obstacles
-from add_planning_problem import add_planning_problem
-
-from add_traffic_lights import add_traffic_lights
-from global_timer import GlobalTimer
-
 # typing
 from typing import List, Tuple
 
+# own code base
+from add_obstacles import add_dynamic_obstacles
+from add_planning_problem import add_planning_problem
+from commonroad.scenario.traffic_light import TrafficLight
+from global_timer import GlobalTimer
+from scripts.data_evaluation.add_ego import add_ego_vehicle
 
 
 def main(data_dir_path: str,
@@ -91,8 +85,8 @@ def main(data_dir_path: str,
     add_planning_problem(
         scenario_path=xml_path,
         save_path=os.path.join(saving_dir_path, "mit_planing_problem.xml"),
-        initial_state_of_pp=planned_trajectory_data[0].state_list[0],
-        goal_state_of_pp=goal_pose_data[0],
+        initial_state_of_pp=driven_trajectory_data[0].state_list[0],
+        goal_state_of_pp=driven_trajectory_data[0].state_list[-1],
         goal_width=2,
         goal_length=6,
         global_timer=global_timer
@@ -106,71 +100,33 @@ def main(data_dir_path: str,
       global_timer=global_timer
     )
 
-
-
-    # add traffic lights
-    add_traffic_lights(
-        traffic_lights_over_time=traffic_lights,
-        global_timer=global_timer,
-        scenario_path=os.path.join(saving_dir_path,"scenario_with_pp_and_obstacles.xml"),
-        save_path=os.path.join(saving_dir_path,"svenario_with_pp_obst_and_lights.xml")
-    )
-
-    ### Data visualization
-    sys.exit()
-
-
-    # visualization parameters
-    title_font_size: float = 50
-    axis_font_size: float = 40
-    plot_font_size: float = 30
-    step: int = 151
-    line_width: int = 3
-
-    # Visualizes route with velocity profile
-    visualize_route_and_trajectories(
-        scenario_path=os.path.join(saving_dir_path, "scenario_with_pp_and_obstacles.xml"),
-        save_path=os.path.join(saving_dir_path, "route.png"),
-        save_img=True,
-        draw_footprint=True,
-        draw_ego_trajectory=False,
-        draw_reference_trajectory=False,
-        reference_trajectory=reference_trajectory_data[0].state_list,
-        step=step,
+    add_ego_vehicle(
         driven_trajectory=driven_trajectory_data[0].state_list,
-    )
-
-    # Visualizes planned vs driven trajectory
-    visualize_planned_vs_driven_trajectory(
-        planned_trajectories=planned_trajectory_data,
-        driven_trajectory=driven_trajectory_data[0],
-        reference_trajectory=reference_trajectory_data[0],
-        save_img=True,
-        save_path=saving_dir_path,
-        linewidth=line_width,
-        axis_font_size=axis_font_size,
-        title_font_size=title_font_size,
-        plot_font_size=plot_font_size
+        scenario_path=os.path.join(saving_dir_path, "scenario_with_pp_and_obstacles.xml"),
+        save_path=os.path.join(saving_dir_path, "scenario_with_ego.xml"),
+        global_timer=global_timer
     )
 
 
 if __name__ == "__main__":
+    import matplotlib
 
-    sim_folder: str = "/media/tmasc/148D-9D89/correctshape"
-    sim_save: str = "/media/tmasc/148D-9D89/correctshape/auswertung"
+    matplotlib.use("TkAgg")
 
+    # data_path = "/home/lercher/tum/edgar/data/converted/2025-04-11_first_test_safe_dist/SafeDistance1"
+    # save_path = "/home/lercher/tum/edgar/data/converted/2025-04-11_first_test_safe_dist/CommonRoad"
 
-    # real_folder: str = "/home/tmasc/Desktop/edgar_fahrten/mcap_sim/asdf"
-    # real_save: str = "/home/tmasc/Desktop/edgar_fahrten/mcap_sim/auswertung"
+    # data_path = "/home/lercher/tum/edgar/data/converted/2025-04-11_second_test_safe_dist/SafeDistance2_2"
+    # save_path = "/home/lercher/tum/edgar/data/converted/2025-04-11_second_test_safe_dist/CommonRoad"
 
-    real_folder: str = "/home/gerald/Documents/Research_Projects/EDGAR_MCube/05_Test_Drive_Data/2024_01_27_Test_Drives_CR2AW_Paper/PlanningSim/mit_auto/2024_01_21_14_26"
-    real_save: str = "/home/gerald/Documents/Research_Projects/EDGAR_MCube/05_Test_Drive_Data/2024_01_27_Test_Drives_CR2AW_Paper/PlanningSim/mit_auto/2024_01_21_14_26/eval"
+    data_path = "/home/lercher/tum/edgar/data/converted/2025-04-11_left_turn/LeftTurn2"
+    save_path = "/home/lercher/tum/edgar/data/converted/2025-04-11_left_turn/CommonRoad"
 
-    xml_path = os.path.join(sim_folder, "japan_from_osm.xml")
+    map_path = "/home/lercher/tum/edgar/campus_sven/tum_campus_0_2_13_test_traffic_lights.xml"
 
     main(
-        data_dir_path=sim_folder,
-        saving_dir_path=sim_folder,
-        xml_path=xml_path
+        data_dir_path=data_path,
+        saving_dir_path=save_path,
+        xml_path=map_path,
     )
 
