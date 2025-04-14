@@ -1,15 +1,19 @@
 import os
 import pickle
 # typing
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 # own code base
 from add_obstacles import add_dynamic_obstacles
 from add_planning_problem import add_planning_problem
+from commonroad.common.file_reader import CommonRoadFileReader
 from commonroad.scenario.traffic_light import TrafficLight
+from commonroad.visualization.draw_params import MPDrawParams
+from commonroad.visualization.mp_renderer import MPRenderer
 from global_timer import GlobalTimer
 from scripts.data_evaluation.add_ego import add_ego_vehicle
 from scripts.data_evaluation.interpolate_obstacles import interpolate_obstacles
+from scripts.data_evaluation.visualization import draw_with_slider, get_ego_params
 
 
 def main(data_dir_path: str,
@@ -114,25 +118,70 @@ def main(data_dir_path: str,
     )
 
 
+def visualize(
+        scenario_path: str,
+        save_path: str,
+        ego_id: int = 42,
+        show: bool = False,
+        figsize: Optional[Tuple[int, int]] = None,
+        plot_limits: Optional[List[float]] = None,
+) -> None:
+    """
+    Visualizes the scenario and planning problem set.
+    :param scenario_path: path to CommonRoad scenario file
+    :param save_path: path to save the visualization
+    :param ego_id: ID of the ego vehicle
+    :param show: whether to show the visualization
+    """
+
+    # Load commonroad scenario
+    scenario, planning_problem_set = CommonRoadFileReader(
+        filename_2020a=scenario_path
+    ).open()
+    ego = scenario.obstacle_by_id(ego_id)
+    scenario.remove_obstacle(ego)
+
+    draw_params = MPDrawParams(time_begin=ego.initial_state.time_step, time_end=ego.prediction.final_time_step)
+    draw_params.dynamic_obstacle.draw_icon = True
+
+    if show:
+        draw_with_slider(scenario, planning_problem_set, ego, draw_params=draw_params, figsize=figsize, plot_limits=plot_limits)
+
+    ego_params = get_ego_params(draw_params)
+    rnd = MPRenderer(draw_params=draw_params, figsize=figsize, plot_limits=plot_limits)
+    rnd.create_video([scenario, ego], save_path, draw_params=[draw_params, ego_params])
+
+
 if __name__ == "__main__":
     import matplotlib
 
     matplotlib.use("TkAgg")
 
-    # data_path = "/home/lercher/tum/edgar/data/converted/2025-04-11_first_test_safe_dist/SafeDistance1"
-    # save_path = "/home/lercher/tum/edgar/data/converted/2025-04-11_first_test_safe_dist/CommonRoad"
-
-    # data_path = "/home/lercher/tum/edgar/data/converted/2025-04-11_second_test_safe_dist/SafeDistance2_2"
-    # save_path = "/home/lercher/tum/edgar/data/converted/2025-04-11_second_test_safe_dist/CommonRoad"
-
-    data_path = "/home/lercher/tum/edgar/data/converted/2025-04-11_left_turn/LeftTurn2"
-    save_path = "/home/lercher/tum/edgar/data/converted/2025-04-11_left_turn/CommonRoad"
-
     map_path = "/home/lercher/tum/edgar/campus_sven/tum_campus_0_2_13_test_traffic_lights.xml"
 
-    main(
-        data_dir_path=data_path,
-        saving_dir_path=save_path,
-        xml_path=map_path,
-    )
+    base_path = "/home/lercher/tum/edgar/data/artifact"
+    experiments = [
+        "2025-04-11_first_test_safe_dist",
+        "2025-04-11_second_test_safe_dist",
+        "2025-04-11_left_turn",
+    ]
 
+    for experiment in experiments:
+        exp_path = os.path.join(base_path, experiment)
+        data_path = os.path.join(exp_path, "Pickle")
+        save_path = os.path.join(exp_path, "CommonRoad")
+        if not os.path.exists(save_path):
+            os.makedirs(save_path)
+        main(
+            data_dir_path=data_path,
+            saving_dir_path=save_path,
+            xml_path=map_path,
+        )
+        scenario_path = os.path.join(save_path, "scenario_obstacles_ego_interpolated.xml")
+        visualize(
+            scenario_path,
+            os.path.join(exp_path, "commonroad.mp4"),
+            figsize=(50, 40),
+            plot_limits=[470, 900, 650, 770],
+            show=True,
+        )

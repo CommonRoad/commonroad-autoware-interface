@@ -2,6 +2,8 @@ import copy
 
 import numpy as np
 import matplotlib.pyplot as plt
+from commonroad.planning.planning_problem import PlanningProblemSet
+from commonroad.scenario.scenario import Scenario
 from matplotlib.colors import rgb2hex
 from matplotlib import cm
 
@@ -20,6 +22,8 @@ from commonroad.scenario.trajectory import Trajectory
 
 # typing
 from typing import List, Tuple
+
+from matplotlib.widgets import Slider
 
 # cmap for coloring the velocity profile
 cmap = cm.get_cmap("plasma")
@@ -74,7 +78,7 @@ def visualize_route_and_trajectories(
     planning_problem = list(planning_problem_set.planning_problem_dict.values())[0]
 
     # get plot limits from reference path
-    plot_limits: List[float] = get_plot_limits_from_reference_path(reference_trajectory, margin=20)
+    # plot_limits: List[float] = get_plot_limits_from_reference_path(reference_trajectory, margin=20)
 
     # init renderer for plotting
     draw_params = MPDrawParams()
@@ -83,7 +87,7 @@ def visualize_route_and_trajectories(
     draw_params.dynamic_obstacle.trajectory.zorder = initial_state_zorder
     if(step is not None):
         draw_params.time_begin = step
-    renderer = MPRenderer(plot_limits=plot_limits)
+    renderer = MPRenderer()
     renderer.draw_params.dynamic_obstacle.draw_icon = True
     renderer.draw_params.dynamic_obstacle.trajectory.draw_trajectory = True
     renderer.draw_params.planning_problem.initial_state.state.draw_arrow = False
@@ -142,10 +146,10 @@ def visualize_route_and_trajectories(
     plt.axis('off')
 
     # save or show scenario
-    if save_img:
-        plt.savefig(save_path, format=saving_format, dpi=300, bbox_inches='tight')
-    else:
-        plt.show()
+    # if save_img:
+    #     plt.savefig(save_path, format=saving_format, dpi=300, bbox_inches='tight')
+    # else:
+    plt.show()
 
 
 def draw_route_state(
@@ -326,17 +330,40 @@ def get_plot_limits_from_reference_path(
     return [x_min, x_max, y_min, y_max]
 
 
+def draw_with_slider(scenario: Scenario, planning_problems: PlanningProblemSet, ego: DynamicObstacle, draw_params: MPDrawParams, figsize: Tuple[int, int] = None, plot_limits: List[float] = None):
+    fig, ax = plt.subplots()
+    step_slider = Slider(
+        fig.add_axes([0.2, 0.1, 0.65, 0.03]),
+        "Step",
+        draw_params.time_begin,
+        draw_params.time_end,
+        valinit=draw_params.time_begin,
+        valstep=1,
+        initcolor="none",
+    )
+    if figsize:
+        fig.set_size_inches(*figsize)
 
 
 
+    def update(val):
+        step_params = copy.deepcopy(draw_params)
+        step_params.time_begin = int(step_slider.val)
+        step_params.time_end = int(step_slider.val)
+        rnd = MPRenderer(draw_params=step_params, plot_limits=plot_limits, ax=ax)
+        scenario.draw(rnd)
+        planning_problems.draw(rnd)
+        ego_params = get_ego_params(step_params)
+        ego.draw(rnd, draw_params=ego_params)
+        rnd.render()
+
+    update(step_slider.val)
+    step_slider.on_changed(update)
+    plt.show()
 
 
-
-
-
-
-
-
-
-
-
+def get_ego_params(draw_params: MPDrawParams) -> MPDrawParams:
+    ego_params = copy.deepcopy(draw_params)
+    ego_params.dynamic_obstacle.vehicle_shape.occupancy.shape.facecolor = "#E37222"
+    ego_params.dynamic_obstacle.vehicle_shape.occupancy.shape.edgecolor = "#9C4100"
+    return ego_params
