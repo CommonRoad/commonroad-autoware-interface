@@ -157,9 +157,8 @@ if __name__ == "__main__":
 
     matplotlib.use("TkAgg")
 
-    map_path = "/home/lercher/tum/edgar/campus_sven/tum_campus_0_2_13_test_traffic_lights.xml"
-
     base_path = "/home/lercher/tum/edgar/data/artifact"
+    map_path = os.path.join(base_path, "tum_campus_2025-04-15.xml")
     experiments = [
         "2025-04-11_first_test_safe_dist",
         "2025-04-11_second_test_safe_dist",
