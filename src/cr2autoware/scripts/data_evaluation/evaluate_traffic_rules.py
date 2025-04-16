@@ -24,9 +24,12 @@ def main() -> None:
         for rule, result in results[experiment].items():
             print(f"  {rule}: {'Satisfied' if result else 'Violated'}")
 
+
 def monitor_scenario(scenario_path: Path) -> Dict[str, bool]:
     scenario, _ = CommonRoadFileReader(scenario_path).open()
-    scenario.remove_obstacle([obs for obs in scenario.obstacles if obs.obstacle_type == ObstacleType.UNKNOWN])
+    scenario.remove_obstacle(
+        [obs for obs in scenario.obstacles if obs.obstacle_type == ObstacleType.UNKNOWN]
+    )
 
     predicate_cost = {}
     temporal_parameters = {}
@@ -49,7 +52,13 @@ def monitor_scenario(scenario_path: Path) -> Dict[str, bool]:
     )
     sim_param.world_parameters = wp
     rule_monitor = crmonitor.Monitor()
-    rule_monitor.set_config(sim_param, monitor_config, predicate_cost, predicate_parameter, temporal_parameters)
+    rule_monitor.set_config(
+        sim_param,
+        monitor_config,
+        predicate_cost,
+        predicate_parameter,
+        temporal_parameters,
+    )
     rule_monitor.activate_rule_sets(["R_G1", "R_G2", "R_G3", "R_G4", "R_U7"])
 
     world = crcpp.World(scenario, wp)
