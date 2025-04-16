@@ -98,10 +98,10 @@ def add_dynamic_obstacles(
     for _key, _val in dict_obstacle_id_to_list_obstacles.items():
         _val.sort(key=lambda x: x.ros2_time)
 
-    # create dynamic obstacle instances
+    # create dynamic obstacle instances and re-map IDs
     dynamic_obstacle_list: List[DynamicObstacle] = [
-            create_dynamic_obstacle_from_sorted_states(states=states)
-            for obs_id, states in dict_obstacle_id_to_list_obstacles.items()
+            create_dynamic_obstacle_from_sorted_states(states=states, obs_id=obs_id + 1000)
+            for obs_id, (_, states) in enumerate(sorted(dict_obstacle_id_to_list_obstacles.items(), key=lambda x: x[0]))
     ]
 
     # remove old dynamic obstacles
@@ -120,7 +120,7 @@ def add_dynamic_obstacles(
 
 
 def create_dynamic_obstacle_from_sorted_states(
-        states: List[ObstacleOverTime],
+        states: List[ObstacleOverTime], obs_id: int
 ) -> DynamicObstacle:
     """
     Creates dynamic obstacle from sorted list of states.
@@ -165,7 +165,7 @@ def create_dynamic_obstacle_from_sorted_states(
 
     # obstacle generation
     return DynamicObstacle(
-                obstacle_id=states[0].obs_id,
+                obstacle_id=obs_id,
                 obstacle_type=obstacle_type,
                 obstacle_shape=shape,
                 initial_state=initial_state,
