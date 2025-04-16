@@ -1,5 +1,5 @@
 import time
-from typing import List
+from typing import List, Tuple, Optional
 
 # third party imports
 import numpy as np
@@ -29,6 +29,7 @@ from cr2autoware.handlers.ego_vehicle_handler import (
 )
 from cr2autoware.interfaces.base.trajectory_planner_interface import TrajectoryPlannerInterface
 from cr2autoware.interfaces.implementation.rp_helper.world_updater import WorldUpdater
+from cr2autoware.common.utils.trajectory_utils import _lerp
 
 # ROS imports
 from rclpy.publisher import Publisher
@@ -83,6 +84,10 @@ class HighLevelReactivePlannerInterface(TrajectoryPlannerInterface):
 
         # set road boundary
         self._road_boundary = road_boundary
+
+        # store previous CVLN long and lat trajectories for replanning
+        self._prev_lon_traj: Optional[List[Tuple]] = None
+        self._prev_lat_traj: Optional[List[Tuple]] = None
 
         # create reactive planner config
         rp_config = ReactivePlannerConfiguration().load(rp_interface_params.path_rp_config)
@@ -147,16 +152,32 @@ class HighLevelReactivePlannerInterface(TrajectoryPlannerInterface):
         # reset stored trace of monitor
         self._planner.config.rule_monitor.reset_trace()
 
-        # reset planner state
+        # Cartesian initial state
         if not hasattr(init_state, "acceleration"):
             # current_state uses acceleration localization (see ego_vehicle_handler)
             init_state.acceleration = 0.0
         x0_planner_cart: ReactivePlannerState = ReactivePlannerState()
         x0_planner_cart = init_state.convert_state_to_state(x0_planner_cart)
-        self._planner.reset(initial_state_cart=x0_planner_cart,
-                            initial_state_curv=None,
-                            collision_checker=self._planner.collision_checker,
-                            coordinate_system=self._planner.coordinate_system)
+
+        # replan from Cartesian state
+        if self._prev_lon_traj is None and self._prev_lat_traj is None:
+            self._logger.info("Replanning from Cartesian initial state.")
+            self._planner.reset(
+                initial_state_cart=x0_planner_cart,
+                initial_state_curv=None,
+                collision_checker=self._planner.collision_checker,
+                coordinate_system=self._planner.coordinate_system
+                )
+        # replan from CVLN state
+        else:
+            self._logger.info("Replanning from CVLN lon/lat initial state.")
+            x_0_planner_lon, x_0_planner_lat = self._calc_cvln_init_state(init_pos_cart=init_state.position)
+            self._planner.reset(
+                initial_state_cart=x0_planner_cart,
+                initial_state_curv=(x_0_planner_lon, x_0_planner_lat),
+                collision_checker=self._planner.collision_checker,
+                coordinate_system=self._planner.coordinate_system
+            )
 
         # call plan function and generate trajectory
         tic = time.perf_counter()
@@ -182,11 +203,47 @@ class HighLevelReactivePlannerInterface(TrajectoryPlannerInterface):
 
             # record planned state and input
             self._planner.record_state_and_input(optimal_traj[0].state_list[1])
+
+            # update previously planned CVLN long and lat trajectories (TODO: check indexing!)
+            self._prev_lon_traj = optimal_traj[1]
+            self._prev_lat_traj = optimal_traj[2]
         else:
             # TODO: sample emergency brake trajectory if no trajectory is found?
             self._logger.warning("Reactive planner could not find a feasible trajectory!")
             self._cr_state_list = None
             self._prev_state_list = None
+            self._prev_lon_traj = None
+            self._prev_lat_traj = None
+
+    def _calc_cvln_init_state(self, init_pos_cart: np.ndarray) -> Tuple[List, List]:
+        """
+        Calculates initial longitudinal state (s, s_dot, s_ddot) and lateral state (d _d_dot, d_ddot) based on Cartesian
+        initial position and previously planned long and lat trajectories.
+        
+        :param init_pos_cart: Position from Cartesian initial state
+        """
+        # initial long, lat position
+        s_0, d_0 = self._planner.coordinate_system.convert_to_curvilinear_coords(init_pos_cart[0], init_pos_cart[1])
+
+        # get closest time idx (based on long position)
+        s_array = np.array([lon_state[0] for lon_state in self._prev_lon_traj])
+        closest_idx = np.argmin(np.abs(s_array - s_0))
+
+        x_0_lon_interp = self._prev_lon_traj[closest_idx]
+        x_0_lat_interp = self._prev_lat_traj[closest_idx]
+
+        return x_0_lon_interp, x_0_lat_interp
+    
+    @staticmethod
+    def _get_interpolated_state(curr_state, next_state, interp_ratio):
+        """
+        Interpolates state between two given CVLN (lon or lat states) with given ratio
+        """
+        pos_interp = _lerp(curr_state[0], next_state[0], interp_ratio)
+        vel_interp = _lerp(curr_state[1], next_state[1], interp_ratio)
+        acc_interp = _lerp(curr_state[2], next_state[2], interp_ratio)
+
+        return [pos_interp, vel_interp, acc_interp]
 
     def update(self, planning_problem: PlanningProblem = None, reference_path: np.ndarray = None, route_lanelet_ids: List[int] = None) -> None:
         """
