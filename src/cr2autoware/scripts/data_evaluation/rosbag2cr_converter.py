@@ -121,7 +121,8 @@ class Rosbag2CR_Converter:
                 self._convert_route_trajectory(msg)
 
             elif(topic == "/planning/scenario_planning/trajectory"):
-                self._convert_planned_trajectory(msg)
+                # self._convert_planned_trajectory(msg)
+                pass
 
             elif(topic == "/localization/kinematic_state"):
                 self._convert_odometry_msg(msg)
@@ -130,7 +131,8 @@ class Rosbag2CR_Converter:
                 self._convert_predicted_objects(msg)
 
             elif(topic == "/perception/traffic_light_recognition/traffic_signals"):
-                self._convert_traffic_lights(msg)
+                # self._convert_traffic_lights(msg)
+                pass
 
             else:
                 raise ValueError(f"Topic with name {topic} could not be assigned to known topics")
