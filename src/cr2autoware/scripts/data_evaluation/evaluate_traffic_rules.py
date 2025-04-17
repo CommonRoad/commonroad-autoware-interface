@@ -13,6 +13,9 @@ def main() -> None:
         "2025-04-11_first_test_safe_dist",
         "2025-04-11_second_test_safe_dist",
         "2025-04-11_left_turn",
+        "2025-04-16_first_test_safe_dist",
+        "2025-04-16_second_test_safe_dist",
+        "2025-04-16_right_turn",
     ]
     results = {}
     for experiment in experiments:
@@ -33,7 +36,9 @@ def monitor_scenario(scenario_path: Path) -> Dict[str, bool]:
 
     predicate_cost = {}
     temporal_parameters = {}
-    predicate_parameter = {}
+    predicate_parameter = {
+        "roadConditionSpeedLimit": 6.9,
+    }
     monitor_config = crmonitor.MonitorConfiguration()
     sim_param = crmonitor.MonitorSimulationParameters()
     # turn off monitor evaluation settings
@@ -59,7 +64,7 @@ def monitor_scenario(scenario_path: Path) -> Dict[str, bool]:
         predicate_parameter,
         temporal_parameters,
     )
-    rule_monitor.activate_rule_sets(["R_G1", "R_G2", "R_G3", "R_G4", "R_U7"])
+    rule_monitor.activate_rule_sets(["R_G1", "R_G2", "R_G3", "R_G4", "R_U3", "R_U4", "R_U5", "R_U7"])
 
     world = crcpp.World(scenario, wp)
     ego_id = 42
