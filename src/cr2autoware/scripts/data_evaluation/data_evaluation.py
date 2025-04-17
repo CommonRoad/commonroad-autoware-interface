@@ -87,7 +87,7 @@ def main() -> None:
             experiment.movie_path,
             figsize=(50, 40),
             plot_limits=experiment.location.plot_limits,
-            show=False,
+            show=True,
         )
 
 
@@ -181,6 +181,7 @@ def visualize(
     show: bool = False,
     figsize: Optional[Tuple[int, int]] = None,
     plot_limits: Optional[List[float]] = None,
+    focus_ego: bool = False,
 ) -> None:
     """
     Visualizes the scenario and planning problem set.
@@ -188,6 +189,9 @@ def visualize(
     :param save_path: path to save the visualization
     :param ego_id: ID of the ego vehicle
     :param show: whether to show the visualization
+    :param figsize: figure size for the visualization
+    :param plot_limits: plot limits for the visualization
+    :param focus_ego: whether to focus on the ego vehicle
     """
 
     # Load commonroad scenario
@@ -210,10 +214,16 @@ def visualize(
             draw_params=draw_params,
             figsize=figsize,
             plot_limits=plot_limits,
+            focus_ego=focus_ego,
         )
 
     ego_params = get_ego_params(draw_params)
-    rnd = MPRenderer(draw_params=draw_params, figsize=figsize, plot_limits=plot_limits)
+    rnd = MPRenderer(
+        draw_params=draw_params,
+        figsize=figsize,
+        plot_limits=plot_limits,
+        focus_obstacle=ego if focus_ego else None,
+    )
     rnd.create_video([scenario, ego], save_path, draw_params=[draw_params, ego_params])
 
 

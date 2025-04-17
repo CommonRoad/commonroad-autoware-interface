@@ -21,7 +21,7 @@ from commonroad.prediction.prediction import TrajectoryPrediction
 from commonroad.scenario.trajectory import Trajectory
 
 # typing
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 from matplotlib.widgets import Slider
 
@@ -30,23 +30,23 @@ cmap = cm.get_cmap("plasma")
 
 
 def visualize_route_and_trajectories(
-        scenario_path: str,
-        save_path: str,
-        reference_trajectory: List[CustomState] = None,
-        driven_trajectory: List[CustomState] = None,
-        draw_footprint: bool = False,
-        draw_ego_trajectory: bool = False,
-        draw_reference_trajectory: bool = False,
-        save_img: bool = True,
-        step: int = None,
-        goal_length: float = 6.22125,
-        goal_width: float = 4.929569524816457,
-        footprint_width: float = 2.253,
-        footprint_length: float = 4.977,
-        initial_state_radius: float = 0.25,
-        initial_state_zorder: float = 50,
-        downsample_ms: float = 100,
-        saving_format: str = "png"
+    scenario_path: str,
+    save_path: str,
+    reference_trajectory: List[CustomState] = None,
+    driven_trajectory: List[CustomState] = None,
+    draw_footprint: bool = False,
+    draw_ego_trajectory: bool = False,
+    draw_reference_trajectory: bool = False,
+    save_img: bool = True,
+    step: int = None,
+    goal_length: float = 6.22125,
+    goal_width: float = 4.929569524816457,
+    footprint_width: float = 2.253,
+    footprint_length: float = 4.977,
+    initial_state_radius: float = 0.25,
+    initial_state_zorder: float = 50,
+    downsample_ms: float = 100,
+    saving_format: str = "png",
 ) -> None:
     """
     Visualizes the reference path with velocity profile, the footprint and the driven trajectory.
@@ -72,9 +72,7 @@ def visualize_route_and_trajectories(
     _ = plt.figure(figsize=(20, 10))
 
     # open scenario and load planning problem
-    scenario, planning_problem_set = CommonRoadFileReader(
-        scenario_path
-    ).open()
+    scenario, planning_problem_set = CommonRoadFileReader(scenario_path).open()
     planning_problem = list(planning_problem_set.planning_problem_dict.values())[0]
 
     # get plot limits from reference path
@@ -85,14 +83,18 @@ def visualize_route_and_trajectories(
     draw_params.dynamic_obstacle.draw_icon = True
     draw_params.dynamic_obstacle.trajectory.draw_trajectory = True
     draw_params.dynamic_obstacle.trajectory.zorder = initial_state_zorder
-    if(step is not None):
+    if step is not None:
         draw_params.time_begin = step
     renderer = MPRenderer()
     renderer.draw_params.dynamic_obstacle.draw_icon = True
     renderer.draw_params.dynamic_obstacle.trajectory.draw_trajectory = True
     renderer.draw_params.planning_problem.initial_state.state.draw_arrow = False
-    renderer.draw_params.planning_problem.initial_state.state.radius = initial_state_radius
-    renderer.draw_params.planning_problem.initial_state.state.zorder = initial_state_zorder
+    renderer.draw_params.planning_problem.initial_state.state.radius = (
+        initial_state_radius
+    )
+    renderer.draw_params.planning_problem.initial_state.state.zorder = (
+        initial_state_zorder
+    )
     planning_problem.goal.state_list[0].position.length = goal_length
     planning_problem.goal.state_list[0].position.width = goal_width
     planning_problem.draw(renderer)
@@ -100,11 +102,16 @@ def visualize_route_and_trajectories(
     # downsample driven trajectory to scenario time step for visualization
     driven_traj_downsampled = list()
     if driven_trajectory is not None:
-        ros2_time_stamp_seconds_list = [state.ros2_time_stamp[0] + state.ros2_time_stamp[1]/1e9 for state in driven_trajectory]
+        ros2_time_stamp_seconds_list = [
+            state.ros2_time_stamp[0] + state.ros2_time_stamp[1] / 1e9
+            for state in driven_trajectory
+        ]
         driven_traj_downsampled.append(driven_trajectory[0])
         curr_time_stamp = ros2_time_stamp_seconds_list[0]
         for i in range(1, len(ros2_time_stamp_seconds_list)):
-            if ros2_time_stamp_seconds_list[i] < curr_time_stamp + (downsample_ms / 1000):
+            if ros2_time_stamp_seconds_list[i] < curr_time_stamp + (
+                downsample_ms / 1000
+            ):
                 continue
             else:
                 curr_time_stamp = ros2_time_stamp_seconds_list[i]
@@ -118,32 +125,24 @@ def visualize_route_and_trajectories(
                 renderer,
                 driven_traj_downsampled,
                 width=footprint_width,
-                length=footprint_length
+                length=footprint_length,
             )
 
     # draw velocity profile and reference path
     if reference_trajectory is not None and draw_reference_trajectory:
         v_min, v_max = get_velocity_min_max_from_trajectory(reference_trajectory)
         for state in reference_trajectory:
-            draw_route_state(
-                renderer,
-                state,
-                v_min,
-                v_max
-            )
+            draw_route_state(renderer, state, v_min, v_max)
 
     # draw driven trajectory
     if driven_trajectory is not None and draw_ego_trajectory:
         for state in driven_traj_downsampled:
-            draw_car_state(
-                renderer,
-                state
-            )
+            draw_car_state(renderer, state)
 
     # draw scenario and renderer
     scenario.draw(renderer, draw_params=draw_params)
     renderer.render()
-    plt.axis('off')
+    plt.axis("off")
 
     # save or show scenario
     # if save_img:
@@ -153,11 +152,11 @@ def visualize_route_and_trajectories(
 
 
 def draw_route_state(
-        renderer: MPRenderer,
-        state: CustomState,
-        v_min: float,
-        v_max: float,
-        point_radius: float=0.1
+    renderer: MPRenderer,
+    state: CustomState,
+    v_min: float,
+    v_max: float,
+    point_radius: float = 0.1,
 ) -> None:
     """
     Draws global trajectory and color-codes velocity profile.
@@ -179,13 +178,13 @@ def draw_route_state(
 
 
 def draw_ego_vehicle(
-        renderer: MPRenderer,
-        state_list: List[CustomState],
-        length: float,
-        width: float,
-        opacity: float = 0.05,
-        face_color: str = "#E37222",
-        edge_color: str = "#9C4100"
+    renderer: MPRenderer,
+    state_list: List[CustomState],
+    length: float,
+    width: float,
+    opacity: float = 0.05,
+    face_color: str = "#E37222",
+    edge_color: str = "#9C4100",
 ) -> None:
     """
     Draws the ego vehicle at its initial state with a car icon and the footprints of its trajectory
@@ -207,28 +206,31 @@ def draw_ego_vehicle(
             width=width,
             length=length,
             opacity=opacity,
-            face_color=face_color
+            face_color=face_color,
         )
 
     # create ego dynamic obstacle
     ego_type = ObstacleType.CAR
-    ego_shape = Rectangle(length=length,
-                          width=width)
-    ego_init_state = InitialState(time_step=state_list[0].time_step,
-                                  position=state_list[0].position,
-                                  orientation=state_list[0].orientation,
-                                  velocity=state_list[0].velocity,
-                                  acceleration=0.0,
-                                  yaw_rate=0.0,
-                                  slip_angle=0.0)
+    ego_shape = Rectangle(length=length, width=width)
+    ego_init_state = InitialState(
+        time_step=state_list[0].time_step,
+        position=state_list[0].position,
+        orientation=state_list[0].orientation,
+        velocity=state_list[0].velocity,
+        acceleration=0.0,
+        yaw_rate=0.0,
+        slip_angle=0.0,
+    )
     ego_trajectory = Trajectory(state_list[1].time_step, state_list[1:])
     ego_prediction = TrajectoryPrediction(trajectory=ego_trajectory, shape=ego_shape)
 
-    ego = DynamicObstacle(obstacle_id=9999,
-                          obstacle_type=ego_type,
-                          obstacle_shape=ego_shape,
-                          initial_state=ego_init_state,
-                          prediction=ego_prediction)
+    ego = DynamicObstacle(
+        obstacle_id=9999,
+        obstacle_type=ego_type,
+        obstacle_shape=ego_shape,
+        initial_state=ego_init_state,
+        prediction=ego_prediction,
+    )
 
     # draw icon for initial state
     draw_params = copy.copy(renderer.draw_params)
@@ -241,13 +243,13 @@ def draw_ego_vehicle(
 
 
 def draw_car_footprint(
-        renderer: MPRenderer,
-        state: CustomState,
-        length: float,
-        width: float,
-        opacity: float = 0.1,
-        face_color: str = "#E37222",
-        edge_color: str = "#d64c13"
+    renderer: MPRenderer,
+    state: CustomState,
+    length: float,
+    width: float,
+    opacity: float = 0.1,
+    face_color: str = "#E37222",
+    edge_color: str = "#d64c13",
 ) -> None:
     """
     Draws the car state as footprint.
@@ -264,20 +266,19 @@ def draw_car_footprint(
     draw_params.shape.facecolor = face_color
     draw_params.shape.edgecolor = edge_color
     draw_params.shape.opacity = opacity
-    rectangle = Rectangle(length=length,
-                          width=width,
-                          center=state.position,
-                          orientation=state.orientation)
+    rectangle = Rectangle(
+        length=length, width=width, center=state.position, orientation=state.orientation
+    )
     rectangle.draw(renderer, draw_params=draw_params)
 
 
 def draw_car_state(
-        renderer: MPRenderer,
-        state: CustomState,
-        point_radius: float = 0.1,
-        face_color: str = "#000000",
-        edge_color: str = "#000000",
-        opacity: float = 1.0
+    renderer: MPRenderer,
+    state: CustomState,
+    point_radius: float = 0.1,
+    face_color: str = "#000000",
+    edge_color: str = "#000000",
+    opacity: float = 1.0,
 ) -> None:
     """
     :param renderer: commonroad renderer
@@ -296,7 +297,7 @@ def draw_car_state(
 
 
 def get_velocity_min_max_from_trajectory(
-        trajectory:List[CustomState]
+    trajectory: List[CustomState],
 ) -> Tuple[float, float]:
     """
     Gets min and max velocity from global trajectory for color coding.
@@ -309,8 +310,7 @@ def get_velocity_min_max_from_trajectory(
 
 
 def get_plot_limits_from_reference_path(
-        reference_path: List[CustomState],
-        margin: float = 5
+    reference_path: List[CustomState], margin: float = 5
 ) -> List[float]:
     """
     Computes plot limits from reference-path
@@ -330,7 +330,15 @@ def get_plot_limits_from_reference_path(
     return [x_min, x_max, y_min, y_max]
 
 
-def draw_with_slider(scenario: Scenario, planning_problems: PlanningProblemSet, ego: DynamicObstacle, draw_params: MPDrawParams, figsize: Tuple[int, int] = None, plot_limits: List[float] = None):
+def draw_with_slider(
+    scenario: Scenario,
+    planning_problems: PlanningProblemSet,
+    ego: DynamicObstacle,
+    draw_params: MPDrawParams,
+    figsize: Optional[Tuple[int, int]] = None,
+    plot_limits: Optional[List[float]] = None,
+    focus_ego: bool = False,
+):
     fig, ax = plt.subplots()
     step_slider = Slider(
         fig.add_axes([0.2, 0.1, 0.65, 0.03]),
@@ -344,13 +352,16 @@ def draw_with_slider(scenario: Scenario, planning_problems: PlanningProblemSet, 
     if figsize:
         fig.set_size_inches(*figsize)
 
-
-
     def update(val):
         step_params = copy.deepcopy(draw_params)
         step_params.time_begin = int(step_slider.val)
         step_params.time_end = int(step_slider.val)
-        rnd = MPRenderer(draw_params=step_params, plot_limits=plot_limits, ax=ax)
+        rnd = MPRenderer(
+            draw_params=step_params,
+            plot_limits=plot_limits,
+            ax=ax,
+            focus_obstacle=ego if focus_ego else None,
+        )
         scenario.draw(rnd)
         planning_problems.draw(rnd)
         ego_params = get_ego_params(step_params)
