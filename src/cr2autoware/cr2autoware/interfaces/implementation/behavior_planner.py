@@ -9,6 +9,7 @@ import time
 # ROS imports
 from rclpy.publisher import Publisher
 from rclpy.impl.rcutils_logger import RcutilsLogger
+from std_msgs.msg import Bool
 
 # ROS message imports
 from builtin_interfaces.msg import Duration
@@ -67,6 +68,10 @@ class BehaviorPlanner:
         * Description: Traffic light visualization.
         * Topic: `/planning/commonroad/behavior_planning/traffic_light_marker`
         * Message Type: `visualization_msgs.msg.MarkerArray`
+    * failsafe_pub:
+        * Description: Failsafe message.
+        * Topic: `/planning/commonroad/behavior_planning/failsafe`
+        * Message Type: `std_msgs.msg.Bool`
 
     ---------------
     :var _ref_path_pub: reference to ROS2 publisher for reference path
@@ -78,19 +83,23 @@ class BehaviorPlanner:
     :var _lookahead_dist: lookahead distance for velocity planning
     :var _lookahead_time: lookahead time for velocity planning
     """
-    def __init__(self, ref_path_pub: Publisher, traffic_light_marker_pub: Publisher, lateral_clearance_pub: Publisher, lateral_clearance_obstacles_pub: Publisher, logger: RcutilsLogger, verbose: bool,
+    def __init__(self, ref_path_pub: Publisher, traffic_light_marker_pub: Publisher, lateral_clearance_pub: Publisher, lateral_clearance_obstacles_pub: Publisher, failsafe_pub: Publisher, logger: RcutilsLogger, verbose: bool,
                  lookahead_dist: float, lookahead_time: float, origin_transformation: List, global_params: CR2AutowareParams, scenario_handler: ScenarioHandler) -> None:
         """
-        TODO:**WIP**
-        Constructor for VelocityPlanner class.
+        Constructor for BehaviorPlanner class.
 
         :param ref_path_pub: ROS2 node publisher for reference path
+        :param traffic_light_marker_pub: ROS2 node publisher for traffic light marker
+        :param lateral_clearance_pub: ROS2 node publisher for lateral clearance marker
+        :param lateral_clearance_obstacles_pub: ROS2 node publisher for lateral clearance obstacles marker
+        :param failsafe_pub: ROS2 node publisher for failsafe message
         :param logger: ROS2 node logger
         :param verbose: Flag for verbose logging
         :param lookahead_dist: Lookahead distance for velocity planning
         :param lookahead_time: Lookahead time for velocity planning
-        :param params: Parameters for behavior planner
         :param origin_transformation: translation of origin between CR and AW map coordinates
+        :param global_params: Global parameters for the planner
+        :param scenario_handler: Scenario handler for the planner
         """
 
         # initialize publisher to behavior planner
@@ -98,12 +107,13 @@ class BehaviorPlanner:
         self._traffic_light_marker_pub = traffic_light_marker_pub
         self._lateral_clearance_pub = lateral_clearance_pub
         self._lateral_clearance_obstacles_pub = lateral_clearance_obstacles_pub
+        self._failsafe_pub = failsafe_pub
 
         self._verbose = verbose
         self._logger = logger
 
         if self._verbose:
-            self._logger.info("<Behavior Planner>: Initializing planner with lookahead distance "
+            self._logger.info("<BehaviorPlanner>: Initializing planner with lookahead distance "
                               + str(lookahead_dist) + " and lookahead time " + str(lookahead_time))
 
         # variable indicates if velocity planning for latest published route is completed
@@ -124,6 +134,8 @@ class BehaviorPlanner:
         self.blackboard.register_key("global_params", access=py_trees.common.Access.WRITE)
         self.blackboard.global_params = self.global_params
         # Register keys for ROS Publisher
+        self.blackboard.register_key("/failsafe/bool", access=py_trees.common.Access.WRITE)
+        self.blackboard.failsafe.bool = False
         self.blackboard.register_key("/modules/traffic_lights/outputs/traffic_light_marker_array", access=py_trees.common.Access.WRITE)
         self.blackboard.modules.traffic_lights.outputs.traffic_light_marker_array = MarkerArray()
         self.blackboard.register_key("/modules/lateral_clearance/outputs/lateral_clearance_marker_array", access=py_trees.common.Access.WRITE)
@@ -208,12 +220,10 @@ class BehaviorPlanner:
     def path_in_cartesian(self) -> np.ndarray:
         return self._co.reference
 
-# Copied from Reactive Planner
     @property
     def path_in_curvilinear(self) -> np.ndarray:
         return self._co.ref_pos
 
-# Copied from Reactive Planner
     @property
     def path_orientation(self) -> np.ndarray:
         return self._co.ref_theta
@@ -236,13 +246,15 @@ class BehaviorPlanner:
 
         :param reference_path: in CR coordinates
         :param goal_pos: in CR coordinates
+        :param scenario: CommonRoad scenario
+        :param current_state: current state of the ego vehicle
         """
         self._is_velocity_planning_completed = False
 
         plan_start_time = time.time()
 
         if self._verbose:
-            self._logger.info("<Velocity planner>: Planning velocity profile")
+            self._logger.info("<BehaviorPlanner>: Planning velocity profile")
 
         # Clip original reference path so that it ends at the goal position
         goal_idx = self._get_closest_point_idx_on_path(reference_path, goal_pos)
@@ -290,6 +302,9 @@ class BehaviorPlanner:
         # Call _pub_ref_path
         self._pub_ref_path(input_path, velocity_path, self.origin_transformation)
 
+        # Publish failsafe message
+        self._pub_failsafe()
+
         # Publish traffic light marker
         self._pub_traffic_light_marker()
 
@@ -306,25 +321,40 @@ class BehaviorPlanner:
             self._logger.info("[SVEN] [TIME] Planning Behavior Planner: " + str(plan_end_time - plan_start_time_4))
             self._logger.info("[SVEN] [TIME] Post Planning: " + str(plan_end_time_2 - plan_end_time))
 
-    
-    def _behavior_planner(self, input_path: np.ndarray, origin_transformation: List) -> np.ndarray:
+    def failsafe_planning(self, reference_path: np.ndarray, goal_pos: np.ndarray) -> None:
         """
-        Behavior planner for velocity planning.
+        Velocity planning in case of failure of behavior planner.
 
-        :param input_path: reference path in CR coordinates
-        :param origin_transformation: translation of origin between CR and AW map coordinates
-        :return: velocity profile
+        Computes a zero velocity profile for a given reference path.
+
+        :param reference_path: in CR coordinates
+        :param goal_pos: in CR coordinates
         """
+        self._is_velocity_planning_completed = False
+
         if self._verbose:
-            self._logger.info("<Behavior planner>: Behavior planner for velocity planning")
+            self._logger.info("<BehaviorPlanner>: Planning FailSafe velocity profile")
+
+        # Clip original reference path so that it ends at the goal position
+        goal_idx = self._get_closest_point_idx_on_path(reference_path, goal_pos)
+        tail_orig = reference_path[goal_idx + 1:]
+        input_path = reference_path[:goal_idx + 1]
+
+        # transform points of tail to AW map coordinates
+        tail_mod = list()
+        for i in range(len(tail_orig)):
+            _tmp = tail_orig[i] - np.array(self.origin_transformation)
+            tail_mod.append(_tmp)
+        self._tail = np.array(tail_mod)
         
-        velocity_update = np.zeros(len(input_path))
-        # set velocity to 10 m/s
-        velocity_update[:] = 20.0
+        # Create Curvilinear Coordinate System for preprocessing
+        self.set_reference_path(input_path)
 
-        velocity_update = self.behavior_tree.plan(input_path, origin_transformation)
+        # set velocity profile to zero
+        velocity_path = np.zeros(len(input_path))
 
-        return velocity_update
+        # Call _pub_ref_path
+        self._pub_ref_path(input_path, velocity_path, self.origin_transformation)
 
 
     def _prepare_traj_msg(self, input_path: np.ndarray, velocity_path: np.ndarray, origin_transformation: List) -> AWTrajectory:
@@ -337,7 +367,7 @@ class BehaviorPlanner:
         :return: AWTrajectory message
         """
         if self._verbose:
-            self._logger.info("<Behavior planner>: Preparing reference path message for motion velocity smoother")
+            self._logger.info("<BehaviorPlanner>: Preparing reference path message for motion velocity smoother")
 
         # AW Trajectory message
         traj = AWTrajectory()
@@ -374,8 +404,16 @@ class BehaviorPlanner:
         self._ref_path_pub.publish(traj_msg)
 
         if self._verbose:
-            self._logger.info("<Behavior planner>: Reference path published to motion velocity smoother.")
+            self._logger.info("<BehaviorPlanner>: Reference path published to motion velocity smoother.")
     
+    def _pub_failsafe(self) -> None:
+        if self.blackboard.failsafe.bool:
+            # publish failsafe message
+            msg = Bool()
+            msg.data = True
+            self._failsafe_pub.publish(msg)
+            self.blackboard.failsafe.bool = False
+
     def _pub_traffic_light_marker(self) -> None:
         self._traffic_light_marker_pub.publish(self.blackboard.modules.traffic_lights.outputs.traffic_light_marker_array)
 
@@ -419,7 +457,7 @@ class BehaviorPlanner:
             return
         
         if self._verbose:
-            self._logger.info("<Behavior planner>: Path with velocity profile received from motion velocity smoother")
+            self._logger.info("<BehaviorPlanner>: Path with velocity profile received from motion velocity smoother")
 
         point_list = list()
         velocity_list = list()
@@ -489,7 +527,6 @@ class BehaviorPlanner:
         closest_idx = np.argmin(dist)
         return closest_idx
 
-    # Copied from Reactive Planner
     def set_reference_path(self, reference_path: np.ndarray = None, coordinate_system: CoordinateSystem = None):
             """
             Automatically creates a curvilinear coordinate system from a given reference path or sets a given

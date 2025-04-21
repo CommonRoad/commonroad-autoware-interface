@@ -4,6 +4,7 @@ import py_trees
 from py_trees.behaviour import Behaviour
 from py_trees.common import Status
 from py_trees.composites import Sequence, Selector, Parallel
+from .failsafe import FailSafe
 from .modules.traffic_light_behavior import TrafficLightsTree
 from .modules.lateral_clearance_velocity_adjuster import LateralClearanceVelocityAdjusterTree
 from commonroad.scenario.scenario import Scenario
@@ -116,18 +117,23 @@ class BehaviorTree(BaseTree):
 
         :return: Behavior tree root
         """
-        root = Parallel("MainBehaviorTree", policy=py_trees.common.ParallelPolicy.SuccessOnAll(synchronise=True))
+        root = Selector(name="MainBehaviorTree", memory=False)
 
+        # Create the main behavior tree
+        fail_safe = FailSafe(name="FailSafe", logger=self.logger)
+        module_tree = Parallel(name="BehaviorModules", policy=py_trees.common.ParallelPolicy.SuccessOnAll(synchronise=True))
+        
         # Initialize Sub Modules
         self.traffic_light_module = TrafficLightsTree(self.logger, self.verbose)
         self.lateral_clearance_velocity_adjuster = LateralClearanceVelocityAdjusterTree(self.logger, self.verbose)
         
         # Add sub-trees or behaviors here
         if self.params.traffic_light_behavior:
-            root.add_child(self.traffic_light_module.root)
+            module_tree.add_child(self.traffic_light_module.root)
         if self.params.lateral_clearance_velocity_adjuster:
-            root.add_child(self.lateral_clearance_velocity_adjuster.root)
+            module_tree.add_child(self.lateral_clearance_velocity_adjuster.root)
         
+        root.add_children([module_tree, fail_safe])
         return root
 
     def preprocessing(self, scenario: Scenario, current_state: EgoVehicleState, input_path: np.ndarray, coordinate_system: CoordinateSystem, input_path_curvilinear: np.ndarray, origin_transformation: List, z_coordinate: float, ros_time_msg: Time, input_path_orientation: np.ndarray) -> None:

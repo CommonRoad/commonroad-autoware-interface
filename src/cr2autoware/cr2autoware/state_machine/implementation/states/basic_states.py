@@ -109,6 +109,33 @@ class InteractiveDriving(Superstate):
         pass
 
 
+class InteractiveFailSafe(Superstate):
+    """
+    State for fail-safe.
+    """
+
+    def __init__(self, machine, config: StateConfig):
+        super().__init__(machine, config)
+
+    def _entry(self):
+        """
+        Entry action of the state.
+        """
+        pass
+
+    def _exit(self):
+        """
+        Exit action of the state.
+        """
+        pass
+
+    def _throughout(self):
+        """
+        Throughout action of the state.
+        """
+        pass
+
+
 class FollowTrajectory(State):
     """
     State for following a trajectory.

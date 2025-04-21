@@ -107,3 +107,14 @@ class ChangedInitialPoseEvent(Event):
         self.node.send_clear_route_srv_request()
 
         self.node._logger.debug("[SVEN]Initial Pose Update initiated.")
+
+class FailSafeEvent(Event):
+    """
+    Event for initialization of the state machine.
+    """
+
+    def __init__(self, machine, node):
+        super().__init__(machine, node)
+
+    def run(self):
+        self.node._logger.debug("[SVEN]Fail Safe triggered.")

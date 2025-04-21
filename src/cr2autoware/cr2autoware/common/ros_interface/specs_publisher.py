@@ -81,6 +81,10 @@ To add a new topic publisher, add the specification here first.
     * Description: Traffic light stop_line and stop_point
     * Topic: `/planning/commonroad/behavior_planning/traffic_light_marker`
     * Message Type: `visualization_msgs.msg.MarkerArray`
+* spec_failsafe_behavior_pub:
+    * Description: Failsafe message
+    * Topic: `/planning/commonroad/behavior_planning/failsafe`
+    * Message Type: `std_msgs.msg.Bool`
 """
 
 # ROS imports
@@ -90,6 +94,7 @@ from rclpy.qos import QoSDurabilityPolicy
 from geometry_msgs.msg import PoseWithCovarianceStamped
 from geometry_msgs.msg import PoseStamped
 from visualization_msgs.msg import MarkerArray
+from std_msgs.msg import Bool
 
 # Autoware messages
 from autoware_auto_planning_msgs.msg import Trajectory as AWTrajectory  # type: ignore
@@ -204,3 +209,8 @@ spec_lateral_clearance_pub = PublisherSpec(name="/planning/commonroad/behavior_p
 spec_traffic_light_marker_pub = PublisherSpec(name="/planning/commonroad/behavior_planning/traffic_light_marker",
                                                 msg_type=MarkerArray,
                                                 depth=1)
+
+# publish failsafe message
+spec_failsafe_behavior_pub = PublisherSpec(name="/planning/commonroad/behavior_planning/failsafe",
+                                           msg_type=Bool,
+                                           depth=1)

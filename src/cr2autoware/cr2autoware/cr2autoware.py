@@ -44,6 +44,7 @@ from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.logging import LoggingSeverity
 from rclpy.node import Node
+from std_msgs.msg import Bool
 
 # tf2
 import tf2_ros
@@ -67,7 +68,8 @@ from commonroad.visualization.mp_renderer import MPRenderer
 # cr2autoware imports
 import cr2autoware.state_machine as sm
 from cr2autoware.state_machine.implementation.events.basic_events import HasSolutionPath, NoSolutionPath, \
-    AutowareEngagedEvent, GoalReachedEvent, EngageFalseEvent, ClearRouteEvent, StopButtonEvent, ChangedInitialPoseEvent
+    AutowareEngagedEvent, GoalReachedEvent, EngageFalseEvent, ClearRouteEvent, StopButtonEvent, ChangedInitialPoseEvent, \
+    FailSafeEvent
 from cr2autoware.common.configuration import CR2AutowareParams
 from .handlers.scenario_handler import ScenarioHandler
 from .handlers.ego_vehicle_handler import EgoVehicleHandler
@@ -88,14 +90,14 @@ from .common.ros_interface.create import create_subscription, create_publisher, 
 # subscriber specifications
 from .common.ros_interface.specs_subscriptions import \
     spec_initial_pose_sub, spec_auto_button_sub, spec_velocity_limit_sub, spec_routing_state_sub, \
-    spec_autoware_state_sub, spec_echo_back_goal_pose_sub
+    spec_autoware_state_sub, spec_echo_back_goal_pose_sub, spec_failsafe_behavior_sub
 
 # publisher specifications
 from .common.ros_interface.specs_publisher import \
     spec_goal_pose_pub, spec_traj_pub, spec_aw_state_pub, spec_vehicle_engage_pub, spec_api_engage_pub, \
     spec_routing_state_pub, spec_route_pub, spec_velocity_pub, spec_initial_pose_pub, spec_goal_region_pub, \
     spec_velocity_limit_pub, spec_velocity_limit_pub_vis, spec_lateral_clearance_obstacles_pub, \
-    spec_lateral_clearance_pub, spec_traffic_light_marker_pub
+    spec_lateral_clearance_pub, spec_traffic_light_marker_pub, spec_failsafe_behavior_pub
 
 # service client specifications
 from .common.ros_interface.specs_clients import \
@@ -171,6 +173,10 @@ class Cr2Auto(Node):
         * Description: Traffic light visualization.
         * Topic: `/planning/commonroad/behavior_planning/traffic_light_marker`
         * Message Type: `visualization_msgs.msg.MarkerArray`
+    * failsafe_behavior_pub:
+        * Description: Failsafe behavior message.
+        * Topic: `/planning/commonroad/behavior_planning/failsafe`
+        * Message Type: `std_msgs.msg.Bool`
 
     ----------------
     **Subscribers:**
@@ -199,6 +205,10 @@ class Cr2Auto(Node):
         * Description: Routing state
         * Topic: `/api/routing/state`
         * Message Type: `autoware_adapi_v1_msgs.msg.RouteState`
+    * failsafe_behavior_sub:
+        * Description: FailSafe topic for behavior planner
+        * Topic: `/planning/commonroad/behavior_planning/failsafe`
+        * Message Type: `std_msgs.msg.Bool`
 
     ----------------
     **Service Clients:**
@@ -351,6 +361,10 @@ class Cr2Auto(Node):
         # subscribe routing state
         self.routing_state_sub = create_subscription(self, spec_routing_state_sub, self.routing_state_callback,
                                                      self.callback_group)
+        
+        # subscribe failsafe behavior
+        self.failsafe_behavior_sub = create_subscription(self, spec_failsafe_behavior_sub, self.failsafe_behavior_callback,
+                                                            self.callback_group)
 
         # ========= Publishers =========
         # publish goal pose
@@ -400,6 +414,8 @@ class Cr2Auto(Node):
         # publish traffic light marker
         self.traffic_light_marker_pub = create_publisher(self, spec_traffic_light_marker_pub)
 
+        # publish failsafe behavior
+        self.failsafe_behavior_pub = create_publisher(self, spec_failsafe_behavior_pub)
         # ========= Service Clients =========
         # client for change to stop service call (only for publishing "stop" if goal arrived)
         self.change_to_stop_client = create_client(self, spec_change_to_stop_client)
@@ -498,6 +514,7 @@ class Cr2Auto(Node):
             self.traffic_light_marker_pub,
             self.lateral_clearance_pub,
             self.lateral_clearance_obstacles_pub,
+            self.failsafe_behavior_pub,
             self._logger,
             self.verbose,
             self.get_parameter("behavior_planner.lookahead_dist").get_parameter_value().double_value,
@@ -680,6 +697,21 @@ class Cr2Auto(Node):
         end_time = time.time()
         self._logger.info(f"[SVEN] [TIME] Publish Route took {end_time - mid_time} seconds")
         self._logger.info(f"[SVEN] [TIME] TOTAL Behavior planning state took  {end_time - start_time} seconds")
+    
+    def behavior_failsafe(self) -> None:
+        """FailSafe behavior planning. Update reference path of trajectory planner."""
+        # plan route and reference path
+        _goal_pos_cr = map2utm(self.origin_transformation, self.current_goal_msg.pose.position)
+        self.behavior_planner.failsafe_planning(
+                                        self.route_planner.reference_path, 
+                                        _goal_pos_cr,
+                                        )
+        # publish current reference path
+        point_list = self.behavior_planner.reference_positions
+        reference_velocities = self.behavior_planner.reference_velocities
+        # call publisher
+        self.route_planner.publish(point_list, reference_velocities,
+                                    self.scenario_handler.z_coordinate)
         
     def publish_trajectory(self) -> None:
         """Plan and publish trajectory."""
@@ -1190,6 +1222,19 @@ class Cr2Auto(Node):
 
         # TODO why is the route pub used here?? Should be the goal publisher
         self.route_pub.publish(goals_msg)
+
+    def failsafe_behavior_callback(self, msg: Bool) -> None:
+        """
+        Callback to failsafe behavior. Save message for later processing.
+
+        :param msg: Failsafe behavior message
+        """
+        failsafe_behavior = msg.data
+
+        if failsafe_behavior:
+            self._logger.info("[SVEN]FailSafe behavior planning activated!")
+            self.state_machine.process_event(FailSafeEvent(self.state_machine, self))
+
 
     def _plot_scenario(self) -> None:
         """ Plot the commonroad scenario."""
