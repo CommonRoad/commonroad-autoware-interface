@@ -95,7 +95,6 @@ class LateralClearanceVelocityAdjuster(Behaviour):
         self.outputs = py_trees.blackboard.Client(name=(name + "Outputs"), namespace="/modules/lateral_clearance/outputs")
         self.outputs.register_key("velocity_profile", access=py_trees.common.Access.WRITE)
         self.outputs.register_key("lateral_clearance_marker_array", access=py_trees.common.Access.WRITE)
-        self.outputs.register_key("lateral_clearance_obstacles_marker_array", access=py_trees.common.Access.WRITE)
        
         # Init Parameter
         self.global_params: CR2AutowareParams = self.blackboard.global_params
@@ -136,8 +135,8 @@ class LateralClearanceVelocityAdjuster(Behaviour):
         vehicle_width: float = self.global_params.vehicle.wheel_tread + self.global_params.vehicle.right_overhang + self.global_params.vehicle.left_overhang
         min_distance: float = vehicle_width * 0.5
         safe_distance: float = vehicle_width
-        # flag to publish lateral clearance topics
-        publish_lateral_clearance_topics: bool = self.params.publish_lateral_clearance_topics
+        # flag to publish lateral clearance markers
+        publish_lateral_clearance_markers: bool = self.params.publish_lateral_clearance_markers
 
         # Get the reference path from the reactive planner
         reference_path_cartesian: np.ndarray = self.global_inputs.input_path
@@ -364,79 +363,26 @@ class LateralClearanceVelocityAdjuster(Behaviour):
 
         t_end = time.perf_counter()
         self._logger.debug(f"[SVEN]Time for lateral clearance velocity function: {t_end - t_start}")
-        if publish_lateral_clearance_topics:
-            self.publish_obstacles(obstacles_polygon)
-            self.publish_clearance(trajectory_positions, min_distance, safe_distance)
+        if publish_lateral_clearance_markers:
+            self.publish_rviz_markers(trajectory_positions, min_distance, safe_distance, obstacles_polygon)
 
-        return py_trees.common.Status.SUCCESS
+        return Status.SUCCESS
 
-    def publish_obstacles(self, multipolygon: MultiPolygon):
+    def publish_rviz_markers(self, trajectory_points: np.array, min_distance: float, safe_distance: float, multipolygon: MultiPolygon):
         """
-        Publishes the considerd obstacles for lateral clearance calculation to the ROS2 node.
-
-        :param multipolygon: MultiPolygon of the considered obstacles
-        """
-        marker_array = MarkerArray()
-
-        del_marker = Marker()
-        del_marker.action = Marker.DELETEALL
-        marker_array.markers.append(del_marker)
-
-        if multipolygon is not None:
-            if isinstance(multipolygon, Polygon):
-                polygons = [multipolygon]
-            elif isinstance(multipolygon, MultiPolygon):
-                polygons = multipolygon.geoms
-            else:
-                self._logger.error("[SVEN]Unsupported geometry type for multipolygon")
-                return
-            
-            origin_transformation = self.global_inputs.origin_transformation
-            z_coordinate = self.global_inputs.z_coordinate
-
-            for i, polygon in enumerate(polygons):
-                marker = Marker()
-                marker.header.frame_id = "map"
-                marker.header.stamp = Time().to_msg()
-                marker.ns = "obstacle_polygon"
-                marker.id = i
-                marker.type = Marker.LINE_STRIP
-                marker.action = Marker.ADD
-                marker.pose.orientation.w = 1.0
-                marker.scale.x = 0.1
-                marker.color.a = 1.0
-                marker.color.r = 1.0
-                marker.color.g = 0.0 
-                marker.color.b = 0.0
-
-                # Add points of the polygon to the marker
-                for x, y in polygon.exterior.coords:
-                    p = utm2map(origin_transformation, [x, y])
-                    p.z = z_coordinate
-                    marker.points.append(p)
-
-                # Add first point again to close the polygon
-                if len(polygon.exterior.coords) > 0:
-                    first_point = polygon.exterior.coords[0]
-                    p = utm2map(origin_transformation, [first_point[0], first_point[1]])
-                    p.z = z_coordinate
-                    marker.points.append(p)
-
-                marker_array.markers.append(marker)
-
-        self.outputs.lateral_clearance_obstacles_marker_array = marker_array
-
-    def publish_clearance(self, trajectory_points: np.array, min_distance: float, safe_distance: float):
-        """
-        Publishes the lateral clearance to the ROS2 node.
+        Publishes the lateral clearance markers to the ROS2 node.
 
         Red: no lateral clearance
         Yellow: minimal lateral clearance, but not safe lateral clearance
         Green: safe lateral clearance
+
+        Turquoise Rectangles: Obstacle polygons
+        Dark Green Points: Trajectory points
         
         :param trajectory_points: trajectory points of the ego vehicle
         :param min_distance: minimum radius of the lateral clearance
         :param safe_distance: safe radius of the lateral clearance
+        :param multipolygon: MultiPolygon of the considered obstacles
         """
         marker_array = MarkerArray()
         del_marker = Marker()
@@ -506,7 +452,7 @@ class LateralClearanceVelocityAdjuster(Behaviour):
                 traj_marker.scale.z = 0.01
                 traj_marker.color.a = 1.0
                 traj_marker.color.r = 0.0
-                traj_marker.color.g = 1.0
+                traj_marker.color.g = 128.0 / 255.0
                 traj_marker.color.b = 0.0
                 marker_array.markers.append(traj_marker)
 
@@ -583,6 +529,49 @@ class LateralClearanceVelocityAdjuster(Behaviour):
             marker_array.markers.append(normal_marker_red)
             marker_array.markers.append(normal_marker_yellow)
             marker_array.markers.append(normal_marker_green)
+        
+        # Add obstacle polygons to the marker array
+        if multipolygon is not None:
+            if isinstance(multipolygon, Polygon):
+                polygons = [multipolygon]
+            elif isinstance(multipolygon, MultiPolygon):
+                polygons = multipolygon.geoms
+            else:
+                self._logger.error("[SVEN]Unsupported geometry type for multipolygon")
+                return Status.FAILURE
+            
+            origin_transformation = self.global_inputs.origin_transformation
+            z_coordinate = self.global_inputs.z_coordinate
+
+            for i, polygon in enumerate(polygons):
+                marker = Marker()
+                marker.header.frame_id = "map"
+                marker.header.stamp = Time().to_msg()
+                marker.ns = "obstacle_polygon"
+                marker.id = i
+                marker.type = Marker.LINE_STRIP
+                marker.action = Marker.ADD
+                marker.pose.orientation.w = 1.0
+                marker.scale.x = 0.1
+                marker.color.a = 1.0
+                marker.color.r = 64.0 / 255.0
+                marker.color.g = 224.0 / 255.0
+                marker.color.b = 208.0 / 255.0
+
+                # Add points of the polygon to the marker
+                for x, y in polygon.exterior.coords:
+                    p = utm2map(origin_transformation, [x, y])
+                    p.z = z_coordinate
+                    marker.points.append(p)
+
+                # Add first point again to close the polygon
+                if len(polygon.exterior.coords) > 0:
+                    first_point = polygon.exterior.coords[0]
+                    p = utm2map(origin_transformation, [first_point[0], first_point[1]])
+                    p.z = z_coordinate
+                    marker.points.append(p)
+
+                marker_array.markers.append(marker)
 
         self.outputs.lateral_clearance_marker_array = marker_array
 

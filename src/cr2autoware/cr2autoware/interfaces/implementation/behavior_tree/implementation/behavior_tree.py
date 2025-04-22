@@ -7,6 +7,7 @@ from py_trees.composites import Sequence, Selector, Parallel
 from .failsafe import FailSafe
 from .modules.traffic_light_behavior import TrafficLightsTree
 from .modules.lateral_clearance_velocity_adjuster import LateralClearanceVelocityAdjusterTree
+from .modules.lane_keeping import LaneKeepingTree
 from commonroad.scenario.scenario import Scenario
 from  cr2autoware.common.configuration import BehaviorPlannerParams
 from cr2autoware.handlers.ego_vehicle_handler import EgoVehicleState
@@ -81,8 +82,8 @@ class BehaviorTree(BaseTree):
         # Register keys for Modules
         self.blackboard.register_key("/modules/traffic_lights/inputs/velocity_profile_without_traffic_lights", access=py_trees.common.Access.WRITE)
         self.blackboard.register_key("/modules/traffic_lights/outputs/velocity_profile", access=py_trees.common.Access.READ)
-        self.blackboard.register_key("/modules/traffic_lights/outputs/d_min", access=py_trees.common.Access.READ)
-        self.blackboard.register_key("/modules/traffic_lights/outputs/d_max", access=py_trees.common.Access.READ)
+        self.blackboard.register_key("/modules/lane_keeping/outputs/d_min", access=py_trees.common.Access.READ)
+        self.blackboard.register_key("/modules/lane_keeping/outputs/d_max", access=py_trees.common.Access.READ)
         self.blackboard.register_key("/modules/lateral_clearance/outputs/velocity_profile", access=py_trees.common.Access.READ)
         self.blackboard.register_key("params", access=py_trees.common.Access.READ)
         
@@ -126,12 +127,15 @@ class BehaviorTree(BaseTree):
         # Initialize Sub Modules
         self.traffic_light_module = TrafficLightsTree(self.logger, self.verbose)
         self.lateral_clearance_velocity_adjuster = LateralClearanceVelocityAdjusterTree(self.logger, self.verbose)
+        self.lane_keeping_module = LaneKeepingTree(self.logger, self.verbose)
         
         # Add sub-trees or behaviors here
         if self.params.traffic_light_behavior:
             module_tree.add_child(self.traffic_light_module.root)
         if self.params.lateral_clearance_velocity_adjuster:
             module_tree.add_child(self.lateral_clearance_velocity_adjuster.root)
+        if self.params.lane_keeping:
+            module_tree.add_child(self.lane_keeping_module.root)
         
         root.add_children([module_tree, fail_safe])
         return root
@@ -259,13 +263,13 @@ class BehaviorTree(BaseTree):
         This parameter is used in the reactive planner to calculate the minimum and maximum lateral offset d for trajectory planning.
         """
 
-        if self.blackboard.exists("/modules/traffic_lights/outputs/d_min"):
-            self.outputs.d_min = self.blackboard.modules.traffic_lights.outputs.d_min
+        if self.blackboard.exists("/modules/lane_keeping/outputs/d_min"):
+            self.outputs.d_min = self.blackboard.modules.lane_keeping.outputs.d_min
         else:
             self.outputs.d_min = None
 
-        if self.blackboard.exists("/modules/traffic_lights/outputs/d_max"):
-            self.outputs.d_max = self.blackboard.modules.traffic_lights.outputs.d_max
+        if self.blackboard.exists("/modules/lane_keeping/outputs/d_max"):
+            self.outputs.d_max = self.blackboard.modules.lane_keeping.outputs.d_max
         else:
             self.outputs.d_max = None
         

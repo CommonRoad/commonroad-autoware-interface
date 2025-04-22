@@ -21,7 +21,7 @@
       cr_obstacle_box_rear: 20.0 # m
       cr_obstacle_box_side: 25.0 # m (half width)
 
-      test_mode_traffic_light: True # test mode for traffic light handling
+      test_mode_traffic_light: False # test mode for traffic light handling
 
     vehicle:
       # static parameters (e.g., wheel_base) are read from vehicle_info.param.yaml (see cr2autoware/configuration.py)
@@ -68,7 +68,6 @@
       distance_stop_line_to_vehicle_front_bumper: 1.0  # m
       max_comfort_deceleration: 2.0  # m/s^2
       system_delay: 0.5  # s
-      d_minimal_buffer: 0.5  # m
       comfort_rollout: True
       comfort_rollout_distance: 10.0  # m
       comfort_rollout_speed: 3.0  # m/s
@@ -85,4 +84,11 @@
       min_look_ahead_distance: 50.0  # m
       time_threshold: 3.0  # s
       min_reference_velocity: 1.0  # m/s
-      publish_lateral_clearance_topics: True
+      publish_lateral_clearance_markers: True
+
+      # lane keeping module
+      lane_keeping: True
+      force_lane_keeping: False
+      d_minimal_buffer: 0.5  # m
+      min_look_ahead_distance_lane_width: 50.0  # m
+      publish_lane_keeping_markers: True

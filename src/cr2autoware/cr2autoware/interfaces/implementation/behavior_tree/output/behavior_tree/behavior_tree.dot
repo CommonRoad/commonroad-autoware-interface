@@ -62,6 +62,28 @@ ErrorHandlingAction [label=ErrorHandlingAction, shape=ellipse, style=filled, fil
 CheckForTrafficLights -> ErrorHandlingAction;
 LateralClearanceVelocityAdjuster [label=LateralClearanceVelocityAdjuster, shape=ellipse, style=filled, fillcolor=gray, fontsize=9, fontcolor=black];
 BehaviorModules -> LateralClearanceVelocityAdjuster;
+LaneKeepingModule [label=LaneKeepingModule, shape=octagon, style=filled, fillcolor=cyan, fontsize=9, fontcolor=black];
+BehaviorModules -> LaneKeepingModule;
+LaneKeepingSequence [label=LaneKeepingSequence, shape=box, style=filled, fillcolor=orange, fontsize=9, fontcolor=black];
+LaneKeepingModule -> LaneKeepingSequence;
+CheckForRestrictions [label=CheckForRestrictions, shape=octagon, style=filled, fillcolor=cyan, fontsize=9, fontcolor=black];
+LaneKeepingSequence -> CheckForRestrictions;
+BlackboardCondition [label=BlackboardCondition, shape=ellipse, style=filled, fillcolor=gray, fontsize=9, fontcolor=black];
+CheckForRestrictions -> BlackboardCondition;
+ROSCondition [label=ROSCondition, shape=ellipse, style=filled, fillcolor=gray, fontsize=9, fontcolor=black];
+CheckForRestrictions -> ROSCondition;
+ConfigCondition [label=ConfigCondition, shape=ellipse, style=filled, fillcolor=gray, fontsize=9, fontcolor=black];
+CheckForRestrictions -> ConfigCondition;
+ApplyLaneKeepingAction [label=ApplyLaneKeepingAction, shape=ellipse, style=filled, fillcolor=gray, fontsize=9, fontcolor=black];
+LaneKeepingSequence -> ApplyLaneKeepingAction;
+PublishRVIZMarkerLaneKeeping [label=PublishRVIZMarkerLaneKeeping, shape=ellipse, style=filled, fillcolor=gray, fontsize=9, fontcolor=black];
+LaneKeepingSequence -> PublishRVIZMarkerLaneKeeping;
+NoLaneKeepingSequence [label=NoLaneKeepingSequence, shape=box, style=filled, fillcolor=orange, fontsize=9, fontcolor=black];
+LaneKeepingModule -> NoLaneKeepingSequence;
+ApplyDefaultAction [label=ApplyDefaultAction, shape=ellipse, style=filled, fillcolor=gray, fontsize=9, fontcolor=black];
+NoLaneKeepingSequence -> ApplyDefaultAction;
+PublishRVIZMarkerNoLaneKeeping [label=PublishRVIZMarkerNoLaneKeeping, shape=ellipse, style=filled, fillcolor=gray, fontsize=9, fontcolor=black];
+NoLaneKeepingSequence -> PublishRVIZMarkerNoLaneKeeping;
 FailSafe [label=FailSafe, shape=ellipse, style=filled, fillcolor=gray, fontsize=9, fontcolor=black];
 MainBehaviorTree -> FailSafe;
 }

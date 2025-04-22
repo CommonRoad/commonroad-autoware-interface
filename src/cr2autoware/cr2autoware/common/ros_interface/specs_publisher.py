@@ -69,9 +69,9 @@ To add a new topic publisher, add the specification here first.
     * Description: CommonRoad scenario box for obstacles
     * Topic: `/planning/commonroad/cr_obstacle_box`
     * Message Type: `visualization_msgs.msg.MarkerArray`
-* spec_lateral_clearance_obstacles_pub:
-    * Description: Lateral clearance function obstacles
-    * Topic: `/planning/commonroad/behavior_planning/lateral_clearance_obstacles`
+* spec_lane_keeping_markers_pub:
+    * Description: Lane keeping visualization.
+    * Topic: `/planning/commonroad/behavior_planning/lane_keeping_marker`
     * Message Type: `visualization_msgs.msg.MarkerArray`
 * spec_lateral_clearance_pub:
     * Description: Lateral clearance visualization
@@ -192,8 +192,11 @@ spec_cr_obstacle_box_pub = PublisherSpec(name="/planning/commonroad/cr_obstacle_
                                      msg_type=MarkerArray,
                                      depth=1)
 
-# publish obstacles for lateral clearance behavior planning
-spec_lateral_clearance_obstacles_pub = PublisherSpec(name="/planning/commonroad/behavior_planning/lateral_clearance_obstacles",
+# =========================================
+# List of all publisher in Behavior Tree
+
+# publish markers for lane keeping behavior planning
+spec_lane_keeping_markers_pub = PublisherSpec(name="/planning/commonroad/behavior_planning/lane_keeping_marker",
                                                  msg_type=MarkerArray,
                                                  depth=1)
 
@@ -201,9 +204,6 @@ spec_lateral_clearance_obstacles_pub = PublisherSpec(name="/planning/commonroad/
 spec_lateral_clearance_pub = PublisherSpec(name="/planning/commonroad/behavior_planning/lateral_clearance",
                                                   msg_type=MarkerArray,
                                                   depth=1)
-
-# =========================================
-# List of all publisher in Behavior Tree
 
 # publish traffic light stop_line and stop_point
 spec_traffic_light_marker_pub = PublisherSpec(name="/planning/commonroad/behavior_planning/traffic_light_marker",

@@ -2,15 +2,14 @@ import py_trees
 from ...base.base_tree import BaseTree
 from py_trees.behaviour import Behaviour
 from py_trees.common import Status
-from py_trees.composites import Sequence, Selector, Parallel
-from commonroad.scenario.scenario import Scenario, Lanelet
+from py_trees.composites import Sequence, Selector
+from commonroad.scenario.scenario import Scenario
 from commonroad.scenario.traffic_light import TrafficLight, TrafficLightState
 from cr2autoware.common.configuration import BehaviorPlannerParams
 from cr2autoware.common.configuration import CR2AutowareParams
-from cr2autoware.interfaces.implementation.behavior_tree.behavior_utils import calculate_current_position_index, minimum_width_lanelet
+from cr2autoware.interfaces.implementation.behavior_tree.behavior_utils import calculate_current_position_index
 from commonroad_rp.utility.utils_coordinate_system import CoordinateSystem
 from typing import List, Set, Dict
-import copy
 from ...behavior_utils import copy_from_blackboard
 import numpy as np
 from rclpy.impl.rcutils_logger import RcutilsLogger
@@ -170,8 +169,6 @@ class TrafficLightBehavior(Behaviour):
         self.outputs = py_trees.blackboard.Client(name=(name + "Outputs"), namespace="/modules/traffic_lights/outputs")
         self.outputs.register_key("velocity_profile", access=py_trees.common.Access.WRITE)
         self.outputs.register_key("traffic_light_marker_array", access=py_trees.common.Access.WRITE)
-        self.outputs.register_key("d_min", access=py_trees.common.Access.WRITE)
-        self.outputs.register_key("d_max", access=py_trees.common.Access.WRITE)
 
         # Init Parameter
         self.global_params: CR2AutowareParams = self.blackboard.global_params
@@ -357,6 +354,8 @@ class TrafficLightOutOfRangeCondition(TrafficLightBehavior):
     def __init__(self, name, logger: RcutilsLogger):
         super().__init__(name, logger)
 
+        self.blackboard.register_key("/modules/lane_keeping/inputs/blackboard_condition", access=py_trees.common.Access.WRITE)
+
     def setup(self):
         pass
 
@@ -404,50 +403,8 @@ class TrafficLightOutOfRangeCondition(TrafficLightBehavior):
             self.inputs.traffic_lights_in_range = {min_distance_id: traffic_lights_in_range[min_distance_id]}
             self.inputs.current_traffic_light_id = min_distance_id
 
-            ############################################################################################
-            # NO OVERTAKE BEFORE TRAFFIC LIGHT
-            ############################################################################################
-            # TODO: Refactor no overtake before traffic light in own module/function
-            # Traffic light in range, so lateral offset restriction required (overtake not allowed)
-            relevant_lanelets = self.inputs.relevant_lanelets
-
-            # Get minimal width of the lanelets
-            min_width = None
-            for lanelet_id in relevant_lanelets:
-                lanelet = self.global_inputs.scenario.lanelet_network.find_lanelet_by_id(lanelet_id)
-                width = minimum_width_lanelet(lanelet)
-                self._logger.debug("[SVEN]Lanelet id: " + str(lanelet_id) + ", width: " + str(width))
-
-                if min_width is None or width < min_width:
-                    min_width = width
-            
-            self._logger.debug("[SVEN]Min width: " + str(min_width))
-
-            # Get the vehicle width
-            vehicle_width = self.global_params.vehicle.wheel_tread + self.global_params.vehicle.right_overhang + self.global_params.vehicle.left_overhang
-            # Get default lateral offset
-            default_d_min = self.global_params.rp_interface.d_min
-            default_d_max = self.global_params.rp_interface.d_max
-
-            # Calculate the lateral offset restriction
-            d_abs = (min_width - vehicle_width) / 2
-            # Keep a minimal buffer for safe trajectory planning
-            d_min_buffer = self.params.d_minimal_buffer
-            if d_abs < d_min_buffer:
-                d_abs = d_min_buffer
-            if d_abs < np.abs(default_d_min):
-                self.outputs.d_min = -d_abs
-            else:
-                self.outputs.d_min = None
-            
-            if d_abs < np.abs(default_d_max):
-                self.outputs.d_max = d_abs
-            else:
-                self.outputs.d_max = None
-
-            ################################################################################################
-            # END NO OVERTAKE BEFORE TRAFFIC LIGHT
-            ################################################################################################
+            # Apply Lane Keeping
+            self.blackboard.modules.lane_keeping.inputs.blackboard_condition = True
 
             return Status.FAILURE
         else:
@@ -461,11 +418,6 @@ class TrafficLightOutOfRangeCondition(TrafficLightBehavior):
             marker_array.markers.append(del_marker)
             self.outputs.traffic_light_marker_array = marker_array
 
-            ############################################################################################
-            # No traffic light in range, so no latteral offset restriction required (overtake allowed)
-            self.outputs.d_min = None
-            self.outputs.d_max = None
-            ############################################################################################
             return Status.SUCCESS
 
     def terminate(self, new_status):
@@ -1162,66 +1114,6 @@ class PublishRVIZMarker(TrafficLightBehavior):
                 text_marker.pose.position.z = z
                 marker_array.markers.append(text_marker)
 
-            ################################################################################################
-            # NO OVERTAKE Marker
-
-            if self.outputs.exists("d_min") and self.outputs.exists("d_max"):
-                if self.outputs.d_min is not None and self.outputs.d_max is not None:
-
-                    input_path_curvilinear = self.global_inputs.input_path_curvilinear
-                    current_position_index = self.global_inputs.current_position_index
-                    coordinate_system: CoordinateSystem = self.global_inputs.coordinate_system
-
-                    path = input_path_curvilinear[current_position_index:]
-
-                    d_min_vehicle = self.outputs.d_min - 0.5 * (self.global_params.vehicle.wheel_tread + self.global_params.vehicle.right_overhang + self.global_params.vehicle.left_overhang)
-                    d_max_vehicle = self.outputs.d_max + 0.5 * (self.global_params.vehicle.wheel_tread + self.global_params.vehicle.right_overhang + self.global_params.vehicle.left_overhang)
-                    
-                    min_path: List[np.ndarray] = []
-                    max_path: List[np.ndarray] = []
-                    for point in path:
-                        point_cart_min = coordinate_system.convert_to_cartesian_coords(point, d_min_vehicle)
-                        try:
-                            point_cart_min_aw = utm2map(self.global_inputs.get("origin_transformation"), point_cart_min)
-                            point_cart_min_aw_msg = PointMsg(x=point_cart_min_aw.x, y=point_cart_min_aw.y, z=z)
-                            min_path.append(point_cart_min_aw_msg)
-                        except:
-                            pass
-                        point_cart_max = coordinate_system.convert_to_cartesian_coords(point, d_max_vehicle)
-                        try:
-                            point_cart_max_aw = utm2map(self.global_inputs.get("origin_transformation"), point_cart_max)
-                            point_cart_max_aw_msg = PointMsg(x=point_cart_max_aw.x, y=point_cart_max_aw.y, z=z)
-                            max_path.append(point_cart_max_aw_msg)
-                        except:
-                            pass
-
-                    no_overtake_marker = Marker()
-                    no_overtake_marker.header.frame_id = "map"
-                    no_overtake_marker.header.stamp = self.global_inputs.get("current_time_msg")
-                    no_overtake_marker.type = Marker.LINE_STRIP
-                    no_overtake_marker.action = Marker.ADD
-                    no_overtake_marker.scale.x = 0.1
-                    no_overtake_marker.color.a = 1.0
-                    no_overtake_marker.color.r = 1.0
-                    no_overtake_marker.color.g = 1.0
-                    no_overtake_marker.color.b = 1.0
-                    
-                    no_overtake_marker_min = copy.deepcopy(no_overtake_marker)
-                    no_overtake_marker_max = copy.deepcopy(no_overtake_marker)
-
-                    no_overtake_marker_min.id = 11
-                    no_overtake_marker_min.ns = "no_overtake_min"
-                    no_overtake_marker_min.points = min_path
-                    
-                    no_overtake_marker_max.id = 12
-                    no_overtake_marker_max.ns = "no_overtake_max"
-                    no_overtake_marker_max.points = max_path
-
-
-                    marker_array.markers.append(no_overtake_marker_min)
-                    marker_array.markers.append(no_overtake_marker_max)
-            
-            ################################################################################################
         else:
             marker_array = MarkerArray()
             del_marker = Marker()

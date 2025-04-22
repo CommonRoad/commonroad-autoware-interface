@@ -58,6 +58,10 @@ To add a new topic subscription, add the specification here first.
     * Description: subscribe failsafe boolean for behavior planning
     * Topic: `/planning/commonroad/behavior_planning/failsafe`
     * Message Type: `std_msgs.msg.Bool`
+* spec_keep_lane_sub
+    * Description: subscribe keep lane boolean for behavior planning
+    * Topic: `/planning/commonroad/behavior_planning/keep_lane_bool`
+    * Message Type: `std_msgs.msg.Bool`
 """
 
 # ROS messages
@@ -175,6 +179,13 @@ spec_simulated_traffic_light_sub = SubscriptionSpec(
 # subscribes to the failsafe boolean for behavior planning
 spec_failsafe_behavior_sub = SubscriptionSpec(
     name="/planning/commonroad/behavior_planning/failsafe",
+    msg_type=Bool,
+    depth=1
+)
+
+# subscribes to the keep lane boolean for behavior planning
+spec_keep_lane_sub = SubscriptionSpec(
+    name="/planning/commonroad/behavior_planning/keep_lane_bool",
     msg_type=Bool,
     depth=1
 )

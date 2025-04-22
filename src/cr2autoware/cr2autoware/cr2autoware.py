@@ -90,13 +90,14 @@ from .common.ros_interface.create import create_subscription, create_publisher, 
 # subscriber specifications
 from .common.ros_interface.specs_subscriptions import \
     spec_initial_pose_sub, spec_auto_button_sub, spec_velocity_limit_sub, spec_routing_state_sub, \
-    spec_autoware_state_sub, spec_echo_back_goal_pose_sub, spec_failsafe_behavior_sub
+    spec_autoware_state_sub, spec_echo_back_goal_pose_sub, spec_failsafe_behavior_sub, spec_traj_smoothed, \
+    spec_keep_lane_sub
 
 # publisher specifications
 from .common.ros_interface.specs_publisher import \
     spec_goal_pose_pub, spec_traj_pub, spec_aw_state_pub, spec_vehicle_engage_pub, spec_api_engage_pub, \
     spec_routing_state_pub, spec_route_pub, spec_velocity_pub, spec_initial_pose_pub, spec_goal_region_pub, \
-    spec_velocity_limit_pub, spec_velocity_limit_pub_vis, spec_lateral_clearance_obstacles_pub, \
+    spec_velocity_limit_pub, spec_velocity_limit_pub_vis, spec_lane_keeping_markers_pub, \
     spec_lateral_clearance_pub, spec_traffic_light_marker_pub, spec_failsafe_behavior_pub
 
 # service client specifications
@@ -161,9 +162,9 @@ class Cr2Auto(Node):
         * Description: Maximum velocity limit for visualization in RVIZ.
         * Topic: `/planning/scenario_planning/current_max_velocity`
         * Message Type: `tier4_planning_msgs.msg.VelocityLimit`
-    * lateral_clearance_obstacles_pub:
-        * Description: Lateral clearance function obstacles.
-        * Topic: `/planning/commonroad/behavior_planning/lateral_clearance_obstacles`
+    * lane_keeping_markers_pub:
+        * Description: Lane keeping visualization.
+        * Topic: `/planning/commonroad/behavior_planning/lane_keeping_marker`
         * Message Type: `visualization_msgs.msg.MarkerArray`
     * lateral_clearance_pub:
         * Description: Lateral clearance visualization.
@@ -205,10 +206,18 @@ class Cr2Auto(Node):
         * Description: Routing state
         * Topic: `/api/routing/state`
         * Message Type: `autoware_adapi_v1_msgs.msg.RouteState`
+    * keep_lane_sub:
+        * Description: Keep lane message
+        * Topic: `/planning/commonroad/behavior_planning/keep_lane_bool`
+        * Message Type: `std_msgs.msg.Bool`
     * failsafe_behavior_sub:
         * Description: FailSafe topic for behavior planner
         * Topic: `/planning/commonroad/behavior_planning/failsafe`
         * Message Type: `std_msgs.msg.Bool`
+    * traj_sub_smoothed_behavior_planner:
+        * Description: Trajectory from motion velocity smoother
+        * Topic: `/planning/scenario_planning/trajectory_smoothed`
+        * Message Type: `autoware_auto_planning_msgs.msg.Trajectory`
 
     ----------------
     **Service Clients:**
@@ -406,8 +415,9 @@ class Cr2Auto(Node):
         # (this separate topic is currently only subscribed by RVIZ)
         self.velocity_limit_pub_vis = create_publisher(self, spec_velocity_limit_pub_vis)
 
-        # publish lateral clearance obstacles
-        self.lateral_clearance_obstacles_pub = create_publisher(self, spec_lateral_clearance_obstacles_pub)
+        # publish lane keeping markers
+        self.lane_keeping_markers_pub = create_publisher(self, spec_lane_keeping_markers_pub)
+
         # publish lateral clearance
         self.lateral_clearance_pub = create_publisher(self, spec_lateral_clearance_pub)
 
@@ -513,7 +523,7 @@ class Cr2Auto(Node):
             self.velocity_pub,
             self.traffic_light_marker_pub,
             self.lateral_clearance_pub,
-            self.lateral_clearance_obstacles_pub,
+            self.lane_keeping_markers_pub,
             self.failsafe_behavior_pub,
             self._logger,
             self.verbose,
@@ -525,11 +535,18 @@ class Cr2Auto(Node):
         )
  
         # subscribe trajectory from motion velocity smoother
-        self.traj_sub_smoothed_behavior_planner = self.create_subscription(
-            AWTrajectory,
-            "/planning/scenario_planning/trajectory_smoothed",
+        self.traj_smoothed_behavior_planner_sub = create_subscription(
+            self,
+            spec_traj_smoothed,
             self.behavior_planner.smoothed_trajectory_callback,
-            1,
+            callback_group=self.callback_group
+        )
+
+        # subscribe to keep lane boolean topic
+        self.keep_lane_behavior_planner_sub = create_subscription(
+            self,
+            spec_keep_lane_sub,
+            self.behavior_planner.keep_lane_callback,
             callback_group=self.callback_group
         )
 

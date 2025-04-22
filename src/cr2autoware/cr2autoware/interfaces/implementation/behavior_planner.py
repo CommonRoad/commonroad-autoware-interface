@@ -56,9 +56,9 @@ class BehaviorPlanner:
         * Description: Publishes reference path with velocity profile to motion velocity smoother
         * Topic: `/planning/scenario_planning/trajectory_smoothed`
         * Message Type: `autoware_auto_planning_msgs/Trajectory`
-    * lateral_clearance_obstacles_pub:
-        * Description: Lateral clearance function obstacles.
-        * Topic: `/planning/commonroad/behavior_planning/lateral_clearance_obstacles`
+    * lane_keeping_markers_pub:
+        * Description: Lane keeping visualization.
+        * Topic: `/planning/commonroad/behavior_planning/lane_keeping_marker`
         * Message Type: `visualization_msgs.msg.MarkerArray`
     * lateral_clearance_pub:
         * Description: Lateral clearance visualization.
@@ -83,7 +83,7 @@ class BehaviorPlanner:
     :var _lookahead_dist: lookahead distance for velocity planning
     :var _lookahead_time: lookahead time for velocity planning
     """
-    def __init__(self, ref_path_pub: Publisher, traffic_light_marker_pub: Publisher, lateral_clearance_pub: Publisher, lateral_clearance_obstacles_pub: Publisher, failsafe_pub: Publisher, logger: RcutilsLogger, verbose: bool,
+    def __init__(self, ref_path_pub: Publisher, traffic_light_marker_pub: Publisher, lateral_clearance_pub: Publisher, lane_keeping_markers_pub: Publisher, failsafe_pub: Publisher, logger: RcutilsLogger, verbose: bool,
                  lookahead_dist: float, lookahead_time: float, origin_transformation: List, global_params: CR2AutowareParams, scenario_handler: ScenarioHandler) -> None:
         """
         Constructor for BehaviorPlanner class.
@@ -91,7 +91,7 @@ class BehaviorPlanner:
         :param ref_path_pub: ROS2 node publisher for reference path
         :param traffic_light_marker_pub: ROS2 node publisher for traffic light marker
         :param lateral_clearance_pub: ROS2 node publisher for lateral clearance marker
-        :param lateral_clearance_obstacles_pub: ROS2 node publisher for lateral clearance obstacles marker
+        :param lane_keeping_markers_pub: ROS2 node publisher for lane keeping marker
         :param failsafe_pub: ROS2 node publisher for failsafe message
         :param logger: ROS2 node logger
         :param verbose: Flag for verbose logging
@@ -106,7 +106,7 @@ class BehaviorPlanner:
         self._ref_path_pub = ref_path_pub
         self._traffic_light_marker_pub = traffic_light_marker_pub
         self._lateral_clearance_pub = lateral_clearance_pub
-        self._lateral_clearance_obstacles_pub = lateral_clearance_obstacles_pub
+        self._lane_keeping_markers_pub = lane_keeping_markers_pub
         self._failsafe_pub = failsafe_pub
 
         self._verbose = verbose
@@ -133,6 +133,9 @@ class BehaviorPlanner:
         self.blackboard.params = self.params
         self.blackboard.register_key("global_params", access=py_trees.common.Access.WRITE)
         self.blackboard.global_params = self.global_params
+        # Register keys for Callbacks
+        self.blackboard.register_key("/modules/lane_keeping/inputs/ros_condition", access=py_trees.common.Access.WRITE)
+        self.blackboard.modules.lane_keeping.inputs.ros_condition = False        
         # Register keys for ROS Publisher
         self.blackboard.register_key("/failsafe/bool", access=py_trees.common.Access.WRITE)
         self.blackboard.failsafe.bool = False
@@ -140,8 +143,8 @@ class BehaviorPlanner:
         self.blackboard.modules.traffic_lights.outputs.traffic_light_marker_array = MarkerArray()
         self.blackboard.register_key("/modules/lateral_clearance/outputs/lateral_clearance_marker_array", access=py_trees.common.Access.WRITE)
         self.blackboard.modules.lateral_clearance.outputs.lateral_clearance_marker_array = MarkerArray()
-        self.blackboard.register_key("/modules/lateral_clearance/outputs/lateral_clearance_obstacles_marker_array", access=py_trees.common.Access.WRITE)
-        self.blackboard.modules.lateral_clearance.outputs.lateral_clearance_obstacles_marker_array = MarkerArray()
+        self.blackboard.register_key("/modules/lane_keeping/outputs/lane_keeping_marker_array", access=py_trees.common.Access.WRITE)
+        self.blackboard.modules.lane_keeping.outputs.lane_keeping_marker_array = MarkerArray()
 
         # Initialize the Behavior Tree
         self.behavior_tree = BehaviorTree(self._logger, self._verbose)
@@ -311,6 +314,8 @@ class BehaviorPlanner:
         # Publish lateral clearance velocity adjuster marker
         self._pub_lateral_clearance_marker()
 
+        self._pub_lane_keeping_markers()
+
         plan_end_time_2 = time.time()
 
         if self._verbose:
@@ -419,7 +424,9 @@ class BehaviorPlanner:
 
     def _pub_lateral_clearance_marker(self) -> None:
         self._lateral_clearance_pub.publish(self.blackboard.modules.lateral_clearance.outputs.lateral_clearance_marker_array)
-        self._lateral_clearance_obstacles_pub.publish(self.blackboard.modules.lateral_clearance.outputs.lateral_clearance_obstacles_marker_array)
+
+    def _pub_lane_keeping_markers(self) -> None:
+        self._lane_keeping_markers_pub.publish(self.blackboard.modules.lane_keeping.outputs.lane_keeping_marker_array)
 
     def convert_velocity_profile(self, source_path: np.ndarray, source_velocity_profile: np.ndarray, target_path: np.ndarray) -> np.ndarray:
         """
@@ -513,6 +520,18 @@ class BehaviorPlanner:
             self._logger.info("Nearest index: " + str(closest_idx) + ", lookahead index: " + str(vel_index))
         
         return self.reference_velocities[vel_index]
+
+    def keep_lane_callback(self, msg: Bool) -> None:
+        """
+        Call back function which subscribes to keep lane boolean.
+        
+        :param msg: Bool message
+        """
+        if msg.data is True:
+            self.blackboard.modules.lane_keeping.inputs.ros_condition = True
+        
+        if msg.data is False:
+            self.blackboard.modules.lane_keeping.inputs.ros_condition = False
 
     @staticmethod
     def _get_closest_point_idx_on_path(path: np.ndarray, position: np.ndarray) -> int:

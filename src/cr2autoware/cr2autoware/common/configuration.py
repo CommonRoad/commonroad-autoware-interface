@@ -369,8 +369,6 @@ class BehaviorPlannerParams(BaseParams):
     max_comfort_deceleration: float = 2.0
     # system delay for braking distance calculation (in seconds)
     system_delay: float = 0.5
-    # minimal buffer for lateral offset trajectory planner (in meters)
-    d_minimal_buffer: float = 0.5
     # Activate comfort rollout stopping procedure
     comfort_rollout: bool = True
     # Rollout distance for comfort stopping procedure (in meters)
@@ -401,8 +399,20 @@ class BehaviorPlannerParams(BaseParams):
     time_threshold: float = 3.0
     # minimum reference velocity for lateral clearance function (in m/s)
     min_reference_velocity: float = 1.0
-    # flag to publish lateral clearance topics
-    publish_lateral_clearance_topics: bool = True
+    # flag to publish lateral clearance markers
+    publish_lateral_clearance_markers: bool = True
+
+    # Parameters for lane keeping module
+    # activate lane keeping module
+    lane_keeping: bool = True
+    # force the vehicle to stay in the lane
+    force_lane_keeping: bool = False
+    # minimal buffer for lateral offset trajectory planner (in meters)
+    d_minimal_buffer: float = 0.5
+    # minimal loock ahead distance for lane width 
+    min_look_ahead_distance_lane_width: float = 50.0
+    # flag to publish lane keeping markers
+    publish_lane_keeping_markers: bool = True
 
     def __post_init__(self):
         # declare ROS params
