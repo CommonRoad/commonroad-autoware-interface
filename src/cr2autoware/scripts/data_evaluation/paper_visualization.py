@@ -5,9 +5,8 @@ from pathlib import Path
 from typing import List, Optional
 
 import imageio.v3 as iio
-import numpy as np
 from commonroad.common.file_reader import CommonRoadFileReader
-from commonroad.scenario.obstacle import ObstacleType, Obstacle
+from commonroad.scenario.obstacle import ObstacleType
 from commonroad.visualization.draw_params import MPDrawParams
 from commonroad.visualization.mp_renderer import MPRenderer
 from matplotlib import pyplot as plt
@@ -29,7 +28,9 @@ class Plot:
 
     @cached_property
     def scenario_path(self) -> Path:
-        return self.base_path / "CommonRoad" / f"scenario_obstacles_ego_interpolated.xml"
+        return (
+            self.base_path / "CommonRoad" / f"scenario_obstacles_ego_interpolated.xml"
+        )
 
     @cached_property
     def save_path(self) -> Path:
@@ -41,7 +42,9 @@ class Plot:
 
     def get_frame_number(self, initial_step: int) -> int:
         frames_per_step = self.fps * self.dt
-        return round((self.time_step - initial_step) * frames_per_step) + self.frame_offset
+        return (
+            round((self.time_step - initial_step) * frames_per_step) + self.frame_offset
+        )
 
 
 def main() -> None:
@@ -76,22 +79,22 @@ def main() -> None:
             plot.save_path.mkdir(parents=True)
 
         # Load commonroad scenario
-        scenario, _ = CommonRoadFileReader(
-            filename_2020a=plot.scenario_path
-        ).open()
+        scenario, _ = CommonRoadFileReader(filename_2020a=plot.scenario_path).open()
         ego = scenario.obstacle_by_id(plot.ego_id)
         scenario.remove_obstacle(ego)
-        scenario.remove_obstacle([
-            obs
-            for obs in scenario.obstacles
-            if obs.state_at_time(plot.time_step) is None
-        ])
+        scenario.remove_obstacle(
+            [
+                obs
+                for obs in scenario.obstacles
+                if obs.state_at_time(plot.time_step) is None
+            ]
+        )
 
         relevant_traffic_signs = [
             ts
             for ts in scenario.lanelet_network.traffic_signs
-            if plot.plot_limits[0] <= ts.position[0] <= plot.plot_limits[1] and
-               plot.plot_limits[2] <= ts.position[1] <= plot.plot_limits[3]
+            if plot.plot_limits[0] <= ts.position[0] <= plot.plot_limits[1]
+            and plot.plot_limits[2] <= ts.position[1] <= plot.plot_limits[3]
         ]
 
         def type_to_min_vel(obs_type: ObstacleType):
@@ -108,12 +111,15 @@ def main() -> None:
         standing_obstacles = [
             obs
             for obs in scenario.dynamic_obstacles
-            if (state := obs.state_at_time(plot.time_step)) is not None and abs(state.velocity) < type_to_min_vel(obs.obstacle_type)
+            if (state := obs.state_at_time(plot.time_step)) is not None
+            and abs(state.velocity) < type_to_min_vel(obs.obstacle_type)
         ]
         scenario.remove_obstacle(standing_obstacles)
 
         # Draw the scenario and ego vehicle
-        draw_params = MPDrawParams(time_begin=plot.time_step, time_end=plot.time_step + plot.horizon)
+        draw_params = MPDrawParams(
+            time_begin=plot.time_step, time_end=plot.time_step + plot.horizon
+        )
         draw_params.lanelet_network.traffic_light.draw_traffic_lights = False
         draw_params.lanelet_network.traffic_sign.draw_traffic_signs = False
         draw_params.dynamic_obstacle.draw_icon = True
@@ -146,7 +152,13 @@ def main() -> None:
         # Save the plot
         plt.axis("off")
         # plt.show()
-        plt.savefig(plot.save_path / f"commonroad.svg", format="svg", bbox_inches="tight", pad_inches=0, transparent=True)
+        plt.savefig(
+            plot.save_path / f"commonroad.svg",
+            format="svg",
+            bbox_inches="tight",
+            pad_inches=0,
+            transparent=True,
+        )
 
         # Save the corresponding video frame
         frame = iio.imread(
@@ -155,6 +167,7 @@ def main() -> None:
             plugin="pyav",
         )
         iio.imwrite(plot.save_path / f"edgar.png", frame)
+
 
 if __name__ == "__main__":
     import matplotlib
