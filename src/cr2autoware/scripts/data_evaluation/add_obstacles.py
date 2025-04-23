@@ -25,8 +25,6 @@ from data_eval_utils import convert_ros2_time_tuple_to_float
 # typing
 from typing import List, Any, Union, Dict
 
-dict_obstacle_id_to_list_obstacles = defaultdict(list)
-
 
 _logger = Logger(__name__)
 
@@ -62,6 +60,7 @@ def add_dynamic_obstacles(
     ).open()
 
     # Find out how the dynamic obstacles evolve over time
+    dict_obstacle_id_to_list_obstacles = defaultdict(list)
     for time_idx, obstacle_list in enumerate(dynamic_obstacles_per_time_step):
         if(len(obstacle_list) == 0):
             continue

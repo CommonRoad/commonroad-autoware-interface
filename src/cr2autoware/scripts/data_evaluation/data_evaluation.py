@@ -59,7 +59,7 @@ class Experiment:
         return os.path.join(self.base_path, self.movie_name)
 
 
-def main() -> None:
+def main(force_recreate: bool = False) -> None:
     base_path = "/home/lercher/tum/edgar/data/artifact"
     map_path = os.path.join(base_path, "tum_campus_2025-04-15.xml")
     experiments = [
@@ -74,14 +74,16 @@ def main() -> None:
     for experiment in experiments:
         if not os.path.exists(experiment.save_path):
             os.makedirs(experiment.save_path)
-        create_commonroad_scenarios(
-            data_dir_path=experiment.data_path,
-            saving_dir_path=experiment.save_path,
-            xml_path=map_path,
-        )
         scenario_path = os.path.join(
             experiment.save_path, "scenario_obstacles_ego_interpolated.xml"
         )
+        if not os.path.exists(scenario_path) or force_recreate:
+            create_commonroad_scenarios(
+                data_dir_path=experiment.data_path,
+                saving_dir_path=experiment.save_path,
+                xml_path=map_path,
+            )
+
         visualize(
             scenario_path,
             experiment.movie_path,
