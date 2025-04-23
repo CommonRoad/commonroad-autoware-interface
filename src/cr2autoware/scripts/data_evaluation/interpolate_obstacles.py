@@ -19,22 +19,33 @@ def interpolate_obstacles(
     ).open()
 
     for obs in scenario.dynamic_obstacles:
-        interpolate_trajectory(obs)
+        interpolate_trajectory(obs, scenario.dt)
 
     file_writer = CommonRoadFileWriter(scenario, planning_problem_set, file_format=FileFormat.XML)
     file_writer.write_to_file(save_path, overwrite_existing_file=OverwriteExistingFile.ALWAYS)
 
 
 def interpolate_trajectory(
-    obs: DynamicObstacle
+    obs: DynamicObstacle,
+    dt: float,
 ) -> None:
     """
     Interpolates the trajectory of a dynamic obstacle.
     :param obs: Dynamic obstacle to interpolate.
+    :param dt: Time step size of scenario.
     """
 
     if obs.prediction is None:
         return
+
+    # Fix velocity and acceleration values by differentiating the position
+    last_pos = obs.initial_state.position
+    last_velocity = obs.initial_state.velocity
+    for state in obs.prediction.trajectory.state_list:
+        state.velocity = np.linalg.norm(last_pos - state.position) / dt
+        state.acceleration = (last_velocity - state.velocity) / dt
+        last_pos = state.position
+        last_velocity = state.velocity
 
     states = np.array([
         [state.time_step, state.position[0], state.position[1], state.orientation, state.velocity]

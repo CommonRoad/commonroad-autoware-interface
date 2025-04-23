@@ -52,7 +52,7 @@ def monitor_scenario(scenario_path: Path) -> Dict[str, bool]:
         crcpp.RoadNetworkParameters(),
         crcpp.SensorParameters(250.0, 250.0),
         crcpp.ActuatorParameters.ego_defaults(),
-        crcpp.TimeParameters(101, 1.5, scenario.dt),
+        crcpp.TimeParameters(101, 0.3, scenario.dt),
         crcpp.ActuatorParameters.vehicle_defaults(),
     )
     sim_param.world_parameters = wp
@@ -70,7 +70,7 @@ def monitor_scenario(scenario_path: Path) -> Dict[str, bool]:
     ego_id = 42
     result = rule_monitor.evaluate_scenarios_on_given_egos([world], [ego_id])
     return {
-        rule: not rule_result or not rule_result[ego_id]
+        rule: not rule_result or (ego_id in rule_result and not rule_result[ego_id])
         for rule, rule_result in result["ZAM_MUC2D-1"][ego_id].items()
     }
 
