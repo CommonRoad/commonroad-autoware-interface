@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import List, Optional
 
 import imageio.v3 as iio
+import numpy as np
 from commonroad.common.file_reader import CommonRoadFileReader
 from commonroad.scenario.obstacle import ObstacleType, Obstacle
 from commonroad.visualization.draw_params import MPDrawParams
@@ -86,26 +87,12 @@ def main() -> None:
             if obs.state_at_time(plot.time_step) is None
         ])
 
-        # def point_in_plot_limits(point: np.ndarray) -> bool:
-        #     x, y = point
-        #     return plot.plot_limits[0] <= x <= plot.plot_limits[1] and plot.plot_limits[2] <= y <= plot.plot_limits[3]
-        # scenario.remove_obstacle([
-        #     obs
-        #     for obs in scenario.obstacles
-        #     if not point_in_plot_limits(obs.initial_state.position)
-        # ])
-        #
-        # lanelets_to_remove = [
-        #     lanelet.lanelet_id
-        #     for lanelet in scenario.lanelet_network.lanelets
-        #     if not any(
-        #         point_in_plot_limits(point)
-        #         for point in lanelet.center_vertices
-        #     )
-        # ]
-        # for l_id in lanelets_to_remove:
-        #     scenario.lanelet_network.remove_lanelet(l_id)
-
+        relevant_traffic_signs = [
+            ts
+            for ts in scenario.lanelet_network.traffic_signs
+            if plot.plot_limits[0] <= ts.position[0] <= plot.plot_limits[1] and
+               plot.plot_limits[2] <= ts.position[1] <= plot.plot_limits[3]
+        ]
 
         def type_to_min_vel(obs_type: ObstacleType):
             match obs_type:
@@ -127,6 +114,8 @@ def main() -> None:
 
         # Draw the scenario and ego vehicle
         draw_params = MPDrawParams(time_begin=plot.time_step, time_end=plot.time_step + plot.horizon)
+        draw_params.lanelet_network.traffic_light.draw_traffic_lights = False
+        draw_params.lanelet_network.traffic_sign.draw_traffic_signs = False
         draw_params.dynamic_obstacle.draw_icon = True
         draw_params.dynamic_obstacle.trajectory.draw_trajectory = False
         draw_params.dynamic_obstacle.occupancy.draw_occupancies = True
@@ -142,6 +131,8 @@ def main() -> None:
             obs.draw(rnd, draw_params=standing_params)
         ego_params = get_ego_params(draw_params)
         ego.draw(rnd, draw_params=ego_params)
+        for ts in relevant_traffic_signs:
+            ts.draw(rnd)
 
         # Plot settings
         plt.rc("axes", axisbelow=True)
@@ -154,8 +145,8 @@ def main() -> None:
 
         # Save the plot
         plt.axis("off")
-        plt.show()
-        # plt.savefig(plot.save_path / f"commonroad.svg", format="svg", bbox_inches="tight", pad_inches=0, transparent=True)
+        # plt.show()
+        plt.savefig(plot.save_path / f"commonroad.svg", format="svg", bbox_inches="tight", pad_inches=0, transparent=True)
 
         # Save the corresponding video frame
         frame = iio.imread(
