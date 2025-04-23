@@ -375,6 +375,10 @@ def draw_with_slider(
 
 def get_ego_params(draw_params: MPDrawParams) -> MPDrawParams:
     ego_params = copy.deepcopy(draw_params)
-    ego_params.dynamic_obstacle.vehicle_shape.occupancy.shape.facecolor = "#E37222"
-    ego_params.dynamic_obstacle.vehicle_shape.occupancy.shape.edgecolor = "#9C4100"
+    facecolor = "#E37222"
+    edgecolor = "#9C4100"
+    ego_params.dynamic_obstacle.vehicle_shape.occupancy.shape.facecolor = facecolor
+    ego_params.dynamic_obstacle.vehicle_shape.occupancy.shape.edgecolor = edgecolor
+    ego_params.dynamic_obstacle.occupancy.shape.facecolor = facecolor
+    ego_params.dynamic_obstacle.occupancy.shape.edgecolor = edgecolor
     return ego_params
