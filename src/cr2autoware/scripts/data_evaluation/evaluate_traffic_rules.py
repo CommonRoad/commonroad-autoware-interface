@@ -52,7 +52,7 @@ def monitor_scenario(scenario_path: Path) -> Dict[str, bool]:
         crcpp.RoadNetworkParameters(),
         crcpp.SensorParameters(250.0, 250.0),
         crcpp.ActuatorParameters.ego_defaults(),
-        crcpp.TimeParameters(101, 0.3, scenario.dt),
+        crcpp.TimeParameters(101, 1.5, scenario.dt),
         crcpp.ActuatorParameters.vehicle_defaults(),
     )
     sim_param.world_parameters = wp
@@ -64,7 +64,7 @@ def monitor_scenario(scenario_path: Path) -> Dict[str, bool]:
         predicate_parameter,
         temporal_parameters,
     )
-    rule_monitor.activate_rule_sets(["R_G1", "R_G3", "R_G4", "R_U1", "R_U2", "R_U3", "R_U4", "R_U5", "R_U7"])
+    rule_monitor.activate_rule_sets(["R_G1", "R_G2", "R_G3", "R_G4", "R_U1", "R_U2", "R_U3", "R_U4", "R_U5", "R_U7"])
 
     world = crcpp.World(scenario, wp)
     ego_id = 42
