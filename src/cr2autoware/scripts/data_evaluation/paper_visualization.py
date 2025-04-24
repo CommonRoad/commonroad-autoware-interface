@@ -68,7 +68,7 @@ def main() -> None:
             base_path / "2025-04-16_right_turn",
             "right_turn",
             time_step=650,
-            plot_limits=[565, 616, 710, 748],
+            plot_limits=[565, 616, 715.5, 746],
             frame_offset=-44,
         ),
     ]
