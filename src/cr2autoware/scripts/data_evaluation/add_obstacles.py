@@ -67,14 +67,13 @@ def add_dynamic_obstacles(
 
         for obstacle in obstacle_list:
             time_s: float = convert_ros2_time_tuple_to_float(obstacle.ros2_time_stamp)
+            time_step = global_timer.find_closest_time_step(time_s)
 
             custom_state: CustomState = CustomState(
-                position=obstacle.prediction.trajectory.state_list[0].position,
-                velocity=obstacle.prediction.trajectory.state_list[0].velocity,
-                orientation=obstacle.prediction.trajectory.state_list[0].orientation,
-                time_step=global_timer.find_closest_time_step(
-                    time_s
-                ),
+                position=obstacle.initial_state.position,
+                velocity=obstacle.initial_state.velocity,
+                orientation=obstacle.initial_state.orientation,
+                time_step=time_step,
                 ros2_time_stamp=time_s
             )
 
@@ -85,9 +84,7 @@ def add_dynamic_obstacles(
                 obs_shape=obstacle.obstacle_shape,
                 obs_type=obstacle.obstacle_type,
                 custom_state=custom_state,
-                time_step=global_timer.find_closest_time_step(
-                    time_s
-                ),
+                time_step=time_step,
                 temporal_distance_to_step=global_timer.get_distance_to_closest_time_step(time_s)
             )
 
@@ -143,12 +140,14 @@ def create_dynamic_obstacle_from_sorted_states(
     obstacle_type = calculate_obstacle_type(states=state_list)
 
     # create trajectory object
-    cr_trajectory = CRTrajectory(state_list[0].time_step, [state.custom_state for state in state_list])
-
-    trajectory_prediction = TrajectoryPrediction(
-        trajectory=cr_trajectory,
-        shape=states[0].obs_shape
-    )
+    if len(state_list) > 1:
+        cr_trajectory = CRTrajectory(state_list[1].time_step, [state.custom_state for state in state_list[1:]])
+        trajectory_prediction = TrajectoryPrediction(
+            trajectory=cr_trajectory,
+            shape=shape,
+        )
+    else:
+        trajectory_prediction = None
 
     # create initial state
     initial_trajectory_state: CustomState = state_list[0].custom_state

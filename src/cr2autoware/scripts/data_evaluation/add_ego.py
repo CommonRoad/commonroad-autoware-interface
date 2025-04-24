@@ -92,8 +92,10 @@ def add_ego_vehicle(
 
     to_remove = []
     for dyn_obs in scenario.dynamic_obstacles:
-        if dyn_obs.initial_state.time_step < start_time_step:
-            state_list = dyn_obs.prediction.trajectory.state_list
+        state_list = [dyn_obs.initial_state]
+        if dyn_obs.prediction is not None:
+            state_list += dyn_obs.prediction.trajectory.state_list
+        if state_list[0].time_step < start_time_step:
             idx_first_state = next(
                 (
                     i
@@ -102,6 +104,7 @@ def add_ego_vehicle(
                 ),
                 None,
             )
+
             if idx_first_state is None:
                 to_remove.append(dyn_obs)
             else:

@@ -65,7 +65,7 @@ class GlobalTimer:
         :param time_s: continous time in seconds
         :return: distance to closest index
         """
-        return min(self.time_steps, key=lambda x: abs(x - time_s))
+        return min(abs(time - time_s) for time in self.time_steps)
 
 
     # TODO make more modulare so that traffic lights or traffic participants can also be empty lists

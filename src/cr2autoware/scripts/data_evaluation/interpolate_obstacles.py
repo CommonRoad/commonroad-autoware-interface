@@ -39,16 +39,16 @@ def interpolate_trajectory(
         return
 
     # Fix velocity and acceleration values by differentiating the position
-    last_pos = obs.initial_state.position
-    last_velocity = obs.initial_state.velocity
-    for state in obs.prediction.trajectory.state_list:
-        state.velocity = np.linalg.norm(last_pos - state.position) / dt
-        state.acceleration = (last_velocity - state.velocity) / dt
-        last_pos = state.position
-        last_velocity = state.velocity
+    last_state = obs.prediction.trajectory.final_state
+    for state in reversed([obs.initial_state] + obs.prediction.trajectory.state_list[:-1]):
+        time_diff = abs(last_state.time_step - state.time_step) * dt
+        state.acceleration = (last_state.velocity - state.velocity) / time_diff
+        last_state = state
+    pre_final = obs.prediction.trajectory.state_list[-2] if len(obs.prediction.trajectory.state_list) > 1 else obs.initial_state
+    obs.prediction.trajectory.final_state.acceleration = pre_final.acceleration
 
     states = np.array([
-        [state.time_step, state.position[0], state.position[1], state.orientation, state.velocity]
+        [state.time_step, state.position[0], state.position[1], state.orientation, state.velocity, state.acceleration]
         for state in sorted([obs.initial_state] + obs.prediction.trajectory.state_list, key=lambda x: x.time_step)
     ])
     time_steps = np.arange(
@@ -56,7 +56,7 @@ def interpolate_trajectory(
         obs.prediction.final_time_step + 1,
         dtype=int
     )
-    interpolated = np.array([np.interp(time_steps, states[:, 0], states[:, i]) for i in range(1, 5)])
+    interpolated = np.array([np.interp(time_steps, states[:, 0], states[:, i]) for i in range(1, states.shape[1])])
     interpolated = np.vstack((time_steps, interpolated)).T
     interpolated_states = [
         CustomState(
@@ -64,6 +64,7 @@ def interpolate_trajectory(
             position=interp[1:3],
             orientation=interp[3],
             velocity=interp[4],
+            acceleration=interp[5],
         )
         for interp in interpolated
     ]
