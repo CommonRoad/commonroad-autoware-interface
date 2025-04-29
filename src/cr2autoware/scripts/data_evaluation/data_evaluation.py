@@ -195,6 +195,8 @@ def visualize(
     :param plot_limits: plot limits for the visualization
     :param focus_ego: whether to focus on the ego vehicle
     """
+    if focus_ego:
+        plot_limits = [-40, 40, -20, 20]
 
     # Load commonroad scenario
     scenario, planning_problem_set = CommonRoadFileReader(
