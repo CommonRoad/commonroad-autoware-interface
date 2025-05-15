@@ -17,9 +17,9 @@
 
       publish_cr_scenario_topics: True  # publish ROS topics for visualization of CommonRoad obstacles in RViz
       # Bounding box for Autoware to CommonRoad obstacle conversion from ego vehicle position
-      cr_obstacle_box_front: 100.0 # m
-      cr_obstacle_box_rear: 20.0 # m
-      cr_obstacle_box_side: 25.0 # m (half width)
+      cr_obstacle_box_front: 50.0 # m
+      cr_obstacle_box_rear: 10.0 # m
+      cr_obstacle_box_side: 12.0 # m (half width)
 
       test_mode_traffic_light: False # test mode for traffic light handling
 
@@ -83,6 +83,7 @@
       look_ahead_time: 10.0  # s
       min_look_ahead_distance: 50.0  # m
       time_threshold: 3.0  # s
+      orientation_threshold: 1.0471975512  # rad
       min_reference_velocity: 1.0  # m/s
       publish_lateral_clearance_markers: True
 

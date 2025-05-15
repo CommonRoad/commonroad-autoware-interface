@@ -287,13 +287,13 @@ def cr_obstacle_box_to_marker(
         point = PointMsg()
         point.x = x
         point.y = y
-        point.z = z_coordinate
+        # point.z = z_coordinate
         marker.points.append(point)
     # add first point to close the polygon
     point = PointMsg()
     point.x = cr_obstacle_box.exterior.coords[0][0]
     point.y = cr_obstacle_box.exterior.coords[0][1]
-    point.z = z_coordinate
+    # point.z = z_coordinate
     marker.points.append(point)
 
     return marker
@@ -349,7 +349,7 @@ def commonroad_shape_to_marker(
             point = PointMsg()
             point.x = x
             point.y = y
-            point.z = z_coordinate
+            #point.z = z_coordinate
             marker.points.append(point)        
     else:
         raise TypeError("Unsupported CommonRoad shape type: " + str(cr_shape))

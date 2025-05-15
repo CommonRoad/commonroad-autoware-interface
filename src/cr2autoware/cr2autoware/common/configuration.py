@@ -125,9 +125,9 @@ class ScenarioParams(BaseParams):
 
     publish_cr_scenario_topics: bool = True  # publish ROS topics for visualization of CommonRoad obstacles in RViz
     # Bounding box for Autoware to CommonRoad obstacle conversion from ego vehicle position
-    cr_obstacle_box_front: float = 100.0  # m
-    cr_obstacle_box_rear: float = 20.0  # m
-    cr_obstacle_box_side: float = 25.0  # m (half width)
+    cr_obstacle_box_front: float = 50.0  # m
+    cr_obstacle_box_rear: float = 10.0  # m
+    cr_obstacle_box_side: float = 12.5  # m (half width)
 
     # test mode for traffic light handling
     test_mode_traffic_light: bool = False
@@ -372,9 +372,9 @@ class BehaviorPlannerParams(BaseParams):
     # Activate comfort rollout stopping procedure
     comfort_rollout: bool = True
     # Rollout distance for comfort stopping procedure (in meters)
-    comfort_rollout_distance: float = 10.0
+    comfort_rollout_distance: float = 25.0
     # Maximum rollout speed for comfort stopping procedure (in m/s)
-    comfort_rollout_speed: float = 3.0
+    comfort_rollout_speed: float = 2.5
     # Rollout distance for yellow light stopping procedure (in meters)
     yellow_light_rollout_distance: float = 0.0
     # Plot decision graph
@@ -397,6 +397,8 @@ class BehaviorPlannerParams(BaseParams):
     min_look_ahead_distance: float = 50.0
     # time threshold to consider occupancies on different time steps (in seconds)
     time_threshold: float = 3.0
+    # orientation threshold to classify obstacles as relevant for lateral clearance (in de)
+    orientation_threshold: float = 1.0471975512  # 60 degrees
     # minimum reference velocity for lateral clearance function (in m/s)
     min_reference_velocity: float = 1.0
     # flag to publish lateral clearance markers

@@ -128,6 +128,8 @@ class LateralClearanceVelocityAdjuster(Behaviour):
         max_time_step: int = int(look_ahead_time / scenario.dt)
         # time threshold (in seconds) for intersection of trajectories of ego vehicle and dynamic obstacles
         time_threshold: float = self.params.time_threshold
+        # orientation threshold (in radians) for intersection of trajectories of ego vehicle and dynamic obstacles
+        orientation_threshold: float = self.params.orientation_threshold
         # get velocity limits in m/s
         max_reference_velocity: float = self.params.velocity_limit
         min_reference_velocity: float = self.params.min_reference_velocity
@@ -283,7 +285,7 @@ class LateralClearanceVelocityAdjuster(Behaviour):
             orientation_traj = trajectory_positions[dyn_obstacle['index']]['orientation']
             orientation_diff = np.abs(np.arctan2(np.sin(orientation_dyn_obs - orientation_traj), np.cos(orientation_dyn_obs - orientation_traj)))
 
-            if orientation_diff > np.pi/3:
+            if orientation_diff > orientation_threshold:
                 obstacle = scenario.obstacle_by_id(dyn_obstacle['obstacle_id'])
                 if obstacle is None:
                     continue
