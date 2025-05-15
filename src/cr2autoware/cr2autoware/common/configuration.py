@@ -370,7 +370,7 @@ class BehaviorPlannerParams(BaseParams):
     # distance between stop line and vehicle front bumper (in meters)
     distance_stop_line_to_vehicle_front_bumper: float = 1.0
     # maximum deceleration for comfort stop (in m/s^2)
-    max_comfort_deceleration: float = 2.0
+    max_comfort_deceleration: float = 3.5
     # system delay for braking distance calculation (in seconds)
     system_delay: float = 0.5
     # Activate comfort rollout stopping procedure
