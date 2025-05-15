@@ -59,6 +59,10 @@
       lookahead_time: 0.8 # s
       velocity_limit: 10.0  # m/s
 
+      # testdrive logging
+      log_testdrive: True
+      save_cycle: 10 
+
       # traffic light module
       traffic_light_behavior: True
       yellow_light_time: 3.0  # s

@@ -352,6 +352,10 @@ class BehaviorPlannerParams(BaseParams):
     # maximum velocity for vehicle (in m/s)
     velocity_limit: float = 10.0  # m/s
 
+    # testdrive logging
+    log_testdrive: bool = True
+    save_cycle: int = 10 
+
     # Parameter for traffic light behavior module
     # activate traffic light behavior module
     traffic_light_behavior: bool = True

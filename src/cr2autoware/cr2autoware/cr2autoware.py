@@ -489,6 +489,7 @@ class Cr2Auto(Node):
 
         self.test_drive_logger: TestDriveLogger = TestDriveLogger(self.save_data_path, datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S"))
 
+        self.cycle_count = 0
         self.start_update_time = None
         self.start_behavior_time = None
         self.start_trajectory_planning = None
@@ -496,8 +497,6 @@ class Cr2Auto(Node):
         self.behavior_planning_time = None
         self.trajectory_planning_time = None
         self.total_cycle_time = None
-        self.saving_time = 0.0
-        self.cycle_count = 0
         self.current_velocity_data = None
         self.velocity_profile_data = None
         self.smoothed_velocity_data = None
@@ -652,38 +651,35 @@ class Cr2Auto(Node):
 
     def testdrive_logging(self) -> None:
         """Log data for test drive."""
-        if self.start_update_time is not None:
-            self.total_cycle_time = time.time() - self.start_update_time
-            self.test_drive_logger.log_data(
-                self.scenario_update_time,
-                self.behavior_planning_time,
-                self.trajectory_planning_time,
-                self.total_cycle_time,
-                self.saving_time,
-                self.current_velocity_data,
-                self.velocity_profile_data,
-                self.smoothed_velocity_data,
-                self.current_position_data,
-                self.curvilinear_path_data,
-            )
+        if self.params.behavior_planner.log_testdrive:
+            if self.start_update_time is not None:
+                self.total_cycle_time = time.time() - self.start_update_time
+                self.test_drive_logger.log_data(
+                    self.scenario_update_time,
+                    self.behavior_planning_time,
+                    self.trajectory_planning_time,
+                    self.total_cycle_time,
+                    self.current_velocity_data,
+                    self.velocity_profile_data,
+                    self.smoothed_velocity_data,
+                    self.current_position_data,
+                    self.curvilinear_path_data,
+                )
 
-            self.cycle_count += 1
-            if self.cycle_count % 10 == 0:
-                save_time = time.time()
-                self.test_drive_logger.save_to_file()
-                self.saving_time = time.time() - save_time
-            else: 
+                self.cycle_count += 1
+                if self.cycle_count % self.params.behavior_planner.save_cycle == 0:
+                    self.test_drive_logger.save_to_file()
+
                 self.scenario_update_time = None
                 self.behavior_planning_time = None
                 self.trajectory_planning_time = None
                 self.total_cycle_time = None
-                self.saving_time = 0.0
                 self.current_velocity_data = None
                 self.velocity_profile_data = None
                 self.smoothed_velocity_data = None
                 self.current_position_data = None
                 self.curvilinear_path_data = None
-    
+        
     def update_initial_pose(self) -> None:
         """Update initial pose."""
         self.new_initial_pose = False
