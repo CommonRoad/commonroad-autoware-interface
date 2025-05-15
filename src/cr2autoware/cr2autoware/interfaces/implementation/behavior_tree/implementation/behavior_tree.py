@@ -64,6 +64,7 @@ class BehaviorTree(BaseTree):
         self.inputs.register_key("origin_transformation", access=py_trees.common.Access.WRITE)
         self.inputs.register_key("last_velocity_profile", access=py_trees.common.Access.WRITE)
         self.inputs.register_key("current_position_curvilinear", access=py_trees.common.Access.WRITE)
+        self.inputs.current_position_curvilinear = None
         self.inputs.register_key("z_coordinate", access=py_trees.common.Access.WRITE)
         self.inputs.register_key("current_time_msg", access=py_trees.common.Access.WRITE)
         self.inputs.register_key("current_position_index", access=py_trees.common.Access.WRITE)

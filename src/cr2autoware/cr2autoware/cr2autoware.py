@@ -87,6 +87,8 @@ from .common.utils.transform import utm2map
 from .common.utils.message import create_goal_marker
 from .common.ros_interface.create import create_subscription, create_publisher, create_client
 
+from .testdrive_logger.testdrive_logger import TestDriveLogger
+
 # subscriber specifications
 from .common.ros_interface.specs_subscriptions import \
     spec_initial_pose_sub, spec_auto_button_sub, spec_velocity_limit_sub, spec_routing_state_sub, \
@@ -370,7 +372,7 @@ class Cr2Auto(Node):
         # subscribe routing state
         self.routing_state_sub = create_subscription(self, spec_routing_state_sub, self.routing_state_callback,
                                                      self.callback_group)
-        
+
         # subscribe failsafe behavior
         self.failsafe_behavior_sub = create_subscription(self, spec_failsafe_behavior_sub, self.failsafe_behavior_callback,
                                                             self.callback_group)
@@ -439,7 +441,6 @@ class Cr2Auto(Node):
         self.state_machine_thread = Thread(target=self.start_state_machine, daemon=True)
         self.state_machine_thread.start()
 
-
     def start_state_machine(self):
         """Start the state machine."""
         self.state_machine = sm.StateMachine(self, sm.config)
@@ -485,6 +486,23 @@ class Cr2Auto(Node):
         )
 
         self.data_generation_handler.start_recording()
+
+        self.test_drive_logger: TestDriveLogger = TestDriveLogger(self.save_data_path, datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S"))
+
+        self.start_update_time = None
+        self.start_behavior_time = None
+        self.start_trajectory_planning = None
+        self.scenario_update_time = None
+        self.behavior_planning_time = None
+        self.trajectory_planning_time = None
+        self.total_cycle_time = None
+        self.saving_time = 0.0
+        self.cycle_count = 0
+        self.current_velocity_data = None
+        self.velocity_profile_data = None
+        self.smoothed_velocity_data = None
+        self.current_position_data = None
+        self.curvilinear_path_data = None
 
     @property
     def scenario(self) -> Scenario:
@@ -533,7 +551,7 @@ class Cr2Auto(Node):
             self.params,
             self.scenario_handler,
         )
- 
+
         # subscribe trajectory from motion velocity smoother
         self.traj_smoothed_behavior_planner_sub = create_subscription(
             self,
@@ -601,7 +619,6 @@ class Cr2Auto(Node):
 
             self.state_machine.process_event(HasSolutionPath(self.state_machine, self))
 
-
     def _set_external_velocity_limit(self, vel_limit: float) -> None:
         """
         Sets the velocity limit for CR2Autoware. 
@@ -623,22 +640,50 @@ class Cr2Auto(Node):
 
     def update_scenario(self) -> None:
         """Update scenario handler."""
-        update_time = time.time()
-        if self.last_start_time is not None:
-            self._logger.info(f"[SVEN] [TIME] TOTAL cycle time: {update_time - self.last_start_time}")
-        self.last_start_time = update_time
+        self.testdrive_logging()
+
+        self.start_update_time = time.time()
+
         self.ego_vehicle_handler.update_ego_vehicle()
-        self._logger.info(f"[SVEN] [TIME] Update ego vehicle took {time.time() - update_time} seconds")
-        update_scenario_time = time.time()
         self.scenario_handler.update_scenario()
-        self._logger.info(f"[SVEN] [TIME] Update scenario handler took {time.time() - update_scenario_time} seconds")
-        plot_time = time.time()
         self.plot_save_scenario()
-        self._logger.info(f"[SVEN] [TIME] Plot and save scenario took {time.time() - plot_time} seconds")
-        self._logger.info(f"[SVEN] [TIME] TOTAL Scenario Update took {time.time() - update_time} seconds")
 
-        # time.sleep(0.5)
+        self.scenario_update_time = time.time() - self.start_update_time
 
+    def testdrive_logging(self) -> None:
+        """Log data for test drive."""
+        if self.start_update_time is not None:
+            self.total_cycle_time = time.time() - self.start_update_time
+            self.test_drive_logger.log_data(
+                self.scenario_update_time,
+                self.behavior_planning_time,
+                self.trajectory_planning_time,
+                self.total_cycle_time,
+                self.saving_time,
+                self.current_velocity_data,
+                self.velocity_profile_data,
+                self.smoothed_velocity_data,
+                self.current_position_data,
+                self.curvilinear_path_data,
+            )
+
+            self.cycle_count += 1
+            if self.cycle_count % 10 == 0:
+                save_time = time.time()
+                self.test_drive_logger.save_to_file()
+                self.saving_time = time.time() - save_time
+            else: 
+                self.scenario_update_time = None
+                self.behavior_planning_time = None
+                self.trajectory_planning_time = None
+                self.total_cycle_time = None
+                self.saving_time = 0.0
+                self.current_velocity_data = None
+                self.velocity_profile_data = None
+                self.smoothed_velocity_data = None
+                self.current_position_data = None
+                self.curvilinear_path_data = None
+    
     def update_initial_pose(self) -> None:
         """Update initial pose."""
         self.new_initial_pose = False
@@ -650,7 +695,7 @@ class Cr2Auto(Node):
             self.goal_msgs.insert(0, self.current_goal_msg)
         # call reset function of route planner
         self.route_planner.reset()
-    
+
     def update_goal(self) -> bool:
         """Update goal."""
         try:
@@ -674,7 +719,7 @@ class Cr2Auto(Node):
         # update reference path of trajectory planner
         self.trajectory_planner.update(reference_path=self.route_planner.reference_path,
                                        planning_problem=self.planning_problem)
- 
+
         # wait for trajectory to be computed in AW Motion Velocity Smoother
         start_time = time.time()
         timeout_velocity_planning = 1.0
@@ -695,28 +740,31 @@ class Cr2Auto(Node):
 
     def behavior_planning(self) -> None:
         """Plan behavior. Update reference path of trajectory planner."""
-
+        self.start_behavior_time = time.time()
         # plan route and reference path
-        start_time = time.time()
         _goal_pos_cr = map2utm(self.origin_transformation, self.current_goal_msg.pose.position)
         self.behavior_planner.plan(self.route_planner.reference_path, 
                                     _goal_pos_cr,
                                     self.scenario_handler.scenario,
                                     self.ego_vehicle_handler.ego_vehicle_state,
                                     )
-        mid_time = time.time()
         # publish current reference path
         point_list = self.behavior_planner.reference_positions
         reference_velocities = self.behavior_planner.reference_velocities
         # call publisher
         self.route_planner.publish(point_list, reference_velocities,
                                     self.scenario_handler.z_coordinate)
-        end_time = time.time()
-        self._logger.info(f"[SVEN] [TIME] Publish Route took {end_time - mid_time} seconds")
-        self._logger.info(f"[SVEN] [TIME] TOTAL Behavior planning state took  {end_time - start_time} seconds")
-    
+
+        self.behavior_planning_time = time.time() - self.start_behavior_time
+        self.curvilinear_path_data = self.behavior_planner.path_in_curvilinear
+        self.current_position_data = self.behavior_planner.current_position_curvilinear
+        self.current_velocity_data = self.ego_vehicle_handler.ego_vehicle_state.velocity
+        self.velocity_profile_data = self.behavior_planner.velocity_profile_data
+        self.smoothed_velocity_data = self.behavior_planner.reference_velocities
+
     def behavior_failsafe(self) -> None:
         """FailSafe behavior planning. Update reference path of trajectory planner."""
+        self.start_behavior_time = time.time()
         # plan route and reference path
         _goal_pos_cr = map2utm(self.origin_transformation, self.current_goal_msg.pose.position)
         self.behavior_planner.failsafe_planning(
@@ -729,13 +777,14 @@ class Cr2Auto(Node):
         # call publisher
         self.route_planner.publish(point_list, reference_velocities,
                                     self.scenario_handler.z_coordinate)
-        
+        self.behavior_planning_time = time.time() - self.start_behavior_time
+
     def publish_trajectory(self) -> None:
         """Plan and publish trajectory."""
         if self.verbose:
             self._logger.info("Solving planning problem!")
 
-        time_trajectory_planning = time.time()
+        self.start_trajectory_planning = time.time()
         # Get current initial state for planning
         # The initial velocity needs to be increase here due to a hardcoded velocity threshold in
         # AW. Universe Shift_Decider Package (If velocity is below 0.01, the gear will remain in park)
@@ -761,9 +810,6 @@ class Cr2Auto(Node):
             # set reference velocity considering external limit
             ref_vel = min(reference_velocity, self.external_velocity_limit)
 
-            pre_planning_time = time.time()
-            self._logger.info(f"[SVEN] [TIME] Pre-planning took {pre_planning_time - time_trajectory_planning} seconds")
-
             # call the one-step plan function
             self.trajectory_planner.plan(
                 current_state=init_state,
@@ -773,14 +819,11 @@ class Cr2Auto(Node):
                 d_max=self.behavior_planner.output_d_max,
                 )
 
-            post_planning_time = time.time()
-            self._logger.info(f"[SVEN] [TIME] Planning took {post_planning_time - pre_planning_time} seconds")
             # publish trajectory
             self.trajectory_planner.publish(self.origin_transformation,
                                             self.scenario_handler.z_coordinate)
-            
-            self._logger.info(f"[SVEN] [TIME] Publish Trajectory took {time.time() - post_planning_time} seconds")
-            self._logger.info(f"[SVEN] [TIME] TOTAL Trajectory planning took {time.time() - time_trajectory_planning} seconds")
+
+            self.trajectory_planning_time = time.time() - self.start_trajectory_planning
 
     def check_goal_reached(self) -> None:
         """Check if goal is reached."""
@@ -854,7 +897,7 @@ class Cr2Auto(Node):
                     self.set_state(AutowareState.ARRIVED_GOAL)
                 else:
                     self._set_new_goal()
-                
+
                 self.state_machine.process_event(GoalReachedEvent(self.state_machine, self))
 
     def follow_solution_trajectory(self) -> None:
@@ -1150,7 +1193,7 @@ class Cr2Auto(Node):
 
             # publish goal
             self._pub_goals()
-            
+
             return True
         else:
             if self.verbose:
@@ -1251,7 +1294,6 @@ class Cr2Auto(Node):
         if failsafe_behavior:
             self._logger.info("[SVEN]FailSafe behavior planning activated!")
             self.state_machine.process_event(FailSafeEvent(self.state_machine, self))
-
 
     def _plot_scenario(self) -> None:
         """ Plot the commonroad scenario."""

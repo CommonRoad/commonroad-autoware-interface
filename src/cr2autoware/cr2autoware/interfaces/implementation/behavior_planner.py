@@ -146,6 +146,9 @@ class BehaviorPlanner:
         self.blackboard.register_key("/modules/lane_keeping/outputs/lane_keeping_marker_array", access=py_trees.common.Access.WRITE)
         self.blackboard.modules.lane_keeping.outputs.lane_keeping_marker_array = MarkerArray()
 
+        # for testdrive logger
+        self.blackboard.register_key("/inputs/current_position_curvilinear", access=py_trees.common.Access.READ)
+
         # Initialize the Behavior Tree
         self.behavior_tree = BehaviorTree(self._logger, self._verbose)
 
@@ -238,6 +241,10 @@ class BehaviorPlanner:
     @property
     def output_d_max(self) -> float:
         return self.behavior_tree.outputs.d_max
+    
+    @property
+    def current_position_curvilinear(self) -> np.ndarray:
+        return self.blackboard.inputs.current_position_curvilinear
 
     def plan(self, reference_path: np.ndarray, goal_pos: np.ndarray, scenario: Scenario, current_state: EgoVehicleState) -> None:
         """
@@ -301,6 +308,8 @@ class BehaviorPlanner:
         self.behavior_tree.prepare_output()
 
         velocity_path = self.convert_velocity_profile(self.path_in_cartesian, self.behavior_tree.velocity_profile, input_path)
+
+        self.velocity_profile_data = velocity_path
 
         # Call _pub_ref_path
         self._pub_ref_path(input_path, velocity_path, self.origin_transformation)
