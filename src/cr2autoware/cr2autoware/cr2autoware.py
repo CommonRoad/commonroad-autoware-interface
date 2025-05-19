@@ -823,9 +823,7 @@ class Cr2Auto(Node):
 
     def check_goal_reached(self) -> None:
         """Check if goal is reached."""
-        time_goal_reached = time.time()
         self._is_goal_reached()
-        self._logger.info(f"[SVEN] [TIME] TOTAL Check goal reached took {time.time() - time_goal_reached} seconds")
 
     def follow_trajectory_mode_update(self) -> None:
         """

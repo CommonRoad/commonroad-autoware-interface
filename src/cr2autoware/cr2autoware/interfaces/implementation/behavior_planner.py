@@ -497,7 +497,7 @@ class BehaviorPlanner:
         # get reference trajectory
         self._reference_trajectory = np.concatenate((positions_arr, velocities_arr.reshape(_len_vel_arr, 1)), axis=1)
         self._is_velocity_planning_completed = True
-        self._logger.info("[SVEN] [TIME] Velocity Smoother Callback completed in " + str(time.time() - start_time) + " seconds")
+        # self._logger.info("[SVEN] [TIME] Velocity Smoother Callback completed in " + str(time.time() - start_time) + " seconds")
 
     def get_lookahead_velocity_for_current_state(self, curr_position, curr_velocity) -> Optional[float]:
         """

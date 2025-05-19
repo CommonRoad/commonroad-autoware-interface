@@ -535,7 +535,8 @@ class ScenarioHandler(BaseHandler):
 
     def update_scenario(self) -> None:
         """Update the CommonRoad scenario using the perception/prediction input."""
-        self._logger.info("Updating scenario")
+        if self._VERBOSE:
+            self._logger.info("Updating scenario")
 
         # log time
         t_start = time.perf_counter()

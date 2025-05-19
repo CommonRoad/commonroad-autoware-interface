@@ -301,7 +301,8 @@ class EgoVehicleHandler(BaseHandler):
         """Update the state of the ego vehicle using the localization input."""
         # process last state message
         if self._current_vehicle_state is not None:
-            self._logger.info("Updating ego vehicle")
+            if self._VERBOSE:
+                self._logger.info("Updating ego vehicle")
 
             # log time
             t_start = time.perf_counter()

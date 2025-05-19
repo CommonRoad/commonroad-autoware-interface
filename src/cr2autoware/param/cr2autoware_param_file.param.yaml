@@ -3,7 +3,7 @@
     general:
       map_path: ""
       solution_file: ""
-      detailed_log: True
+      detailed_log: False
       write_scenario: True # write generated scenario as xml file after map is converted
       plot_scenario: False
       store_trajectory: False

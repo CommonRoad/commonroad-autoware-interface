@@ -96,7 +96,7 @@ class GeneralParams(BaseParams):
     solution_file: str = ""
 
     # verbose ROS logging
-    detailed_log: bool = True
+    detailed_log: bool = False
     # write scenario to XML file
     write_scenario: bool = True
     # plot CR scenario
