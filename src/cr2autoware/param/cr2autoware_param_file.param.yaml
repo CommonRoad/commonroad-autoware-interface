@@ -57,7 +57,7 @@
       init_velocity: 5.0 # m/s - not yet implemented; should only be used for lanelet2 maps
       lookahead_dist: 3.0 # m
       lookahead_time: 0.8 # s
-      velocity_limit: 10.0  # m/s
+      velocity_limit: 8.33  # m/s
 
       # testdrive logging
       log_testdrive: True
@@ -88,7 +88,7 @@
       min_look_ahead_distance: 50.0  # m
       time_threshold: 3.0  # s
       orientation_threshold: 1.0471975512  # rad
-      min_reference_velocity: 1.0  # m/s
+      min_reference_velocity: 1.5  # m/s
       publish_lateral_clearance_markers: True
 
       # lane keeping module
