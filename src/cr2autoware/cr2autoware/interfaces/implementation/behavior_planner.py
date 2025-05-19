@@ -307,9 +307,12 @@ class BehaviorPlanner:
 
         self.behavior_tree.prepare_output()
 
-        velocity_path = self.convert_velocity_profile(self.path_in_cartesian, self.behavior_tree.velocity_profile, input_path)
+        velocity_profile = self.behavior_tree.velocity_profile
 
-        self.velocity_profile_data = velocity_path
+        self.velocity_profile_data = velocity_profile
+
+        velocity_path = self.convert_velocity_profile(self.path_in_cartesian, velocity_profile, input_path)
+
 
         # Call _pub_ref_path
         self._pub_ref_path(input_path, velocity_path, self.origin_transformation)
@@ -506,7 +509,6 @@ class BehaviorPlanner:
         :param curr_position: current position of the vehicle
         :param curr_velocity: current velocity of the vehicle
         :return: velocity with lookahead
-        :raises _logger.error: if velocity planning is not completed
         """
 
         curr_position_arr = np.array([curr_position.x, curr_position.y])
@@ -529,6 +531,33 @@ class BehaviorPlanner:
             self._logger.info("Nearest index: " + str(closest_idx) + ", lookahead index: " + str(vel_index))
         
         return self.reference_velocities[vel_index]
+    
+    def get_velocity_for_current_state(self, curr_position) -> Optional[float]:
+        """
+        Gets velocity from velocity profile for a given position and velocity.
+
+        :param curr_position: current position of the vehicle
+        :return: velocity for the current state
+        """
+        curr_position_arr = np.array([curr_position.x, curr_position.y])
+        closest_idx = self._get_closest_point_idx_on_path(self.reference_positions, curr_position_arr)
+        vel_index = closest_idx
+
+        return self.reference_velocities[vel_index]
+
+    def get_behavior_velocity_for_current_state(self, curr_position) -> Optional[float]:
+        """
+        Gets behavior velocity from velocity profile for a given position and velocity.
+
+        :param curr_position: current position of the vehicle
+        :return: behavior velocity for the current state
+        """
+        curr_position_arr = np.array([curr_position.x, curr_position.y])
+        closest_idx = self._get_closest_point_idx_on_path(self.path_in_cartesian, curr_position_arr)
+        vel_index = closest_idx
+
+        return self.velocity_profile_data[vel_index]
+
 
     def keep_lane_callback(self, msg: Bool) -> None:
         """

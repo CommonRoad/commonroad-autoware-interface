@@ -499,7 +499,9 @@ class Cr2Auto(Node):
         self.total_cycle_time = None
         self.current_velocity_data = None
         self.velocity_profile_data = None
+        self.current_behavior_velocity_data = None
         self.smoothed_velocity_data = None
+        self.current_smoothed_velocity_data = None
         self.current_position_data = None
         self.curvilinear_path_data = None
 
@@ -655,13 +657,16 @@ class Cr2Auto(Node):
             if self.start_update_time is not None:
                 self.total_cycle_time = time.time() - self.start_update_time
                 self.test_drive_logger.log_data(
+                    time.time(),
                     self.scenario_update_time,
                     self.behavior_planning_time,
                     self.trajectory_planning_time,
                     self.total_cycle_time,
                     self.current_velocity_data,
                     self.velocity_profile_data,
+                    self.current_behavior_velocity_data,
                     self.smoothed_velocity_data,
+                    self.current_smoothed_velocity_data,
                     self.current_position_data,
                     self.curvilinear_path_data,
                 )
@@ -676,7 +681,9 @@ class Cr2Auto(Node):
                 self.total_cycle_time = None
                 self.current_velocity_data = None
                 self.velocity_profile_data = None
+                self.current_behavior_velocity_data = None
                 self.smoothed_velocity_data = None
+                self.current_smoothed_velocity_data = None
                 self.current_position_data = None
                 self.curvilinear_path_data = None
         
@@ -756,7 +763,13 @@ class Cr2Auto(Node):
         self.current_position_data = self.behavior_planner.current_position_curvilinear
         self.current_velocity_data = self.ego_vehicle_handler.ego_vehicle_state.velocity
         self.velocity_profile_data = self.behavior_planner.velocity_profile_data
+        self.current_behavior_velocity_data = self.behavior_planner.get_behavior_velocity_for_current_state(
+            self.ego_vehicle_handler.current_vehicle_state.pose.pose.position,
+        )
         self.smoothed_velocity_data = self.behavior_planner.reference_velocities
+        self.current_smoothed_velocity_data = self.behavior_planner.get_velocity_for_current_state(
+            self.ego_vehicle_handler.current_vehicle_state.pose.pose.position
+        )
 
     def behavior_failsafe(self) -> None:
         """FailSafe behavior planning. Update reference path of trajectory planner."""
@@ -774,6 +787,17 @@ class Cr2Auto(Node):
         self.route_planner.publish(point_list, reference_velocities,
                                     self.scenario_handler.z_coordinate)
         self.behavior_planning_time = time.time() - self.start_behavior_time
+        self.curvilinear_path_data = self.behavior_planner.path_in_curvilinear
+        self.current_position_data = self.behavior_planner.current_position_curvilinear
+        self.current_velocity_data = self.ego_vehicle_handler.ego_vehicle_state.velocity
+        self.velocity_profile_data = self.behavior_planner.velocity_profile_data
+        self.current_behavior_velocity_data = self.behavior_planner.get_behavior_velocity_for_current_state(
+            self.ego_vehicle_handler.current_vehicle_state.pose.pose.position,
+        )
+        self.smoothed_velocity_data = self.behavior_planner.reference_velocities
+        self.current_smoothed_velocity_data = self.behavior_planner.get_velocity_for_current_state(
+            self.ego_vehicle_handler.current_vehicle_state.pose.pose.position
+        )
 
     def publish_trajectory(self) -> None:
         """Plan and publish trajectory."""
