@@ -777,6 +777,7 @@ class Cr2Auto(Node):
         # plan route and reference path
         _goal_pos_cr = map2utm(self.origin_transformation, self.current_goal_msg.pose.position)
         self.behavior_planner.failsafe_planning(
+                                        self.ego_vehicle_handler.ego_vehicle_state,
                                         self.route_planner.reference_path, 
                                         _goal_pos_cr,
                                         )
@@ -788,11 +789,11 @@ class Cr2Auto(Node):
                                     self.scenario_handler.z_coordinate)
         self.behavior_planning_time = time.time() - self.start_behavior_time
         self.curvilinear_path_data = self.behavior_planner.path_in_curvilinear
-        self.current_position_data = self.behavior_planner.current_position_curvilinear
+        self.current_position_data = self.behavior_planner.failsafe_current_position
         self.current_velocity_data = self.ego_vehicle_handler.ego_vehicle_state.velocity
         self.velocity_profile_data = self.behavior_planner.velocity_profile_data
         self.current_behavior_velocity_data = self.behavior_planner.get_behavior_velocity_for_current_state(
-            self.ego_vehicle_handler.current_vehicle_state.pose.pose.position,
+            self.ego_vehicle_handler.current_vehicle_state.pose.pose.position
         )
         self.smoothed_velocity_data = self.behavior_planner.reference_velocities
         self.current_smoothed_velocity_data = self.behavior_planner.get_velocity_for_current_state(

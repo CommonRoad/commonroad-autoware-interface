@@ -23,7 +23,7 @@ from commonroad_dc.geometry.util import compute_orientation_from_polyline
 
 # cr2autoware imports
 from cr2autoware.common.utils.transform import orientation2quaternion
-from cr2autoware.common.utils.transform import utm2map
+from cr2autoware.common.utils.transform import utm2map, map2utm
 from cr2autoware.interfaces.implementation.behavior_tree.implementation.behavior_tree import BehaviorTree
 from cr2autoware.common.configuration import BehaviorPlannerParams, CR2AutowareParams
 from cr2autoware.handlers.scenario_handler import ScenarioHandler
@@ -156,6 +156,9 @@ class BehaviorPlanner:
         # Coordinates in AW map frame
         self._tail = None
 
+        # failsafe current position in curvilinear coordinates
+        self.failsafe_current_position_curvilinear = None
+
         # set scenario_handler
         self.scenario_handler = scenario_handler
 
@@ -245,6 +248,10 @@ class BehaviorPlanner:
     @property
     def current_position_curvilinear(self) -> np.ndarray:
         return self.blackboard.inputs.current_position_curvilinear
+    
+    @property
+    def failsafe_current_position(self) -> np.ndarray:
+        return self.failsafe_current_position_curvilinear
 
     def plan(self, reference_path: np.ndarray, goal_pos: np.ndarray, scenario: Scenario, current_state: EgoVehicleState) -> None:
         """
@@ -307,12 +314,11 @@ class BehaviorPlanner:
 
         self.behavior_tree.prepare_output()
 
-        velocity_profile = self.behavior_tree.velocity_profile
+        velocity_path = self.convert_velocity_profile(self.path_in_cartesian, self.behavior_tree.velocity_profile, input_path)
 
-        self.velocity_profile_data = velocity_profile
-
-        velocity_path = self.convert_velocity_profile(self.path_in_cartesian, velocity_profile, input_path)
-
+        # save velocity profile for testdrive logger
+        self.velocity_profile_data = velocity_path
+        self.input_path = input_path
 
         # Call _pub_ref_path
         self._pub_ref_path(input_path, velocity_path, self.origin_transformation)
@@ -338,12 +344,13 @@ class BehaviorPlanner:
             self._logger.info("[SVEN] [TIME] Planning Behavior Planner: " + str(plan_end_time - plan_start_time_4))
             self._logger.info("[SVEN] [TIME] Post Planning: " + str(plan_end_time_2 - plan_end_time))
 
-    def failsafe_planning(self, reference_path: np.ndarray, goal_pos: np.ndarray) -> None:
+    def failsafe_planning(self, current_state: EgoVehicleState, reference_path: np.ndarray, goal_pos: np.ndarray) -> None:
         """
         Velocity planning in case of failure of behavior planner.
 
         Computes a zero velocity profile for a given reference path.
 
+        :param current_state: current state of the ego vehicle
         :param reference_path: in CR coordinates
         :param goal_pos: in CR coordinates
         """
@@ -367,8 +374,14 @@ class BehaviorPlanner:
         # Create Curvilinear Coordinate System for preprocessing
         self.set_reference_path(input_path)
 
+        # Set current position in curvilinear coordinates
+        self.failsafe_current_position_curvilinear = self.coordinate_system.convert_to_curvilinear_coords(current_state.position[0], current_state.position[1])
+
         # set velocity profile to zero
         velocity_path = np.zeros(len(input_path))
+        
+        # save velocity profile for testdrive logger
+        self.velocity_profile_data = velocity_path
 
         # Call _pub_ref_path
         self._pub_ref_path(input_path, velocity_path, self.origin_transformation)
@@ -552,12 +565,10 @@ class BehaviorPlanner:
         :param curr_position: current position of the vehicle
         :return: behavior velocity for the current state
         """
-        curr_position_arr = np.array([curr_position.x, curr_position.y])
-        closest_idx = self._get_closest_point_idx_on_path(self.path_in_cartesian, curr_position_arr)
+        curr_position_arr = map2utm(self.origin_transformation, curr_position)
+        closest_idx = self._get_closest_point_idx_on_path(self.input_path, curr_position_arr)
         vel_index = closest_idx
-
         return self.velocity_profile_data[vel_index]
-
 
     def keep_lane_callback(self, msg: Bool) -> None:
         """
