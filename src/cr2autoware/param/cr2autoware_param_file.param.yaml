@@ -20,6 +20,7 @@
       cr_obstacle_box_front: 50.0 # m
       cr_obstacle_box_rear: 10.0 # m
       cr_obstacle_box_side: 12.0 # m (half width)
+      cr_obstacle_box_prediction: True # consider obstacle prediction in bounding box
 
       test_mode_traffic_light: False # test mode for traffic light handling
 

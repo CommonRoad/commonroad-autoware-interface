@@ -10,7 +10,7 @@ from cr2autoware.common.configuration import CR2AutowareParams
 from cr2autoware.interfaces.implementation.behavior_tree.behavior_utils import calculate_current_position_index
 from commonroad_rp.utility.utils_coordinate_system import CoordinateSystem
 from typing import List, Set, Dict
-from ...behavior_utils import copy_from_blackboard
+from ...behavior_utils import copy_from_blackboard, BehaviorScenarioParams
 import numpy as np
 from rclpy.impl.rcutils_logger import RcutilsLogger
 from shapely.geometry import Point, Polygon
@@ -169,6 +169,7 @@ class TrafficLightBehavior(Behaviour):
         self.outputs = py_trees.blackboard.Client(name=(name + "Outputs"), namespace="/modules/traffic_lights/outputs")
         self.outputs.register_key("velocity_profile", access=py_trees.common.Access.WRITE)
         self.outputs.register_key("traffic_light_marker_array", access=py_trees.common.Access.WRITE)
+        self.outputs.register_key("scenario_params", access=py_trees.common.Access.WRITE)
 
         # Init Parameter
         self.global_params: CR2AutowareParams = self.blackboard.global_params
@@ -406,6 +407,14 @@ class TrafficLightOutOfRangeCondition(TrafficLightBehavior):
             # Apply Lane Keeping
             self.blackboard.modules.lane_keeping.inputs.blackboard_condition = True
 
+            # Apply reduced scenario box
+            self.outputs.scenario_params = BehaviorScenarioParams(
+                cr_obstacle_box_front=None,
+                cr_obstacle_box_rear=3.0,
+                cr_obstacle_box_side=None,
+                cr_obstacle_box_prediction=False,
+            )
+
             return Status.FAILURE
         else:
             # no traffic light in range, output the empty velocity profile, return SUCCESS
@@ -417,6 +426,9 @@ class TrafficLightOutOfRangeCondition(TrafficLightBehavior):
             del_marker.action = Marker.DELETEALL
             marker_array.markers.append(del_marker)
             self.outputs.traffic_light_marker_array = marker_array
+
+            # reset the scenario params
+            self.outputs.scenario_params = BehaviorScenarioParams()
 
             return Status.SUCCESS
 

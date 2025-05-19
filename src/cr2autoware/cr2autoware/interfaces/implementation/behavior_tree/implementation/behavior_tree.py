@@ -15,7 +15,7 @@ from commonroad_rp.utility.utils_coordinate_system import CoordinateSystem
 from typing import List
 from rclpy.time import Time
 from rclpy.impl.rcutils_logger import RcutilsLogger
-from ..behavior_utils import copy_from_blackboard, calculate_current_position_index
+from ..behavior_utils import copy_from_blackboard, calculate_current_position_index, BehaviorScenarioParams
 
 class BehaviorTree(BaseTree):
 
@@ -75,14 +75,17 @@ class BehaviorTree(BaseTree):
         self.outputs.register_key("velocity_profile", access=py_trees.common.Access.WRITE)
         self.outputs.register_key("d_min", access=py_trees.common.Access.WRITE)
         self.outputs.register_key("d_max", access=py_trees.common.Access.WRITE)
+        self.outputs.register_key("scenario_params", access=py_trees.common.Access.WRITE)
 
         # Initialize necessary outputs
         self.outputs.d_min = None
         self.outputs.d_max = None
+        self.outputs.scenario_params = BehaviorScenarioParams()
 
         # Register keys for Modules
         self.blackboard.register_key("/modules/traffic_lights/inputs/velocity_profile_without_traffic_lights", access=py_trees.common.Access.WRITE)
         self.blackboard.register_key("/modules/traffic_lights/outputs/velocity_profile", access=py_trees.common.Access.READ)
+        self.blackboard.register_key("/modules/traffic_lights/outputs/scenario_params", access=py_trees.common.Access.READ)
         self.blackboard.register_key("/modules/lane_keeping/outputs/d_min", access=py_trees.common.Access.READ)
         self.blackboard.register_key("/modules/lane_keeping/outputs/d_max", access=py_trees.common.Access.READ)
         self.blackboard.register_key("/modules/lateral_clearance/outputs/velocity_profile", access=py_trees.common.Access.READ)
@@ -218,6 +221,9 @@ class BehaviorTree(BaseTree):
         # Update the lateral offset d
         self._update_lateral_offset_d()
 
+        # Update the scenario parameters
+        self._update_scenario_params()
+
         # For debugging purposes:
         self.output_tree_in_log()
 
@@ -276,6 +282,19 @@ class BehaviorTree(BaseTree):
         
         self.logger.debug(f"[SVEN]Updated d_min: {self.outputs.d_min}")
         self.logger.debug(f"[SVEN]Updated d_max: {self.outputs.d_max}")
+
+    def _update_scenario_params(self):
+        """
+        Update the scenario parameters in the blackboard. 
+
+        This parameter is used in the scenario handler for updating the cr obstacle box.
+        """
+        if self.blackboard.exists("/modules/traffic_lights/outputs/scenario_params"):
+            self.outputs.scenario_params = self.blackboard.modules.traffic_lights.outputs.scenario_params
+        else:
+            self.outputs.scenario_params = BehaviorScenarioParams()
+
+        self.logger.debug(f"[SVEN]Updated scenario params: {self.outputs.scenario_params}")
     
     def output_tree_in_log(self):
         """

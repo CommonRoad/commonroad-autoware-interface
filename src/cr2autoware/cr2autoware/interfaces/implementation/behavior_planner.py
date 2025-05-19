@@ -28,6 +28,7 @@ from cr2autoware.interfaces.implementation.behavior_tree.implementation.behavior
 from cr2autoware.common.configuration import BehaviorPlannerParams, CR2AutowareParams
 from cr2autoware.handlers.scenario_handler import ScenarioHandler
 from commonroad_rp.utility.utils_coordinate_system import CoordinateSystem
+from cr2autoware.interfaces.implementation.behavior_tree.behavior_utils import BehaviorScenarioParams
 
 from cr2autoware.handlers.ego_vehicle_handler import EgoVehicleState
 from commonroad.scenario.scenario import Scenario
@@ -252,6 +253,16 @@ class BehaviorPlanner:
     @property
     def failsafe_current_position(self) -> np.ndarray:
         return self.failsafe_current_position_curvilinear
+
+    @property
+    def scenario_params(self) -> BehaviorScenarioParams:
+        """
+        Scenario parameters set by behavior planner.
+        :return: scenario parameters
+        """
+        if self.behavior_tree.outputs.scenario_params is None:
+            raise ValueError("Scenario parameters are not set yet!")
+        return self.behavior_tree.outputs.scenario_params
 
     def plan(self, reference_path: np.ndarray, goal_pos: np.ndarray, scenario: Scenario, current_state: EgoVehicleState) -> None:
         """

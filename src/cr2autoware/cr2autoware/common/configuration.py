@@ -128,6 +128,8 @@ class ScenarioParams(BaseParams):
     cr_obstacle_box_front: float = 50.0  # m
     cr_obstacle_box_rear: float = 10.0  # m
     cr_obstacle_box_side: float = 12.5  # m (half width)
+    # flag to consider obstacle prediction in bounding box
+    cr_obstacle_box_prediction: bool = True
 
     # test mode for traffic light handling
     test_mode_traffic_light: bool = False

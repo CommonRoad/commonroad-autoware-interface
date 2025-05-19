@@ -2,6 +2,7 @@ from typing import Any
 import copy
 import numpy as np
 from commonroad.scenario.lanelet import Lanelet
+from dataclasses import dataclass
 
 def copy_from_blackboard(blackboard_param: Any) -> Any:
         """
@@ -38,3 +39,14 @@ def minimum_width_lanelet(lanelet: Lanelet) -> float:
     right_vertices = lanelet.right_vertices
     widths = np.linalg.norm(left_vertices - right_vertices, axis=1)
     return np.min(widths)
+
+
+@dataclass
+class BehaviorScenarioParams:
+        """
+        Class to hold behavior scenario parameters.
+        """
+        cr_obstacle_box_front: float = None
+        cr_obstacle_box_rear: float = None
+        cr_obstacle_box_side: float = None
+        cr_obstacle_box_prediction: bool = None

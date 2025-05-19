@@ -646,7 +646,7 @@ class Cr2Auto(Node):
         self.start_update_time = time.time()
 
         self.ego_vehicle_handler.update_ego_vehicle()
-        self.scenario_handler.update_scenario()
+        self.scenario_handler.update_scenario(self.behavior_planner.scenario_params)
         self.plot_save_scenario()
 
         self.scenario_update_time = time.time() - self.start_update_time

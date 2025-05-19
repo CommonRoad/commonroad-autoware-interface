@@ -78,6 +78,7 @@ from ..common.utils.geometry import upsample_trajectory
 from ..common.utils.geometry import traj_linear_interpolate
 from ..common.ros_interface.create import create_subscription
 from ..common.ros_interface.create import create_publisher
+from ..interfaces.implementation.behavior_tree.behavior_utils import BehaviorScenarioParams
 
 # Avoid circular imports
 if typing.TYPE_CHECKING:
@@ -218,6 +219,7 @@ class ScenarioHandler(BaseHandler):
         self.cr_obstacle_box_front = self._get_param("scenario.cr_obstacle_box_front").double_value
         self.cr_obstacle_box_rear = self._get_param("scenario.cr_obstacle_box_rear").double_value
         self.cr_obstacle_box_side = self._get_param("scenario.cr_obstacle_box_side").double_value
+        self.cr_obstacle_box_prediction = self._get_param("scenario.cr_obstacle_box_prediction").bool_value
 
         # flag for traffic light simulation in test drive
         self.test_mode_traffic_light = self._get_param("scenario.test_mode_traffic_light").bool_value
@@ -533,7 +535,7 @@ class ScenarioHandler(BaseHandler):
         """
         return self._node.get_clock().now().to_msg()
 
-    def update_scenario(self) -> None:
+    def update_scenario(self, behavior_scenario_params: BehaviorScenarioParams) -> None:
         """Update the CommonRoad scenario using the perception/prediction input."""
         if self._VERBOSE:
             self._logger.info("Updating scenario")
@@ -542,7 +544,7 @@ class ScenarioHandler(BaseHandler):
         t_start = time.perf_counter()
 
         # process objects from perception
-        self._process_objects()
+        self._process_objects(behavior_scenario_params)
         self._logger.debug(f"[SVEN] [TIME] Processing objects took: {time.perf_counter() - t_start} s")
 
         t_tl = time.perf_counter()
@@ -582,7 +584,7 @@ class ScenarioHandler(BaseHandler):
         self._logger.debug(f"\t Current CR traffic light IDs: "
                            f"{[tl.traffic_light_id for tl in self.lanelet_network.traffic_lights if tl.active is True]}")
 
-    def _process_objects(self) -> None:
+    def _process_objects(self, behavior_scenario_params: BehaviorScenarioParams) -> None:
         """
         Converts Autoware objects to CommonRoad dynamic obstacles and add them to the CommonRoad scenario.
 
@@ -594,6 +596,8 @@ class ScenarioHandler(BaseHandler):
         * Adding newly appearing objects to the scenario
         * Updating existing objects (i.e., their state, shape and predicted trajectory)
         * Removing disappearing objects from the scenario
+
+        :param behavior_scenario_params: scenario parameters set by the behavior planner
         """
         last_message = self._last_msg.get("dynamic_obstacle")  # message type: PredictedObjects
         if last_message is None:
@@ -606,11 +610,11 @@ class ScenarioHandler(BaseHandler):
         list_curr_aw_object_ids: List[UUID] = list()
 
         # create CR obstacle box polygon around ego vehicle for object filtering
-        cr_obstacle_box = self._cr_obstacle_box()
+        cr_obstacle_box = self._cr_obstacle_box(behavior_scenario_params)
 
         for obstacle in last_message.objects:
             # check if obstacle is within the ego vehicle's CR obstacle box
-            if not self._is_in_cr_obstacle_box(cr_obstacle_box, obstacle):
+            if not self._is_in_cr_obstacle_box(cr_obstacle_box, obstacle, behavior_scenario_params):
                 continue
 
             # convert current state
@@ -757,10 +761,11 @@ class ScenarioHandler(BaseHandler):
         for idx in list_removed_aw_object_ids:
             self._object_id_mapping.pop(idx)
 
-    def _cr_obstacle_box(self) -> Polygon:
+    def _cr_obstacle_box(self, behavior_scenario_params: BehaviorScenarioParams) -> Polygon:
         """
         Get the CR obstacle box of the ego vehicle as a polygon.
 
+        :param behavior_scenario_params: behavior scenario parameters
         :return: CR obstacle box
         """
         # get ego vehicle position and orientation
@@ -774,21 +779,39 @@ class ScenarioHandler(BaseHandler):
         cos_theta = math.cos(ego_vehicle_orientation)
         sin_theta = math.sin(ego_vehicle_orientation)
 
+        # set bounding box dimensions
+        # if behavior planner requires a different bounding box size, set it here
+        if behavior_scenario_params.cr_obstacle_box_front is not None:
+            box_front_dim = behavior_scenario_params.cr_obstacle_box_front
+        else: 
+            box_front_dim = self.cr_obstacle_box_front
+
+        if behavior_scenario_params.cr_obstacle_box_rear is not None:
+            box_rear_dim = behavior_scenario_params.cr_obstacle_box_rear
+        else:
+            box_rear_dim = self.cr_obstacle_box_rear
+
+        if behavior_scenario_params.cr_obstacle_box_side is not None:
+            box_side_dim = behavior_scenario_params.cr_obstacle_box_side
+        else:
+            box_side_dim = self.cr_obstacle_box_side
+
+
         front_left = Point(
-            ego_vehicle_position.x + self.cr_obstacle_box_front * cos_theta - self.cr_obstacle_box_side * sin_theta,
-            ego_vehicle_position.y + self.cr_obstacle_box_front * sin_theta + self.cr_obstacle_box_side * cos_theta
+            ego_vehicle_position.x + box_front_dim * cos_theta - box_side_dim * sin_theta,
+            ego_vehicle_position.y + box_front_dim * sin_theta + box_side_dim * cos_theta
         )
         front_right =  Point(
-            ego_vehicle_position.x + self.cr_obstacle_box_front * cos_theta + self.cr_obstacle_box_side * sin_theta,
-            ego_vehicle_position.y + self.cr_obstacle_box_front * sin_theta - self.cr_obstacle_box_side * cos_theta
+            ego_vehicle_position.x + box_front_dim * cos_theta + box_side_dim * sin_theta,
+            ego_vehicle_position.y + box_front_dim * sin_theta - box_side_dim * cos_theta
         )
         rear_left = Point(
-            ego_vehicle_position.x - self.cr_obstacle_box_rear * cos_theta - self.cr_obstacle_box_side * sin_theta,
-            ego_vehicle_position.y - self.cr_obstacle_box_rear * sin_theta + self.cr_obstacle_box_side * cos_theta
+            ego_vehicle_position.x - box_rear_dim * cos_theta - box_side_dim * sin_theta,
+            ego_vehicle_position.y - box_rear_dim * sin_theta + box_side_dim * cos_theta
         )
         rear_right = Point(
-            ego_vehicle_position.x - self.cr_obstacle_box_rear * cos_theta + self.cr_obstacle_box_side * sin_theta,
-            ego_vehicle_position.y - self.cr_obstacle_box_rear * sin_theta - self.cr_obstacle_box_side * cos_theta
+            ego_vehicle_position.x - box_rear_dim * cos_theta + box_side_dim * sin_theta,
+            ego_vehicle_position.y - box_rear_dim * sin_theta - box_side_dim * cos_theta
         )
 
         # create a polygon for the perception 
@@ -832,7 +855,7 @@ class ScenarioHandler(BaseHandler):
         # publish obstacles
         self._pub_cr_obstacles.publish(marker_array)
 
-    def _is_in_cr_obstacle_box(self, cr_obstacle_box: Polygon, obstacle: PredictedObject) -> bool:
+    def _is_in_cr_obstacle_box(self, cr_obstacle_box: Polygon, obstacle: PredictedObject, behavior_scenario_params: BehaviorScenarioParams) -> bool:
         """
         Check if the given obstacle position is within the ego vehicle's or prediction's CR obstacle box.
 
@@ -847,13 +870,19 @@ class ScenarioHandler(BaseHandler):
         if cr_obstacle_box.contains(obstacle_point):
             return True
 
+        # get flag for checking the predicted path
+        if behavior_scenario_params.cr_obstacle_box_prediction is not None:
+            check_prediction = behavior_scenario_params.cr_obstacle_box_prediction
+        else:
+            check_prediction = self.cr_obstacle_box_prediction
         # check if predicted poses are within the CR obstacle box
-        predicted_path: PredictedPath = self._get_predicted_path(obstacle)
-        for pose in predicted_path.path:
-            obstacle_point = Point(pose.position.x, pose.position.y)
-            if cr_obstacle_box.contains(obstacle_point):
-                return True
-        
+        if check_prediction:
+            predicted_path: PredictedPath = self._get_predicted_path(obstacle)
+            for pose in predicted_path.path:
+                obstacle_point = Point(pose.position.x, pose.position.y)
+                if cr_obstacle_box.contains(obstacle_point):
+                    return True
+
         return False
 
     @staticmethod
