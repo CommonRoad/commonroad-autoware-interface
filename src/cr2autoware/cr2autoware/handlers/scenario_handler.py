@@ -1184,12 +1184,12 @@ class ScenarioHandler(BaseHandler):
                 traffic_light_cr.active = True
 
             # set traffic light active state to False and traffic light cycle to inactive for all traffic lights that are not in the perception message
-            for traffic_light_ln in self.lanelet_network.traffic_lights:
-                if traffic_light_ln.active is True:
-                    if traffic_light_ln.traffic_light_id not in processed_traffic_light_ids:
-                        traffic_light_ln.active = False
-                        color_inactive = dict_autoware_to_commonroad_traffic_light_color[99]
-                        traffic_light_ln.traffic_light_cycle = set_traffic_light_cycle(color_inactive)
+            # for traffic_light_ln in self.lanelet_network.traffic_lights:
+            #     if traffic_light_ln.active is True:
+            #         if traffic_light_ln.traffic_light_id not in processed_traffic_light_ids:
+            #             traffic_light_ln.active = False
+            #             color_inactive = dict_autoware_to_commonroad_traffic_light_color[99]
+            #             traffic_light_ln.traffic_light_cycle = set_traffic_light_cycle(color_inactive)
 
     @staticmethod
     def _get_traffic_light(traffic_signal: TrafficSignal) -> TrafficSignalElement:
