@@ -504,6 +504,8 @@ class Cr2Auto(Node):
         self.current_smoothed_velocity_data = None
         self.current_position_data = None
         self.curvilinear_path_data = None
+        self.cartesian_path_data = None
+        self.current_orientation_data = None
 
     @property
     def scenario(self) -> Scenario:
@@ -669,6 +671,8 @@ class Cr2Auto(Node):
                     self.current_smoothed_velocity_data,
                     self.current_position_data,
                     self.curvilinear_path_data,
+                    self.cartesian_path_data,
+                    self.current_orientation_data,
                 )
 
                 self.cycle_count += 1
@@ -686,6 +690,8 @@ class Cr2Auto(Node):
                 self.current_smoothed_velocity_data = None
                 self.current_position_data = None
                 self.curvilinear_path_data = None
+                self.cartesian_path_data = None
+                self.current_orientation_data = None
         
     def update_initial_pose(self) -> None:
         """Update initial pose."""
@@ -760,7 +766,9 @@ class Cr2Auto(Node):
 
         self.behavior_planning_time = time.time() - self.start_behavior_time
         self.curvilinear_path_data = self.behavior_planner.path_in_curvilinear
+        self.cartesian_path_data = self.behavior_planner.path_in_cartesian
         self.current_position_data = self.behavior_planner.current_position_curvilinear
+        self.current_orientation_data = quaternion2orientation(self.ego_vehicle_handler.current_vehicle_state.pose.pose.orientation)
         self.current_velocity_data = self.ego_vehicle_handler.ego_vehicle_state.velocity
         self.velocity_profile_data = self.behavior_planner.velocity_profile_data
         self.current_behavior_velocity_data = self.behavior_planner.get_behavior_velocity_for_current_state(
@@ -789,7 +797,9 @@ class Cr2Auto(Node):
                                     self.scenario_handler.z_coordinate)
         self.behavior_planning_time = time.time() - self.start_behavior_time
         self.curvilinear_path_data = self.behavior_planner.path_in_curvilinear
+        self.cartesian_path_data = self.behavior_planner.path_in_cartesian
         self.current_position_data = self.behavior_planner.failsafe_current_position
+        self.current_orientation_data = quaternion2orientation(self.ego_vehicle_handler.current_vehicle_state.pose.pose.orientation)
         self.current_velocity_data = self.ego_vehicle_handler.ego_vehicle_state.velocity
         self.velocity_profile_data = self.behavior_planner.velocity_profile_data
         self.current_behavior_velocity_data = self.behavior_planner.get_behavior_velocity_for_current_state(

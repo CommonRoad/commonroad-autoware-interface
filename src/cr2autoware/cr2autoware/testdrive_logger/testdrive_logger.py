@@ -28,6 +28,9 @@ class TestDriveLogger:
         current_smoothed_velocity,
         current_position,
         curvilinear_path,
+        cartesian_path,
+        current_orientation,
+
     ):
         self.data.append(
             {
@@ -59,6 +62,13 @@ class TestDriveLogger:
                     if isinstance(velocity_profile, np.ndarray)
                     else velocity_profile
                 ),
+                "cartesian_path": (
+                    cartesian_path.tolist()
+                    if isinstance(velocity_profile, np.ndarray)
+                    else velocity_profile
+                ),
+                "current_orientation": current_orientation,
+
             }
         )
 
