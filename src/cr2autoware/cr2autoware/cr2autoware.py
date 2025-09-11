@@ -830,6 +830,7 @@ class Cr2Auto(Node):
                 self.ego_vehicle_handler.current_vehicle_state.pose.pose.position,
                 self.ego_vehicle_handler.current_vehicle_state.twist.twist.linear.x)
 
+            # cut-off very low velocities and set minimum velocity to 1.0 m/s
             if reference_velocity < 0.3:
                 reference_velocity = 0.0
             elif reference_velocity < 1.0:
@@ -1101,9 +1102,6 @@ class Cr2Auto(Node):
             routing_state_msg = RouteState()
             routing_state_msg.state = 3
             self.routing_state_pub.publish(routing_state_msg)
-            # call client for change to stop service
-            # TODO CHECK IF THIS IS NEEDED
-            # change_to_stop_response = self.change_to_stop_client.call(self.change_to_stop_request)
             # set /vehicle/engage to False if goal arrived
             self.engage_status = False
         elif self.waiting_for_velocity_0:
