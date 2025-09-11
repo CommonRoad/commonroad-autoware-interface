@@ -96,7 +96,7 @@ class GeneralParams(BaseParams):
     solution_file: str = ""
 
     # verbose ROS logging
-    detailed_log: bool = False
+    detailed_log: bool = True
     # write scenario to XML file
     write_scenario: bool = True
     # plot CR scenario
@@ -133,6 +133,8 @@ class ScenarioParams(BaseParams):
 
     # test mode for traffic light handling
     test_mode_traffic_light: bool = False
+    # only consider currently perceived traffic lights from perception (others are set to inactive)
+    only_current_traffic_lights: bool = False  
 
     def __post_init__(self):
         """Initialize ROS params."""
@@ -301,10 +303,11 @@ class BehaviorPlannerParams(BaseParams):
     """
     Base Class for behavior planner parameters.
 
-    :var init_velocity: initial velocity (in m/s) (TODO: not yet implemented -> remove?; should only be used for lanelet2 maps)
     :var lookahead_dist: lookahead distance (in meters)
     :var lookahead_time: lookahead time (in seconds)
     :var velocity_limit: maximum velocity for vehicle (in m/s)
+    :var log_testdrive: log testdrive
+    :var save_cycle: save every n-th cycle
     :var traffic_light_behavior: activate traffic light behavior module
     :var yellow_light_time: yellow light phase time (in seconds)
     :var no_stop_line_in_map: If no stop lines are specified in the map, the module will stop at the beginning of the lanelet
@@ -313,7 +316,6 @@ class BehaviorPlannerParams(BaseParams):
     :var distance_stop_line_to_vehicle_front_bumper: distance between stop line and vehicle front bumper (in meters)
     :var max_comfort_deceleration: maximum deceleration for comfort stop (in m/s^2)
     :var system_delay: system delay for braking distance calculation (in seconds)
-    :var d_minimal_buffer: minimal buffer for lateral offset trajectory planner (in meters)
     :var comfort_rollout: Activate comfort rollout stopping procedure
     :var comfort_rollout_distance: Rollout distance for comfort stopping procedure (in meters)
     :var comfort_rollout_speed: Maximum rollout speed for comfort stopping procedure (in m/s)
@@ -327,12 +329,16 @@ class BehaviorPlannerParams(BaseParams):
     :var look_ahead_time: look ahead time for lateral clearance function (in seconds)
     :var min_look_ahead_distance: minimum look ahead distance for lateral clearance function (in meters)
     :var time_threshold: time threshold to consider occupancies on different time steps (in seconds)
+    :var orientation_threshold: orientation threshold to classify obstacles as relevant for lateral clearance (in rad)
     :var min_reference_velocity: minimum reference velocity for lateral clearance function (in m/s)
     :var publish_lateral_clearance_topics: flag to publish lateral clearance topics
+    :var lane_keeping: activate lane keeping module
+    :var force_lane_keeping: force the vehicle to stay in the lane
+    :var d_minimal_buffer: minimal buffer for lateral offset trajectory planner (in meters)
+    :var min_look_ahead_distance_lane_width: minimal loock ahead distance for lane width (in meters)
+    :var publish_lane_keeping_markers: flag to publish lane keeping markers
     """
     # General parameters
-    # initial velocity (in m/s) (TODO: not yet implemented -> remove?; should only be used for lanelet2 maps)
-    init_velocity: float = 5.0
     # lookahead distance (in meters)
     lookahead_dist: float = 3.0
     # lookahead time (in seconds)

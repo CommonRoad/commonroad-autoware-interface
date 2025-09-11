@@ -225,6 +225,9 @@ class ScenarioHandler(BaseHandler):
         self.test_mode_traffic_light = self._get_param("scenario.test_mode_traffic_light").bool_value
         self.yellow_light_time = self._get_param("behavior_planner.yellow_light_time").double_value
 
+        # only consider currently perceived traffic lights from perception (others are set to inactive)
+        self.only_current_traffic_lights = self._get_param("scenario.only_current_traffic_lights").bool_value
+
     def _read_map_config(self, map_path: str) -> Dict[str, Any]:
         """
         Read the map config file to obtain the origin (lat/lon) of the local coordinates of the lanelet2 map.
@@ -1184,12 +1187,13 @@ class ScenarioHandler(BaseHandler):
                 traffic_light_cr.active = True
 
             # set traffic light active state to False and traffic light cycle to inactive for all traffic lights that are not in the perception message
-            # for traffic_light_ln in self.lanelet_network.traffic_lights:
-            #     if traffic_light_ln.active is True:
-            #         if traffic_light_ln.traffic_light_id not in processed_traffic_light_ids:
-            #             traffic_light_ln.active = False
-            #             color_inactive = dict_autoware_to_commonroad_traffic_light_color[99]
-            #             traffic_light_ln.traffic_light_cycle = set_traffic_light_cycle(color_inactive)
+            if self.only_current_traffic_lights:
+                for traffic_light_ln in self.lanelet_network.traffic_lights:
+                    if traffic_light_ln.active is True:
+                        if traffic_light_ln.traffic_light_id not in processed_traffic_light_ids:
+                            traffic_light_ln.active = False
+                            color_inactive = dict_autoware_to_commonroad_traffic_light_color[99]
+                            traffic_light_ln.traffic_light_cycle = set_traffic_light_cycle(color_inactive)
 
     @staticmethod
     def _get_traffic_light(traffic_signal: TrafficSignal) -> TrafficSignalElement:

@@ -3,7 +3,7 @@
     general:
       map_path: ""
       solution_file: ""
-      detailed_log: False
+      detailed_log: True
       write_scenario: True # write generated scenario as xml file after map is converted
       plot_scenario: False
       store_trajectory: False
@@ -23,6 +23,7 @@
       cr_obstacle_box_prediction: True # consider obstacle prediction in bounding box
 
       test_mode_traffic_light: False # test mode for traffic light handling
+      only_current_traffic_lights: False # only consider currently perceived traffic lights from perception (others are set to inactive)
 
     vehicle:
       # static parameters (e.g., wheel_base) are read from vehicle_info.param.yaml (see cr2autoware/configuration.py)
@@ -55,7 +56,6 @@
 
     behavior_planner:
       # general parameters
-      init_velocity: 5.0 # m/s - not yet implemented; should only be used for lanelet2 maps
       lookahead_dist: 3.0 # m
       lookahead_time: 0.8 # s
       velocity_limit: 8.33  # m/s
@@ -71,11 +71,11 @@
       stop_line_overrun_tolerance: 8.0  # m
       traffic_light_perception_range: 100.0  # m
       distance_stop_line_to_vehicle_front_bumper: 1.0  # m
-      max_comfort_deceleration: 2.0  # m/s^2
+      max_comfort_deceleration: 3.5  # m/s^2
       system_delay: 0.5  # s
       comfort_rollout: True
-      comfort_rollout_distance: 10.0  # m
-      comfort_rollout_speed: 3.0  # m/s
+      comfort_rollout_distance: 25.0  # m
+      comfort_rollout_speed: 2.5  # m/s
       yellow_light_rollout_distance: 0.0  # m
       plot_decision_graph: False
       publish_traffic_light_markers: True
