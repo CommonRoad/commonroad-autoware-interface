@@ -109,9 +109,9 @@ class InteractiveDriving(Superstate):
         pass
 
 
-class InteractiveFailSafe(Superstate):
+class InteractiveSlowdown(Superstate):
     """
-    State for fail-safe.
+    State for Slowdown.
     """
 
     def __init__(self, machine, config: StateConfig):

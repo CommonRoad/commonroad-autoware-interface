@@ -4,9 +4,9 @@ from py_trees.common import Status
 from rclpy.impl.rcutils_logger import RcutilsLogger
 from std_msgs.msg import Bool
 
-class FailSafe(Behaviour):
+class Slowdown(Behaviour):
     """
-    FailSafe BehaviorTree Node.
+    Slowdown BehaviorTree Node.
 
     :var logger: ROS2 node logger
     :var blackboard: Blackboard for behavior tree
@@ -23,8 +23,8 @@ class FailSafe(Behaviour):
         :param name: Name of the behavior tree node
         """
         self.blackboard = py_trees.blackboard.Client(name=(name + "Blackboard"))
-        self.blackboard.register_key(key="/failsafe/bool", access=py_trees.common.Access.WRITE)
-    
+        self.blackboard.register_key(key="/slowdown/bool", access=py_trees.common.Access.WRITE)
+
     def setup(self):
         pass
 
@@ -33,11 +33,11 @@ class FailSafe(Behaviour):
 
     def update(self):
         """
-        FailSafe behavior tree node. Save boolean to blackboard.
+        Slowdown behavior tree node. Save boolean to blackboard.
         """
-        self.blackboard.failsafe.bool = True
+        self.blackboard.slowdown.bool = True
 
         return Status.SUCCESS
         
     def terminate(self, new_status):
-        self._logger.debug("[SVEN]Terminating FailSafe to " + str(new_status))
+        self._logger.debug("[SVEN]Terminating Slowdown to " + str(new_status))

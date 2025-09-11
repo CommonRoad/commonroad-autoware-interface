@@ -3,7 +3,7 @@ from cr2autoware.state_machine.base.state_machine import StateMachine
 from cr2autoware.state_machine.base.configuration import StateConfig
 from cr2autoware.state_machine.implementation.events.interactive_planning import BehaviorPlanningEvent, PublishTrajectoryEvent, UpdateScenarioEvent
 
-class UpdateScenario_FailSafe(State):
+class UpdateScenario_Slowdown(State):
     """
     State for Scenario Update.
     """
@@ -40,7 +40,7 @@ class UpdateScenario_FailSafe(State):
             raise Exception("Route is not planned yet.")
 
 
-class BehaviorPlanning_FailSafe(State):
+class BehaviorPlanning_Slowdown(State):
     """
     State for Behavior Planning.
     """
@@ -52,7 +52,7 @@ class BehaviorPlanning_FailSafe(State):
         """
         Entry action of the state.
         """
-        self.node.behavior_failsafe()
+        self.node.behavior_slowdown()
 
         self.machine.process_event(PublishTrajectoryEvent(self.machine, self.node))
 
@@ -69,7 +69,7 @@ class BehaviorPlanning_FailSafe(State):
         pass
 
 
-class PublishTrajectory_FailSafe(State):
+class PublishTrajectory_Slowdown(State):
     """
     State for Route Planning.
     """

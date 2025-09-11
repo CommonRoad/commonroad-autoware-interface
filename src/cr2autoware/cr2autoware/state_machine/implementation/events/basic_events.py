@@ -108,7 +108,7 @@ class ChangedInitialPoseEvent(Event):
 
         self.node._logger.debug("[SVEN]Initial Pose Update initiated.")
 
-class FailSafeEvent(Event):
+class SlowdownEvent(Event):
     """
     Event for initialization of the state machine.
     """
@@ -117,4 +117,4 @@ class FailSafeEvent(Event):
         super().__init__(machine, node)
 
     def run(self):
-        self.node._logger.debug("[SVEN]Fail Safe triggered.")
+        self.node._logger.debug("[SVEN]Slowdown triggered.")

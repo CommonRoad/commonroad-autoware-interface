@@ -69,7 +69,7 @@ from commonroad.visualization.mp_renderer import MPRenderer
 import cr2autoware.state_machine as sm
 from cr2autoware.state_machine.implementation.events.basic_events import HasSolutionPath, NoSolutionPath, \
     AutowareEngagedEvent, GoalReachedEvent, EngageFalseEvent, ClearRouteEvent, StopButtonEvent, ChangedInitialPoseEvent, \
-    FailSafeEvent
+    SlowdownEvent
 from cr2autoware.common.configuration import CR2AutowareParams
 from .handlers.scenario_handler import ScenarioHandler
 from .handlers.ego_vehicle_handler import EgoVehicleHandler
@@ -92,7 +92,7 @@ from .testdrive_logger.testdrive_logger import TestDriveLogger
 # subscriber specifications
 from .common.ros_interface.specs_subscriptions import \
     spec_initial_pose_sub, spec_auto_button_sub, spec_velocity_limit_sub, spec_routing_state_sub, \
-    spec_autoware_state_sub, spec_echo_back_goal_pose_sub, spec_failsafe_behavior_sub, spec_traj_smoothed, \
+    spec_autoware_state_sub, spec_echo_back_goal_pose_sub, spec_slowdown_behavior_sub, spec_traj_smoothed, \
     spec_keep_lane_sub
 
 # publisher specifications
@@ -100,7 +100,7 @@ from .common.ros_interface.specs_publisher import \
     spec_goal_pose_pub, spec_traj_pub, spec_aw_state_pub, spec_vehicle_engage_pub, spec_api_engage_pub, \
     spec_routing_state_pub, spec_route_pub, spec_velocity_pub, spec_initial_pose_pub, spec_goal_region_pub, \
     spec_velocity_limit_pub, spec_velocity_limit_pub_vis, spec_lane_keeping_markers_pub, \
-    spec_lateral_clearance_pub, spec_traffic_light_marker_pub, spec_failsafe_behavior_pub
+    spec_lateral_clearance_pub, spec_traffic_light_marker_pub, spec_slowdown_behavior_pub
 
 # service client specifications
 from .common.ros_interface.specs_clients import \
@@ -176,9 +176,9 @@ class Cr2Auto(Node):
         * Description: Traffic light visualization.
         * Topic: `/planning/commonroad/behavior_planning/traffic_light_marker`
         * Message Type: `visualization_msgs.msg.MarkerArray`
-    * failsafe_behavior_pub:
-        * Description: Failsafe behavior message.
-        * Topic: `/planning/commonroad/behavior_planning/failsafe`
+    * slowdown_behavior_pub:
+        * Description: Slowdown behavior message.
+        * Topic: `/planning/commonroad/behavior_planning/slowdown`
         * Message Type: `std_msgs.msg.Bool`
 
     ----------------
@@ -212,9 +212,9 @@ class Cr2Auto(Node):
         * Description: Keep lane message
         * Topic: `/planning/commonroad/behavior_planning/keep_lane_bool`
         * Message Type: `std_msgs.msg.Bool`
-    * failsafe_behavior_sub:
-        * Description: FailSafe topic for behavior planner
-        * Topic: `/planning/commonroad/behavior_planning/failsafe`
+    * slowdown_behavior_sub:
+        * Description: Slowdown topic for behavior planner
+        * Topic: `/planning/commonroad/behavior_planning/slowdown`
         * Message Type: `std_msgs.msg.Bool`
     * traj_sub_smoothed_behavior_planner:
         * Description: Trajectory from motion velocity smoother
@@ -373,8 +373,8 @@ class Cr2Auto(Node):
         self.routing_state_sub = create_subscription(self, spec_routing_state_sub, self.routing_state_callback,
                                                      self.callback_group)
 
-        # subscribe failsafe behavior
-        self.failsafe_behavior_sub = create_subscription(self, spec_failsafe_behavior_sub, self.failsafe_behavior_callback,
+        # subscribe slowdown behavior
+        self.slowdown_behavior_sub = create_subscription(self, spec_slowdown_behavior_sub, self.slowdown_behavior_callback,
                                                             self.callback_group)
 
         # ========= Publishers =========
@@ -426,8 +426,8 @@ class Cr2Auto(Node):
         # publish traffic light marker
         self.traffic_light_marker_pub = create_publisher(self, spec_traffic_light_marker_pub)
 
-        # publish failsafe behavior
-        self.failsafe_behavior_pub = create_publisher(self, spec_failsafe_behavior_pub)
+        # publish slowdown behavior
+        self.slowdown_behavior_pub = create_publisher(self, spec_slowdown_behavior_pub)
         # ========= Service Clients =========
         # client for change to stop service call (only for publishing "stop" if goal arrived)
         self.change_to_stop_client = create_client(self, spec_change_to_stop_client)
@@ -545,7 +545,7 @@ class Cr2Auto(Node):
             self.traffic_light_marker_pub,
             self.lateral_clearance_pub,
             self.lane_keeping_markers_pub,
-            self.failsafe_behavior_pub,
+            self.slowdown_behavior_pub,
             self._logger,
             self.verbose,
             self.get_parameter("behavior_planner.lookahead_dist").get_parameter_value().double_value,
@@ -779,12 +779,12 @@ class Cr2Auto(Node):
             self.ego_vehicle_handler.current_vehicle_state.pose.pose.position
         )
 
-    def behavior_failsafe(self) -> None:
-        """FailSafe behavior planning. Update reference path of trajectory planner."""
+    def behavior_slowdown(self) -> None:
+        """Slowdown behavior planning. Update reference path of trajectory planner."""
         self.start_behavior_time = time.time()
         # plan route and reference path
         _goal_pos_cr = map2utm(self.origin_transformation, self.current_goal_msg.pose.position)
-        self.behavior_planner.failsafe_planning(
+        self.behavior_planner.slowdown_planning(
                                         self.ego_vehicle_handler.ego_vehicle_state,
                                         self.route_planner.reference_path, 
                                         _goal_pos_cr,
@@ -798,7 +798,7 @@ class Cr2Auto(Node):
         self.behavior_planning_time = time.time() - self.start_behavior_time
         self.curvilinear_path_data = self.behavior_planner.path_in_curvilinear
         self.cartesian_path_data = self.behavior_planner.path_in_cartesian
-        self.current_position_data = self.behavior_planner.failsafe_current_position
+        self.current_position_data = self.behavior_planner.slowdown_current_position
         self.current_orientation_data = quaternion2orientation(self.ego_vehicle_handler.current_vehicle_state.pose.pose.orientation)
         self.current_velocity_data = self.ego_vehicle_handler.ego_vehicle_state.velocity
         self.velocity_profile_data = self.behavior_planner.velocity_profile_data
@@ -1312,17 +1312,17 @@ class Cr2Auto(Node):
         # TODO why is the route pub used here?? Should be the goal publisher
         self.route_pub.publish(goals_msg)
 
-    def failsafe_behavior_callback(self, msg: Bool) -> None:
+    def slowdown_behavior_callback(self, msg: Bool) -> None:
         """
-        Callback to failsafe behavior. Save message for later processing.
+        Callback to slowdown behavior. Save message for later processing.
 
-        :param msg: Failsafe behavior message
+        :param msg: Slowdown behavior message
         """
-        failsafe_behavior = msg.data
+        slowdown_behavior = msg.data
 
-        if failsafe_behavior:
-            self._logger.info("[SVEN]FailSafe behavior planning activated!")
-            self.state_machine.process_event(FailSafeEvent(self.state_machine, self))
+        if slowdown_behavior:
+            self._logger.info("[SVEN]Slowdown behavior planning activated!")
+            self.state_machine.process_event(SlowdownEvent(self.state_machine, self))
 
     def _plot_scenario(self) -> None:
         """ Plot the commonroad scenario."""

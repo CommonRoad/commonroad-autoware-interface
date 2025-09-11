@@ -81,9 +81,9 @@ To add a new topic publisher, add the specification here first.
     * Description: Traffic light stop_line and stop_point
     * Topic: `/planning/commonroad/behavior_planning/traffic_light_marker`
     * Message Type: `visualization_msgs.msg.MarkerArray`
-* spec_failsafe_behavior_pub:
-    * Description: Failsafe message
-    * Topic: `/planning/commonroad/behavior_planning/failsafe`
+* spec_slowdown_behavior_pub:
+    * Description: Slowdown message
+    * Topic: `/planning/commonroad/behavior_planning/slowdown`
     * Message Type: `std_msgs.msg.Bool`
 """
 
@@ -210,7 +210,7 @@ spec_traffic_light_marker_pub = PublisherSpec(name="/planning/commonroad/behavio
                                                 msg_type=MarkerArray,
                                                 depth=1)
 
-# publish failsafe message
-spec_failsafe_behavior_pub = PublisherSpec(name="/planning/commonroad/behavior_planning/failsafe",
+# publish slowdown message
+spec_slowdown_behavior_pub = PublisherSpec(name="/planning/commonroad/behavior_planning/slowdown",
                                            msg_type=Bool,
                                            depth=1)

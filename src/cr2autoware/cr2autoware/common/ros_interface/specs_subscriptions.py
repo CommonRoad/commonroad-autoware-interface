@@ -54,9 +54,9 @@ To add a new topic subscription, add the specification here first.
     * Description: subscribe simulated traffic light
     * Topic: `/planning/commonroad/test_mode/traffic_light`
     * Message Type: `std_msgs.msg.Bool`
-* spec_failsafe_behavior_sub
-    * Description: subscribe failsafe boolean for behavior planning
-    * Topic: `/planning/commonroad/behavior_planning/failsafe`
+* spec_slowdown_behavior_sub
+    * Description: subscribe slowdown boolean for behavior planning
+    * Topic: `/planning/commonroad/behavior_planning/slowdown`
     * Message Type: `std_msgs.msg.Bool`
 * spec_keep_lane_sub
     * Description: subscribe keep lane boolean for behavior planning
@@ -176,9 +176,9 @@ spec_simulated_traffic_light_sub = SubscriptionSpec(
     depth=1
 )
 
-# subscribes to the failsafe boolean for behavior planning
-spec_failsafe_behavior_sub = SubscriptionSpec(
-    name="/planning/commonroad/behavior_planning/failsafe",
+# subscribes to the slowdown boolean for behavior planning
+spec_slowdown_behavior_sub = SubscriptionSpec(
+    name="/planning/commonroad/behavior_planning/slowdown",
     msg_type=Bool,
     depth=1
 )

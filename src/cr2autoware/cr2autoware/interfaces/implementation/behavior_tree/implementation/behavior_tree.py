@@ -4,7 +4,7 @@ import py_trees
 from py_trees.behaviour import Behaviour
 from py_trees.common import Status
 from py_trees.composites import Sequence, Selector, Parallel
-from .failsafe import FailSafe
+from .slowdown import Slowdown
 from .modules.traffic_light_behavior import TrafficLightsTree
 from .modules.lateral_clearance_velocity_adjuster import LateralClearanceVelocityAdjusterTree
 from .modules.lane_keeping import LaneKeepingTree
@@ -125,7 +125,7 @@ class BehaviorTree(BaseTree):
         root = Selector(name="MainBehaviorTree", memory=False)
 
         # Create the main behavior tree
-        fail_safe = FailSafe(name="FailSafe", logger=self.logger)
+        slowdown = Slowdown(name="Slowdown", logger=self.logger)
         module_tree = Parallel(name="BehaviorModules", policy=py_trees.common.ParallelPolicy.SuccessOnAll(synchronise=True))
         
         # Initialize Sub Modules
@@ -141,7 +141,7 @@ class BehaviorTree(BaseTree):
         if self.params.lane_keeping:
             module_tree.add_child(self.lane_keeping_module.root)
         
-        root.add_children([module_tree, fail_safe])
+        root.add_children([module_tree, slowdown])
         return root
 
     def preprocessing(self, scenario: Scenario, current_state: EgoVehicleState, input_path: np.ndarray, coordinate_system: CoordinateSystem, input_path_curvilinear: np.ndarray, origin_transformation: List, z_coordinate: float, ros_time_msg: Time, input_path_orientation: np.ndarray) -> None:

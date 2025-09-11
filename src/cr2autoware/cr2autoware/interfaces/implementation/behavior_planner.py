@@ -69,9 +69,9 @@ class BehaviorPlanner:
         * Description: Traffic light visualization.
         * Topic: `/planning/commonroad/behavior_planning/traffic_light_marker`
         * Message Type: `visualization_msgs.msg.MarkerArray`
-    * failsafe_pub:
-        * Description: Failsafe message.
-        * Topic: `/planning/commonroad/behavior_planning/failsafe`
+    * slowdown_pub:
+        * Description: Slowdown message.
+        * Topic: `/planning/commonroad/behavior_planning/slowdown`
         * Message Type: `std_msgs.msg.Bool`
 
     ---------------
@@ -84,7 +84,7 @@ class BehaviorPlanner:
     :var _lookahead_dist: lookahead distance for velocity planning
     :var _lookahead_time: lookahead time for velocity planning
     """
-    def __init__(self, ref_path_pub: Publisher, traffic_light_marker_pub: Publisher, lateral_clearance_pub: Publisher, lane_keeping_markers_pub: Publisher, failsafe_pub: Publisher, logger: RcutilsLogger, verbose: bool,
+    def __init__(self, ref_path_pub: Publisher, traffic_light_marker_pub: Publisher, lateral_clearance_pub: Publisher, lane_keeping_markers_pub: Publisher, slowdown_pub: Publisher, logger: RcutilsLogger, verbose: bool,
                  lookahead_dist: float, lookahead_time: float, origin_transformation: List, global_params: CR2AutowareParams, scenario_handler: ScenarioHandler) -> None:
         """
         Constructor for BehaviorPlanner class.
@@ -93,7 +93,7 @@ class BehaviorPlanner:
         :param traffic_light_marker_pub: ROS2 node publisher for traffic light marker
         :param lateral_clearance_pub: ROS2 node publisher for lateral clearance marker
         :param lane_keeping_markers_pub: ROS2 node publisher for lane keeping marker
-        :param failsafe_pub: ROS2 node publisher for failsafe message
+        :param slowdown_pub: ROS2 node publisher for slowdown message
         :param logger: ROS2 node logger
         :param verbose: Flag for verbose logging
         :param lookahead_dist: Lookahead distance for velocity planning
@@ -108,7 +108,7 @@ class BehaviorPlanner:
         self._traffic_light_marker_pub = traffic_light_marker_pub
         self._lateral_clearance_pub = lateral_clearance_pub
         self._lane_keeping_markers_pub = lane_keeping_markers_pub
-        self._failsafe_pub = failsafe_pub
+        self._slowdown_pub = slowdown_pub
 
         self._verbose = verbose
         self._logger = logger
@@ -138,8 +138,8 @@ class BehaviorPlanner:
         self.blackboard.register_key("/modules/lane_keeping/inputs/ros_condition", access=py_trees.common.Access.WRITE)
         self.blackboard.modules.lane_keeping.inputs.ros_condition = False        
         # Register keys for ROS Publisher
-        self.blackboard.register_key("/failsafe/bool", access=py_trees.common.Access.WRITE)
-        self.blackboard.failsafe.bool = False
+        self.blackboard.register_key("/slowdown/bool", access=py_trees.common.Access.WRITE)
+        self.blackboard.slowdown.bool = False
         self.blackboard.register_key("/modules/traffic_lights/outputs/traffic_light_marker_array", access=py_trees.common.Access.WRITE)
         self.blackboard.modules.traffic_lights.outputs.traffic_light_marker_array = MarkerArray()
         self.blackboard.register_key("/modules/lateral_clearance/outputs/lateral_clearance_marker_array", access=py_trees.common.Access.WRITE)
@@ -157,8 +157,8 @@ class BehaviorPlanner:
         # Coordinates in AW map frame
         self._tail = None
 
-        # failsafe current position in curvilinear coordinates
-        self.failsafe_current_position_curvilinear = None
+        # slowdown current position in curvilinear coordinates
+        self.slowdown_current_position_curvilinear = None
 
         # set scenario_handler
         self.scenario_handler = scenario_handler
@@ -251,8 +251,8 @@ class BehaviorPlanner:
         return self.blackboard.inputs.current_position_curvilinear
     
     @property
-    def failsafe_current_position(self) -> np.ndarray:
-        return self.failsafe_current_position_curvilinear
+    def slowdown_current_position(self) -> np.ndarray:
+        return self.slowdown_current_position_curvilinear
 
     @property
     def scenario_params(self) -> BehaviorScenarioParams:
@@ -334,8 +334,8 @@ class BehaviorPlanner:
         # Call _pub_ref_path
         self._pub_ref_path(input_path, velocity_path, self.origin_transformation)
 
-        # Publish failsafe message
-        self._pub_failsafe()
+        # Publish slowdown message
+        self._pub_slowdown()
 
         # Publish traffic light marker
         self._pub_traffic_light_marker()
@@ -355,7 +355,7 @@ class BehaviorPlanner:
             self._logger.info("[SVEN] [TIME] Planning Behavior Planner: " + str(plan_end_time - plan_start_time_4))
             self._logger.info("[SVEN] [TIME] Post Planning: " + str(plan_end_time_2 - plan_end_time))
 
-    def failsafe_planning(self, current_state: EgoVehicleState, reference_path: np.ndarray, goal_pos: np.ndarray) -> None:
+    def slowdown_planning(self, current_state: EgoVehicleState, reference_path: np.ndarray, goal_pos: np.ndarray) -> None:
         """
         Velocity planning in case of failure of behavior planner.
 
@@ -368,7 +368,7 @@ class BehaviorPlanner:
         self._is_velocity_planning_completed = False
 
         if self._verbose:
-            self._logger.info("<BehaviorPlanner>: Planning FailSafe velocity profile")
+            self._logger.info("<BehaviorPlanner>: Planning Slowdown velocity profile")
 
         # Clip original reference path so that it ends at the goal position
         goal_idx = self._get_closest_point_idx_on_path(reference_path, goal_pos)
@@ -386,7 +386,7 @@ class BehaviorPlanner:
         self.set_reference_path(input_path)
 
         # Set current position in curvilinear coordinates
-        self.failsafe_current_position_curvilinear = self.coordinate_system.convert_to_curvilinear_coords(current_state.position[0], current_state.position[1])
+        self.slowdown_current_position_curvilinear = self.coordinate_system.convert_to_curvilinear_coords(current_state.position[0], current_state.position[1])
 
         # set velocity profile to zero
         velocity_path = np.zeros(len(input_path))
@@ -446,14 +446,14 @@ class BehaviorPlanner:
 
         if self._verbose:
             self._logger.info("<BehaviorPlanner>: Reference path published to motion velocity smoother.")
-    
-    def _pub_failsafe(self) -> None:
-        if self.blackboard.failsafe.bool:
-            # publish failsafe message
+
+    def _pub_slowdown(self) -> None:
+        if self.blackboard.slowdown.bool:
+            # publish slowdown message
             msg = Bool()
             msg.data = True
-            self._failsafe_pub.publish(msg)
-            self.blackboard.failsafe.bool = False
+            self._slowdown_pub.publish(msg)
+            self.blackboard.slowdown.bool = False
 
     def _pub_traffic_light_marker(self) -> None:
         self._traffic_light_marker_pub.publish(self.blackboard.modules.traffic_lights.outputs.traffic_light_marker_array)
