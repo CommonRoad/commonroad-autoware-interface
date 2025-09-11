@@ -21,10 +21,18 @@ class BehaviorTree(BaseTree):
 
     def __init__(self, logger: RcutilsLogger, verbose: bool):
         """
-        Main behavior tree for the behavior planning.
+        Main behavior tree for the behavior planning using [py_trees](https://github.com/splintered-reality/py_trees/tree/release/2.3.x).
 
-        The behavior tree consits of various behavior modules that influence the velocity profile and lateral offset (d) for trajectory planning. 
-        It is built and managed using the py_trees package.
+        The behavior tree consits of various behavior modules that influence the velocity profile and lateral offset (d) for trajectory planning.
+
+        In the structure of the behavior tree, the root node is a Selector that contains a Parallel node for the behavior modules and a Slowdown behavior. 
+        A List of all Behavior Modules is provided below.
+
+        ![Behavior Tree Structure](assets/behavior_tree.svg)
+
+        The behavior tree uses a blackboard to store and share data between the different behaviors and modules. The blackboard is initialized with the necessary keys for inputs and outputs.
+
+        For detailed information about Behaviours, Composites (Parallel, Selector, Sequence), and the Blackboard, please refer to the [py_trees documentation](https://py-trees.readthedocs.io/en/devel/).
 
         ----------------
         **Behavior Modules:**
@@ -35,6 +43,14 @@ class BehaviorTree(BaseTree):
         * Lateral clearance velocity adjuster module:
             * Class: LateralClearanceVelocityAdjusterTree
             * Description: The module adjusts the velocity profile considering the lateral clearance function.
+        * Lane keeping module:
+            * Class: LaneKeepingTree
+            * Description: The module calculates the lateral offset (d) for trajectory planner considering the lane width and lane boundaries.
+
+        **Slowdown Behavior:**
+        
+        * Class: Slowdown
+        * Description: The behavior sets the velocity profile to zero in case of a failure in the behavior modules.
 
         ----------------
         :var logger: ROS2 node logger

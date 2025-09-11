@@ -56,7 +56,15 @@ nav:
       - CommonRoad Interfaces:
           - "CommonRoad Route Planner Interface": cr_route_planner_interface.md
           - "CommonRoad Reactive Planner Interface": cr_reactive_planner_interface.md
-          - "CommonRoad Velocity Planner Interface": cr_velocity_planner_interface.md
+          - "CommonRoad Behavior Planner Interface":
+            - "Behavior Planner": cr_behavior_planner_interface.md
+            - "Behavior Tree": behavior_tree.md
+            - "Slowdown Behavior": slowdown.md
+            - "Modules":
+              - "Lane Keeping": lane_keeping.md
+              - "Lateral Clearance": lateral_clearance_velocity_adjuster.md
+              - "Traffic Lights": traffic_light_behavior.md
+            - "Utils": behavior_utils.md
 
 
   - Data Generation:

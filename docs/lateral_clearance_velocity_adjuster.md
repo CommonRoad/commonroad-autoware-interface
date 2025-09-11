@@ -1,0 +1,1 @@
+::: src.cr2autoware.cr2autoware.interfaces.implementation.behavior_tree.implementation.modules.lateral_clearance_velocity_adjuster

@@ -468,7 +468,9 @@ class BehaviorPlanner:
         """
         Convert and Interpolate a velocity profile from a source_path to a velocity_profile for a target_path.
         
-        :param velocity_profile: velocity profile from behavior planner
+        :param source_path: path from behavior planner
+        :param source_velocity_profile: velocity profile from behavior planner
+        :param target_path: reference path
         :return: velocity profile for reference path
         """
         def compute_cumulative_distance(path):
