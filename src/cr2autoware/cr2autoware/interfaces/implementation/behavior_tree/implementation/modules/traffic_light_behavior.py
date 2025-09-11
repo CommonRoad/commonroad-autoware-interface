@@ -67,12 +67,12 @@ class TrafficLightsTree(BaseTree):
         yellow_light_decision = YellowLightDecisionAction(name="YellowLightDecision", logger=self.logger)
         yellow_light_handling = Selector(name="YellowLightHandling", memory=False)
 
-        comfort_stop_yellow = Sequence(name="ComfortStopYellow", memory=False)
+        stop_at_yellow = Sequence(name="StopAtYellow", memory=False)
         no_stop = Sequence(name="NoStop", memory=False)
 
         brake_at_yellow_light = BrakeAtYellowLightCondition(name="BrakeAtYellowLight", logger=self.logger)
-        comfort_braking_yellow = ComfortBrakingAction(name="ComfortBrakingYellow", logger=self.logger)
-        comfort_braking_red = ComfortBrakingAction(name="ComfortBrakingRed", logger=self.logger)
+        braking_at_yellow = BrakingAction(name="BrakingAtYellow", logger=self.logger)
+        braking_at_red = BrakingAction(name="BrakingAtRed", logger=self.logger)
 
         continue_driving_at_yellow_light = ContinueDrivingAtYellowLightCondition(name="ContinueDrivingAtYellowLight", logger=self.logger)
         continue_driving_yellow = ContinueDrivingAction(name="ContinueDrivingYellow", logger=self.logger)
@@ -83,13 +83,13 @@ class TrafficLightsTree(BaseTree):
         publish_rviz_marker_red = PublishRVIZMarker(name="PublishRVIZMarkerRed", logger=self.logger)
 
         # Add children to the tree
-        comfort_stop_yellow.add_children([brake_at_yellow_light, comfort_braking_yellow])
+        stop_at_yellow.add_children([brake_at_yellow_light, braking_at_yellow])
         no_stop.add_children([continue_driving_at_yellow_light, continue_driving_yellow])
 
-        yellow_light_handling.add_children([comfort_stop_yellow, no_stop])
+        yellow_light_handling.add_children([stop_at_yellow, no_stop])
 
         yellow_light.add_children([yellow_condition, yellow_light_decision, yellow_light_handling, publish_rviz_marker_yellow])
-        red_light.add_children([red_condition, comfort_braking_red, publish_rviz_marker_red])
+        red_light.add_children([red_condition, braking_at_red, publish_rviz_marker_red])
         green_light.add_children([green_condition, continue_driving_green, publish_rviz_marker_green])
 
         handle_traffic_light_cycle.add_children([yellow_light, red_light, green_light])
@@ -877,51 +877,6 @@ class ContinueDrivingAtYellowLightCondition(TrafficLightBehavior):
     def terminate(self, new_status):
         self._logger.debug("[SVEN]Terminating DecisionPointBehindCondition to " + str(new_status))
 
-
-class EmergencyBrakingAction(TrafficLightBehavior):
-    """
-    Action Node. Calculates the velocity profile for emergency braking.
-
-    :var logger: ROS2 node logger
-    :var blackboard: Blackboard for behavior tree
-    :var global_inputs: Blackboard client for global inputs
-    :var inputs: Blackboard client for module inputs
-    :var outputs: Blackboard client for module outputs
-    :var global_params: CR2AutowareParams
-    :var params: BehaviorPlannerParams
-    """
-    def __init__(self, name, logger: RcutilsLogger):
-        super().__init__(name, logger)
-
-    def setup(self):
-        pass
-
-    def initialise(self):
-        pass
-
-    def update(self):
-
-        # TODO: WIP, this is comfort braking, not emergency braking
-
-        # Get the index of the decision point in the input path
-        stop_point_index = self.inputs.target_stop_position_index
-        # Define the new velocity profile
-        velocity_profile = copy_from_blackboard(self.global_inputs.empty_velocity_profile)
-
-        # Set the velocity profile for the decision point and all points behind to zero
-        velocity_profile[stop_point_index:] = 0.0
-
-        # Calculate a rollout velocity profile for comfort braking
-        if self.params.comfort_rollout:
-            comfort_rollout_distance_int = int(np.ceil(self.params.comfort_rollout_distance))
-            comfort_rollout_index = stop_point_index - comfort_rollout_distance_int
-            if comfort_rollout_index < 0:
-                comfort_rollout_index = 0
-            velocity_profile[comfort_rollout_index:stop_point_index] = self.params.comfort_rollout_speed
-
-        self.outputs.velocity_profile = velocity_profile
-
-        return Status.SUCCESS
         
     def terminate(self, new_status):
         self._logger.debug("[SVEN]Terminating EmergencyBrakingAction to " + str(new_status))
@@ -956,9 +911,9 @@ class ContinueDrivingAction(TrafficLightBehavior):
         self._logger.debug("[SVEN]Terminating ContinueDrivingAction to " + str(new_status))
 
 
-class ComfortBrakingAction(TrafficLightBehavior):
+class BrakingAction(TrafficLightBehavior):
     """
-    Action Node. Calculates the velocity profile for comfort braking.
+    Action Node. Calculates the velocity profile for braking.
 
     :var logger: ROS2 node logger
     :var blackboard: Blackboard for behavior tree
@@ -1000,7 +955,7 @@ class ComfortBrakingAction(TrafficLightBehavior):
         return Status.SUCCESS
         
     def terminate(self, new_status):
-        self._logger.debug("[SVEN]Terminating ComfortBrakingAction to " + str(new_status))
+        self._logger.debug("[SVEN]Terminating BrakingAction to " + str(new_status))
     
 
 class PublishRVIZMarker(TrafficLightBehavior):

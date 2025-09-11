@@ -28,12 +28,12 @@ YellowLightDecision [label=YellowLightDecision, shape=ellipse, style=filled, fil
 YellowLight -> YellowLightDecision;
 YellowLightHandling [label=YellowLightHandling, shape=octagon, style=filled, fillcolor=cyan, fontsize=9, fontcolor=black];
 YellowLight -> YellowLightHandling;
-ComfortStopYellow [label=ComfortStopYellow, shape=box, style=filled, fillcolor=orange, fontsize=9, fontcolor=black];
-YellowLightHandling -> ComfortStopYellow;
+StopAtYellow [label=StopAtYellow, shape=box, style=filled, fillcolor=orange, fontsize=9, fontcolor=black];
+YellowLightHandling -> StopAtYellow;
 BrakeAtYellowLight [label=BrakeAtYellowLight, shape=ellipse, style=filled, fillcolor=gray, fontsize=9, fontcolor=black];
-ComfortStopYellow -> BrakeAtYellowLight;
-ComfortBrakingYellow [label=ComfortBrakingYellow, shape=ellipse, style=filled, fillcolor=gray, fontsize=9, fontcolor=black];
-ComfortStopYellow -> ComfortBrakingYellow;
+StopAtYellow -> BrakeAtYellowLight;
+BrakingAtYellow [label=BrakingAtYellow, shape=ellipse, style=filled, fillcolor=gray, fontsize=9, fontcolor=black];
+StopAtYellow -> BrakingAtYellow;
 NoStop [label=NoStop, shape=box, style=filled, fillcolor=orange, fontsize=9, fontcolor=black];
 YellowLightHandling -> NoStop;
 ContinueDrivingAtYellowLight [label=ContinueDrivingAtYellowLight, shape=ellipse, style=filled, fillcolor=gray, fontsize=9, fontcolor=black];
@@ -46,8 +46,8 @@ RedLight [label=RedLight, shape=box, style=filled, fillcolor=orange, fontsize=9,
 HandleTrafficLightCycle -> RedLight;
 Red [label=Red, shape=ellipse, style=filled, fillcolor=gray, fontsize=9, fontcolor=black];
 RedLight -> Red;
-ComfortBrakingRed [label=ComfortBrakingRed, shape=ellipse, style=filled, fillcolor=gray, fontsize=9, fontcolor=black];
-RedLight -> ComfortBrakingRed;
+BrakingAtRed [label=BrakingAtRed, shape=ellipse, style=filled, fillcolor=gray, fontsize=9, fontcolor=black];
+RedLight -> BrakingAtRed;
 PublishRVIZMarkerRed [label=PublishRVIZMarkerRed, shape=ellipse, style=filled, fillcolor=gray, fontsize=9, fontcolor=black];
 RedLight -> PublishRVIZMarkerRed;
 GreenLight [label=GreenLight, shape=box, style=filled, fillcolor=orange, fontsize=9, fontcolor=black];
@@ -84,6 +84,6 @@ ApplyDefaultAction [label=ApplyDefaultAction, shape=ellipse, style=filled, fillc
 NoLaneKeepingSequence -> ApplyDefaultAction;
 PublishRVIZMarkerNoLaneKeeping [label=PublishRVIZMarkerNoLaneKeeping, shape=ellipse, style=filled, fillcolor=gray, fontsize=9, fontcolor=black];
 NoLaneKeepingSequence -> PublishRVIZMarkerNoLaneKeeping;
-FailSafe [label=FailSafe, shape=ellipse, style=filled, fillcolor=gray, fontsize=9, fontcolor=black];
-MainBehaviorTree -> FailSafe;
+Slowdown [label=Slowdown, shape=ellipse, style=filled, fillcolor=gray, fontsize=9, fontcolor=black];
+MainBehaviorTree -> Slowdown;
 }
