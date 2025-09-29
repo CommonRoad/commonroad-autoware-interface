@@ -9,7 +9,94 @@ from typing import List, Any
 
 class StateMachine:
     """
-    Abstract base class for a state machine.
+    # State Machine Package
+
+    In CommonRoad2Autoware, a custom state machine is implemented to handle transitions between different states based on events.
+
+    - **Base State Machine**: Handles the initialization and structure of the state machine. It manages the processing of events and coordinates the execution of transitions and state actions.
+
+    - **States**: Provides the base class for states in the state machine. States define actions for entry, exit, and throughout phases. Additionally, superstates can be defined, which group multiple states as children to represent hierarchical state structures.
+
+    - **Events**: Contains the base class for events that trigger transitions between states. Events are triggered by the node and encapsulate the logic for when and how state transitions occur.
+
+    - **Transitions**: Defines the logic for transitioning from a source state to a target state.
+
+    - **Configuration**: Defines the configuration classes for states, events, transitions, and the state machine itself. These classes are used to set up the structure and behavior of the state machine.
+    
+    ---
+
+    ## Minimal Example
+
+    Below is a minimal Python example that demonstrates the creation of two states, an event, and a transition between the states using the `state_machine` package:
+
+    ```python
+    from cr2autoware.cr2autoware.state_machine.base.state_machine import StateMachine
+    from cr2autoware.cr2autoware.state_machine.base.state import State
+    from cr2autoware.cr2autoware.state_machine.base.event import Event
+    from cr2autoware.cr2autoware.state_machine.base.transition import Transition
+    from cr2autoware.cr2autoware.state_machine.base.configuration import (
+        StateConfig,
+        EventConfig,
+        TransitionConfig,
+        StateMachineConfig,
+    )
+
+    # Define two simple states
+    class StateOne(State):
+        def _entry(self):
+            print("Entry State One")
+        
+        def _exit(self):
+            print("Entry State One")
+
+        def _throughout(self):
+            print("Throughout State One")
+
+    class StateTwo(State):
+        def _entry(self):
+            print("Entering State Two")
+        
+        def _exit(self):
+            print("Exiting State Two")
+
+        def _throughout(self):
+            print("Throughout State Two")
+
+    # Define an event
+    class EventOne(Event):
+        def run(self):
+            print("Event triggered: EventOne")
+
+
+    # Create the state machine configuration
+    state_one_config = StateConfig(cls=StateOne)
+    state_two_config = StateConfig(cls=StateTwo)
+    event_one_config = EventConfig(cls=EventOne)
+
+    transition_config = TransitionConfig(
+        cls=Transition,  
+        event=event_one_config,
+        source_state=state_one_config,
+        target_state=state_two_config,
+    )
+
+    state_machine_config = StateMachineConfig(
+        initial_state=state_one_config,
+        states=[state_one_config, state_two_config],
+        events=[event_one_config],
+        transitions=[transition_config],
+    )
+
+    # Placeholder Node:
+    class StateMachineNode(rclpy.Node):
+        pass
+
+    # Init State Machine:
+    state_machine = StateMachine(StateMachineNode, state_machine_config)
+
+    # Trigger the event to transition to StateTwo:
+    state_machine.process_event(EventOne(state_machine, StateMachineNode))
+    ```
     """
     def __init__(self, node: Any, config: StateMachineConfig):
         self.lock = threading.RLock()

@@ -66,6 +66,9 @@ nav:
               - "Traffic Lights": traffic_light_behavior.md
             - "Utils": behavior_utils.md
 
+  - State Machine:
+      - "Base State Machine": base_state_machine.md
+      - "CR2AW State Machine": cr2aw_state_machine.md
 
   - Data Generation:
       - "Work in Progress": placeholder.md

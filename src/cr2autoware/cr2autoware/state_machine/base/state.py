@@ -202,9 +202,6 @@ class Superstate(State):
         Returns the corresponding state if a transition is triggered. Returns None if no transition is triggered.
 
         :param event: event to be handled
-        :param event_check: Flag to check for transitions
-        :param new_state: new state to be activated
-        :param search_superstate: Flag to search for the highest superstate
         """
         with self.lock:
             # First check if an event triggers a transition in this state

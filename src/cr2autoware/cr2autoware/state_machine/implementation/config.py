@@ -1,3 +1,72 @@
+"""
+# Implementation State Machine CR2AW
+
+The `implementation` folder contains the specific implementation of the state machine, including events and states for the CommonRoad2Autoware interface.
+
+The following diagram provides an overview of the key state machine structure and the superstates:
+
+![State Machine Overview](assets/state_machine_overview.svg)
+
+The detailed structure of the state machine with all states, events, and transitions is illustrated below:
+
+![State Machine Implementation Overview](assets/state_machine_structure.svg)
+
+This diagram was generated using [Visual Paradigm](https://www.visual-paradigm.com/). The file is located at `docs/assets/state_machine_structure.vpp`.
+
+---
+
+## Config
+
+In `config.py`, the structure of the state machine is defined. This includes the initial state, available (super)states, events, and transitions.
+
+---
+
+## Events
+
+The `events` submodule contains the implementation of events that trigger transitions between states.
+
+- **`basic_events.py`**: Handles transitions between the superstates.
+- **`interactive_planning.py`**: Contains the events for transitions within the interactive superstates.
+
+### Basic Events
+
+::: src.cr2autoware.cr2autoware.state_machine.implementation.events.basic_events
+
+### Interactive Planning Events
+
+::: src.cr2autoware.cr2autoware.state_machine.implementation.events.interactive_planning
+
+---
+
+## States
+
+The `states` submodule contains the implementation of states that define the behavior of the state machine.
+
+- **`basic_states.py`**: Contains the initialization state and the superstates.
+- **`interactive_planning.py`**: Contains all substates for planning the scenario, including updating the initial pose, updating the goal pose, and planning the route.
+- **`interactive_waiting.py`**, **`interactive_driving.py`**, and **`interactive_slowdown.py`**: Define the substates for behavior and trajectory planning.
+
+### Basic States
+
+::: src.cr2autoware.cr2autoware.state_machine.implementation.states.basic_states
+
+### Interactive Planning States
+
+::: src.cr2autoware.cr2autoware.state_machine.implementation.states.interactive_planning
+
+### Interactive Waiting States
+
+::: src.cr2autoware.cr2autoware.state_machine.implementation.states.interactive_waiting
+
+### Interactive Driving States
+
+::: src.cr2autoware.cr2autoware.state_machine.implementation.states.interactive_driving
+
+### Interactive Slowdown States
+
+::: src.cr2autoware.cr2autoware.state_machine.implementation.states.interactive_slowdown
+"""
+
 from ..base.configuration import StateMachineConfig, StateConfig, EventConfig, TransitionConfig, SuperstateConfig
 from ..base.transition import Transition
 from .states.basic_states import Initialization, InteractivePlanning,InteractiveDriving, InteractiveWaiting, InteractiveSlowdown, FollowTrajectory
