@@ -306,8 +306,6 @@ class BehaviorPlannerParams(BaseParams):
     :var lookahead_dist: lookahead distance (in meters)
     :var lookahead_time: lookahead time (in seconds)
     :var velocity_limit: maximum velocity for vehicle (in m/s)
-    :var log_testdrive: log testdrive
-    :var save_cycle: save every n-th cycle
     :var traffic_light_behavior: activate traffic light behavior module
     :var yellow_light_time: yellow light phase time (in seconds)
     :var no_stop_line_in_map: If no stop lines are specified in the map, the module will stop at the beginning of the lanelet
@@ -345,10 +343,6 @@ class BehaviorPlannerParams(BaseParams):
     lookahead_time: float = 0.8
     # maximum velocity for vehicle (in m/s)
     velocity_limit: float = 8.33  # m/s
-
-    # testdrive logging
-    log_testdrive: bool = True
-    save_cycle: int = 10 
 
     # Parameter for traffic light behavior module
     # activate traffic light behavior module

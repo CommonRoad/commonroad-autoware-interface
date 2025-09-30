@@ -87,8 +87,6 @@ from .common.utils.transform import utm2map
 from .common.utils.message import create_goal_marker
 from .common.ros_interface.create import create_subscription, create_publisher, create_client
 
-from .testdrive_logger.testdrive_logger import TestDriveLogger
-
 # subscriber specifications
 from .common.ros_interface.specs_subscriptions import \
     spec_initial_pose_sub, spec_auto_button_sub, spec_velocity_limit_sub, spec_routing_state_sub, \
@@ -487,26 +485,6 @@ class Cr2Auto(Node):
 
         self.data_generation_handler.start_recording()
 
-        self.test_drive_logger: TestDriveLogger = TestDriveLogger(self.save_data_path, datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S"))
-
-        self.cycle_count = 0
-        self.start_update_time = None
-        self.start_behavior_time = None
-        self.start_trajectory_planning = None
-        self.scenario_update_time = None
-        self.behavior_planning_time = None
-        self.trajectory_planning_time = None
-        self.total_cycle_time = None
-        self.current_velocity_data = None
-        self.velocity_profile_data = None
-        self.current_behavior_velocity_data = None
-        self.smoothed_velocity_data = None
-        self.current_smoothed_velocity_data = None
-        self.current_position_data = None
-        self.curvilinear_path_data = None
-        self.cartesian_path_data = None
-        self.current_orientation_data = None
-
     @property
     def scenario(self) -> Scenario:
         """
@@ -643,55 +621,9 @@ class Cr2Auto(Node):
 
     def update_scenario(self) -> None:
         """Update scenario handler."""
-        self.testdrive_logging()
-
-        self.start_update_time = time.time()
-
         self.ego_vehicle_handler.update_ego_vehicle()
         self.scenario_handler.update_scenario(self.behavior_planner.scenario_params)
         self.plot_save_scenario()
-
-        self.scenario_update_time = time.time() - self.start_update_time
-
-    def testdrive_logging(self) -> None:
-        """Log data for test drive."""
-        if self.params.behavior_planner.log_testdrive:
-            if self.start_update_time is not None:
-                self.total_cycle_time = time.time() - self.start_update_time
-                self.test_drive_logger.log_data(
-                    time.time(),
-                    self.scenario_update_time,
-                    self.behavior_planning_time,
-                    self.trajectory_planning_time,
-                    self.total_cycle_time,
-                    self.current_velocity_data,
-                    self.velocity_profile_data,
-                    self.current_behavior_velocity_data,
-                    self.smoothed_velocity_data,
-                    self.current_smoothed_velocity_data,
-                    self.current_position_data,
-                    self.curvilinear_path_data,
-                    self.cartesian_path_data,
-                    self.current_orientation_data,
-                )
-
-                self.cycle_count += 1
-                if self.cycle_count % self.params.behavior_planner.save_cycle == 0:
-                    self.test_drive_logger.save_to_file()
-
-                self.scenario_update_time = None
-                self.behavior_planning_time = None
-                self.trajectory_planning_time = None
-                self.total_cycle_time = None
-                self.current_velocity_data = None
-                self.velocity_profile_data = None
-                self.current_behavior_velocity_data = None
-                self.smoothed_velocity_data = None
-                self.current_smoothed_velocity_data = None
-                self.current_position_data = None
-                self.curvilinear_path_data = None
-                self.cartesian_path_data = None
-                self.current_orientation_data = None
         
     def update_initial_pose(self) -> None:
         """Update initial pose."""
@@ -749,7 +681,6 @@ class Cr2Auto(Node):
 
     def behavior_planning(self) -> None:
         """Plan behavior. Update reference path of trajectory planner."""
-        self.start_behavior_time = time.time()
         # plan route and reference path
         _goal_pos_cr = map2utm(self.origin_transformation, self.current_goal_msg.pose.position)
         self.behavior_planner.plan(self.route_planner.reference_path, 
@@ -764,24 +695,8 @@ class Cr2Auto(Node):
         self.route_planner.publish(point_list, reference_velocities,
                                     self.scenario_handler.z_coordinate)
 
-        self.behavior_planning_time = time.time() - self.start_behavior_time
-        self.curvilinear_path_data = self.behavior_planner.path_in_curvilinear
-        self.cartesian_path_data = self.behavior_planner.path_in_cartesian
-        self.current_position_data = self.behavior_planner.current_position_curvilinear
-        self.current_orientation_data = quaternion2orientation(self.ego_vehicle_handler.current_vehicle_state.pose.pose.orientation)
-        self.current_velocity_data = self.ego_vehicle_handler.ego_vehicle_state.velocity
-        self.velocity_profile_data = self.behavior_planner.velocity_profile_data
-        self.current_behavior_velocity_data = self.behavior_planner.get_behavior_velocity_for_current_state(
-            self.ego_vehicle_handler.current_vehicle_state.pose.pose.position,
-        )
-        self.smoothed_velocity_data = self.behavior_planner.reference_velocities
-        self.current_smoothed_velocity_data = self.behavior_planner.get_velocity_for_current_state(
-            self.ego_vehicle_handler.current_vehicle_state.pose.pose.position
-        )
-
     def behavior_slowdown(self) -> None:
         """Slowdown behavior planning. Update reference path of trajectory planner."""
-        self.start_behavior_time = time.time()
         # plan route and reference path
         _goal_pos_cr = map2utm(self.origin_transformation, self.current_goal_msg.pose.position)
         self.behavior_planner.slowdown_planning(
@@ -795,27 +710,12 @@ class Cr2Auto(Node):
         # call publisher
         self.route_planner.publish(point_list, reference_velocities,
                                     self.scenario_handler.z_coordinate)
-        self.behavior_planning_time = time.time() - self.start_behavior_time
-        self.curvilinear_path_data = self.behavior_planner.path_in_curvilinear
-        self.cartesian_path_data = self.behavior_planner.path_in_cartesian
-        self.current_position_data = self.behavior_planner.slowdown_current_position
-        self.current_orientation_data = quaternion2orientation(self.ego_vehicle_handler.current_vehicle_state.pose.pose.orientation)
-        self.current_velocity_data = self.ego_vehicle_handler.ego_vehicle_state.velocity
-        self.velocity_profile_data = self.behavior_planner.velocity_profile_data
-        self.current_behavior_velocity_data = self.behavior_planner.get_behavior_velocity_for_current_state(
-            self.ego_vehicle_handler.current_vehicle_state.pose.pose.position
-        )
-        self.smoothed_velocity_data = self.behavior_planner.reference_velocities
-        self.current_smoothed_velocity_data = self.behavior_planner.get_velocity_for_current_state(
-            self.ego_vehicle_handler.current_vehicle_state.pose.pose.position
-        )
 
     def publish_trajectory(self) -> None:
         """Plan and publish trajectory."""
         if self.verbose:
             self._logger.info("Solving planning problem!")
 
-        self.start_trajectory_planning = time.time()
         # Get current initial state for planning
         # The initial velocity needs to be increase here due to a hardcoded velocity threshold in
         # AW. Universe Shift_Decider Package (If velocity is below 0.01, the gear will remain in park)
@@ -854,8 +754,6 @@ class Cr2Auto(Node):
             # publish trajectory
             self.trajectory_planner.publish(self.origin_transformation,
                                             self.scenario_handler.z_coordinate)
-
-            self.trajectory_planning_time = time.time() - self.start_trajectory_planning
 
     def check_goal_reached(self) -> None:
         """Check if goal is reached."""

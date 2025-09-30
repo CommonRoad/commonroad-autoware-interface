@@ -4,7 +4,6 @@ from py_trees.common import Status
 from py_trees.behaviour import Behaviour
 from ...behavior_utils import copy_from_blackboard
 import numpy as np
-import time
 from scipy.spatial import cKDTree
 from shapely.geometry import LineString, MultiPolygon, Point, Polygon
 
@@ -114,8 +113,6 @@ class LateralClearanceVelocityAdjuster(Behaviour):
         a combined occupancy polygon. The distance between the filtered reference path and the combined occupancy polygon is calculated. Based on this distance, 
         the reference velocity is adjusted.
         """
-        t_start = time.perf_counter()
-
         # initialize parameters for lateral clearance
         scenario: Scenario = self.global_inputs.scenario
         # minimal velocity (in m/s) for dynamic obstacles, otherwise they are considered as static obstacles
@@ -363,8 +360,6 @@ class LateralClearanceVelocityAdjuster(Behaviour):
         velocity_profile[start_index:end_index] = adjusted_velocity_profile[:len(velocity_profile[start_index:end_index])]
         self.outputs.velocity_profile = velocity_profile
 
-        t_end = time.perf_counter()
-        self._logger.debug(f"[SVEN]Time for lateral clearance velocity function: {t_end - t_start}")
         if publish_lateral_clearance_markers:
             self.publish_rviz_markers(trajectory_positions, min_distance, safe_distance, obstacles_polygon)
 

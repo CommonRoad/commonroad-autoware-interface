@@ -4,7 +4,6 @@ from typing import List, Optional
 
 # third party imports
 import numpy as np
-import time
 
 # ROS imports
 from rclpy.publisher import Publisher
@@ -147,7 +146,7 @@ class BehaviorPlanner:
         self.blackboard.register_key("/modules/lane_keeping/outputs/lane_keeping_marker_array", access=py_trees.common.Access.WRITE)
         self.blackboard.modules.lane_keeping.outputs.lane_keeping_marker_array = MarkerArray()
 
-        # for testdrive logger
+        # for logging
         self.blackboard.register_key("/inputs/current_position_curvilinear", access=py_trees.common.Access.READ)
 
         # Initialize the Behavior Tree
@@ -279,8 +278,6 @@ class BehaviorPlanner:
         """
         self._is_velocity_planning_completed = False
 
-        plan_start_time = time.time()
-
         if self._verbose:
             self._logger.info("<BehaviorPlanner>: Planning velocity profile")
 
@@ -295,13 +292,9 @@ class BehaviorPlanner:
             _tmp = tail_orig[i] - np.array(self.origin_transformation)
             tail_mod.append(_tmp)
         self._tail = np.array(tail_mod)
-
-        plan_start_time_2 = time.time()
         
         # Create Curvilinear Coordinate System for preprocessing
         self.set_reference_path(input_path)
-
-        plan_start_time_3 = time.time()
 
         # Prepare Inputs for Behavior Planner
         self.behavior_tree.preprocessing(
@@ -315,19 +308,14 @@ class BehaviorPlanner:
             self.scenario_handler.ros_time,
             self.path_orientation,
             )
-        
-        plan_start_time_4 = time.time()
 
         # Call Behavior Planner
         self.behavior_tree.plan()
-
-        plan_end_time = time.time()
 
         self.behavior_tree.prepare_output()
 
         velocity_path = self.convert_velocity_profile(self.path_in_cartesian, self.behavior_tree.velocity_profile, input_path)
 
-        # save velocity profile for testdrive logger
         self.velocity_profile_data = velocity_path
         self.input_path = input_path
 
@@ -344,16 +332,6 @@ class BehaviorPlanner:
         self._pub_lateral_clearance_marker()
 
         self._pub_lane_keeping_markers()
-
-        plan_end_time_2 = time.time()
-
-        if self._verbose:
-            self._logger.info("[SVEN] [TIME] Behavior Planner: " + str(plan_end_time - plan_start_time))
-            self._logger.info("[SVEN] [TIME] Pre Planning Transforms: " + str(plan_start_time_2 - plan_start_time))
-            self._logger.info("[SVEN] [TIME] Pre Planning Curvilinear: " + str(plan_start_time_3 - plan_start_time_2))
-            self._logger.info("[SVEN] [TIME] Pre Planning Behavior Planner: " + str(plan_start_time_4 - plan_start_time_3))
-            self._logger.info("[SVEN] [TIME] Planning Behavior Planner: " + str(plan_end_time - plan_start_time_4))
-            self._logger.info("[SVEN] [TIME] Post Planning: " + str(plan_end_time_2 - plan_end_time))
 
     def slowdown_planning(self, current_state: EgoVehicleState, reference_path: np.ndarray, goal_pos: np.ndarray) -> None:
         """
@@ -391,7 +369,7 @@ class BehaviorPlanner:
         # set velocity profile to zero
         velocity_path = np.zeros(len(input_path))
         
-        # save velocity profile for testdrive logger
+        # save velocity profile for logging
         self.velocity_profile_data = velocity_path
 
         # Call _pub_ref_path
@@ -497,7 +475,6 @@ class BehaviorPlanner:
         
         :param msg: AWTrajectory message with velocity profile
         """
-        start_time = time.time()
         if self._tail is None:
             return
         
@@ -526,7 +503,6 @@ class BehaviorPlanner:
         # get reference trajectory
         self._reference_trajectory = np.concatenate((positions_arr, velocities_arr.reshape(_len_vel_arr, 1)), axis=1)
         self._is_velocity_planning_completed = True
-        # self._logger.info("[SVEN] [TIME] Velocity Smoother Callback completed in " + str(time.time() - start_time) + " seconds")
 
     def get_lookahead_velocity_for_current_state(self, curr_position, curr_velocity) -> Optional[float]:
         """
