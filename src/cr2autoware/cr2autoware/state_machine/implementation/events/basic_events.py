@@ -9,7 +9,7 @@ class HasSolutionPath(Event):
         super().__init__(machine, node)
 
     def run(self):
-        self.node._logger.debug("[SVEN]Initialization finished. Solution path found.")
+        self.node._logger.debug("[state_machine] Initialization finished. Solution path found.")
 
 class NoSolutionPath(Event):
     """
@@ -20,7 +20,7 @@ class NoSolutionPath(Event):
         super().__init__(machine, node)
 
     def run(self):
-        self.node._logger.debug("[SVEN]Initialization finished. No solution path found.")
+        self.node._logger.debug("[state_machine] Initialization finished. No solution path found.")
 
 class PlanningFinishedEvent(Event):
     """
@@ -31,7 +31,7 @@ class PlanningFinishedEvent(Event):
         super().__init__(machine, node)
 
     def run(self):
-        self.node._logger.debug("[SVEN]Planning finished.")
+        self.node._logger.debug("[state_machine] Planning finished.")
     
 class AutowareEngagedEvent(Event):
     """
@@ -42,7 +42,7 @@ class AutowareEngagedEvent(Event):
         super().__init__(machine, node)
 
     def run(self):
-        self.node._logger.debug("[SVEN]Autoware engaged.")
+        self.node._logger.debug("[state_machine] Autoware engaged.")
 
 class GoalReachedEvent(Event):
     """
@@ -53,7 +53,7 @@ class GoalReachedEvent(Event):
         super().__init__(machine, node)
 
     def run(self):
-        self.node._logger.debug("[SVEN]Goal reached.")
+        self.node._logger.debug("[state_machine] Goal reached.")
 
 class EngageFalseEvent(Event):
     """
@@ -64,7 +64,7 @@ class EngageFalseEvent(Event):
         super().__init__(machine, node)
 
     def run(self):
-        self.node._logger.debug("[SVEN]Engage False.")
+        self.node._logger.debug("[state_machine] Engage False.")
 
 class ClearRouteEvent(Event):
     """
@@ -77,7 +77,7 @@ class ClearRouteEvent(Event):
     def run(self):
         self.node.clear_route()
 
-        self.node._logger.debug("[SVEN]Clear Route.")
+        self.node._logger.debug("[state_machine] Clear Route.")
 
 class StopButtonEvent(Event):
     """
@@ -90,7 +90,7 @@ class StopButtonEvent(Event):
     def run(self):
         self.node.plan_route()
 
-        self.node._logger.debug("[SVEN]Stop Button pressed.")
+        self.node._logger.debug("[state_machine] Stop Button pressed.")
 
 class ChangedInitialPoseEvent(Event):
     """
@@ -106,7 +106,7 @@ class ChangedInitialPoseEvent(Event):
         self.node.clear_route()
         self.node.send_clear_route_srv_request()
 
-        self.node._logger.debug("[SVEN]Initial Pose Update initiated.")
+        self.node._logger.debug("[state_machine] Initial Pose Update initiated.")
 
 class SlowdownEvent(Event):
     """
@@ -117,4 +117,4 @@ class SlowdownEvent(Event):
         super().__init__(machine, node)
 
     def run(self):
-        self.node._logger.debug("[SVEN]Slowdown triggered.")
+        self.node._logger.debug("[state_machine] Slowdown triggered.")

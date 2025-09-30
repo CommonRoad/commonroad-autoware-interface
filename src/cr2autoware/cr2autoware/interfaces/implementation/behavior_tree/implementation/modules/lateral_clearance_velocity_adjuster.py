@@ -539,7 +539,7 @@ class LateralClearanceVelocityAdjuster(Behaviour):
             elif isinstance(multipolygon, MultiPolygon):
                 polygons = multipolygon.geoms
             else:
-                self._logger.error("[SVEN]Unsupported geometry type for multipolygon")
+                self._logger.error("Unsupported geometry type for multipolygon")
                 return Status.FAILURE
             
             origin_transformation = self.global_inputs.origin_transformation

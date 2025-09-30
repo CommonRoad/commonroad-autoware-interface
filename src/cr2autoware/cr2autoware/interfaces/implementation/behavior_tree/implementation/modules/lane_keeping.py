@@ -212,7 +212,7 @@ class ApplyLaneKeepingAction(LaneKeepingBehavior):
         return Status.SUCCESS
 
     def terminate(self, new_status):
-        self._logger.debug("[SVEN]Terminating ApplyLaneKeepingAction to " + str(new_status))        
+        self._logger.debug("Terminating ApplyLaneKeepingAction to " + str(new_status))        
 
 
 class BlackboardCondition(LaneKeepingBehavior):
@@ -249,7 +249,7 @@ class BlackboardCondition(LaneKeepingBehavior):
 
         
     def terminate(self, new_status):
-        self._logger.debug("[SVEN]Terminating BlackboardCondition to " + str(new_status))
+        self._logger.debug("Terminating BlackboardCondition to " + str(new_status))
 
 
 class ROSCondition(LaneKeepingBehavior):
@@ -283,7 +283,7 @@ class ROSCondition(LaneKeepingBehavior):
             return Status.FAILURE
 
     def terminate(self, new_status):
-        self._logger.debug("[SVEN]Terminating ROSCondition to " + str(new_status))
+        self._logger.debug("Terminating ROSCondition to " + str(new_status))
 
 
 class ConfigCondition(LaneKeepingBehavior):
@@ -315,7 +315,7 @@ class ConfigCondition(LaneKeepingBehavior):
             return Status.FAILURE
         
     def terminate(self, new_status):
-        self._logger.debug("[SVEN]Terminating ConfigCondition to " + str(new_status))
+        self._logger.debug("Terminating ConfigCondition to " + str(new_status))
 
 
 class ApplyDefaultAction(LaneKeepingBehavior):
@@ -346,7 +346,7 @@ class ApplyDefaultAction(LaneKeepingBehavior):
         return Status.SUCCESS
 
     def terminate(self, new_status):
-        self._logger.debug("[SVEN]Terminating ApplyDefaultAction to " + str(new_status))
+        self._logger.debug("Terminating ApplyDefaultAction to " + str(new_status))
     
 
 class PublishRVIZMarker(LaneKeepingBehavior):
@@ -444,4 +444,4 @@ class PublishRVIZMarker(LaneKeepingBehavior):
         return Status.SUCCESS
         
     def terminate(self, new_status):
-        self._logger.debug("[SVEN]Terminating PublishRVIZMarker to " + str(new_status))
+        self._logger.debug("Terminating PublishRVIZMarker to " + str(new_status))

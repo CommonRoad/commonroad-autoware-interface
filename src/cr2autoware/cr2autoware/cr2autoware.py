@@ -1319,7 +1319,7 @@ class Cr2Auto(Node):
         slowdown_behavior = msg.data
 
         if slowdown_behavior:
-            self._logger.info("[SVEN]Slowdown behavior planning activated!")
+            self._logger.info("Slowdown behavior planning activated!")
             self.state_machine.process_event(SlowdownEvent(self.state_machine, self))
 
     def _plot_scenario(self) -> None:

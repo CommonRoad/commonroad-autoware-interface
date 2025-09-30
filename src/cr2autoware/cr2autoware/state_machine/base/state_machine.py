@@ -186,7 +186,7 @@ class StateMachine:
             if self.current_state is not None:
                 raise Warning("State machine is already running")
             else:
-                self.node._logger.debug("[SVEN]Start state machine")
+                self.node._logger.debug("[state_machine] Start state machine")
                 self.current_state = self.initial_state
                 self.running = True
                 self.current_state.activate()
@@ -204,7 +204,7 @@ class StateMachine:
                 raise Warning("State machine is not running")
             else:
                 self.stopping = True
-                self.node._logger.debug("[SVEN]Stop state machine")
+                self.node._logger.debug("[state_machine] Stop state machine")
                 self.running = True
                 self.current_state.deactivate()
                 self.current_state = None

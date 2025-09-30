@@ -113,7 +113,7 @@ def main(data_dir_path: str,
         traffic_lights_over_time=traffic_lights,
         global_timer=global_timer,
         scenario_path=os.path.join(saving_dir_path,"scenario_with_pp_and_obstacles.xml"),
-        save_path=os.path.join(saving_dir_path,"svenario_with_pp_obst_and_lights.xml")
+        save_path=os.path.join(saving_dir_path,"scenario_with_pp_obst_and_lights.xml")
     )
 
     ### Data visualization

@@ -548,28 +548,21 @@ class ScenarioHandler(BaseHandler):
 
         # process objects from perception
         self._process_objects(behavior_scenario_params)
-        self._logger.debug(f"[SVEN] [TIME] Processing objects took: {time.perf_counter() - t_start} s")
 
-        t_tl = time.perf_counter()
         # process traffic lights from perception
         self._process_traffic_lights()
-        self._logger.debug(f"[SVEN] [TIME] Processing traffic lights took: {time.perf_counter() - t_tl} s")
 
 
-        t_assigned = time.perf_counter()
         # assign objects to lanelets
         # obstacle_ids = {obs.obstacle_id for obs in self.scenario.dynamic_obstacles}
         # self._scenario.assign_obstacles_to_lanelets(obstacle_ids=obstacle_ids)
-        self._logger.debug(f"[SVEN] [TIME] Assigning obstacles to lanelets took: {time.perf_counter() - t_assigned} s")
 
         # log time
         t_elapsed = time.perf_counter() - t_start
 
         # print scenario update summary
-        time_print = time.perf_counter()
         if self._VERBOSE:
             self._print_summary(t_elapsed)
-        self._logger.debug(f"[SVEN] [TIME] Printing summary took: {time.perf_counter() - time_print} s")
 
     def _print_summary(self, t_elapsed: float) -> None:
         """
@@ -1092,8 +1085,6 @@ class ScenarioHandler(BaseHandler):
         """
 
         last_message = self._last_msg.get("traffic_lights") # type: TrafficSignalArray
-
-        self._logger.debug("[SVEN] [TrafficLights] Processing traffic lights: " + str(last_message))
 
         # process traffic lights from simulation
         if self.test_mode_traffic_light:

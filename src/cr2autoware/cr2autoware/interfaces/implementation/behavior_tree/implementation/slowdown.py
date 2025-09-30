@@ -40,4 +40,4 @@ class Slowdown(Behaviour):
         return Status.SUCCESS
         
     def terminate(self, new_status):
-        self._logger.debug("[SVEN]Terminating Slowdown to " + str(new_status))
+        self._logger.debug("Terminating Slowdown to " + str(new_status))

@@ -265,8 +265,8 @@ class TrafficLightUpdateAction(TrafficLightBehavior):
 
                 # Transfrom the stop line position in curviliniear coordinates
                 if not point_in_projection_domain(stop_line_position_0, coordinate_system) and not point_in_projection_domain(stop_line_position_end, coordinate_system):
-                    self._logger.warning("[SVEN]Lanlet id: " + str(lanelet_id) + " is not in the projection domain!")
-                    self._logger.warning("[SVEN]Stop line position is not in the projection domain! Stop line position: " + str(stop_line_position_0) + " and " + str(stop_line_position_end))
+                    self._logger.warning("[TrafficLightBehavior]Lanlet id: " + str(lanelet_id) + " is not in the projection domain!")
+                    self._logger.warning("[TrafficLightBehavior]Stop line position is not in the projection domain! Stop line position: " + str(stop_line_position_0) + " and " + str(stop_line_position_end))
                     continue
                 elif not point_in_projection_domain(stop_line_position_0, coordinate_system):
                     stop_line_position_curvilinear = coordinate_system.convert_to_curvilinear_coords(stop_line_position_end[0], stop_line_position_end[1])
@@ -288,7 +288,7 @@ class TrafficLightUpdateAction(TrafficLightBehavior):
                 for traffic_light_id in lanelet.traffic_lights:
                     # Check if the traffic light is already assigned to another lanelet
                     if traffic_light_id in relevant_traffic_lights:
-                        self._logger.warning("[SVEN]Traffic light is already assigned to another lanelet! Traffic light id: " + str(traffic_light_id)
+                        self._logger.warning("[TrafficLightBehavior]Traffic light is already assigned to another lanelet! Traffic light id: " + str(traffic_light_id)
                                         + ", lanelet id: " + str(lanelet_id))
                         # Check which stop line is closer to the vehicle
                         relevant_stop_line_position_curvilinear = relevant_traffic_lights[traffic_light_id]
@@ -308,7 +308,7 @@ class TrafficLightUpdateAction(TrafficLightBehavior):
 
                 # Calculate the nearest stop line position to the vehicle
                 if lanelet.stop_line is None:
-                    self._logger.debug("[SVEN]Lanelet id: " + str(lanelet_id) + " has no stop line!")
+                    self._logger.debug("[TrafficLightBehavior]Lanelet id: " + str(lanelet_id) + " has no stop line!")
                     continue
                 else:
                     # check if stop line crosses the reference path
@@ -321,24 +321,24 @@ class TrafficLightUpdateAction(TrafficLightBehavior):
                         stop_line_point = stop_line.intersection(reference_path)
                         stop_line_position = np.array([stop_line_point.x, stop_line_point.y])
                         if not point_in_projection_domain(stop_line_position, coordinate_system):
-                            self._logger.warning("[SVEN]Stop line position is not in the projection domain! Stop line position: " + str(stop_line_position))
+                            self._logger.warning("[TrafficLightBehavior]Stop line position is not in the projection domain! Stop line position: " + str(stop_line_position))
                             continue
                         else:
                             stop_line_position_curvilinear = coordinate_system.convert_to_curvilinear_coords(stop_line_position[0], stop_line_position[1])
-                            self._logger.debug("[SVEN]Stop line position: " + str(stop_line_position_curvilinear))
+                            self._logger.debug("[TrafficLightBehavior]Stop line position: " + str(stop_line_position_curvilinear))
                             for traffic_light in lanelet.stop_line.traffic_light_ref:
                                 relevant_traffic_lights[traffic_light] = stop_line_position_curvilinear
                     else:
-                        self._logger.debug("[SVEN]Stop line does not intersect the reference path! Lanelet id: " + str(lanelet_id))
+                        self._logger.debug("[TrafficLightBehavior]Stop line does not intersect the reference path! Lanelet id: " + str(lanelet_id))
                         continue
 
         self.inputs.relevant_traffic_lights = relevant_traffic_lights
-        self._logger.debug("[SVEN]Relevant Traffic Lights: " + str(relevant_traffic_lights))
+        self._logger.debug("[TrafficLightBehavior]Relevant Traffic Lights: " + str(relevant_traffic_lights))
 
         return Status.SUCCESS
         
     def terminate(self, new_status):
-        self._logger.debug("[SVEN]Terminating TrafficLightUpdate to " + str(new_status))
+        self._logger.debug("Terminating TrafficLightUpdate to " + str(new_status))
 
 class TrafficLightOutOfRangeCondition(TrafficLightBehavior):
     """
@@ -381,10 +381,10 @@ class TrafficLightOutOfRangeCondition(TrafficLightBehavior):
             distance = stop_line_position[0] - (self.inputs.distance_stop_line_vehicle_origin - self.params.distance_stop_line_to_vehicle_front_bumper) - current_position[0]
             # Check if traffic light has been passed
             if distance < 0.0:
-                self._logger.debug("[SVEN]Stop line has been passed! Check if overrun tolerance is exceeded. Traffic light id: " + str(traffic_light_id))
+                self._logger.debug("[TrafficLightBehavior]Stop line has been passed! Check if overrun tolerance is exceeded. Traffic light id: " + str(traffic_light_id))
 
                 if np.abs(distance) > self.params.stop_line_overrun_tolerance:
-                    self._logger.debug("[SVEN]Traffic light overrun tolerance exceeded! Traffic light id: " + str(traffic_light_id))
+                    self._logger.debug("[TrafficLightBehavior]Traffic light overrun tolerance exceeded! Traffic light id: " + str(traffic_light_id))
                     continue
 
             # Check if traffic light is in range
@@ -393,8 +393,8 @@ class TrafficLightOutOfRangeCondition(TrafficLightBehavior):
                     min_distance = distance
                     min_distance_id = traffic_light_id
                 elif distance == min_distance:
-                    self._logger.warning("[SVEN]Multiple traffic lights with the same distance to the vehicle! Traffic light id: " + str(traffic_light_id))
-                    self._logger.warning("[SVEN]StopLine has more than one traffic light assigned!")
+                    self._logger.warning("[TrafficLightBehavior]Multiple traffic lights with the same distance to the vehicle! Traffic light id: " + str(traffic_light_id))
+                    self._logger.warning("[TrafficLightBehavior]StopLine has more than one traffic light assigned!")
                 traffic_lights_in_range[traffic_light_id] = stop_line_position
 
         # Check if there is a traffic light in range
@@ -433,7 +433,7 @@ class TrafficLightOutOfRangeCondition(TrafficLightBehavior):
             return Status.SUCCESS
 
     def terminate(self, new_status):
-        self._logger.debug("[SVEN]Terminating TrafficLightOutOfRangeCondition to " + str(new_status))        
+        self._logger.debug("Terminating TrafficLightOutOfRangeCondition to " + str(new_status))        
 
 
 class YellowLightCondition(TrafficLightBehavior):
@@ -472,7 +472,7 @@ class YellowLightCondition(TrafficLightBehavior):
             return Status.FAILURE
         
     def terminate(self, new_status):
-        self._logger.debug("[SVEN]Terminating YellowLightCondition to " + str(new_status))
+        self._logger.debug("Terminating YellowLightCondition to " + str(new_status))
 
 
 class RedLightCondition(TrafficLightBehavior):
@@ -508,7 +508,7 @@ class RedLightCondition(TrafficLightBehavior):
             return Status.FAILURE
 
     def terminate(self, new_status):
-        self._logger.debug("[SVEN]Terminating RedLightCondition to " + str(new_status))
+        self._logger.debug("Terminating RedLightCondition to " + str(new_status))
 
 
 class GreenLightCondition(TrafficLightBehavior):
@@ -544,7 +544,7 @@ class GreenLightCondition(TrafficLightBehavior):
             return Status.FAILURE
         
     def terminate(self, new_status):
-        self._logger.debug("[SVEN]Terminating GreenLightCondition to " + str(new_status))
+        self._logger.debug("Terminating GreenLightCondition to " + str(new_status))
 
 class StopPositionCalculationAction(TrafficLightBehavior):
     """
@@ -583,7 +583,7 @@ class StopPositionCalculationAction(TrafficLightBehavior):
         return Status.SUCCESS
         
     def terminate(self, new_status):
-        self._logger.debug("[SVEN]Terminating StopPositionCalculationAction to " + str(new_status))
+        self._logger.debug("Terminating StopPositionCalculationAction to " + str(new_status))
 
 class YellowLightDecisionAction(TrafficLightBehavior):
     """
@@ -735,11 +735,11 @@ class YellowLightDecisionAction(TrafficLightBehavior):
             if self.check_for_comfort_braking_distance(distance, current_velocity):
                 # Vehicle can brake within the comfort braking distance
                 # TODO: COMFORT BRAKING
-                self._logger.debug("[SVEN]Vehicle can brake within the comfort braking distance!")
+                self._logger.debug("[TrafficLightBehavior]Vehicle can brake within the comfort braking distance!")
                 self.inputs.force_stop = True
                 brake_at_yellow_light = True
             elif self.inputs.force_stop:
-                self._logger.debug("[SVEN]Force STOP!")
+                self._logger.debug("[TrafficLightBehavior]Force STOP!")
                 brake_at_yellow_light = True
             else:
                 # Vehicle can not brake within the comfort braking distance
@@ -747,18 +747,18 @@ class YellowLightDecisionAction(TrafficLightBehavior):
                 min_velo_check = True
                 if self.check_for_min_pass_line_velocity(current_velocity):
                     # vehicle can pass the yellow light line with the current velocity profile
-                    self._logger.debug("[SVEN]Vehicle can pass the yellow line in time! Min Velocity: " + str(self.min_pass_line_velo))
+                    self._logger.debug("[TrafficLightBehavior]Vehicle can pass the yellow line in time! Min Velocity: " + str(self.min_pass_line_velo))
                     self.inputs.force_pass = True
                     brake_at_yellow_light = False
                 else:
                     # check if force pass is performed
                     if self.inputs.force_pass:
-                        self._logger.debug("[SVEN]Force PASS!")
+                        self._logger.debug("[TrafficLightBehavior]Force PASS!")
                         brake_at_yellow_light = False
                     else:
                         # Vehicle can not pass the yellow light line with the current velocity profile
                         # TODO: EMERGENCY BRAKING
-                        self._logger.debug("[SVEN]Vehicle can not pass the yellow line in time! Braking!")
+                        self._logger.debug("[TrafficLightBehavior]Vehicle can not pass the yellow line in time! Braking!")
                         brake_at_yellow_light = True
                         self.inputs.force_stop = True
 
@@ -768,7 +768,7 @@ class YellowLightDecisionAction(TrafficLightBehavior):
             if current_velocity < 1.0:
                 # Vehicle is almost standing
                 # always stop
-                self._logger.debug("[SVEN]Vehicle passed the stop line and is almost standing! Braking!")
+                self._logger.debug("[TrafficLightBehavior]Vehicle passed the stop line and is almost standing! Braking!")
                 brake_at_yellow_light = True
                 self.inputs.force_stop = True
 
@@ -776,20 +776,20 @@ class YellowLightDecisionAction(TrafficLightBehavior):
             else:
                 # check if safe stop is performed
                 if self.inputs.force_stop:
-                    self._logger.debug("[SVEN]Force STOP!")
+                    self._logger.debug("[TrafficLightBehavior]Force STOP!")
                     brake_at_yellow_light = True
                 else:
                     # Continue driving
                     brake_at_yellow_light = False
-                    self._logger.debug("[SVEN]Vehicle passed the stop line and is moving. Continue driving!")
+                    self._logger.debug("[TrafficLightBehavior]Vehicle passed the stop line and is moving. Continue driving!")
         else:
             # Vehicle already passed the stop Line and overrun tolerance
             if self.inputs.force_stop:
-                self._logger.debug("[SVEN]Force STOP!")
+                self._logger.debug("[TrafficLightBehavior]Force STOP!")
                 brake_at_yellow_light = True
             else:
                 brake_at_yellow_light = False
-                self._logger.debug("[SVEN]Vehicle passed the stop line and is moving. Continue driving!")
+                self._logger.debug("[TrafficLightBehavior]Vehicle passed the stop line and is moving. Continue driving!")
 
         # Save the decision in the blackboard
         self.inputs.brake_at_yellow_light = brake_at_yellow_light
@@ -808,7 +808,7 @@ class YellowLightDecisionAction(TrafficLightBehavior):
         return Status.SUCCESS
         
     def terminate(self, new_status):
-        self._logger.debug("[SVEN]Terminating DecisionPointCalculationAction to " + str(new_status))
+        self._logger.debug("Terminating DecisionPointCalculationAction to " + str(new_status))
 
 
 class BrakeAtYellowLightCondition(TrafficLightBehavior):
@@ -842,7 +842,7 @@ class BrakeAtYellowLightCondition(TrafficLightBehavior):
             return Status.FAILURE
         
     def terminate(self, new_status):
-        self._logger.debug("[SVEN]Terminating DecisionPointAheadCondition to " + str(new_status))
+        self._logger.debug("Terminating BrakeAtYellowLightCondition to " + str(new_status))
 
 
 class ContinueDrivingAtYellowLightCondition(TrafficLightBehavior):
@@ -875,12 +875,7 @@ class ContinueDrivingAtYellowLightCondition(TrafficLightBehavior):
             return Status.FAILURE
         
     def terminate(self, new_status):
-        self._logger.debug("[SVEN]Terminating DecisionPointBehindCondition to " + str(new_status))
-
-        
-    def terminate(self, new_status):
-        self._logger.debug("[SVEN]Terminating EmergencyBrakingAction to " + str(new_status))
-
+        self._logger.debug("Terminating ContinueDrivingAtYellowLightCondition to " + str(new_status))
 
 class ContinueDrivingAction(TrafficLightBehavior):
     """
@@ -908,7 +903,7 @@ class ContinueDrivingAction(TrafficLightBehavior):
         return Status.SUCCESS
         
     def terminate(self, new_status):
-        self._logger.debug("[SVEN]Terminating ContinueDrivingAction to " + str(new_status))
+        self._logger.debug("Terminating ContinueDrivingAction to " + str(new_status))
 
 
 class BrakingAction(TrafficLightBehavior):
@@ -955,7 +950,7 @@ class BrakingAction(TrafficLightBehavior):
         return Status.SUCCESS
         
     def terminate(self, new_status):
-        self._logger.debug("[SVEN]Terminating BrakingAction to " + str(new_status))
+        self._logger.debug("Terminating BrakingAction to " + str(new_status))
     
 
 class PublishRVIZMarker(TrafficLightBehavior):
@@ -1097,7 +1092,7 @@ class PublishRVIZMarker(TrafficLightBehavior):
         return Status.SUCCESS
         
     def terminate(self, new_status):
-        self._logger.debug("[SVEN]Terminating PublishRVIZMarker to " + str(new_status))
+        self._logger.debug("Terminating PublishRVIZMarker to " + str(new_status))
 
 
 class ErrorHandlingAction(TrafficLightBehavior):
@@ -1206,4 +1201,4 @@ class ErrorHandlingAction(TrafficLightBehavior):
         return Status.SUCCESS
 
     def terminate(self, new_status):
-        self._logger.debug("[SVEN]Terminating ErrorHandlingAction to " + str(new_status))
+        self._logger.debug("Terminating ErrorHandlingAction to " + str(new_status))

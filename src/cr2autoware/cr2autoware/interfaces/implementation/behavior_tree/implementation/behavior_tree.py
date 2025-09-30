@@ -295,9 +295,6 @@ class BehaviorTree(BaseTree):
             self.outputs.d_max = self.blackboard.modules.lane_keeping.outputs.d_max
         else:
             self.outputs.d_max = None
-        
-        self.logger.debug(f"[SVEN]Updated d_min: {self.outputs.d_min}")
-        self.logger.debug(f"[SVEN]Updated d_max: {self.outputs.d_max}")
 
     def _update_scenario_params(self):
         """
@@ -309,8 +306,6 @@ class BehaviorTree(BaseTree):
             self.outputs.scenario_params = self.blackboard.modules.traffic_lights.outputs.scenario_params
         else:
             self.outputs.scenario_params = BehaviorScenarioParams()
-
-        self.logger.debug(f"[SVEN]Updated scenario params: {self.outputs.scenario_params}")
     
     def output_tree_in_log(self):
         """
