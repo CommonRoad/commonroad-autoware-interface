@@ -1,8 +1,7 @@
-# CommonRoad-Autoware Motion Planning Interface (CR2AW)
+# CommonRoad-Autoware Behavior and Motion Planning Interface
 
-This project builds an interface between [CommonRoad](https://commonroad.in.tum.de/) and [Autoware.Universe](https://github.com/autowarefoundation/autoware.universe).
-This enables to use various motion planners using the CommonRoad format within the Autoware software stack and rapidly transfer
-new algorithms from simulation to a real vehicle.
+This project builds an interface between [CommonRoad](https://commonroad.in.tum.de/) and [Autoware.Universe](https://github.com/autowarefoundation/autoware.universe) and expands the previous CR2AW package with behavior planning capabilities.
+CR2AW-2.0 enables enables the modeling, orchestration and sim-to-real transfer of high-level behavior using finite state machines from statecharts and low-level behavior using behavior trees.
 
 **CR2AW** is implemented as a ROS2 node which can be launched as a complete planning module within Autoware.
 This repository provides the source code, as well as the required launch and dependency files to run the CommonRoad planning
@@ -10,55 +9,7 @@ module in Autoware.
 
 <img src="docs/assets/readme_image.png" alt="real-sim-image" width="1200"/>
 
-## :bookmark_tabs: Table of Contents
 
-- [Table of Contents](#bookmark_tabs-table-of-contents)
-- [File structure](#file_folder-repository-structure)
-- [Requirements and Dependencies](#link-requirements-and-dependencies)
-- [Setup](#wrench-setup)
-- [Launch](#rocket-launch-and-usage)
-- [Documentation](#books-documentation)
-- [Development Guide](#hammer-development-guide)
-- [Authors](#busts_in_silhouette-authors)
-- [Citation](#speech_balloon-citation)
-
-## :file_folder: Repository structure
-
-Below, we provide a basic overview over the most important components of the  repository. 
-For a detailed explanation of the software architecture, please see our [paper](#speech_balloon-citation).
-
-```tree
-.
-├── cr2autoware/
-│   ├── cr2autoware.py                        # CR2AW interface ROS2 node
-│   ├── common
-│   │   ├── ros_interface/                    # ROS publisher/subscriber specifications
-│   │   └── utils/                            # utilities
-│   ├── handlers/                             # implementation of handler classes
-│   ├── interfaces/
-│   │   ├── base/                             # base interface classes 
-│   │   └── implementation/                   # implementation of interface classes
-│   │
-├── data                                      # directory to store sample CommonRoad map
-├── launch
-│   └── cr2autoware_node.launch.xml           # launch file for CR2AW node
-├── param
-│   ├── cr2autoware_param_file.param.yaml     # ROS param file for the CR2AW node
-│   └── edgar_rp_config.yaml                  # config parameters for the reactive planner
-├── scripts
-│   ├── lanelet2cr.py                         # conversion script for a Lanelet2 map to CR format
-│   └── cr2lanelet.py                         # conversion script for a CR map to Lanelet2 format
-│
-├── tum_commonroad_planning_launch/           # ROS launch package for the CommonRoad planning component
-│   ├── launch/                               # launch file
-│   ├── config/                               # ROS param files
-│
-├── tum.commonroad.planning.repos             # Dependencies pulled via VCS
-├── cr2autoware_install.sh                    # Setup bash sript for CR2AW node
-.
-```
-
-## :link: Requirements and Dependencies
 
 ### System requirements
 
@@ -184,40 +135,42 @@ We further assume that the `autoware/` directory is located in the home director
    where you replace `<YOUR_MAP_PATH>` accordingly.
 
 
-## :books: Documentation
-Please find a deployed version of the documentation [here](https://cps.pages.gitlab.lrz.de/dfg-car/).
 
-## :hammer: Development guide
-
-Please see our `README_FOR_DEVELOPERS.md` for some additional notes on how to use CR2AW for development purposes.
 
 ## :busts_in_silhouette: Authors
 
-**In alphabethic order by last name:**
+**Authors**: Tobias Mascetta, Gerald Würsching, Sven Plaumbaum
 
-**Maintainers**: Yuanfei Lin, Tobias Mascetta, Gerald Würsching
-
-**Contributors**: Hamza Begic, Hamza Ben Yaacoub, Aziz Bouziri, Andrii Chumak, Jan Franck, Till Grutschus, Koray Koca, Yuanfei Lin,
-              Tobias Mascetta, Kaian Ni, Wei-Lin Pai, Sven Pflaumbaum, Florian Weiser, Gerald Würsching, Yashuai Yan, Alexander Zimmer
 
 
 ## :speech_balloon: Citation
-**If you use our code for research, please cite our [paper](https://mediatum.ub.tum.de/doc/1740269/h9fhalm4tfqbb9abjpd33gwpc.pdf):**
+**If you use our code for research, please cite our [paper](https://mediatum.ub.tum.de/doc/1851611/97iow5w5pms59se4jky1tqd0z.pdf):**
 
 ```
-@inproceedings{Wuersching2024b
-  author = {Würsching, Gerald and Mascetta, Tobias and Lin, Yuanfei and Althoff, Matthias},
-  title = {Simplifying Sim-to-Real Transfer in Autonomous Driving: Coupling Autoware with the CommonRoad Motion Planning Framework},
-  booktitle = {Proc. of the IEEE Intelligent Vehicles Symposium},
-  year={2024},
+@inproceedings{mascetta2026
+  author = {Mascetta, Tobias and Würsching, Gerald and Plfaumbaum, Sven and Althoff, Matthias},
+  title = {CommonRoad-to-Autoware 2.0: Simplifying Sim-to-Real Transfer of Behavior Planning in Autonomous Driving},
+  booktitle = {IEEE Intelligent Vehicles Symposium Workshop Proceedings},
+  year={2026},
   pages = {tbd},
-  abstract = {Validating motion planning algorithms for autonomous vehicles on a real system is essential to improve their safety in 
-              the real world. Open-source initiatives, such as Autoware, provide a deployable software stack for real vehicles. 
-              However, such driving stacks have a high entry barrier, so that integrating new algorithms is tedious. Especially new 
-              research results are thus mostly evaluated only in simulation, e.g., within the CommonRoad benchmark suite. To address 
-              this problem, we present CR2AW, a publicly available interface between the CommonRoad framework and Autoware. CR2AW 
-              significantly simplifies the sim-to-real transfer of motion planning research, by allowing users to easily integrate 
-              their CommonRoad planning modules into Autoware. Our experiments both in simulation and on our research vehicle showcase 
-              the usefulness of CR2AW.},
+  abstract = {Implementing, orchestrating, and validating behavior planning algorithms on real vehicles is crucial for real-world autonomous driving. While open-source stacks, such as
+Autoware, enable real-world deployment, their complexity makes
+integrating new methods difficult. As a result, many novel
+approaches are evaluated only in simulation, for example using
+the CommonRoad benchmark suite. Our previous work CR2AW
+– a publicly available interface between the CommonRoad
+framework and Autoware – already significantly simplifies the
+sim-to-real transfer of motion planning research. In this paper,
+we present CR2AW-2.01, which extends the capabilities of our
+previous work to the behavior planning layer, enabling a holistic
+sim-to-real transfer across the entire planning stack. Motivated
+by practical concerns, our architecture combines a finite state
+machine for managing components of the planning stack with
+a behavior tree for structured low-level decision-making. We
+showcase CR2AW-2.0 by implementing four behaviors: reacting
+to traffic lights, adjusting the velocity in narrow situations, lane
+keeping, and decelerating into standstill during a system failure.
+Our experiments both in simulation and on our research vehicle
+showcase the usefulness of CR2AW-2.0.},
 }
 ```
