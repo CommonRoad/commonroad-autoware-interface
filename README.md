@@ -1,3 +1,6 @@
+### New Version released!
+Our new version _cr2aw-2.0_ for behavior modeling and orchestration is available in this repository under the branch **cr2aw-2.0.**
+
 # CommonRoad-Autoware Motion Planning Interface (CR2AW)
 
 This project builds an interface between [CommonRoad](https://commonroad.in.tum.de/) and [Autoware.Universe](https://github.com/autowarefoundation/autoware.universe).
