@@ -13,21 +13,15 @@ module in Autoware.
 
 ### System requirements
 
-**CR2AW** runs together with Autoware: the minimum system requirements for running Autoware are described 
+**CR2AW-2.0** runs together with Autoware: the minimum system requirements for running Autoware are described 
 [here](https://autowarefoundation.github.io/autoware-documentation/main/installation/).
 We recommend running Autoware within a dockerized setup.
 
 ### Dependencies
 
-#### Autoware
-
-**CR2AW was tested with Autoware.Universe version with release tag v1.0, which is accessible [here](https://github.com/autowarefoundation/autoware.universe/tree/v1.0).**
-
-_Note: Updates to newer  Autoware releases will follow regularly._
-
 
 #### CommonRoad
-The pip dependencies of CR2AW are listed in the requirements file `requirements.txt`.
+The pip dependencies of CR2AW-2.0 are listed in the requirements file `requirements.txt`.
 
 The following CommonRoad dependencies are pulled from GitHub. They are included in the `tum.commonroad.planning.repos`
 file and are pulled via VCS (see [Setup](#wrench-setup)).
@@ -44,10 +38,10 @@ To setup Autoware, we recommend using the [Docker Installation Setup](https://au
 which is described in detail on the Autoware Documentation page. Our interface can be directly integrated into the setup procedure.
 
 Following the Docker Installation Setup there are two setup options for Autoware: using **pre-built Docker images** or **building the Docker image from scratch**.
-You can use both options for CR2AW, simply make sure to use the Autoware release tag mentioned above (see [here](https://autowarefoundation.github.io/autoware-documentation/main/installation/autoware/docker-installation/#using-docker-images-other-than-latest))
+You can use both options for CR2AW-2.0, simply make sure to use the Autoware release tag mentioned above (see [here](https://autowarefoundation.github.io/autoware-documentation/main/installation/autoware/docker-installation/#using-docker-images-other-than-latest))
 and use images with the `devel` tag.
 
-After setting up a working Autoware Docker on your machine, you need to run the following steps to include CR2AW within your Docker container:
+After setting up a working Autoware Docker on your machine, you need to run the following steps to include CR2AW-2.0 within your Docker container:
 1. Go to `autoware` root directory: `cd autoware/`
 2. Copy the file: `tum.commonroad.planning.repos` into `autoware/`
 3. Pull dependencies via vcs
@@ -58,12 +52,12 @@ After setting up a working Autoware Docker on your machine, you need to run the 
    ```shell
    cd src/universe/autoware.universe/planning/tum_commonroad_planning/commonroad-autoware-interface/
    ```
-5. Run setup bash script for CR2AW. This installs all CommonRoad-related dependencies
+5. Run setup bash script for CR2AW-2.0. This installs all CommonRoad-related dependencies
     ```shell
    ./cr2autoware_install.sh
    ```
 6. Go back to `autoware` root directory
-7. Build the ROS packages for CR2AW and for the CommonRoad planning module launch via `colcon`
+7. Build the ROS packages for CR2AW-2.0 and for the CommonRoad planning module launch via `colcon`
    ```shell
    colcon build --symlink-install --packages-select cr2autoware tum_planning_launch
    ```
@@ -77,18 +71,18 @@ individual modules run in their own docker containers, please refer to `README_F
 
 ## :rocket: Launch and Usage
 
-The **CR2AW** interface integrates into the standard launch procedure of Autoware and has been tested both
+The **CR2AW-2.0** interface integrates into the standard launch procedure of Autoware and has been tested both
 with the _Planning Simulation_ of Autoware and on our real vehicle [EDGAR](https://arxiv.org/pdf/2309.15492).
-Here we only describe how to launch **CR2AW** with Autoware's _Planning Simulation_.
+Here we only describe how to launch **CR2AW-2.0** with Autoware's _Planning Simulation_.
 
 A tutorial on how to use the _Planning Simulation_ of Autoware is provided [here](https://autowarefoundation.github.io/autoware-documentation/main/tutorials/ad-hoc-simulation/planning-simulation/#placing-dummy-objects).
 Please make sure that you have gone through this tutorial beforehand.
 
-To replace the standard Autoware planning module by **CR2AW**, the following steps should be performed.
+To replace the standard Autoware planning module by **CR2AW-2.0**, the following steps should be performed.
 
 ### Map conversion
 Autoware requires an HD map in the _Lanelet2_ format (see [here](https://autowarefoundation.github.io/autoware-documentation/main/tutorials/ad-hoc-simulation/planning-simulation/#want-to-try-autoware-with-your-custom-map)).
-For **CR2AW**, we require the map in the _CommonRoad_ format. Thus, we use the Lanelet2-CommonRoad map conversion from 
+For **CR2AW-2.0**, we require the map in the _CommonRoad_ format. Thus, we use the Lanelet2-CommonRoad map conversion from 
 the [CommonRoad-Scenario-Designer](https://commonroad.in.tum.de/tools/scenario-designer). 
 We provide a script for the map conversion in `./src/cr2autoware/scripts/lanelet2cr.py`
 
@@ -128,7 +122,7 @@ We further assume that the `autoware/` directory is located in the home director
    ```
    where you replace `<YOUR_MAP_PATH>` accordingly. 
 
-3. Launch the CommonRoad planning module and CR2AW:
+3. Launch the CommonRoad planning module and CR2AW-2.0:
    ```shell
    ros2 launch tum_planning_launch tum_planning_component.launch.xml map_path:=<YOUR_MAP_PATH> vehicle_model:=sample_vehicle
    ```
