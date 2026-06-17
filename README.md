@@ -1,16 +1,35 @@
 # CommonRoad-Autoware Behavior and Motion Planning Interface
 
 This project builds an interface between [CommonRoad](https://commonroad.in.tum.de/) and [Autoware.Universe](https://github.com/autowarefoundation/autoware.universe) and expands the previous CR2AW package with behavior planning capabilities.
-CR2AW-2.0 enables enables the modeling, orchestration and sim-to-real transfer of high-level behavior using finite state machines from statecharts and low-level behavior using behavior trees.
+
 
 **CR2AW** is implemented as a ROS2 node which can be launched as a complete planning module within Autoware.
 This repository provides the source code, as well as the required launch and dependency files to run the CommonRoad planning
 module in Autoware.
 
-<img src="docs/assets/readme_image.png" alt="real-sim-image" width="1200"/>
+<img src="docs/assets/cr2aw20_testdrives.png" alt="Testdrive" width="1200"/>
 
 
+## Overview
+CR2AW-2.0 enables enables the modeling, orchestration and sim-to-real transfer of high-level behavior using finite state machines from statecharts and low-level behavior using behavior trees.  
 
+#### Concept
+<img src="docs/assets/cr2aw20_overview.png" alt="Testdrive" width="1200"/>  
+
+
+#### Statechart and FSM
+<img src="docs/assets/cr2aw20_fsm.png" alt="Testdrive" width="1200"/>  
+
+
+#### Behavior tree
+<img src="docs/assets/cr2aw20_bt.png" alt="Testdrive" width="1200"/>
+
+
+##### Implenmendet behaviors
+We implemented behaviors for braking on system failure, pass-or-stop decisions at traffic lights, velocity reduction in narrow situations and lane keeping (for sampling-based planners) near intersections.
+
+
+## Usage
 ### System requirements
 
 **CR2AW-2.0** runs together with Autoware: the minimum system requirements for running Autoware are described 
