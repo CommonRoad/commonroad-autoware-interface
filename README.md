@@ -153,24 +153,5 @@ We further assume that the `autoware/` directory is located in the home director
   booktitle = {IEEE Intelligent Vehicles Symposium Workshop Proceedings},
   year={2026},
   pages = {tbd},
-  abstract = {Implementing, orchestrating, and validating behavior planning algorithms on real vehicles is crucial for real-world autonomous driving. While open-source stacks, such as
-Autoware, enable real-world deployment, their complexity makes
-integrating new methods difficult. As a result, many novel
-approaches are evaluated only in simulation, for example using
-the CommonRoad benchmark suite. Our previous work CR2AW
-– a publicly available interface between the CommonRoad
-framework and Autoware – already significantly simplifies the
-sim-to-real transfer of motion planning research. In this paper,
-we present CR2AW-2.01, which extends the capabilities of our
-previous work to the behavior planning layer, enabling a holistic
-sim-to-real transfer across the entire planning stack. Motivated
-by practical concerns, our architecture combines a finite state
-machine for managing components of the planning stack with
-a behavior tree for structured low-level decision-making. We
-showcase CR2AW-2.0 by implementing four behaviors: reacting
-to traffic lights, adjusting the velocity in narrow situations, lane
-keeping, and decelerating into standstill during a system failure.
-Our experiments both in simulation and on our research vehicle
-showcase the usefulness of CR2AW-2.0.},
 }
 ```
